@@ -1,0 +1,20 @@
+---
+Path: public
+Name: My Website
+Description: It's really great!
+Sources:
+  - Path: about
+    Name: About Me
+    Templates:
+      - Source: templates/default
+        Config: templates/default/template-extra.yaml
+    Source: source/about
+# - Path: example
+#   Name: Example
+#   Templates:
+#     - Path:   templates/default
+#       Config: templates/default-extra.yaml
+#   Remote: https://example.com/example/example.git
+#   Source: source/example
+#   Force: true
+...

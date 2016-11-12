@@ -1,0 +1,20 @@
+---
+# Additonal template configuration here
+#
+#Template:
+#  # Override the base partial, removing it
+#  # Useful when embedding into another page
+#  Partials:
+#    Base: ""
+#  # Filter assets by regex
+#  Filters:
+#    # Remove fonts and stylesheets containing opensans
+#    - Regex: /opensans/d
+#      Assets:
+#        - Fonts
+#        - Styles
+#    # Change scripts path
+#    - Regex: s|assets/js/|../assets/scripts/|
+#      Assets:
+#        - Scripts
+...

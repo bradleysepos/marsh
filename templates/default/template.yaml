@@ -1,0 +1,30 @@
+---
+Template:
+  Name:         Marsh Default
+  Version:      1.0.0
+  URL:          https://github.com/bradleysepos/marsh
+  Copyright:    2016 Bradley Sepos
+  License:      Multiple
+  License_URL:  http://github.com/bradleysepos/marsh/templates/default/LICENSE
+  Partials:
+    Base:     partials/base.html
+    Body:     partials/body.html
+    Archive:  partials/archive.html
+    Document: partials/document.html
+    Header:   partials/header.html
+    Footer:   partials/footer.html
+    Nav:      partials/nav.html
+    Redirect: partials/redirect.html
+    Feed_Body:     partials/feed/body.xml
+    Feed_Document: partials/feed/document.xml
+  Assets:
+    Fonts:
+    Styles:
+    Scripts:
+    Images:
+    Audio:
+    Video:
+    Documents:
+    Binaries:
+    Other:
+...

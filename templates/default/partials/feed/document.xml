@@ -1,0 +1,15 @@
+    <entry>
+        <id>{{ document.uri }}</id>
+        <link rel="alternate" href="{{ document.uri }}" />
+        <published>{{ document.date | date:rfc3339 }}</published>
+        <updated>{{ document.date | date:rfc3339 }}</updated>
+        <rights>Copyright {{ document.copyright }}</rights>
+        <title>{{ document.title }}</title>
+        <author>
+            <name>{{ document.authors }}</name>
+        </author>
+        <summary>{{ document | excerpt:100:1 }}</summary>
+        <content type="html">
+            {{ document | escape:html }}
+        </content>
+    </entry>

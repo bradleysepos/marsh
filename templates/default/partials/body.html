@@ -1,0 +1,11 @@
+<section class="{{ document.type }}" lang="{{ document.language-code }}">
+    {{ template.styles }}
+    {{ template.header }}
+    {% if document.type contains "archive" %}
+        {{ template.archive }}
+    {% else %}
+        {{ template.document }}
+    {% endif %}
+    {{ template.footer }}
+    {{ template.scripts }}
+</section><!-- end section.{{ document.type }} -->

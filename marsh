@@ -2109,7 +2109,7 @@ if [[ "${COMMAND}" == "build" ]]; then
     trap "die_gracefully" EXIT INT TERM
 
     # build everything
-    echo "${CONFIG_Build_Namex:-No Name} (${MARSH_CONFIG_FILE#$SELF_DIR/})"
+    echo "${CONFIG_Build_Name:-No Name} (${MARSH_CONFIG_FILE#$SELF_DIR/})"
     echo "${CONFIG_Build_Path%/} -> ${CONFIG_Build_URL%/}"
 
     # build

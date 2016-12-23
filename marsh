@@ -1057,7 +1057,7 @@ function build_template {  # build_template dest_dir target_dir document templat
         echo "${DEST_ARRAY}=()"
         SOURCE_ARRAY="${SOURCE_ARRAY}[@]"
         for ITEM in "${!SOURCE_ARRAY}"; do
-            ITEM=$(echo "${ITEM}" | sed -E -e 's/[ ]+<[^>]+>//g' -e 's/[ ]/\\\&nbsp\\\;/g')
+            ITEM=$(echo "${ITEM}" | sed -E -e 's/[ ]+<[^>]+>//g' -e 's/[ ]/\&nbsp\;/g')
             echo "${DEST_ARRAY}+=(\"${ITEM}\")"
         done
         return 0

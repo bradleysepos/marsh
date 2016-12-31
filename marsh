@@ -2033,7 +2033,7 @@ fi
 GIT="git"
 MD5="md5sum"
 [[ "$(uname | awk '{ print tolower($0) }')" == "darwin" ]] && MD5="md5"
-if [[ "${MARKDOWN#\/}" == "${MARKDOWN}" ]]; then
+if [[ "${MARKDOWN}" != "" ]] && [[ "${MARKDOWN#\/}" == "${MARKDOWN}" ]]; then
     MARKDOWN="${SELF_DIR}/${MARKDOWN}"
 fi
 MARKDOWN="${MARKDOWN:-markdown}"

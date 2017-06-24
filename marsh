@@ -1348,7 +1348,6 @@ function build_template {  # build_template dest_dir target_dir document templat
                 PARTIALS[$J]="${TEMPLATE_TEMP}"
                 # process
                 process_conditionals "${PARTIALS[$J]}" "document.state" "contains" "${DOCUMENT_State[@]}"
-                process_conditionals "${PARTIALS[$J]}" "document.type" "contains" "${DOCUMENT_Type[@]}"
                 # remove remaining conditionals
                 clean_conditionals "${PARTIALS[$J]}"
             fi

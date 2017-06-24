@@ -559,14 +559,15 @@ function parse_template_metadata {  # parse_template_metadata prefix template_di
     # print partials paths relative to template dir
     [[ "${MARSH_TEMPLATE_Template_Partials_Base:-}"     != "" ]] && echo "${PREFIX}Template_Partials_Base=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Base//\"/\\\"}\""
     [[ "${MARSH_TEMPLATE_Template_Partials_Body:-}"     != "" ]] && echo "${PREFIX}Template_Partials_Body=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Body//\"/\\\"}\""
-    [[ "${MARSH_TEMPLATE_Template_Partials_Archive:-}"  != "" ]] && echo "${PREFIX}Template_Partials_Archive=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Archive//\"/\\\"}\""
     [[ "${MARSH_TEMPLATE_Template_Partials_Document:-}" != "" ]] && echo "${PREFIX}Template_Partials_Document=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Document//\"/\\\"}\""
     [[ "${MARSH_TEMPLATE_Template_Partials_Header:-}"   != "" ]] && echo "${PREFIX}Template_Partials_Header=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Header//\"/\\\"}\""
     [[ "${MARSH_TEMPLATE_Template_Partials_Nav:-}"      != "" ]] && echo "${PREFIX}Template_Partials_Nav=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Nav//\"/\\\"}\""
     [[ "${MARSH_TEMPLATE_Template_Partials_Footer:-}"   != "" ]] && echo "${PREFIX}Template_Partials_Footer=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Footer//\"/\\\"}\""
     [[ "${MARSH_TEMPLATE_Template_Partials_Redirect:-}" != "" ]] && echo "${PREFIX}Template_Partials_Redirect=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Redirect//\"/\\\"}\""
-    [[ "${MARSH_TEMPLATE_Template_Partials_Feed_Body:-}"   != "" ]] && echo "${PREFIX}Template_Partials_Feed_Body=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Feed_Body//\"/\\\"}\""
-    [[ "${MARSH_TEMPLATE_Template_Partials_Feed_Document:-}" != "" ]] && echo "${PREFIX}Template_Partials_Feed_Document=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Feed_Document//\"/\\\"}\""
+    [[ "${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Body:-}"     != "" ]] && echo "${PREFIX}Template_Partials_Archive_HTML_Body=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Body//\"/\\\"}\""
+    [[ "${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Document:-}" != "" ]] && echo "${PREFIX}Template_Partials_Archive_HTML_Document=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Document//\"/\\\"}\""
+    [[ "${MARSH_TEMPLATE_Template_Partials_Archive_Atom_Body:-}"     != "" ]] && echo "${PREFIX}Template_Partials_Archive_Atom_Body=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Archive_Atom_Body//\"/\\\"}\""
+    [[ "${MARSH_TEMPLATE_Template_Partials_Archive_Atom_Document:-}" != "" ]] && echo "${PREFIX}Template_Partials_Archive_Atom_Document=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Archive_Atom_Document//\"/\\\"}\""
 
     # assets
     ASSET_TYPES=('Fonts' 'Styles' 'Scripts' 'Images' 'Audio' 'Video' 'Documents' 'Binaries' 'Other')
@@ -670,8 +671,7 @@ function get_target_metadata {  # get_target_metadata source_prefix prefix
     local SOURCE_PREFIX PREFIX
     local TARGET_PATH TARGET_NAME TEMPLATE_SOURCE TARGET_TYPE TEMPLATE_REMOTE TARGET_FORCE TEMPLATE_FETCH TARGET_NAV
     local II TEMPLATE_SOURCE TEMPLATE_REMOTE TEMPLATE_FETCH TEMPLATE_CONFIG
-    local FEED FEED_NAME FEED_COUNT FEED_CONTENT FEED_TYPES FEED_EXCLUDED_STATES
-    local ARCHIVE ARCHIVE_NAME ARCHIVE_COUNT ARCHIVE_CONTENT ARCHIVE_TYPES ARCHIVE_EXCLUDED_STATES
+    local ARCHIVE ARCHIVE_NAME ARCHIVE_ENCODING ARCHIVE_COUNT ARCHIVE_CONTENT ARCHIVE_TYPES ARCHIVE_EXCLUDED_STATES
 
     # init
     SOURCE_PREFIX="${1:-}"
@@ -724,36 +724,9 @@ function get_target_metadata {  # get_target_metadata source_prefix prefix
         TEMPLATE_CONFIG="${SOURCE_PREFIX}Templates_${II}_Config"
     done
 
-    # feeds
-    echo "${PREFIX}FEEDS=()"
-    echo "${PREFIX}FEEDS_NAME=()"
-    echo "${PREFIX}FEEDS_COUNT=()"
-    echo "${PREFIX}FEEDS_CONTENT=()"
-    echo "${PREFIX}FEEDS_TYPES=()"
-    echo "${PREFIX}FEEDS_EXCLUDED_STATES=()"
-    II=0
-    FEED="${SOURCE_PREFIX}Feeds_${II}_Path"
-    FEED_NAME="${SOURCE_PREFIX}Feeds_${II}_Name"
-    FEED_COUNT="${SOURCE_PREFIX}Feeds_${II}_Count"
-    FEED_CONTENT="${SOURCE_PREFIX}Feeds_${II}_Content"
-    while [[ "${!FEED:-}" != "" ]]; do
-        echo "${PREFIX}FEEDS+=(\"${!FEED//\"/\\\"}\")"
-        echo "${PREFIX}FEEDS_NAME+=(\"${!FEED_NAME//\"/\\\"}\")"
-        echo "${PREFIX}FEEDS_COUNT+=(\"${!FEEDS_COUNT//\"/\\\"}\")"
-        echo "${PREFIX}FEEDS_CONTENT+=(\"${!FEEDS_CONTENT//\"/\\\"}\")"
-        eval $(flat_to_array "FEED_TYPES" "${SOURCE_PREFIX}Feeds_${II}_Types_")
-        OIFS="${IFS}"; IFS=$(echo @|tr @ '\034'); echo "${PREFIX}FEEDS_TYPES+=(\"${FEED_TYPES[*]//\"/\\\"}\")"; IFS="${OIFS}"
-        eval $(flat_to_array "FEED_EXCLUDED_STATES" "${SOURCE_PREFIX}Feeds_${II}_Exclude_")
-        OIFS="${IFS}"; IFS=$(echo @|tr @ '\034'); echo "${PREFIX}FEEDS_EXCLUDED_STATES+=(\"${FEED_EXCLUDED_STATES[*]//\"/\\\"}\")"; IFS="${OIFS}"
-        II=$((II+1))
-        FEED="${SOURCE_PREFIX}Feeds_${II}_Path"
-        FEED_NAME="${SOURCE_PREFIX}Feeds_${II}_Name"
-        FEEDS_COUNT="${SOURCE_PREFIX}Feeds_${II}_Count"
-        FEEDS_CONTENT="${SOURCE_PREFIX}Feeds_${II}_Content"
-    done
-
     # archives
     echo "${PREFIX}ARCHIVES=()"
+    echo "${PREFIX}ARCHIVES_ENCODING=()"
     echo "${PREFIX}ARCHIVES_NAME=()"
     echo "${PREFIX}ARCHIVES_COUNT=()"
     echo "${PREFIX}ARCHIVES_CONTENT=()"
@@ -761,23 +734,26 @@ function get_target_metadata {  # get_target_metadata source_prefix prefix
     echo "${PREFIX}ARCHIVES_EXCLUDED_STATES=()"
     II=0
     ARCHIVE="${SOURCE_PREFIX}Archives_${II}_Path"
+    ARCHIVE_ENCODING="${SOURCE_PREFIX}Archives_${II}_Encoding"
     ARCHIVE_NAME="${SOURCE_PREFIX}Archives_${II}_Name"
     ARCHIVE_COUNT="${SOURCE_PREFIX}Archives_${II}_Count"
     ARCHIVE_CONTENT="${SOURCE_PREFIX}Archives_${II}_Content"
     while [[ "${!ARCHIVE:-}" != "" ]]; do
         echo "${PREFIX}ARCHIVES+=(\"${!ARCHIVE//\"/\\\"}\")"
+        echo "${PREFIX}ARCHIVES_ENCODING+=(\"${!ARCHIVE_ENCODING//\"/\\\"}\")"
         echo "${PREFIX}ARCHIVES_NAME+=(\"${!ARCHIVE_NAME//\"/\\\"}\")"
-        echo "${PREFIX}ARCHIVES_COUNT+=(\"${!ARCHIVES_COUNT//\"/\\\"}\")"
-        echo "${PREFIX}ARCHIVES_CONTENT+=(\"${!ARCHIVES_CONTENT//\"/\\\"}\")"
+        echo "${PREFIX}ARCHIVES_COUNT+=(\"${!ARCHIVE_COUNT//\"/\\\"}\")"
+        echo "${PREFIX}ARCHIVES_CONTENT+=(\"${!ARCHIVE_CONTENT//\"/\\\"}\")"
         eval $(flat_to_array "ARCHIVE_TYPES" "${SOURCE_PREFIX}Archives_${II}_Types_")
         OIFS="${IFS}"; IFS=$(echo @|tr @ '\034'); echo "${PREFIX}ARCHIVES_TYPES+=(\"${ARCHIVE_TYPES[*]//\"/\\\"}\")"; IFS="${OIFS}"
         eval $(flat_to_array "ARCHIVE_EXCLUDED_STATES" "${SOURCE_PREFIX}Archives_${II}_Exclude_")
         OIFS="${IFS}"; IFS=$(echo @|tr @ '\034'); echo "${PREFIX}ARCHIVES_EXCLUDED_STATES+=(\"${ARCHIVE_EXCLUDED_STATES[*]//\"/\\\"}\")"; IFS="${OIFS}"
         II=$((II+1))
         ARCHIVE="${SOURCE_PREFIX}Archives_${II}_Path"
+        ARCHIVE_ENCODING="${SOURCE_PREFIX}Archives_${II}_Encoding"
         ARCHIVE_NAME="${SOURCE_PREFIX}Archives_${II}_Name"
-        ARCHIVES_COUNT="${SOURCE_PREFIX}Archives_${II}_Count"
-        ARCHIVES_CONTENT="${SOURCE_PREFIX}Archives_${II}_Content"
+        ARCHIVE_COUNT="${SOURCE_PREFIX}Archives_${II}_Count"
+        ARCHIVE_CONTENT="${SOURCE_PREFIX}Archives_${II}_Content"
     done
 
     return 0
@@ -890,17 +866,14 @@ function get_files {  # get_files source dest force fetch uri
     fi
 }
 
-# builds an index of directory contents, sorted by descending date
-function build_index {  # build_index index_type target_dir dest_file dest_title content_length count #types[@] types[@] #excluded_states[@] excluded_states[@]
-    local INDEX_TYPE TARGET_DIR DEST DEST_SUB_PREFIX DEST_TITLE CONTENT COUNT NUM_TYPES TYPES NUM_EXCLUDED_STATES EXCLUDED_STATES
+# builds an archive of directory contents, sorted by descending date
+function build_archive {  # build_archive encoding target_dir dest_file dest_title content_length count #types[@] types[@] #excluded_states[@] excluded_states[@]
+    local ENCODING TARGET_DIR DEST DEST_SUB_PREFIX DEST_TITLE CONTENT COUNT NUM_TYPES TYPES NUM_EXCLUDED_STATES EXCLUDED_STATES
     local VALID DOCUMENTS DOCUMENTS_MAX DOCUMENT_META_PREFIX DOCUMENT_META DOCUMENT_META_VARS
-    local DOCUMENT TITLE DATE DATE_PRETTY LANGCODE ENCODING STATE EXCLUDE DEST_SUB URI ABSPATH
+    local DOCUMENT TITLE DATE DATE_PRETTY LANGCODE STATE EXCLUDE DEST_SUB URI ABSPATH
 
     # init
-    INDEX_TYPE="${1:-}"
-    if [[ "${INDEX_TYPE}" != "archive" ]] && [[ "${INDEX_TYPE}" != "feed" ]]; then
-        return 1
-    fi
+    ENCODING="${1:-html}"
     shift 1
     TARGET_DIR="${1:-}"; [[ "${TARGET_DIR}" == "" ]] && return 1
     DEST="${2:-}";       [[ "${DEST}" == "" ]] && return 1
@@ -937,14 +910,18 @@ function build_index {  # build_index index_type target_dir dest_file dest_title
 
     # write yaml header
     echo "---" > "${DEST}" 2>/dev/null || return 1
-    echo "Type: ${INDEX_TYPE}" >> "${DEST}"
+    if [[ "${ENCODING}" == "html" ]]; then
+        echo "Type: archive" >> "${DEST}"
+    else
+        echo "Type: archive-${ENCODING}" >> "${DEST}"
+    fi
     echo "Date: $(date -u '+%Y-%m-%d %H:%M:%S')" >> "${DEST}"
     echo "Title: ${DEST_TITLE}" >> "${DEST}"
     echo "Language: English" >> "${DEST}"
     echo "Language_Code: en" >> "${DEST}"
     echo "---" >> "${DEST}"
     echo "" >> "${DEST}"
-    if [[ "${INDEX_TYPE}" == "archive" ]]; then
+    if [[ "${ENCODING}" == "html" ]]; then
         echo "# ${DEST_TITLE}" >> "${DEST}"
         echo "" >> "${DEST}"
     fi
@@ -965,8 +942,8 @@ function build_index {  # build_index index_type target_dir dest_file dest_title
         eval "${DOCUMENT_META}"
         TYPE="${DOCUMENT_META_PREFIX}Type"
         TYPE="${!TYPE:-}"
-        if [[ "${TYPE}" == "archive" ]] || [[ "${TYPE}" == "feed" ]]; then
-            # archives and feeds are skipped by default
+        if [[ "${TYPE%%-*}" == "archive" ]]; then
+            # archives are skipped by default
             continue
         fi
         if [[ "${#TYPES[@]}" -gt 0 ]] && ! in_array "${TYPE}" "${TYPES[@]}"; then
@@ -1305,9 +1282,7 @@ function build_template {  # build_template dest_dir target_dir document templat
 
     # verbosity
     # seems logical to put this elsewhere, but this is a good catch-all for now
-    if [[ ! -e "${DEST}" ]]; then
-        echo "  ${DEST#$DEST_DIR/}"
-    fi
+    echo "  ${DEST#$DEST_DIR/}"
 
     # document
     DOCUMENT_CONTENT="${DOCUMENT}.${MARSH_UID}.document"
@@ -1361,7 +1336,7 @@ function build_template {  # build_template dest_dir target_dir document templat
         eval "${TEMPLATE_META}"
 
         # partials
-        PARTIALS=("${TEMPLATE_Template_Partials_Redirect:-}" "${TEMPLATE_Template_Partials_Base:-}" "${TEMPLATE_Template_Partials_Body:-}" "${TEMPLATE_Template_Partials_Archive:-}" "${TEMPLATE_Template_Partials_Document:-}" "${TEMPLATE_Template_Partials_Header:-}" "${TEMPLATE_Template_Partials_Footer:-}" "${TEMPLATE_Template_Partials_Nav:-}")
+        PARTIALS=("${TEMPLATE_Template_Partials_Redirect:-}" "${TEMPLATE_Template_Partials_Base:-}" "${TEMPLATE_Template_Partials_Body:-}" "${TEMPLATE_Template_Partials_Document:-}" "${TEMPLATE_Template_Partials_Header:-}" "${TEMPLATE_Template_Partials_Footer:-}" "${TEMPLATE_Template_Partials_Nav:-}" "${TEMPLATE_Template_Partials_Archive_HTML_Body:-}" "${TEMPLATE_Template_Partials_Archive_HTML_Document:-}")
         # conditionals
         for J in "${!PARTIALS[@]}"; do
             [[ "${PARTIALS[$J]}" == "" ]] && continue
@@ -1381,28 +1356,38 @@ function build_template {  # build_template dest_dir target_dir document templat
         TEMPLATE_Template_Partials_Redirect="${PARTIALS[0]:-}"
         TEMPLATE_Template_Partials_Base="${PARTIALS[1]:-}"
         TEMPLATE_Template_Partials_Body="${PARTIALS[2]:-}"
-        TEMPLATE_Template_Partials_Archive="${PARTIALS[3]:-}"
-        TEMPLATE_Template_Partials_Document="${PARTIALS[4]:-}"
-        TEMPLATE_Template_Partials_Header="${PARTIALS[5]:-}"
-        TEMPLATE_Template_Partials_Footer="${PARTIALS[6]:-}"
-        TEMPLATE_Template_Partials_Nav="${PARTIALS[7]:-}"
-        TEMPLATE_Template_Partials_Feed_Body="${TEMPLATE_Template_Partials_Feed_Body:-}"
-        TEMPLATE_Template_Partials_Feed_Document="${TEMPLATE_Template_Partials_Feed_Document:-}"
+        TEMPLATE_Template_Partials_Document="${PARTIALS[3]:-}"
+        TEMPLATE_Template_Partials_Header="${PARTIALS[4]:-}"
+        TEMPLATE_Template_Partials_Footer="${PARTIALS[5]:-}"
+        TEMPLATE_Template_Partials_Nav="${PARTIALS[6]:-}"
+        TEMPLATE_Template_Partials_Archive_HTML_Body="${PARTIALS[7]:-}"
+        TEMPLATE_Template_Partials_Archive_HTML_Document="${PARTIALS[8]:-}"
+        TEMPLATE_Template_Partials_Archive_Atom_Body="${TEMPLATE_Template_Partials_Archive_Atom_Body:-}"
+        TEMPLATE_Template_Partials_Archive_Atom_Document="${TEMPLATE_Template_Partials_Archive_Atom_Document:-}"
 
-        if [[ "${DOCUMENT_Type}" == "feed" ]]; then
-            if [[ "${TEMPLATE_Template_Partials_Feed_Body:-}" != "" ]]; then
-                cp "${TEMPLATE_Template_Partials_Feed_Body}" "${DEST}"
+        if [[ "${DOCUMENT_Type}" == "archive-atom" ]]; then
+            if [[ "${TEMPLATE_Template_Partials_Archive_Atom_Body:-}" != "" ]]; then
+                cp "${TEMPLATE_Template_Partials_Archive_Atom_Body}" "${DEST}"
             else
                 continue
             fi
         else
             # body template
             if [[ ! -e "${DEST}" ]]; then
-                if [[ "${TEMPLATE_Template_Partials_Body}" != "" ]]; then
-                    cp "${TEMPLATE_Template_Partials_Body}" "${DEST}"
+                if [[ "${DOCUMENT_Type}" == "archive" ]]; then
+                    if [[ "${TEMPLATE_Template_Partials_Archive_HTML_Body:-}" != "" ]]; then
+                        cp "${TEMPLATE_Template_Partials_Archive_HTML_Body}" "${DEST}"
+                    else
+                        echo "HTML archive body partial not found for primary template: ${TEMPLATE}" >&2
+                        return 1
+                    fi
                 else
-                    echo "Body partial not found for primary template: ${TEMPLATE}" >&2
-                    return 1
+                    if [[ "${TEMPLATE_Template_Partials_Body}" != "" ]]; then
+                        cp "${TEMPLATE_Template_Partials_Body}" "${DEST}"
+                    else
+                        echo "Body partial not found for primary template: ${TEMPLATE}" >&2
+                        return 1
+                    fi
                 fi
             fi
 
@@ -1428,23 +1413,26 @@ function build_template {  # build_template dest_dir target_dir document templat
             fi
 
             # remaining templates
-            if [[ -f "${TEMPLATE_Template_Partials_Archive}" ]] && [[ -r "${TEMPLATE_Template_Partials_Archive}" ]]; then
-                SUB=$(<"${TEMPLATE_Template_Partials_Archive}" sed -e ':a' -e '$!{N' -e 'ba' -e '}' -e 's/[&/\]/\\&/g' -e 's/\n/\\&/g')
-                SUB=${SUB%$'\n'}
-                SUB=${SUB%\\}
-                sed -E \
-                -e "/\{\{[ ]*template\.archive[ ]*\}\}/s//${SUB:-}/g" \
-                -i".${MARSH_UID}.backup" "${DEST}" && rm -f "${DEST}.${MARSH_UID}.backup"
-                unset SUB
-            fi
-            if [[ -f "${TEMPLATE_Template_Partials_Document}" ]] && [[ -r "${TEMPLATE_Template_Partials_Document}" ]]; then
-                SUB=$(<"${TEMPLATE_Template_Partials_Document}" sed -e ':a' -e '$!{N' -e 'ba' -e '}' -e 's/[&/\]/\\&/g' -e 's/\n/\\&/g')
-                SUB=${SUB%$'\n'}
-                SUB=${SUB%\\}
-                sed -E \
-                -e "/\{\{[ ]*template\.document[ ]*\}\}/s//${SUB:-}/g" \
-                -i".${MARSH_UID}.backup" "${DEST}" && rm -f "${DEST}.${MARSH_UID}.backup"
-                unset SUB
+            if [[ "${DOCUMENT_Type}" == "archive" ]]; then
+                if [[ -f "${TEMPLATE_Template_Partials_Archive_HTML_Document}" ]] && [[ -r "${TEMPLATE_Template_Partials_Archive_HTML_Document}" ]]; then
+                    SUB=$(<"${TEMPLATE_Template_Partials_Archive_HTML_Document}" sed -e ':a' -e '$!{N' -e 'ba' -e '}' -e 's/[&/\]/\\&/g' -e 's/\n/\\&/g')
+                    SUB=${SUB%$'\n'}
+                    SUB=${SUB%\\}
+                    sed -E \
+                    -e "/\{\{[ ]*template\.document[ ]*\}\}/s//${SUB:-}/g" \
+                    -i".${MARSH_UID}.backup" "${DEST}" && rm -f "${DEST}.${MARSH_UID}.backup"
+                    unset SUB
+                fi
+            else
+                if [[ -f "${TEMPLATE_Template_Partials_Document}" ]] && [[ -r "${TEMPLATE_Template_Partials_Document}" ]]; then
+                    SUB=$(<"${TEMPLATE_Template_Partials_Document}" sed -e ':a' -e '$!{N' -e 'ba' -e '}' -e 's/[&/\]/\\&/g' -e 's/\n/\\&/g')
+                    SUB=${SUB%$'\n'}
+                    SUB=${SUB%\\}
+                    sed -E \
+                    -e "/\{\{[ ]*template\.document[ ]*\}\}/s//${SUB:-}/g" \
+                    -i".${MARSH_UID}.backup" "${DEST}" && rm -f "${DEST}.${MARSH_UID}.backup"
+                    unset SUB
+                fi
             fi
             if [[ -f "${TEMPLATE_Template_Partials_Header}" ]] && [[ -r "${TEMPLATE_Template_Partials_Header}" ]]; then
                 SUB=$(<"${TEMPLATE_Template_Partials_Header}" sed -e ':a' -e '$!{N' -e 'ba' -e '}' -e 's/[&/\]/\\&/g' -e 's/\n/\\&/g')
@@ -1522,7 +1510,7 @@ function build_template {  # build_template dest_dir target_dir document templat
             sed -E \
             -e 's/\{\{[ ]*navigation[ ]*\}\}//g' \
             -i".${MARSH_UID}.backup" "${DEST}" && rm -f "${DEST}.${MARSH_UID}.backup"
-        fi # DOCUMENT_Type == "feed" else
+        fi
 
         # remove unused/unknown template includes
         sed -E \
@@ -1579,17 +1567,21 @@ function build_template {  # build_template dest_dir target_dir document templat
                     # Key: [ foo, bar, baz ]
                     eval $(flat_to_array "SUBDOCUMENT_State" "SUBDOCUMENT_State_")
                 fi
-                if [[ "${DOCUMENT_Type}" == "feed" ]]; then
+                if [[ "${DOCUMENT_Type}" == "archive-atom" ]]; then
                     # document template
-                    if [[ "${TEMPLATE_Template_Partials_Feed_Document:-}" != "" ]]; then
+                    if [[ "${TEMPLATE_Template_Partials_Archive_Atom_Document:-}" != "" ]]; then
                         cp "${SUBDOCUMENT}" "${SUBDOCUMENT}.document"
-                        cp "${TEMPLATE_Template_Partials_Feed_Document}" "${SUBDOCUMENT}"
+                        cp "${TEMPLATE_Template_Partials_Archive_Atom_Document}" "${SUBDOCUMENT}"
                     fi
                 else
                     # markdown to html
                     <"${SUBDOCUMENT}" process_markdown > "${SUBDOCUMENT}.document"
                     # document template
-                    cp "${TEMPLATE_Template_Partials_Document}" "${SUBDOCUMENT}"
+                    if [[ "${DOCUMENT_Type}" == "archive" ]]; then
+                        cp "${TEMPLATE_Template_Partials_Archive_HTML_Document}" "${SUBDOCUMENT}"
+                    else
+                        cp "${TEMPLATE_Template_Partials_Document}" "${SUBDOCUMENT}"
+                    fi
                 fi
                 # inject html into template
                 SUB=$(<"${SUBDOCUMENT}.document" sed -e ':a' -e '$!{N' -e 'ba' -e '}' -e 's/[&/\]/\\&/g' -e 's/\n/\\&/g')
@@ -1806,7 +1798,7 @@ function build_target {  # build_target dest_dir target advanced_nav templates_d
 function clean_target {  # clean_target target
     local TARGET
     TARGET="${1:-}"; [[ "${TARGET}" == "" ]] && return 1
-    find "${TARGET}" \( -iname '*.markdown' -or -iname '*.md' -or -iname '*.mkd' -or -iname '*.mkdn' -or -iname '*.mdown' -or -iname '*.marsh.feed' -or -name '*.'"${MARSH_UID}"'.*' \) -delete
+    find "${TARGET}" \( -iname '*.markdown' -or -iname '*.md' -or -iname '*.mkd' -or -iname '*.mkdn' -or -iname '*.mdown' -or -name '*.'"${MARSH_UID}"'.*' \) -delete
 }
 
 # commands
@@ -2201,16 +2193,16 @@ if [[ "${COMMAND}" == "build" ]]; then
                 TARGET_ARCHIVE_TYPES=(${TARGET_ARCHIVES_TYPES[$I]:-})
                 TARGET_ARCHIVE_EXCLUDED_STATES=(${TARGET_ARCHIVES_EXCLUDED_STATES[$I]:-})
                 IFS="${OIFS}"
-                if ! build_index  "archive" \
-                                  "${MARSH_CONFIG_PATH}/${TARGET_PATH}" \
-                                  "${TARGET_ARCHIVES[$I]}" \
-                                  "${TARGET_ARCHIVES_NAME[$I]:-$TARGET_NAME}" \
-                                  "${TARGET_ARCHIVES_CONTENT[$I]}" \
-                                  "${TARGET_ARCHIVES_COUNT[$I]}" \
-                                  "${#TARGET_ARCHIVE_TYPES[@]}" \
-                                  "${TARGET_ARCHIVE_TYPES[@]}" \
-                                  "${#TARGET_ARCHIVE_EXCLUDED_STATES[@]}" \
-                                  "${TARGET_ARCHIVE_EXCLUDED_STATES[@]}" \
+                if ! build_archive "${TARGET_ARCHIVES_ENCODING[$I]}" \
+                                   "${MARSH_CONFIG_PATH}/${TARGET_PATH}" \
+                                   "${TARGET_ARCHIVES[$I]}" \
+                                   "${TARGET_ARCHIVES_NAME[$I]:-$TARGET_NAME}" \
+                                   "${TARGET_ARCHIVES_CONTENT[$I]}" \
+                                   "${TARGET_ARCHIVES_COUNT[$I]}" \
+                                   "${#TARGET_ARCHIVE_TYPES[@]}" \
+                                   "${TARGET_ARCHIVE_TYPES[@]}" \
+                                   "${#TARGET_ARCHIVE_EXCLUDED_STATES[@]}" \
+                                   "${TARGET_ARCHIVE_EXCLUDED_STATES[@]}" \
                 || ! build_target "${MARSH_CONFIG_PATH}" \
                                   "${TARGET_PATH}/${TARGET_ARCHIVES[$I]}" \
                                   "" \
@@ -2223,39 +2215,6 @@ if [[ "${COMMAND}" == "build" ]]; then
                     die_gracefully
                 fi
                 unset TARGET_ARCHIVE_TYPES TARGET_ARCHIVE_EXCLUDED_STATES
-            fi
-        done
-
-        # feeds
-        for I in "${!TARGET_FEEDS[@]}"; do
-            if [[ "${TARGET_FEEDS[$I]}" != "" ]]; then
-                OIFS="${IFS}"
-                IFS=$(echo @|tr @ '\034')
-                TARGET_FEED_TYPES=(${TARGET_FEEDS_TYPES[$I]:-})
-                TARGET_FEED_EXCLUDED_STATES=(${TARGET_FEEDS_EXCLUDED_STATES[$I]:-})
-                IFS="${OIFS}"
-                if ! build_index  "feed" \
-                                  "${MARSH_CONFIG_PATH}/${TARGET_PATH}" \
-                                  "${TARGET_FEEDS[$I]}" \
-                                  "${TARGET_FEEDS_NAME[$I]:-$TARGET_NAME}" \
-                                  "${TARGET_FEEDS_CONTENT[$I]}" \
-                                  "${TARGET_FEEDS_COUNT[$I]}" \
-                                  "${#TARGET_FEEDS_TYPES[@]}" \
-                                  "${TARGET_FEEDS_TYPES[@]}" \
-                                  "${#TARGET_FEEDS_EXCLUDED_STATES[@]}" \
-                                  "${TARGET_FEEDS_EXCLUDED_STATES[@]}" \
-                || ! build_target "${MARSH_CONFIG_PATH}" \
-                                  "${TARGET_PATH}/${TARGET_FEEDS[$I]}" \
-                                  "" \
-                                  "${TEMPLATES_DIR}" \
-                                  "${#TARGET_TEMPLATES[@]}" \
-                                  "${TARGET_TEMPLATES[@]}" \
-                                  "${#TARGET_TEMPLATES_CONFIG[@]}" \
-                                  "${TARGET_TEMPLATES_CONFIG[@]}"
-                then
-                    die_gracefully
-                fi
-                unset TARGET_FEED_TYPES TARGET_FEED_EXCLUDED_STATES
             fi
         done
 

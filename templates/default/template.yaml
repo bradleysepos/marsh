@@ -9,14 +9,18 @@ Template:
   Partials:
     Base:     partials/base.html
     Body:     partials/body.html
-    Archive:  partials/archive.html
     Document: partials/document.html
     Header:   partials/header.html
     Footer:   partials/footer.html
     Nav:      partials/nav.html
     Redirect: partials/redirect.html
-    Feed_Body:     partials/feed/body.xml
-    Feed_Document: partials/feed/document.xml
+    Archive:
+      HTML:
+        Body:     partials/archive/html/body.html
+        Document: partials/archive/html/document.html
+      Atom:
+        Body:     partials/archive/atom/body.xml
+        Document: partials/archive/atom/document.xml
   Assets:
     Fonts:
     Styles:

@@ -1364,152 +1364,149 @@ function build_template {  # build_template dest_dir target_dir document templat
         TEMPLATE_Template_Partials_Archive_Atom_Body="${TEMPLATE_Template_Partials_Archive_Atom_Body:-}"
         TEMPLATE_Template_Partials_Archive_Atom_Document="${TEMPLATE_Template_Partials_Archive_Atom_Document:-}"
 
+        # body template
         if [[ "${DOCUMENT_Type}" == "archive-atom" ]]; then
             if [[ "${TEMPLATE_Template_Partials_Archive_Atom_Body:-}" != "" ]]; then
                 cp "${TEMPLATE_Template_Partials_Archive_Atom_Body}" "${DEST}"
             else
-                continue
+                echo "Atom archive body partial not found for primary template: ${TEMPLATE}" >&2
+                return 1
+            fi
+        elif [[ "${DOCUMENT_Type}" == "archive" ]]; then
+            if [[ "${TEMPLATE_Template_Partials_Archive_HTML_Body:-}" != "" ]]; then
+                cp "${TEMPLATE_Template_Partials_Archive_HTML_Body}" "${DEST}"
+            else
+                echo "HTML archive body partial not found for primary template: ${TEMPLATE}" >&2
+                return 1
             fi
         else
-            # body template
-            if [[ ! -e "${DEST}" ]]; then
-                if [[ "${DOCUMENT_Type}" == "archive" ]]; then
-                    if [[ "${TEMPLATE_Template_Partials_Archive_HTML_Body:-}" != "" ]]; then
-                        cp "${TEMPLATE_Template_Partials_Archive_HTML_Body}" "${DEST}"
-                    else
-                        echo "HTML archive body partial not found for primary template: ${TEMPLATE}" >&2
-                        return 1
-                    fi
-                else
-                    if [[ "${TEMPLATE_Template_Partials_Body}" != "" ]]; then
-                        cp "${TEMPLATE_Template_Partials_Body}" "${DEST}"
-                    else
-                        echo "Body partial not found for primary template: ${TEMPLATE}" >&2
-                        return 1
-                    fi
-                fi
-            fi
-
-            # base template
-            if [[ "${DOCUMENT_Redirect_URL:-}" != "" ]]; then
-                # redirect
-                TEMPLATE_BASE="${TEMPLATE_Template_Partials_Redirect}"
-            fi
-            TEMPLATE_BASE="${TEMPLATE_BASE:-$TEMPLATE_Template_Partials_Base}"
-            if [[ "${TEMPLATE_BASE}" != "" ]]; then
-                # inject into base template
-                if [[ -f "${TEMPLATE_BASE}" ]] && [[ -r "${TEMPLATE_BASE}" ]]; then
-                    cp "${DEST}" "${DEST}.${MARSH_UID}.temp"
-                    cp "${TEMPLATE_BASE}" "${DEST}"
-                    SUB=$(<"${DEST}.${MARSH_UID}.temp" sed -e ':a' -e '$!{N' -e 'ba' -e '}' -e 's/[&/\]/\\&/g' -e 's/\n/\\&/g')
-                    SUB=${SUB%$'\n'}
-                    SUB=${SUB%\\}
-                    sed -E \
-                    -e "/\{\{[ ]*template\.body[ ]*\}\}/s//${SUB:-}/g" \
-                    -i".${MARSH_UID}.backup" "${DEST}" && rm -f "${DEST}.${MARSH_UID}.backup"
-                    unset SUB
-                fi
-            fi
-
-            # remaining templates
-            if [[ "${DOCUMENT_Type}" == "archive" ]]; then
-                if [[ -f "${TEMPLATE_Template_Partials_Archive_HTML_Document}" ]] && [[ -r "${TEMPLATE_Template_Partials_Archive_HTML_Document}" ]]; then
-                    SUB=$(<"${TEMPLATE_Template_Partials_Archive_HTML_Document}" sed -e ':a' -e '$!{N' -e 'ba' -e '}' -e 's/[&/\]/\\&/g' -e 's/\n/\\&/g')
-                    SUB=${SUB%$'\n'}
-                    SUB=${SUB%\\}
-                    sed -E \
-                    -e "/\{\{[ ]*template\.document[ ]*\}\}/s//${SUB:-}/g" \
-                    -i".${MARSH_UID}.backup" "${DEST}" && rm -f "${DEST}.${MARSH_UID}.backup"
-                    unset SUB
-                fi
+            if [[ "${TEMPLATE_Template_Partials_Body}" != "" ]]; then
+                cp "${TEMPLATE_Template_Partials_Body}" "${DEST}"
             else
-                if [[ -f "${TEMPLATE_Template_Partials_Document}" ]] && [[ -r "${TEMPLATE_Template_Partials_Document}" ]]; then
-                    SUB=$(<"${TEMPLATE_Template_Partials_Document}" sed -e ':a' -e '$!{N' -e 'ba' -e '}' -e 's/[&/\]/\\&/g' -e 's/\n/\\&/g')
-                    SUB=${SUB%$'\n'}
-                    SUB=${SUB%\\}
-                    sed -E \
-                    -e "/\{\{[ ]*template\.document[ ]*\}\}/s//${SUB:-}/g" \
-                    -i".${MARSH_UID}.backup" "${DEST}" && rm -f "${DEST}.${MARSH_UID}.backup"
-                    unset SUB
-                fi
+                echo "Body partial not found for primary template: ${TEMPLATE}" >&2
+                return 1
             fi
-            if [[ -f "${TEMPLATE_Template_Partials_Header}" ]] && [[ -r "${TEMPLATE_Template_Partials_Header}" ]]; then
-                SUB=$(<"${TEMPLATE_Template_Partials_Header}" sed -e ':a' -e '$!{N' -e 'ba' -e '}' -e 's/[&/\]/\\&/g' -e 's/\n/\\&/g')
-                SUB=${SUB%$'\n'}
-                SUB=${SUB%\\}
-                sed -E \
-                -e "/\{\{[ ]*template\.header[ ]*\}\}/s//${SUB:-}/g" \
-                -i".${MARSH_UID}.backup" "${DEST}" && rm -f "${DEST}.${MARSH_UID}.backup"
-                unset SUB
-            fi
-            if [[ -f "${TEMPLATE_Template_Partials_Footer}" ]] && [[ -r "${TEMPLATE_Template_Partials_Footer}" ]]; then
-                SUB=$(<"${TEMPLATE_Template_Partials_Footer}" sed -e ':a' -e '$!{N' -e 'ba' -e '}' -e 's/[&/\]/\\&/g' -e 's/\n/\\&/g')
-                SUB=${SUB%$'\n'}
-                SUB=${SUB%\\}
-                sed -E \
-                -e "/\{\{[ ]*template\.footer[ ]*\}\}/s//${SUB:-}/g" \
-                -i".${MARSH_UID}.backup" "${DEST}" && rm -f "${DEST}.${MARSH_UID}.backup"
-                unset SUB
-            fi
-            if [[ -f "${TEMPLATE_Template_Partials_Nav}" ]] && [[ -r "${TEMPLATE_Template_Partials_Nav}" ]]; then
-                SUB=$(<"${TEMPLATE_Template_Partials_Nav}" sed -e ':a' -e '$!{N' -e 'ba' -e '}' -e 's/[&/\]/\\&/g' -e 's/\n/\\&/g')
-                SUB=${SUB%$'\n'}
-                SUB=${SUB%\\}
-                sed -E \
-                -e "/\{\{[ ]*template\.nav[ ]*\}\}/s//${SUB:-}/g" \
-                -i".${MARSH_UID}.backup" "${DEST}" && rm -f "${DEST}.${MARSH_UID}.backup"
-                unset SUB
-            fi
-
-            # scripts and styles
-            TEMPLATE_SCRIPTS=""
-            for SCRIPT in ${TEMPLATE_ASSETS_SCRIPTS[@]}; do
-                TEMPLATE_SCRIPTS="${TEMPLATE_SCRIPTS}<script src=\"${DOCUMENT_RELPATH}${SCRIPT}\"></script>"
-            done
-            TEMPLATE_SCRIPTS=$(echo "${TEMPLATE_SCRIPTS}" | sed -e ':a' -e '$!{N' -e 'ba' -e '}' -e 's/[&/\]/\\&/g' -e 's/\n/\\&/g')
-            TEMPLATE_STYLES=""
-            for STYLE in ${TEMPLATE_ASSETS_STYLES[@]}; do
-                TEMPLATE_STYLES="${TEMPLATE_STYLES}<link rel=\"stylesheet\" href=\"${DOCUMENT_RELPATH}${STYLE}\" />"
-            done
-            TEMPLATE_STYLES=$(echo "${TEMPLATE_STYLES}" | sed -e ':a' -e '$!{N' -e 'ba' -e '}' -e 's/[&/\]/\\&/g' -e 's/\n/\\&/g')
-            sed -E \
-            -e '/\{\{[ ]*template\.scripts[ ]*\}\}/s||'"${TEMPLATE_SCRIPTS}"'|g' \
-            -e '/\{\{[ ]*template\.styles[ ]*\}\}/s||'"${TEMPLATE_STYLES}"'|g' \
-            -i".${MARSH_UID}.backup" "${DEST}" && rm -f "${DEST}.${MARSH_UID}.backup"
-
-            # advanced navigation
-            for NAV in $(cd "${DEST_DIR}/${TARGET_DIR}" && find . -name "*.${MARSH_UID}.advanced-nav.html" | sed 's/^\.\///'); do
-                NAV_NAME="${NAV##*/}"
-                NAV_NAME="${NAV_NAME%.$MARSH_UID.advanced-nav.html}.html"
-                NAV_NAME=$(echo "${NAV_NAME}" | sed -E -e 's/\.(markdown|md|mkd|mkdn|mdown)(.html)$/\2/')
-                NAV_DIR="./${NAV}"
-                NAV_DIR="${NAV_DIR%/*}"
-                NAV_DIR="${NAV_DIR#./}"
-                if is_child "${DEST_DIR}/${TARGET_DIR}/${NAV_DIR}" "${DOCUMENT}"; then
-                    NAV_RELPATH="${DOCUMENT_DIR#$NAV_DIR}"
-                    NAV_RELPATH="${NAV_RELPATH//[^\/]}"     # leave only slashes
-                    NAV_RELPATH="${NAV_RELPATH//[\/]/../}"  # slashes to dirs
-                    NAV_RELPATH="${NAV_RELPATH:-.}"         # empty to current dir
-                    NAV_RELPATH="${NAV_RELPATH%/}"          # drop trailing slash
-                    <"${DEST_DIR}/${TARGET_DIR}/${NAV}" sed -E \
-                    -e 's|<h1>([^<]+)</h1>|<h1><a href="'"${NAV_RELPATH}/${NAV_NAME}"'">\1</a></h1>|' \
-                    -e 's|(<a href=")([^.])|\1'"${NAV_RELPATH}/"'\2|g' | \
-                    sed -E \
-                    -e 's|<a (href="[^"]*'"${NAV_RELPATH}/${DEST_NAME}.html"'"[^>]*)>([^<>]+)</a>|<a \1 class="selected">\2</a>|g' \
-                    > "${DEST}.${MARSH_UID}.temp"
-                    SUB=$(<"${DEST}.${MARSH_UID}.temp" sed -e ':a' -e '$!{N' -e 'ba' -e '}' -e 's/[&/\]/\\&/g' -e 's/\n/\\&/g')
-                    SUB=${SUB%$'\n'}
-                    SUB=${SUB%\\}
-                    sed -E \
-                    -e "/\{\{[ ]*navigation[ ]*\}\}/s//${SUB}/g" \
-                    -i".${MARSH_UID}.backup" "${DEST}" && rm -f "${DEST}.${MARSH_UID}.backup"
-                    unset SUB
-                fi
-            done
-            sed -E \
-            -e 's/\{\{[ ]*navigation[ ]*\}\}//g' \
-            -i".${MARSH_UID}.backup" "${DEST}" && rm -f "${DEST}.${MARSH_UID}.backup"
         fi
+
+        # base template
+        if [[ "${DOCUMENT_Redirect_URL:-}" != "" ]]; then
+            # redirect
+            TEMPLATE_BASE="${TEMPLATE_Template_Partials_Redirect}"
+        fi
+        TEMPLATE_BASE="${TEMPLATE_BASE:-$TEMPLATE_Template_Partials_Base}"
+        if [[ "${TEMPLATE_BASE}" != "" ]]; then
+            # inject into base template
+            if [[ -f "${TEMPLATE_BASE}" ]] && [[ -r "${TEMPLATE_BASE}" ]]; then
+                cp "${DEST}" "${DEST}.${MARSH_UID}.temp"
+                cp "${TEMPLATE_BASE}" "${DEST}"
+                SUB=$(<"${DEST}.${MARSH_UID}.temp" sed -e ':a' -e '$!{N' -e 'ba' -e '}' -e 's/[&/\]/\\&/g' -e 's/\n/\\&/g')
+                SUB=${SUB%$'\n'}
+                SUB=${SUB%\\}
+                sed -E \
+                -e "/\{\{[ ]*template\.body[ ]*\}\}/s//${SUB:-}/g" \
+                -i".${MARSH_UID}.backup" "${DEST}" && rm -f "${DEST}.${MARSH_UID}.backup"
+                unset SUB
+            fi
+        fi
+
+        # remaining templates
+        if [[ "${DOCUMENT_Type}" == "archive" ]]; then
+            if [[ -f "${TEMPLATE_Template_Partials_Archive_HTML_Document}" ]] && [[ -r "${TEMPLATE_Template_Partials_Archive_HTML_Document}" ]]; then
+                SUB=$(<"${TEMPLATE_Template_Partials_Archive_HTML_Document}" sed -e ':a' -e '$!{N' -e 'ba' -e '}' -e 's/[&/\]/\\&/g' -e 's/\n/\\&/g')
+                SUB=${SUB%$'\n'}
+                SUB=${SUB%\\}
+                sed -E \
+                -e "/\{\{[ ]*template\.document[ ]*\}\}/s//${SUB:-}/g" \
+                -i".${MARSH_UID}.backup" "${DEST}" && rm -f "${DEST}.${MARSH_UID}.backup"
+                unset SUB
+            fi
+        else
+            if [[ -f "${TEMPLATE_Template_Partials_Document}" ]] && [[ -r "${TEMPLATE_Template_Partials_Document}" ]]; then
+                SUB=$(<"${TEMPLATE_Template_Partials_Document}" sed -e ':a' -e '$!{N' -e 'ba' -e '}' -e 's/[&/\]/\\&/g' -e 's/\n/\\&/g')
+                SUB=${SUB%$'\n'}
+                SUB=${SUB%\\}
+                sed -E \
+                -e "/\{\{[ ]*template\.document[ ]*\}\}/s//${SUB:-}/g" \
+                -i".${MARSH_UID}.backup" "${DEST}" && rm -f "${DEST}.${MARSH_UID}.backup"
+                unset SUB
+            fi
+        fi
+        if [[ -f "${TEMPLATE_Template_Partials_Header}" ]] && [[ -r "${TEMPLATE_Template_Partials_Header}" ]]; then
+            SUB=$(<"${TEMPLATE_Template_Partials_Header}" sed -e ':a' -e '$!{N' -e 'ba' -e '}' -e 's/[&/\]/\\&/g' -e 's/\n/\\&/g')
+            SUB=${SUB%$'\n'}
+            SUB=${SUB%\\}
+            sed -E \
+            -e "/\{\{[ ]*template\.header[ ]*\}\}/s//${SUB:-}/g" \
+            -i".${MARSH_UID}.backup" "${DEST}" && rm -f "${DEST}.${MARSH_UID}.backup"
+            unset SUB
+        fi
+        if [[ -f "${TEMPLATE_Template_Partials_Footer}" ]] && [[ -r "${TEMPLATE_Template_Partials_Footer}" ]]; then
+            SUB=$(<"${TEMPLATE_Template_Partials_Footer}" sed -e ':a' -e '$!{N' -e 'ba' -e '}' -e 's/[&/\]/\\&/g' -e 's/\n/\\&/g')
+            SUB=${SUB%$'\n'}
+            SUB=${SUB%\\}
+            sed -E \
+            -e "/\{\{[ ]*template\.footer[ ]*\}\}/s//${SUB:-}/g" \
+            -i".${MARSH_UID}.backup" "${DEST}" && rm -f "${DEST}.${MARSH_UID}.backup"
+            unset SUB
+        fi
+        if [[ -f "${TEMPLATE_Template_Partials_Nav}" ]] && [[ -r "${TEMPLATE_Template_Partials_Nav}" ]]; then
+            SUB=$(<"${TEMPLATE_Template_Partials_Nav}" sed -e ':a' -e '$!{N' -e 'ba' -e '}' -e 's/[&/\]/\\&/g' -e 's/\n/\\&/g')
+            SUB=${SUB%$'\n'}
+            SUB=${SUB%\\}
+            sed -E \
+            -e "/\{\{[ ]*template\.nav[ ]*\}\}/s//${SUB:-}/g" \
+            -i".${MARSH_UID}.backup" "${DEST}" && rm -f "${DEST}.${MARSH_UID}.backup"
+            unset SUB
+        fi
+
+        # scripts and styles
+        TEMPLATE_SCRIPTS=""
+        for SCRIPT in ${TEMPLATE_ASSETS_SCRIPTS[@]}; do
+            TEMPLATE_SCRIPTS="${TEMPLATE_SCRIPTS}<script src=\"${DOCUMENT_RELPATH}${SCRIPT}\"></script>"
+        done
+        TEMPLATE_SCRIPTS=$(echo "${TEMPLATE_SCRIPTS}" | sed -e ':a' -e '$!{N' -e 'ba' -e '}' -e 's/[&/\]/\\&/g' -e 's/\n/\\&/g')
+        TEMPLATE_STYLES=""
+        for STYLE in ${TEMPLATE_ASSETS_STYLES[@]}; do
+            TEMPLATE_STYLES="${TEMPLATE_STYLES}<link rel=\"stylesheet\" href=\"${DOCUMENT_RELPATH}${STYLE}\" />"
+        done
+        TEMPLATE_STYLES=$(echo "${TEMPLATE_STYLES}" | sed -e ':a' -e '$!{N' -e 'ba' -e '}' -e 's/[&/\]/\\&/g' -e 's/\n/\\&/g')
+        sed -E \
+        -e '/\{\{[ ]*template\.scripts[ ]*\}\}/s||'"${TEMPLATE_SCRIPTS}"'|g' \
+        -e '/\{\{[ ]*template\.styles[ ]*\}\}/s||'"${TEMPLATE_STYLES}"'|g' \
+        -i".${MARSH_UID}.backup" "${DEST}" && rm -f "${DEST}.${MARSH_UID}.backup"
+
+        # advanced navigation
+        for NAV in $(cd "${DEST_DIR}/${TARGET_DIR}" && find . -name "*.${MARSH_UID}.advanced-nav.html" | sed 's/^\.\///'); do
+            NAV_NAME="${NAV##*/}"
+            NAV_NAME="${NAV_NAME%.$MARSH_UID.advanced-nav.html}.html"
+            NAV_NAME=$(echo "${NAV_NAME}" | sed -E -e 's/\.(markdown|md|mkd|mkdn|mdown)(.html)$/\2/')
+            NAV_DIR="./${NAV}"
+            NAV_DIR="${NAV_DIR%/*}"
+            NAV_DIR="${NAV_DIR#./}"
+            if is_child "${DEST_DIR}/${TARGET_DIR}/${NAV_DIR}" "${DOCUMENT}"; then
+                NAV_RELPATH="${DOCUMENT_DIR#$NAV_DIR}"
+                NAV_RELPATH="${NAV_RELPATH//[^\/]}"     # leave only slashes
+                NAV_RELPATH="${NAV_RELPATH//[\/]/../}"  # slashes to dirs
+                NAV_RELPATH="${NAV_RELPATH:-.}"         # empty to current dir
+                NAV_RELPATH="${NAV_RELPATH%/}"          # drop trailing slash
+                <"${DEST_DIR}/${TARGET_DIR}/${NAV}" sed -E \
+                -e 's|<h1>([^<]+)</h1>|<h1><a href="'"${NAV_RELPATH}/${NAV_NAME}"'">\1</a></h1>|' \
+                -e 's|(<a href=")([^.])|\1'"${NAV_RELPATH}/"'\2|g' | \
+                sed -E \
+                -e 's|<a (href="[^"]*'"${NAV_RELPATH}/${DEST_NAME}.html"'"[^>]*)>([^<>]+)</a>|<a \1 class="selected">\2</a>|g' \
+                > "${DEST}.${MARSH_UID}.temp"
+                SUB=$(<"${DEST}.${MARSH_UID}.temp" sed -e ':a' -e '$!{N' -e 'ba' -e '}' -e 's/[&/\]/\\&/g' -e 's/\n/\\&/g')
+                SUB=${SUB%$'\n'}
+                SUB=${SUB%\\}
+                sed -E \
+                -e "/\{\{[ ]*navigation[ ]*\}\}/s//${SUB}/g" \
+                -i".${MARSH_UID}.backup" "${DEST}" && rm -f "${DEST}.${MARSH_UID}.backup"
+                unset SUB
+            fi
+        done
+        sed -E \
+        -e 's/\{\{[ ]*navigation[ ]*\}\}//g' \
+        -i".${MARSH_UID}.backup" "${DEST}" && rm -f "${DEST}.${MARSH_UID}.backup"
 
         # remove unused/unknown template includes
         sed -E \

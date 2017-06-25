@@ -1336,7 +1336,7 @@ function build_template {  # build_template dest_dir target_dir document templat
         eval "${TEMPLATE_META}"
 
         # partials
-        PARTIALS=("${TEMPLATE_Template_Partials_Redirect:-}" "${TEMPLATE_Template_Partials_Base:-}" "${TEMPLATE_Template_Partials_Body:-}" "${TEMPLATE_Template_Partials_Document:-}" "${TEMPLATE_Template_Partials_Header:-}" "${TEMPLATE_Template_Partials_Footer:-}" "${TEMPLATE_Template_Partials_Nav:-}" "${TEMPLATE_Template_Partials_Archive_HTML_Body:-}" "${TEMPLATE_Template_Partials_Archive_HTML_Document:-}")
+        PARTIALS=("${TEMPLATE_Template_Partials_Redirect:-}" "${TEMPLATE_Template_Partials_Base:-}" "${TEMPLATE_Template_Partials_Body:-}" "${TEMPLATE_Template_Partials_Document:-}" "${TEMPLATE_Template_Partials_Header:-}" "${TEMPLATE_Template_Partials_Footer:-}" "${TEMPLATE_Template_Partials_Nav:-}" "${TEMPLATE_Template_Partials_Archive_HTML_Body:-}" "${TEMPLATE_Template_Partials_Archive_HTML_Document:-}" "${TEMPLATE_Template_Partials_Archive_Atom_Body:-}" "${TEMPLATE_Template_Partials_Archive_Atom_Document:-}")
         # conditionals
         for J in "${!PARTIALS[@]}"; do
             [[ "${PARTIALS[$J]}" == "" ]] && continue
@@ -1361,8 +1361,8 @@ function build_template {  # build_template dest_dir target_dir document templat
         TEMPLATE_Template_Partials_Nav="${PARTIALS[6]:-}"
         TEMPLATE_Template_Partials_Archive_HTML_Body="${PARTIALS[7]:-}"
         TEMPLATE_Template_Partials_Archive_HTML_Document="${PARTIALS[8]:-}"
-        TEMPLATE_Template_Partials_Archive_Atom_Body="${TEMPLATE_Template_Partials_Archive_Atom_Body:-}"
-        TEMPLATE_Template_Partials_Archive_Atom_Document="${TEMPLATE_Template_Partials_Archive_Atom_Document:-}"
+        TEMPLATE_Template_Partials_Archive_Atom_Body="${PARTIALS[9]:-}"
+        TEMPLATE_Template_Partials_Archive_Atom_Document="${PARTIALS[10]:-}"
 
         # body template
         if [[ "${DOCUMENT_Type}" == "archive-atom" ]]; then

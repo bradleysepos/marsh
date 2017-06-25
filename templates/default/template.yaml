@@ -21,6 +21,9 @@ Template:
       Atom:
         Body:     partials/archive/atom/body.xml
         Document: partials/archive/atom/document.xml
+      JSON:
+        Body:     partials/archive/json/body.json
+        Document: partials/archive/json/document.json
   Assets:
     Fonts:
     Styles:

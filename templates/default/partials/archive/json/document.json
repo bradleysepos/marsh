@@ -1,0 +1,15 @@
+    {
+      "id": "{{ document.uri }}",
+      "url": "{{ document.uri }}",
+      "date_published": "{{ document.date | date:rfc3339 }}",
+      "date_modified": "{{ document.date | date:rfc3339 }}",
+      "_rights": {
+        "copyright": "Copyright {{ document.copyright }}"
+      },
+      "title": "{{ document.title }}",
+      "author": {
+        "name": "{{ document.authors }}"
+      },
+      "summary": "{{ document | excerpt:100:1 }}",
+      "content_html": "{{ document | escape:json-val }}"
+    }{{ util.json-separator }}

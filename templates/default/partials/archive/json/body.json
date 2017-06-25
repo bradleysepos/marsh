@@ -1,0 +1,9 @@
+{
+  "version": "https://jsonfeed.org/version/1",
+  "title": "{{ document.title }}",
+  "home_page_url": "{{ document.abspath }}/",
+  "feed_url": "{{ document.uri }}",
+  "icon": "{{ document.abspath }}/icon.png",
+  "items": [
+{{ subdocuments }}  ]
+}

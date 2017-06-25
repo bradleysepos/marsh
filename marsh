@@ -362,6 +362,9 @@ function text_filter {  # text_filter filters[@]
             escape:html)
                 TEXT=$(echo "${TEXT}" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' -e 's/"/\&quot;/g' -e 's/'"'"'/\&#39;/g');
                 ;;
+            escape:json-val)
+                TEXT=$(echo "${TEXT}" | sed -e 's/"/\\"/g' | awk '{ printf "%s\\n", $0 }');
+                ;;
             excerpt:*)
                 MAX_CHARS="${OPTIONS[0]:-}"
                 MAX_PARAS="${OPTIONS[1]:-}"
@@ -568,6 +571,8 @@ function parse_template_metadata {  # parse_template_metadata prefix template_di
     [[ "${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Document:-}" != "" ]] && echo "${PREFIX}Template_Partials_Archive_HTML_Document=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Document//\"/\\\"}\""
     [[ "${MARSH_TEMPLATE_Template_Partials_Archive_Atom_Body:-}"     != "" ]] && echo "${PREFIX}Template_Partials_Archive_Atom_Body=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Archive_Atom_Body//\"/\\\"}\""
     [[ "${MARSH_TEMPLATE_Template_Partials_Archive_Atom_Document:-}" != "" ]] && echo "${PREFIX}Template_Partials_Archive_Atom_Document=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Archive_Atom_Document//\"/\\\"}\""
+    [[ "${MARSH_TEMPLATE_Template_Partials_Archive_JSON_Body:-}"     != "" ]] && echo "${PREFIX}Template_Partials_Archive_JSON_Body=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Archive_JSON_Body//\"/\\\"}\""
+    [[ "${MARSH_TEMPLATE_Template_Partials_Archive_JSON_Document:-}" != "" ]] && echo "${PREFIX}Template_Partials_Archive_JSON_Document=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Archive_JSON_Document//\"/\\\"}\""
 
     # assets
     ASSET_TYPES=('Fonts' 'Styles' 'Scripts' 'Images' 'Audio' 'Video' 'Documents' 'Binaries' 'Other')
@@ -1215,6 +1220,9 @@ function build_template {  # build_template dest_dir target_dir document templat
                 document.type)
                     TAG_VAR="${PREFIX}Type"
                     ;;
+                util.json-separator)
+                    TAG_VAR="UTIL_JSON_SEPARATOR"
+                    ;;
                 *)
                     TAG_VAR=""
                     ;;
@@ -1280,6 +1288,9 @@ function build_template {  # build_template dest_dir target_dir document templat
     TEMPLATE="${5:-}"
     TEMPLATE_CONFIG_EXTRA="${6:-}"
 
+    # utility vars
+    UTIL_JSON_SEPARATOR=","
+
     # verbosity
     # seems logical to put this elsewhere, but this is a good catch-all for now
     echo "  ${DEST#$DEST_DIR/}"
@@ -1336,7 +1347,7 @@ function build_template {  # build_template dest_dir target_dir document templat
         eval "${TEMPLATE_META}"
 
         # partials
-        PARTIALS=("${TEMPLATE_Template_Partials_Redirect:-}" "${TEMPLATE_Template_Partials_Base:-}" "${TEMPLATE_Template_Partials_Body:-}" "${TEMPLATE_Template_Partials_Document:-}" "${TEMPLATE_Template_Partials_Header:-}" "${TEMPLATE_Template_Partials_Footer:-}" "${TEMPLATE_Template_Partials_Nav:-}" "${TEMPLATE_Template_Partials_Archive_HTML_Body:-}" "${TEMPLATE_Template_Partials_Archive_HTML_Document:-}" "${TEMPLATE_Template_Partials_Archive_Atom_Body:-}" "${TEMPLATE_Template_Partials_Archive_Atom_Document:-}")
+        PARTIALS=("${TEMPLATE_Template_Partials_Redirect:-}" "${TEMPLATE_Template_Partials_Base:-}" "${TEMPLATE_Template_Partials_Body:-}" "${TEMPLATE_Template_Partials_Document:-}" "${TEMPLATE_Template_Partials_Header:-}" "${TEMPLATE_Template_Partials_Footer:-}" "${TEMPLATE_Template_Partials_Nav:-}" "${TEMPLATE_Template_Partials_Archive_HTML_Body:-}" "${TEMPLATE_Template_Partials_Archive_HTML_Document:-}" "${TEMPLATE_Template_Partials_Archive_Atom_Body:-}" "${TEMPLATE_Template_Partials_Archive_Atom_Document:-}" "${TEMPLATE_Template_Partials_Archive_JSON_Body:-}" "${TEMPLATE_Template_Partials_Archive_JSON_Document:-}")
         # conditionals
         for J in "${!PARTIALS[@]}"; do
             [[ "${PARTIALS[$J]}" == "" ]] && continue
@@ -1363,6 +1374,8 @@ function build_template {  # build_template dest_dir target_dir document templat
         TEMPLATE_Template_Partials_Archive_HTML_Document="${PARTIALS[8]:-}"
         TEMPLATE_Template_Partials_Archive_Atom_Body="${PARTIALS[9]:-}"
         TEMPLATE_Template_Partials_Archive_Atom_Document="${PARTIALS[10]:-}"
+        TEMPLATE_Template_Partials_Archive_JSON_Body="${PARTIALS[11]:-}"
+        TEMPLATE_Template_Partials_Archive_JSON_Document="${PARTIALS[12]:-}"
 
         # body template
         if [[ "${DOCUMENT_Type}" == "archive-atom" ]]; then
@@ -1370,6 +1383,13 @@ function build_template {  # build_template dest_dir target_dir document templat
                 cp "${TEMPLATE_Template_Partials_Archive_Atom_Body}" "${DEST}"
             else
                 echo "Atom archive body partial not found for primary template: ${TEMPLATE}" >&2
+                return 1
+            fi
+        elif [[ "${DOCUMENT_Type}" == "archive-json" ]]; then
+            if [[ "${TEMPLATE_Template_Partials_Archive_JSON_Body:-}" != "" ]]; then
+                cp "${TEMPLATE_Template_Partials_Archive_JSON_Body}" "${DEST}"
+            else
+                echo "JSON archive body partial not found for primary template: ${TEMPLATE}" >&2
                 return 1
             fi
         elif [[ "${DOCUMENT_Type}" == "archive" ]]; then
@@ -1389,23 +1409,25 @@ function build_template {  # build_template dest_dir target_dir document templat
         fi
 
         # base template
-        if [[ "${DOCUMENT_Redirect_URL:-}" != "" ]]; then
-            # redirect
-            TEMPLATE_BASE="${TEMPLATE_Template_Partials_Redirect}"
-        fi
-        TEMPLATE_BASE="${TEMPLATE_BASE:-$TEMPLATE_Template_Partials_Base}"
-        if [[ "${TEMPLATE_BASE}" != "" ]]; then
-            # inject into base template
-            if [[ -f "${TEMPLATE_BASE}" ]] && [[ -r "${TEMPLATE_BASE}" ]]; then
-                cp "${DEST}" "${DEST}.${MARSH_UID}.temp"
-                cp "${TEMPLATE_BASE}" "${DEST}"
-                SUB=$(<"${DEST}.${MARSH_UID}.temp" sed -e ':a' -e '$!{N' -e 'ba' -e '}' -e 's/[&/\]/\\&/g' -e 's/\n/\\&/g')
-                SUB=${SUB%$'\n'}
-                SUB=${SUB%\\}
-                sed -E \
-                -e "/\{\{[ ]*template\.body[ ]*\}\}/s//${SUB:-}/g" \
-                -i".${MARSH_UID}.backup" "${DEST}" && rm -f "${DEST}.${MARSH_UID}.backup"
-                unset SUB
+        if [[ "${DOCUMENT_Type}" != "archive-atom" ]] && [[ "${DOCUMENT_Type}" != "archive-json" ]]; then
+            if [[ "${DOCUMENT_Redirect_URL:-}" != "" ]]; then
+                # redirect
+                TEMPLATE_BASE="${TEMPLATE_Template_Partials_Redirect}"
+            fi
+            TEMPLATE_BASE="${TEMPLATE_BASE:-$TEMPLATE_Template_Partials_Base}"
+            if [[ "${TEMPLATE_BASE}" != "" ]]; then
+                # inject into base template
+                if [[ -f "${TEMPLATE_BASE}" ]] && [[ -r "${TEMPLATE_BASE}" ]]; then
+                    cp "${DEST}" "${DEST}.${MARSH_UID}.temp"
+                    cp "${TEMPLATE_BASE}" "${DEST}"
+                    SUB=$(<"${DEST}.${MARSH_UID}.temp" sed -e ':a' -e '$!{N' -e 'ba' -e '}' -e 's/[&/\]/\\&/g' -e 's/\n/\\&/g')
+                    SUB=${SUB%$'\n'}
+                    SUB=${SUB%\\}
+                    sed -E \
+                    -e "/\{\{[ ]*template\.body[ ]*\}\}/s//${SUB:-}/g" \
+                    -i".${MARSH_UID}.backup" "${DEST}" && rm -f "${DEST}.${MARSH_UID}.backup"
+                    unset SUB
+                fi
             fi
         fi
 
@@ -1520,8 +1542,9 @@ function build_template {  # build_template dest_dir target_dir document templat
         OIFS="${IFS}"
         IFS=$'\n'
         SUBDOCUMENTS=($(cd "${DEST_DIR}/${TARGET_DIR}/${DOCUMENT_DIR}" && find . -name "${DEST_NAME}${DOCUMENT_EXT:+.$DOCUMENT_EXT}.*" | grep -E '.+\.'"${MARSH_UID}"'\.subdocuments\.[0-9]+\.document$' | sed 's/^\.\///' | sed -E -e 's/(\.'"${MARSH_UID}"'\.subdocuments\.)/\1\|/' | sort -t \| -k2 -g | sed -E -e 's/(\.'"${MARSH_UID}"'\.subdocuments\.)\|/\1/'))
+        NUM_SUBDOCUMENTS="${#SUBDOCUMENTS[@]}"
         IFS="${OIFS}"
-        if [[ "${#SUBDOCUMENTS[@]}" -gt 0 ]]; then
+        if [[ "${NUM_SUBDOCUMENTS}" -gt 0 ]]; then
             for J in ${!SUBDOCUMENTS[@]}; do
                 # full path
                 SUBDOCUMENT="${DEST_DIR}/${TARGET_DIR}/${DOCUMENT_DIR}/${SUBDOCUMENTS[$J]}"
@@ -1569,6 +1592,12 @@ function build_template {  # build_template dest_dir target_dir document templat
                         cp "${SUBDOCUMENT}" "${SUBDOCUMENT}.document"
                         cp "${TEMPLATE_Template_Partials_Archive_Atom_Document}" "${SUBDOCUMENT}"
                     fi
+                elif [[ "${DOCUMENT_Type}" == "archive-json" ]]; then
+                    # document template
+                    if [[ "${TEMPLATE_Template_Partials_Archive_JSON_Document:-}" != "" ]]; then
+                        cp "${SUBDOCUMENT}" "${SUBDOCUMENT}.document"
+                        cp "${TEMPLATE_Template_Partials_Archive_JSON_Document}" "${SUBDOCUMENT}"
+                    fi
                 else
                     # markdown to html
                     <"${SUBDOCUMENT}" process_markdown > "${SUBDOCUMENT}.document"
@@ -1591,6 +1620,11 @@ function build_template {  # build_template dest_dir target_dir document templat
                 -e 's/\{\{[ ]*subdocuments[ ]*\}\}//g' \
                 -i".${MARSH_UID}.backup" "${SUBDOCUMENT}" && rm -f "${SUBDOCUMENT}.${MARSH_UID}.backup"
                 # template tags
+                if [[ "${DOCUMENT_Type}" == "archive-json" ]] && [[ "${J}" -eq $((NUM_SUBDOCUMENTS - 1)) ]]; then
+                    sed -E \
+                    -e 's/\{\{[ ]*util.json-separator[ ]*\}\}//g' \
+                    -i".${MARSH_UID}.backup" "${SUBDOCUMENT}" && rm -f "${SUBDOCUMENT}.${MARSH_UID}.backup"
+                fi
                 replace_tags "${SUBDOCUMENT}" "SUBDOCUMENT_"
                 # combine with previous subdocuments
                 cat "${SUBDOCUMENT}" >> "${DOCUMENT}.${MARSH_UID}.subdocuments"
@@ -1751,7 +1785,7 @@ function build_target {  # build_target dest_dir target advanced_nav templates_d
     else
         DOCUMENTS=$(cd "${DEST_DIR}/${TARGET_DIR}" && find "${TARGET##*/}")
     fi
-    DOCUMENTS=$(echo "${DOCUMENTS}" | grep -Ei '\.(markdown|md|mkd|mkdn|mdown|xml)$' | sed 's/^\.\///')
+    DOCUMENTS=$(echo "${DOCUMENTS}" | grep -Ei '\.(markdown|md|mkd|mkdn|mdown|xml|json)$' | sed 's/^\.\///')
     PARALLEL=$(which parallel)
     PARALLEL_MARKDOWN=""
     [[ "${MARKDOWN}" != "markdown" ]] && PARALLEL_MARKDOWN="${MARKDOWN}"

@@ -10,6 +10,6 @@
       "author": {
         "name": "{{ document.authors }}"
       },
-      "summary": "{{ document | excerpt:100:1 | escape:json-val }}",
+      "summary": "{{ document | excerpt:100:1 | escape:entities | escape:json-val }}",
       "content_html": "{{ document | escape:json-val }}"
     }{{ util.json-separator }}

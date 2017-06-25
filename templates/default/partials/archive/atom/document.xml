@@ -8,7 +8,7 @@
         <author>
             <name>{{ document.authors }}</name>
         </author>
-        <summary>{{ document | excerpt:100:1 }}</summary>
+        <summary>{{ document | excerpt:100:1 | escape:entities }}</summary>
         <content type="html">
             {{ document | escape:html }}
         </content>

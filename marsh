@@ -1600,8 +1600,8 @@ function build_template {  # build_template dest_dir target_dir document templat
                 # unset temporary global variables
                 for VAR in ${SUBDOCUMENT_META_VARS[@]}; do unset "${VAR}"; done
             done
-            cp "${DEST}" "${DEST}.temp"
-            <"${DEST}.temp" awk 'BEGIN { while (getline < "'"${DOCUMENT}.${MARSH_UID}.subdocuments"'") txt=txt $0 "\n"; gsub(/[&]/, "\\\\&", txt) } /\{\{[ ]*subdocuments[ ]*\}\}/{ gsub(/\{\{[ ]*subdocuments[ ]*\}\}/, txt) } 1' > "${DEST}"
+            cp "${DEST}" "${DEST}.${MARSH_UID}.temp"
+            <"${DEST}.${MARSH_UID}.temp" awk 'BEGIN { while (getline < "'"${DOCUMENT}.${MARSH_UID}.subdocuments"'") txt=txt $0 "\n"; gsub(/[&]/, "\\\\&", txt) } /\{\{[ ]*subdocuments[ ]*\}\}/{ gsub(/\{\{[ ]*subdocuments[ ]*\}\}/, txt) } 1' > "${DEST}"
         fi
 
         # unset temporary global variables

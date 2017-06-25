@@ -2,7 +2,7 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
     <id>{{ document.uri }}</id>
     <link rel="self" href="{{ document.uri }}" type="application/atom+xml" />
-    <link rel="alternate" href="{{ document.uri }}" type="text/html" />
+    <link rel="alternate" href="{{ document.abspath }}/" type="text/html" />
     <icon>{{ document.abspath }}/icon.png</icon>
     <updated>{{ document.date | date:rfc3339 }}</updated>
     <title>{{ document.title }}</title>

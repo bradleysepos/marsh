@@ -417,6 +417,7 @@ function text_filter {  # text_filter filters[@]
                 # ':a;s/<[^>]*>//g;/</N;//ba' strips html tags and works across multiple lines (better version of 's/<[^>]*>//g')
                 # '/./,/^$/!d' deletes blank lines at start and collapses consecutive blank lines into one, leaving up to one blank line at end
                 TEXT=$(echo "${TEXT}" | sed -e ':a' -e 's/<[^>]*>//g' -e '/</N' -e '//ba' | sed '/./,/^$/!d')
+                TEXT=$(echo "${TEXT}" | decode_entities)
                 ;;
             slug)
                 TEXT=$(echo "${TEXT}" | head -n 1 | sed -E -e 's/[ _]+/-/g' -e 's/[^-a-zA-Z0-9.]//g' -e 's/(^-+)|(-+$)//' | awk '{ print tolower($0) }')

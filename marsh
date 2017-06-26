@@ -987,13 +987,26 @@ function build_archive {  # build_archive encoding target_dir dest_file dest_tit
         # valid subdocument
         VALID=$((VALID + 1))
         DEST_SUB="${DEST_SUB_PREFIX}.$((VALID-1))"
+        # add subdocument title
+        TITLE="${DOCUMENT_META_PREFIX}Title"
+        TITLE="${!TITLE:-}"
+        if [[ "${ENCODING}" == "html" ]]; then
+            echo "## ${TITLE}" >> "${DEST_SUB}.document"
+            echo "" >> "${DEST_SUB}.document"
+        fi
         # process text
         if [[ "${CONTENT}" == "none" ]]; then
+            # no content
+            # title already added
             touch "${DEST_SUB}.document"
-        elif [[ "${CONTENT}" != "" ]]; then
+        elif [[ "${CONTENT%%:}" == "excerpt" ]]; then
+            # excerpt
+            # filters strip duplicate title
             <"${TARGET_DIR:-.}/${DOCUMENT}" text_filter headings:push "${CONTENT}" "wrap:div.$(echo ${CONTENT} | sed -e 's/:[^ ]//g' -e 's/ /./g')" >> "${DEST_SUB}.document"
         else
-            <"${TARGET_DIR:-.}/${DOCUMENT}" text_filter headings:push >> "${DEST_SUB}.document"
+            # full
+            # filters strip duplicate title
+            <"${TARGET_DIR:-.}/${DOCUMENT}" text_filter headings:shift headings:push headings:push >> "${DEST_SUB}.document"
         fi
         # copy metadata
         cp "${TARGET_DIR}/${DOCUMENT%.document}.meta.yaml" "${DEST_SUB}.meta.yaml.temp" >/dev/null 2>&1

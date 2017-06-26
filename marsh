@@ -406,6 +406,8 @@ function text_filter {  # text_filter filters[@]
             headings:shift)
                 TEXT=$(echo "${TEXT}${LF}" | sed -E -e 'N;s/^(.*)\n([-]+|[=]+)$/# \1/' | sed -E -e '/^# .+$/d' -e 's/^#([#]+ )/\1/')
                 TEXT=$(echo "${TEXT}" | sed -E -e '/<h1[^>]*>.*<\/h1>/s///g' | sed -E -e '/<\/?h[0-6][^>]*>/{s/<(\/)h2/<\1h1/g' -e 's/<(\/)h3/<\1h2/g' -e 's/<(\/)h4/<\1h3/g' -e 's/<(\/)h5/<\1h4/g' -e 's/<(\/)h6/<\1h5/g' -e '}')
+                # '/./,$!d' deletes blank lines at start
+                TEXT=$(echo "${TEXT}" | sed -e '/./,$!d')
                 ;;
             headings:remove)
                 TEXT=$(echo "${TEXT}${LF}" | sed -E -e 'N;s/^(.*)\n([-]+|[=]+)$/# \1/' | sed -E -e '/^[#]+ .+$/d')

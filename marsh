@@ -370,6 +370,7 @@ function text_filter {  # text_filter filters[@]
                 TEXT=$(echo "${TEXT}" | decode_entities);
                 ;;
             escape:html)
+                TEXT=$(echo "${TEXT}" | decode_entities);
                 TEXT=$(echo "${TEXT}" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' -e 's/"/\&quot;/g' -e 's/'"'"'/\&#39;/g');
                 ;;
             escape:json-val)

@@ -373,7 +373,7 @@ function text_filter {  # text_filter filters[@]
                 TEXT=$(echo "${TEXT}" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' -e 's/"/\&quot;/g' -e 's/'"'"'/\&#39;/g');
                 ;;
             escape:json-val)
-                TEXT=$(echo "${TEXT}" | sed -e 's/"/\\"/g' | awk '{ printf "%s\\n", $0 }');
+                TEXT=$(echo "${TEXT}" | sed -e 's/"/\\"/g' | awk '(NR==1) { printf "%s", $0 } (NR>1) { printf "\\n%s", $0 }');
                 ;;
             excerpt:*)
                 MAX_CHARS="${OPTIONS[0]:-}"

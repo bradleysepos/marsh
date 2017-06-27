@@ -1,0 +1,62 @@
+---
+Build:
+  Name: Marsh Example Website
+  Description: Yet Another Example Website
+  URL: https://bradleysepos.github.io/marsh-example
+  Path: public
+  Targets:
+    - Name:   Marsh Example Website
+      Path:   .
+      Force:  true
+      Source: source/*
+      #Remote: https://github.com/bradleysepos/marsh.git
+      #Source: example/source/*
+      #Fetch:  true
+      Templates:
+        - Remote: https://github.com/bradleysepos/marsh.git
+          Source: templates/default
+          #Config: templates/default/template-extra.yaml
+          Fetch:  true
+    - Name:   About Marsh Example
+      Path:   about
+      Force:  true
+      Source: source/about
+      #Remote: https://github.com/bradleysepos/marsh.git
+      #Source: example/source/about
+      #Fetch:  true
+      Templates:
+        - Remote: https://github.com/bradleysepos/marsh.git
+          Source: templates/default
+          #Config: templates/default/template-extra.yaml
+          Fetch:  true
+    - Name:   Marsh Example News
+      Path:   news
+      Force:  true
+      Source: source/news
+      #Remote: https://github.com/bradleysepos/marsh.git
+      #Source: example/source/news
+      #Fetch:  true
+      Templates:
+        - Remote: https://github.com/bradleysepos/marsh.git
+          Source: templates/default
+          #Config: templates/default/template-extra.yaml
+          Fetch:  true
+      Archives:
+        - Name:     Marsh Example News
+          Path:     index.markdown
+          #Count:    10
+          Types:    [ news ]
+          Exclude:  [ draft ]
+        - Name:     Marsh Example News
+          Path:     feed.xml
+          Encoding: atom
+          #Count:    10
+          Types:    [ news ]
+          Exclude:  [ draft ]
+        - Name:     Marsh Example News
+          Path:     feed.json
+          Encoding: json
+          #Count:    10
+          Types:    [ news ]
+          Exclude:  [ draft ]
+...

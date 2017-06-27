@@ -1,2 +1,5 @@
 # Prevent overwriting user config
 !config.yaml
+
+# Ignore example public output
+example/public

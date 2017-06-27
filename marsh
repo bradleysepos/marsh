@@ -1695,6 +1695,13 @@ function build_template {  # build_template dest_dir target_dir document templat
     -e ':a' -e 's|class="([^."]+)\.([^"]+)"|class="\1 \2"|g' -e 'ta' \
     -i".${MARSH_UID}.backup" "${DEST}" && rm -f "${DEST}.${MARSH_UID}.backup"
 
+    # escape double quotes for JSON
+    if [[ "${DOCUMENT_Type}" == "archive-json" ]]; then
+        sed -E \
+        -e ':a' -e 's|class="([^"]+)"|class=\\"\1\\"|g' -e 'ta' \
+        -i".${MARSH_UID}.backup" "${DEST}" && rm -f "${DEST}.${MARSH_UID}.backup"
+    fi
+
     # unwrap figures
     sed -E \
     -e 's|<p><figure>|<figure>|' \

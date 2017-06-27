@@ -860,6 +860,7 @@ function get_files {  # get_files source dest force fetch uri
                 return 1
             fi
             # create path
+            DEST="${DEST%/.}"
             if ! mkdir -p "${DEST}"; then
                 echo "Unable to create path: ${DEST}" >&2
                 return 1

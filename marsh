@@ -947,10 +947,13 @@ function build_archive {  # build_archive encoding target_dir dest_file dest_tit
 
     # loop over documents
     VALID=0
-    DOCUMENTS=$(cd "${TARGET_DIR}" && find . -name '*.'"${MARSH_UID}"'.document' | sed 's/^\.\///' | sort -nr -t/)
+    OIFS="${IFS}"
+    IFS=$'\n'
+    DOCUMENTS=($(cd "${TARGET_DIR}" && find . -name '*.'"${MARSH_UID}"'.document' | sed 's/^\.\///' | sort -nr -t/))
+    IFS="${OIFS}"
     DOCUMENTS_MAX="${#DOCUMENTS[@]}"
     DOCUMENTS_MAX=$((DOCUMENTS_MAX - 1))
-    for DOCUMENT in ${DOCUMENTS[@]}; do
+    for DOCUMENT in "${DOCUMENTS[@]}"; do
         if [[ "${COUNT}" != "" ]] && [[ "${VALID}" -ge "${COUNT}" ]]; then
             break
         fi
@@ -1834,7 +1837,11 @@ function build_target {  # build_target dest_dir target advanced_nav templates_d
         fi
     else
         # serially
-        for DOCUMENT in ${DOCUMENTS[@]}; do
+        OIFS="${IFS}"
+        IFS=$'\n'
+        DOCUMENTS=($(echo "${DOCUMENTS[@]}"))
+        IFS="${OIFS}"
+        for DOCUMENT in "${DOCUMENTS[@]}"; do
             if ! build_document "${DEST_DIR}" "${TARGET_DIR}" "${DOCUMENT}" "${ADVANCED_NAV}"; then
                 echo "Unable to build document: ${DOCUMENT}"
                 return 1

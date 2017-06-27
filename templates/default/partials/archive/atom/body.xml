@@ -5,6 +5,6 @@
     <link rel="alternate" href="{{ document.abspath }}/" type="text/html" />
     <icon>{{ document.abspath }}/icon.png</icon>
     <updated>{{ document.date | date:rfc3339 }}</updated>
-    <title>{{ document.title }}</title>
+    <title>{{ document.title | escape:entities }}</title>
     {{ subdocuments }}
 </feed>

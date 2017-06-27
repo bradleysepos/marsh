@@ -3,10 +3,10 @@
         <link rel="alternate" href="{{ document.uri }}" />
         <published>{{ document.date | date:rfc3339 }}</published>
         <updated>{{ document.date | date:rfc3339 }}</updated>
-        <rights>Copyright {{ document.copyright }}</rights>
-        <title>{{ document.title }}</title>
+        <rights>Copyright {{ document.copyright | escape:entities }}</rights>
+        <title>{{ document.title | escape:entities }}</title>
         <author>
-            <name>{{ document.authors }}</name>
+            <name>{{ document.authors | escape:entities }}</name>
         </author>
         <summary>{{ document | excerpt:100:1 | escape:entities }}</summary>
         <content type="html">

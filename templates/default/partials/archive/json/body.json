@@ -1,6 +1,6 @@
 {
   "version": "https://jsonfeed.org/version/1",
-  "title": "{{ document.title }}",
+  "title": "{{ document.title | escape:entities }}",
   "home_page_url": "{{ document.abspath }}/",
   "feed_url": "{{ document.uri }}",
   "icon": "{{ document.abspath }}/icon.png",

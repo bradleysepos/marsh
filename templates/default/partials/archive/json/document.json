@@ -4,11 +4,11 @@
       "date_published": "{{ document.date | date:rfc3339 }}",
       "date_modified": "{{ document.date | date:rfc3339 }}",
       "_rights": {
-        "copyright": "Copyright {{ document.copyright }}"
+        "copyright": "Copyright {{ document.copyright | escape:entities }}"
       },
-      "title": "{{ document.title }}",
+      "title": "{{ document.title | escape:entities }}",
       "author": {
-        "name": "{{ document.authors }}"
+        "name": "{{ document.authors | escape:entities }}"
       },
       "summary": "{{ document | excerpt:100:1 | escape:entities | escape:json-val }}",
       "content_html": "{{ document | escape:json-val }}"

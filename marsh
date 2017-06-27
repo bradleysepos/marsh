@@ -1312,7 +1312,10 @@ function build_template {  # build_template dest_dir target_dir document templat
     if echo "${DOCUMENT_EXT}" | grep -Ei '^(markdown|md|mkd|mkdn|mdown)$' >/dev/null 2>&1; then
         DEST="${DEST%.*}.html"
     fi
-    DEST="${DEST_DIR}/${TARGET_DIR}/${DEST}"
+    if [[ "${TARGET_DIR}" != "." ]]; then
+        DEST="${TARGET_DIR}/${DEST}"
+    fi
+    DEST="${DEST_DIR}/${DEST}"
     DOCUMENT="${DEST_DIR}/${TARGET_DIR}/${DOCUMENT}"
     DOCUMENT_URI="${DOCUMENT_ABSPATH:+$DOCUMENT_ABSPATH/}${DEST##*/}"
     TEMPLATE_DIR="${4:-}"
@@ -1812,7 +1815,11 @@ function build_target {  # build_target dest_dir target advanced_nav templates_d
     if [[ "${TARGET}" == '*' ]]; then
         DOCUMENTS=$(cd "${DEST_DIR}/${TARGET_DIR}" && find *)
     elif [[ -d "${DEST_DIR}/${TARGET}" ]]; then
-        DOCUMENTS=$(cd "${DEST_DIR}/${TARGET}" && find .)
+        if [[ "${TARGET}" == "." ]]; then
+            DOCUMENTS=$(cd "${DEST_DIR}" && find . -maxdepth 1)
+        else
+            DOCUMENTS=$(cd "${DEST_DIR}/${TARGET}" && find .)
+        fi
     else
         DOCUMENTS=$(cd "${DEST_DIR}/${TARGET_DIR}" && find "${TARGET##*/}")
     fi

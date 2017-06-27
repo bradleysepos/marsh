@@ -996,8 +996,13 @@ function build_archive {  # build_archive encoding target_dir dest_file dest_tit
         # add subdocument title
         TITLE="${DOCUMENT_META_PREFIX}Title"
         TITLE="${!TITLE:-}"
+        URI="${TARGET_DIR#$MARSH_CONFIG_PATH}"
+        URI="${MARSH_CONFIG_URL%/}/${URI#/}/${DOCUMENT%.${MARSH_UID}.document}"
+        URI="${URI%.markdown}.html"
+        ABSPATH=""
+        [[ "${URI}" =~ / ]] && ABSPATH="${URI%/*}"
         if [[ "${ENCODING}" == "html" ]]; then
-            echo "## ${TITLE}" >> "${DEST_SUB}.document"
+            echo "## [${TITLE}](${URI})" >> "${DEST_SUB}.document"
             echo "" >> "${DEST_SUB}.document"
         fi
         # process text
@@ -1017,11 +1022,6 @@ function build_archive {  # build_archive encoding target_dir dest_file dest_tit
         # copy metadata
         cp "${TARGET_DIR}/${DOCUMENT%.document}.meta.yaml" "${DEST_SUB}.meta.yaml.temp" >/dev/null 2>&1
         # store paths (cannot calculate original path later)
-        URI="${TARGET_DIR#$MARSH_CONFIG_PATH}"
-        URI="${MARSH_CONFIG_URL%/}/${URI#/}/${DOCUMENT%.${MARSH_UID}.document}"
-        URI="${URI%.markdown}.html"
-        ABSPATH=""
-        [[ "${URI}" =~ / ]] && ABSPATH="${URI%/*}"
         <"${DEST_SUB}.meta.yaml.temp" sed -e '/^\.\.\.$/d' > "${DEST_SUB}.meta.yaml"
         echo "---" >> "${DEST_SUB}.meta.yaml"
         echo "ABSPATH: ${ABSPATH}" >> "${DEST_SUB}.meta.yaml"

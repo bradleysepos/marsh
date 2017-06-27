@@ -865,12 +865,10 @@ function get_files {  # get_files source dest force fetch uri
                 echo "Unable to create path: ${DEST}" >&2
                 return 1
             fi
-            if [[ -d "${SOURCE_DIR}/${FILE}" ]]; then
-                # clean destination
-                if ! rm -rf "${DEST%/}/${FILE}"; then
-                    echo "Unable to replace path: ${DEST}" >&2
-                    return 1
-                fi
+            # clean destination
+            if ! rm -rf "${DEST%/}/${FILE}"; then
+                echo "Unable to replace path: ${DEST}" >&2
+                return 1
             fi
             # copy
             if ! cp -R "${SOURCE_DIR}/${FILE}" "${DEST%/}/${FILE}"; then
@@ -1732,11 +1730,6 @@ function build_document {  # build_document dest_dir target_dir document advance
     # normalize extensions
     if echo "${DOCUMENT_EXT}" | grep -Ei '^(markdown|md|mkd|mkdn|mdown)$' >/dev/null 2>&1; then
         DOCUMENT_EXT="markdown"
-    fi
-
-    # skip existing final document
-    if [[ "${DOCUMENT_EXT}" == "markdown" ]] && [[ -e "${DOCUMENT%.*}.html" ]]; then
-        return 0
     fi
 
     # split yaml and markdown, keep original

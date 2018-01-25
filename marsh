@@ -6,7 +6,7 @@
 # https://github.com/bradleysepos/marsh
 
 NAME="marsh"
-VERSION="0.5.0"
+VERSION="0.6.0"
 SELF="${BASH_SOURCE[0]}"
 SELF_DIR=$(cd $(dirname "${BASH_SOURCE[0]}") && pwd -P)
 SELF_DIR="${SELF_DIR:-$(pwd)}"

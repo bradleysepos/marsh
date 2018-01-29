@@ -1579,15 +1579,7 @@ function build_template {  # build_template dest_dir target_dir document templat
                 eval $(process_authors "SUBDOCUMENT_AUTHORS" "SUBDOCUMENT_Authors")
                 SUBDOCUMENT_AUTHORS=$(join_delimited ', ' ' and ' ', and ' ${SUBDOCUMENT_AUTHORS[@]})
                 # state
-                if [[ "${SUBDOCUMENT_State}" != "" ]]; then
-                    # deprecated (no brackets)
-                    # Key: foo, bar, baz
-                    SUBDOCUMENT_State=(${SUBDOCUMENT_State//, /})
-                else
-                    # YAML inline array
-                    # Key: [ foo, bar, baz ]
-                    eval $(flat_to_array "SUBDOCUMENT_State" "SUBDOCUMENT_State_")
-                fi
+                eval $(flat_to_array "SUBDOCUMENT_State" "SUBDOCUMENT_State_")
                 if [[ "${DOCUMENT_Type}" == "archive-atom" ]]; then
                     # document template
                     if [[ "${TEMPLATE_Template_Partials_Archive_Atom_Document:-}" != "" ]]; then

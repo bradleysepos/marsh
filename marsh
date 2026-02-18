@@ -477,64 +477,34 @@ function is_child {  # is_child directory child
     return 1
 }
 
-# prints an integer transformation of a version string
-# useful for simple comparisons, max input 999.999.999
-# [[ $(version 2.10.9) -gt $(version 1.0.5) ]]  # true
-# [[           2010009 -gt 1000005          ]]  # true
-function version {  # version x(.x)?(.x)?
-    echo $(printf "%03d%03d%03d\n" $(echo "${1:-}" | sed -E -e 's/^([0-9]+(\.[0-9]+(\.[0-9]+)?)?).*$/\1/' | tr '.' '\n' | head -n 3)) | sed 's/^0*//' | sed 's/^$/0/'
-}
-
-# checks for required external tool
-function dependency_exists {  # dependency_exists dep
-    local DEP ERROR
-    DEP="${1:-}"; [[ "${DEP}" == "" ]] && return 1
-    ERROR=false
-    if echo "${DEP}" | grep '/' >/dev/null 2>&1 && [[ ! -x "${DEP}" ]]; then
-        echo "Unable to find command: ${DEP}" >&2
-        ERROR=true
-    elif ! hash "${DEP}" >/dev/null 2>&1; then
-        echo "Unable to find command: ${DEP}" >&2
-        ERROR=true
-    fi
-    [[ "${ERROR}" == true ]] && return 1
-    return 0
-}
-
-# checks for required external tools (plural)
-function dependencies_exist {  # dependencies_exist deps[@]
-    local DEPS ERRORS
+# checks for required external tools
+function check_dependencies {  # check_dependencies $DEP1 $DEP2 ...
+    local DEPS DEPS_EACH DEPS_MULTI ERRORS FOUND
     DEPS=("${@}");
     ERRORS=()
-    for DEP in ${DEPS[@]}; do
-        dependency_exists "${DEP}" 2>/dev/null || ERRORS+=("${DEP}")
+    for DEPS_EACH in ${DEPS[@]}; do
+        DEPS_MULTI=(${DEPS_EACH//|/ })
+        FOUND=false
+        for DEP in ${DEPS_MULTI[@]}; do
+            if echo "${DEP}" | grep '/' >/dev/null 2>&1; then
+                if [[ -x "${DEP}" ]]; then
+                    FOUND=true
+                fi
+                break
+            elif hash "${DEP}" >/dev/null 2>&1; then
+                FOUND=true
+                break
+            fi
+        done
+        if [[ "${FOUND}" == false ]]; then
+            ERRORS+=("$(echo ${DEPS_MULTI[@]} | sed 's/ /|/')")
+        fi
     done
     if [[ "${#ERRORS[@]}" -ne 0 ]]; then
-        echo "Unable to find command(s): ${ERRORS[*]}" >&2
+        echo "dependencies: ${DEPS[@]}"
+        echo "unable to find command(s): ${ERRORS[*]}" >&2
         return 1
     fi
-    return 0
-}
-
-# prints dependency requirements
-function print_dependency {  # print_dependency name url required_version found_version
-    local NAME URL VERSION FOUND
-    NAME="${1:-}"; [[ "${NAME}" == "" ]] && return 1
-    URL="${2:-}"
-    VERSION="${3:-}"
-    FOUND="${4:-}"
-    echo -n "${NAME}" >&2
-    if [[ "${VERSION}" != "" ]]; then
-        echo -n " version ${VERSION} or later" >&2
-    fi
-    echo -n " is required" >&2
-    if [[ "${FOUND}" != "" ]]; then
-        echo -n " (found version ${FOUND})" >&2
-    fi
-    if [[ "${URL}" != "" ]]; then
-        echo -n ": ${URL}" >&2
-    fi
-    echo >&2
 }
 
 # prints bash variable assignments for template metadata
@@ -820,7 +790,7 @@ function get_files {  # get_files source dest force fetch uri
             if [[ "${TYPE}" == "git" ]]; then
                 # clone repository
                 echo "Retrieving source: ${URI}"
-                if ! "${GIT}" clone --depth 1 --recursive "${URI}" "${CACHE}" >/dev/null 2>&1; then
+                if ! git clone --depth 1 --recursive "${URI}" "${CACHE}"; then
                     # unable to clone repository
                     echo "Unable to retrieve source: ${URI}" >&2
                     return 1
@@ -2199,32 +2169,19 @@ if [[ "${MARSH_CONFIG_FILE:-}" == "" ]]; then
 fi
 
 # dependencies
-GIT="git"
-MD5="md5sum"
-[[ "$(uname | awk '{ print tolower($0) }')" == "darwin" ]] && MD5="md5"
 if [[ "${MARKDOWN}" != "" ]] && [[ "${MARKDOWN#\/}" == "${MARKDOWN}" ]]; then
     MARKDOWN="${SELF_DIR}/${MARKDOWN}"
 fi
 MARKDOWN="${MARKDOWN:-markdown}"
-MARKDOWN_VERSION_REQ="2.2.2"
-DEPS_MISSING=()
-dependency_exists "${MD5}" || DEPS_MISSING+=("${MD5}")
-if dependency_exists "${GIT}"; then
-    GIT_VERSION=$("${GIT}" --version | head -n 1 | sed -E -e 's/^git +version +([0-9]+(\.[0-9]+(\.[0-9]+)?)?).*$/\1/')
-    [[ $(version "${GIT_VERSION:-}") -ge $(version "2.3") ]] && export GIT_TERMINAL_PROMPT=0
+DEPS=("git" "${MARKDOWN}" "md5|md5sum")
+check_dependencies "${DEPS[@]}" || exit 1
+
+# md5 binary
+if hash md5 >/dev/null 2>&1; then
+    MD5="md5 -r"
+elif hash md5sum >/dev/null 2>&1; then
+    MD5="md5sum"
 else
-    DEPS_MISSING+=("${GIT}")
-fi
-if dependency_exists "${MARKDOWN}"; then
-    MARKDOWN_VERSION=$("${MARKDOWN%%\ *}" -V | head -n 1 | sed -E -e 's/^markdown: +discount +(\(.+\) *)?([0-9]+(\.[0-9]+(\.[0-9]+)?)?).*$/\2/')
-    [[ $(version "${MARKDOWN_VERSION:-}") -ge $(version "${MARKDOWN_VERSION_REQ}") ]] || DEPS_MISSING+=("${MARKDOWN}")
-else
-    DEPS_MISSING+=("${MARKDOWN}")
-fi
-if [[ "${#DEPS_MISSING[@]}" -gt 0 ]]; then
-    in_array "${MD5}" "${DEPS_MISSING[@]}" && print_dependency "md5sum (md5 on Darwin/macOS)"
-    in_array "${GIT}" "${DEPS_MISSING[@]}" && print_dependency "Git" "https://git-scm.com/"
-    in_array "${MARKDOWN}" "${DEPS_MISSING[@]}" && print_dependency "Discount markdown" "http://www.pell.portland.or.us/~orc/Code/discount/" "${MARKDOWN_VERSION_REQ:-}" "${MARKDOWN_VERSION:-}"
     exit 1
 fi
 

@@ -3,3 +3,7 @@
 
 # Ignore example public output
 example/public
+
+# Ignore binary artifacts
+tools/markdown
+tools/markdown.exe

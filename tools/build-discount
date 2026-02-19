@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+#
+# Usage:
+#
+#   build-discount [--cross-prefix=PREFIX] source-dir
+#
+# Examples:
+#
+#   # native build on BSD/Linux/macOS
+#   build-discount path/to/discount
+#
+#   # cross build for Windows on Linux using mingw-w64 gcc
+#   # for testing only, not officially supported by upstream
+    # processed text output might be broken in subtle ways
+#   build-discount --cross-prefix=x86_64-w64-mingw32- path/to/discount
+
+set -e
+
+SELF="${BASH_SOURCE[0]}"
+SELF_DIR=$(cd $(dirname "${BASH_SOURCE[0]}") && pwd -P)
+SELF_DIR="${SELF_DIR:-$(pwd)}"
+CROSS_PREFIX=""
+if [[ "${1:-}" == --cross-prefix=* ]]; then
+    CROSS_PREFIX="${1#--cross-prefix=}"
+    SOURCE_DIR="${2:-.}"
+else
+    SOURCE_DIR="${1:-.}"
+fi
+cd "${SOURCE_DIR}"
+
+if [[ "${CROSS_PREFIX}" != "" ]]; then
+    ./configure.sh && make mktags && mv mktags mktags.bak
+    CC="${CROSS_PREFIX}gcc" AR="${CROSS_PREFIX}ar" RANLIB="${CROSS_PREFIX}ranlib" ./configure.sh && mv mktags.bak mktags && make -j$(nproc) && cp markdown.exe ../../tools/
+    make clean && make distclean && rm -f *.exe
+else
+    ./configure.sh && make -j$(nproc) && cp markdown ../../tools/
+    make clean && make distclean
+fi

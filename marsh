@@ -2170,7 +2170,7 @@ fi
 
 # dependencies
 if [[ "${MARKDOWN}" != "" ]] && [[ "${MARKDOWN#\/}" == "${MARKDOWN}" ]]; then
-    MARKDOWN="${SELF_DIR}/${MARKDOWN}"
+    MARKDOWN="$(pwd -P)/${MARKDOWN}"
 fi
 MARKDOWN="${MARKDOWN:-markdown}"
 DEPS=("git" "${MARKDOWN}" "md5|md5sum")

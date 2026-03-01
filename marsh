@@ -14,12 +14,14 @@ SELF_NAME=$(basename "${SELF}")
 SYS_NAME=$(uname | awk '{ print tolower($0)}')
 MARKDOWN_OPTIONS=(-1.0 +alphalist -autolink -cdata +definitionlist -divquote -dldiscount +dlextra -emphasis +ext +fencedcode +footnote +githubtags -header +html +image -latex +links -safelink +smarty +strikethrough +style +superscript +tables -tabstop -toc)
 MARKDOWN_FILEEXT=('markdown' 'md' 'mkd' 'mkdn' 'mdown' 'mdtxt' 'mdtext' 'text')
+CONVERT_LINKEXT=true
 HELP="\
 usage: ${SELF_NAME} [-h | --help]
        ${SELF_NAME} [-v | --version]
        ${SELF_NAME} build [--force] [-j # | --jobs #]
          [--markdown markdown] [--markdown-options opt1,opt2]
-         [--markdown-file-extensions ext1,ext2] [config_file]
+         [--markdown-file-extensions ext1,ext2]
+         [--convert-link-extensions true|false] [config_file]
 where:
   -h, --help
         display this help text
@@ -37,7 +39,10 @@ where:
         default: $(echo ${MARKDOWN_OPTIONS[@]} | sed 's/ /,/g')
   --markdown-file-extensions
         markdown file extensions to process (comma delimited)
-        default: $(echo ${MARKDOWN_FILEEXT[@]} | sed 's/ /,/g')"
+        default: $(echo ${MARKDOWN_FILEEXT[@]} | sed 's/ /,/g')
+  --convert-link-extensions
+        convert markdown syntax relative markdown links to .html
+        default: ${CONVERT_LINKEXT}"
 
 # creates bash variables from yaml records
 # extended to support arrays, empty values, and more
@@ -341,7 +346,7 @@ function decode_entities {  # decode_entities
 # transforms a string
 function text_filter {  # text_filter filters[@]
     local FILTERS
-    local LF TEXT OPTIONS TEXT_TEMP DATE_FORMAT MAX_CHARS MAX_PARAS WRAP
+    local LF TEXT OPTIONS TEXT_TEMP DATE_FORMAT MAX_CHARS MAX_PARAS MD_EXT_REGEX PROTOCOL_SEP WRAP
     LF=$'\n'
     TEXT=$(</dev/stdin)
     FILTERS=("${@}")
@@ -417,6 +422,23 @@ function text_filter {  # text_filter filters[@]
                 TEXT=$(echo "${TEXT}${LF}" | sed -E -e 'N;s/^(.*)\n([-]+|[=]+)$/# \1/' | sed -E -e '/^[#]+ .+$/d')
                 TEXT=$(echo "${TEXT}" | sed -E -e 's/<(h1|h2|h3|h4|h5|h6)[^>]*>.*<\/(h1|h2|h3|h4|h5|h6)>//g')
                 ;;
+            links:md2html)
+                # convert relative links with markdown file extensions to html
+                # examples:
+                # [foo](foo.md)               ->  [foo](foo.html)
+                # [foo](foo.md "title")       ->  [foo](foo.html "title")
+                # [1]: reference1.md          ->  [1]: reference1.html
+                # [1]: reference1.md "title"  ->  [1]: reference1.html "title"
+                # [![image](image.jpg)](imagepage.md)                  ->  [![image](image.jpg)](imagepage.html)
+                # [![image](image.jpg) "title"](imagepage.md)          ->  [![image](image.jpg) "title"](imagepage.html)
+                # [![image](image.jpg)](imagepage.md "title")          ->  [![image](image.jpg)](imagepage.html "title")
+                # [![image](image.jpg) "title"](imagepage.md "title")  ->  [![image](image.jpg) "title"](imagepage.html "title")
+                MD_EXT_REGEX=$(echo "${MARKDOWN_FILEEXT[*]}" | sed -E -e 's/[[:space:]]+/|/g')
+                PROTOCOL_SEP=':'  # to avoid matching protocol in absolute URLs, e.g. https://example.com/foo.md
+                if [[ "${CONVERT_LINKEXT}" == true ]] && [[ "${MD_EXT_REGEX}" != "" ]]; then
+                    TEXT=$(echo "${TEXT}" | sed -E -e 's~(^|[^!])(\[((\!\[[^][]*\]\([^)]*\)[^][]*)|[^][]+)\]\(<?[^()[:space:]'"${PROTOCOL_SEP}"']+)\.('"${MD_EXT_REGEX}"')([?#][^()[:space:]]*)?(>?)([[:space:]][^)]*)?(\))~\1\2.html\6\7\8\9~g' -e 's~(^[[:space:]]*\[[^][]+\]:[[:space:]]+<?[^[:space:]>]+'"${PROTOCOL_SEP}"'[^[:space:]>]+)\.('"${MD_EXT_REGEX}"')([?#][^[:space:]>]*)?(>?)([[:space:]].*)?$~\1.html\3\4\5~g')
+                fi
+                ;;
             plaintext)
                 # ':a;s/<[^>]*>//g;/</N;//ba' strips html tags and works across multiple lines (better version of 's/<[^>]*>//g')
                 # '/./,/^$/!d' deletes blank lines at start and collapses consecutive blank lines into one, leaving up to one blank line at end
@@ -434,6 +456,7 @@ function text_filter {  # text_filter filters[@]
     done
     echo "${TEXT}"
 }
+export -f text_filter
 
 # prints a list of variables given their assignment commands, one per line, e.g. FOO="bar" prints FOO
 function get_variables {  # get_variables assignments_string
@@ -968,7 +991,7 @@ function build_advanced_nav {  # build_advanced_nav target_dir navigation_file
         else
             cp "${NAV_DEST}" "${NAV_DEST}.temp"
         fi
-        <"${NAV_DEST}.temp" process_markdown > "${NAV_DEST}"
+        <"${NAV_DEST}.temp" text_filter links:md2html | process_markdown > "${NAV_DEST}"
         rm -f "${NAV_DEST}.temp"
     done
 }
@@ -1519,7 +1542,7 @@ function build_template {  # build_template dest_dir target_dir document templat
                     fi
                 else
                     # markdown to html
-                    <"${SUBDOCUMENT}" process_markdown > "${SUBDOCUMENT}.document"
+                    <"${SUBDOCUMENT}" text_filter links:md2html | process_markdown > "${SUBDOCUMENT}.document"
                     # document template
                     if [[ "${DOCUMENT_Type}" == "archive" ]]; then
                         cp "${TEMPLATE_Template_Partials_Archive_HTML_Document}" "${SUBDOCUMENT}"
@@ -1632,12 +1655,13 @@ function build_document {  # build_document dest_dir target_dir document advance
     fi
 
     if [[ "${DOCUMENT_EXT}" == "markdown" ]]; then
+        # preprocess markdown to convert markdown links to html
         # preprocess markdown to add implicit figures
         # convert preprocessed markdown to html
         # unwrap figures (remove p tag)
         # process images with multiple resolution assets
         cp "${DOCUMENT}.${MARSH_UID}.document" "${DOCUMENT}.${MARSH_UID}.document.temp"
-        <"${DOCUMENT}.${MARSH_UID}.document.temp" sed -E \
+        <"${DOCUMENT}.${MARSH_UID}.document.temp" text_filter links:md2html | sed -E \
         -e 's|^!\[(.+)]\([ ]*([^ ]+)[ ]*"(.+)"[ ]*\)$|<figure>\n<a href="\2">\n<img src="\2" alt="\1" />\n</a>\n<figcaption>\3</figcaption>\n</figure>|' |
         process_markdown |
         sed -E \
@@ -1768,14 +1792,14 @@ function build_target {  # build_target dest_dir target advanced_nav templates_d
     if [[ "${JOBS:-1}" -gt 1 ]] && [[ "${PARALLEL:-}" != "" ]] && [[ "$(${PARALLEL} --version --no-notice 2>/dev/null | head -n 1 | grep -o 'GNU parallel')" == "GNU parallel" ]]; then
         # in parallel
         export -f build_document
-        if ! "${PARALLEL}" --halt now,fail=1 --quote --no-notice --env process_markdown --env build_document --jobs="${JOBS:-1}" "${SELF_DIR}/${SELF_NAME}" build-document --markdown="${PARALLEL_MARKDOWN}" --markdown-options="${MARKDOWN_OPTIONS_CSV}" --markdown-file-extensions="${MARKDOWN_FILEEXT_CSV}" --marsh-uid="${MARSH_UID}" --marsh-temp="${MARSH_TEMP}" --marsh-config-file="${MARSH_CONFIG_FILE}" --marsh-config-file-dir="${MARSH_CONFIG_FILE_DIR}" --marsh-config-path="${MARSH_CONFIG_PATH}" --marsh-config-url="${MARSH_CONFIG_URL}" "${DEST_DIR}" "${TARGET_DIR}" {} {} ::: "${DOCUMENTS[@]}" ::: "${ADVANCED_NAV}"; then
+        if ! "${PARALLEL}" --halt now,fail=1 --quote --no-notice --env text_filter --env process_markdown --env build_document --jobs="${JOBS:-1}" "${SELF_DIR}/${SELF_NAME}" build-document --markdown="${PARALLEL_MARKDOWN}" --markdown-options="${MARKDOWN_OPTIONS_CSV}" --markdown-file-extensions="${MARKDOWN_FILEEXT_CSV}" --convert-link-extensions="${CONVERT_LINKEXT}" --marsh-uid="${MARSH_UID}" --marsh-temp="${MARSH_TEMP}" --marsh-config-file="${MARSH_CONFIG_FILE}" --marsh-config-file-dir="${MARSH_CONFIG_FILE_DIR}" --marsh-config-path="${MARSH_CONFIG_PATH}" --marsh-config-url="${MARSH_CONFIG_URL}" "${DEST_DIR}" "${TARGET_DIR}" {} {} ::: "${DOCUMENTS[@]}" ::: "${ADVANCED_NAV}"; then
             echo "Unable to build template: ${TEMPLATES[$I]}"
             return 1
         fi
         if [[ "${TEMPLATES_DIR}" != "" ]] && [[ "${#TEMPLATES[@]}" -gt 0 ]]; then
             export -f build_template
             for I in "${!TEMPLATES[@]}"; do
-                if ! "${PARALLEL}" --halt now,fail=1 --quote --no-notice --env process_markdown --env build_template --jobs="${JOBS:-1}" "${SELF_DIR}/${SELF_NAME}" build-templates --markdown="${PARALLEL_MARKDOWN}" --markdown-options="${MARKDOWN_OPTIONS_CSV}" --markdown-file-extensions="${MARKDOWN_FILEEXT_CSV}" --marsh-uid="${MARSH_UID}" --marsh-temp="${MARSH_TEMP}" --marsh-config-file="${MARSH_CONFIG_FILE}" --marsh-config-file-dir="${MARSH_CONFIG_FILE_DIR}" --marsh-config-path="${MARSH_CONFIG_PATH}" --marsh-config-url="${MARSH_CONFIG_URL}" "${DEST_DIR}" "${TARGET_DIR}" {} "${TEMPLATES_DIR}" "${TEMPLATES[$I]}" "${TEMPLATES_CONFIG_EXTRA[$I]:-}" ::: "${DOCUMENTS[@]}"; then
+                if ! "${PARALLEL}" --halt now,fail=1 --quote --no-notice --env text_filter --env process_markdown --env build_template --jobs="${JOBS:-1}" "${SELF_DIR}/${SELF_NAME}" build-templates --markdown="${PARALLEL_MARKDOWN}" --markdown-options="${MARKDOWN_OPTIONS_CSV}" --markdown-file-extensions="${MARKDOWN_FILEEXT_CSV}" --convert-link-extensions="${CONVERT_LINKEXT}" --marsh-uid="${MARSH_UID}" --marsh-temp="${MARSH_TEMP}" --marsh-config-file="${MARSH_CONFIG_FILE}" --marsh-config-file-dir="${MARSH_CONFIG_FILE_DIR}" --marsh-config-path="${MARSH_CONFIG_PATH}" --marsh-config-url="${MARSH_CONFIG_URL}" "${DEST_DIR}" "${TARGET_DIR}" {} "${TEMPLATES_DIR}" "${TEMPLATES[$I]}" "${TEMPLATES_CONFIG_EXTRA[$I]:-}" ::: "${DOCUMENTS[@]}"; then
                     echo "Unable to build template: ${TEMPLATES[$I]}"
                     return 1
                 fi
@@ -1849,7 +1873,7 @@ fi
 MARKDOWN=""
 OPTIND=1
 OPTSPEC=":-:hvj:"
-OPTARRAY=('-h' '--help' '-v' '--version' '--force' '-j' '--jobs' '--markdown' '--markdown-options' '--markdown-file-extensions')  # all short and long options
+OPTARRAY=('-h' '--help' '-v' '--version' '--force' '-j' '--jobs' '--markdown' '--markdown-options' '--markdown-file-extensions' '--convert-link-extensions')  # all short and long options
 OPTARRAY+=('marsh-uid' 'marsh-temp' 'marsh-config-file' 'marsh-config-file-dir' 'marsh-config-path' 'marsh-config-url')  # all private options
 while getopts "${OPTSPEC}" OPT; do
     case "${OPT}" in
@@ -1945,6 +1969,29 @@ while getopts "${OPTSPEC}" OPT; do
                 markdown-file-extensions=*)
                     MARKDOWN_FILEEXT="${OPTARG#*=}"
                     MARKDOWN_FILEEXT=(${MARKDOWN_FILEEXT//,/ })
+                    ;;
+                convert-link-extensions)
+                    if [[ -z ${!OPTIND+isset} ]] || in_array "${!OPTIND}" "${OPTARRAY[@]}"; then
+                        # Option without required argument
+                        echo "Option --${OPTARG} requires a value" >&2
+                        echo -e "${HELP}"
+                        exit 1
+                    fi
+                    CONVERT_LINKEXT=$(echo "${!OPTIND}" | awk '{ print tolower($0) }')
+                    if [[ "${CONVERT_LINKEXT}" != true ]] && [[ "${CONVERT_LINKEXT}" != false ]]; then
+                        echo "Option --${OPTARG} requires boolean string value true or false" >&2
+                        echo -e "${HELP}"
+                        exit 1
+                    fi
+                    OPTIND=$((OPTIND + 1))
+                    ;;
+                convert-link-extensions=*)
+                    CONVERT_LINKEXT=$(echo "${OPTARG#*=}" | awk '{ print tolower($0) }')
+                    if [[ "${CONVERT_LINKEXT}" != true ]] && [[ "${CONVERT_LINKEXT}" != false ]]; then
+                        echo "Option --${OPTARG%%=*} requires boolean string value true or false" >&2
+                        echo -e "${HELP}"
+                        exit 1
+                    fi
                     ;;
                 force)
                     FORCE=true

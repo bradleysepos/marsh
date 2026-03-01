@@ -2167,7 +2167,7 @@ if [[ "${MARSH_CONFIG_FILE:-}" == "" ]]; then
     MARSH_CONFIG_FILE="${1:-$(pwd -P)}"
     if [[ -d "${MARSH_CONFIG_FILE}" ]]; then
         MARSH_CONFIG_FILE=$(cd "${MARSH_CONFIG_FILE}" && (pwd -P . 2>/dev/null || command pwd))
-        [[ "${MARSH_CONFIG_FILE}" != "" ]] && MARSH_CONFIG_FILE="${MARSH_CONFIG_FILE%/}/config.yaml"
+        [[ "${MARSH_CONFIG_FILE}" != "" ]] && MARSH_CONFIG_FILE="${MARSH_CONFIG_FILE%/}/marsh-config.yaml"
     fi
     if [[ -f "${MARSH_CONFIG_FILE}" ]] && [[ -r "${MARSH_CONFIG_FILE}" ]]; then
         MARSH_CONFIG=$(parse_yaml "${MARSH_CONFIG_FILE}" "CONFIG_")

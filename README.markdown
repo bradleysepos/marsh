@@ -50,7 +50,7 @@ The basic syntax is:
 marsh build [config_file]
 ```
 
-Where `config_file` is the path to the build configuration file for your site. If not specified, `marsh` defaults to using the `config.yaml` file in the current working directory.
+Where `config_file` is the path to the build configuration file for your site. If not specified, `marsh` defaults to using the `marsh-config.yaml` file in the current working directory.
 
 Output is written to the path defined in the build configuration file, e.g., "public".
 
@@ -76,7 +76,7 @@ marsh --help
 Site Configuration
 ------------------
 
-The `config.yaml` build configuration file defines build targets, source paths, templates, and archives.
+The `marsh-config.yaml` build configuration file defines build targets, source paths, templates, and archives.
 
 ```yaml
 ---

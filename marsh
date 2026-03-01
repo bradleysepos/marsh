@@ -33,7 +33,7 @@ where:
         number of concurrent jobs to run using GNU Parallel
         default: automatically chosen by GNU Parallel, if available
   --markdown
-        path to markdown application
+        path to discount markdown application
   --markdown-file-extensions
         markdown file extensions to process (comma delimited)
         default: $(echo ${MARKDOWN_FILEEXT[@]} | sed 's/ /,/g')

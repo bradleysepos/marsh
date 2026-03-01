@@ -1829,14 +1829,14 @@ function build_target {  # build_target dest_dir target advanced_nav templates_d
     if [[ "${JOBS:-1}" -gt 1 ]] && [[ "${PARALLEL:-}" != "" ]] && [[ "$(${PARALLEL} --version --no-notice 2>/dev/null | head -n 1 | grep -o 'GNU parallel')" == "GNU parallel" ]]; then
         # in parallel
         export -f build_document
-        if ! "${PARALLEL}" --halt now,fail=1 --quote --no-notice --env process_markdown --env build_document --jobs="${JOBS:-1}" "${SELF_DIR}/${SELF_NAME}" build-document --markdown="${PARALLEL_MARKDOWN}" --markdown-file-extensions="${MARKDOWN_FILEEXT_CSV}" --marsh-uid="${MARSH_UID}" --marsh-temp="${MARSH_TEMP}" --marsh-config-file="${MARSH_CONFIG_FILE}" --marsh-config-file-dir="${MARSH_CONFIG_FILE_DIR}" --marsh-config-path="${MARSH_CONFIG_PATH}" --marsh-config-url="${MARSH_CONFIG_URL}" "${DEST_DIR}" "${TARGET_DIR}" {} {} ::: "${DOCUMENTS[@]}" ::: "${ADVANCED_NAV}"; then
+        if ! "${PARALLEL}" --halt now,fail=1 --quote --no-notice --env process_markdown --env build_document --jobs="${JOBS:-1}" "${SELF_DIR}/${SELF_NAME}" build-document --markdown="${PARALLEL_MARKDOWN}" --markdown-file-extensions="${MARKDOWN_FILEEXT_CSV}" --markdown-options="${MARKDOWN_OPTIONS_CSV}" --marsh-uid="${MARSH_UID}" --marsh-temp="${MARSH_TEMP}" --marsh-config-file="${MARSH_CONFIG_FILE}" --marsh-config-file-dir="${MARSH_CONFIG_FILE_DIR}" --marsh-config-path="${MARSH_CONFIG_PATH}" --marsh-config-url="${MARSH_CONFIG_URL}" "${DEST_DIR}" "${TARGET_DIR}" {} {} ::: "${DOCUMENTS[@]}" ::: "${ADVANCED_NAV}"; then
             echo "Unable to build template: ${TEMPLATES[$I]}"
             return 1
         fi
         if [[ "${TEMPLATES_DIR}" != "" ]] && [[ "${#TEMPLATES[@]}" -gt 0 ]]; then
             export -f build_template
             for I in "${!TEMPLATES[@]}"; do
-                if ! "${PARALLEL}" --halt now,fail=1 --quote --no-notice --env process_markdown --env build_template --jobs="${JOBS:-1}" "${SELF_DIR}/${SELF_NAME}" build-templates --markdown="${PARALLEL_MARKDOWN}" --markdown-file-extensions="${MARKDOWN_FILEEXT_CSV}" --marsh-uid="${MARSH_UID}" --marsh-temp="${MARSH_TEMP}" --marsh-config-file="${MARSH_CONFIG_FILE}" --marsh-config-file-dir="${MARSH_CONFIG_FILE_DIR}" --marsh-config-path="${MARSH_CONFIG_PATH}" --marsh-config-url="${MARSH_CONFIG_URL}" "${DEST_DIR}" "${TARGET_DIR}" {} "${TEMPLATES_DIR}" "${TEMPLATES[$I]}" "${TEMPLATES_CONFIG_EXTRA[$I]:-}" ::: "${DOCUMENTS[@]}"; then
+                if ! "${PARALLEL}" --halt now,fail=1 --quote --no-notice --env process_markdown --env build_template --jobs="${JOBS:-1}" "${SELF_DIR}/${SELF_NAME}" build-templates --markdown="${PARALLEL_MARKDOWN}" --markdown-file-extensions="${MARKDOWN_FILEEXT_CSV}" --markdown-options="${MARKDOWN_OPTIONS_CSV}" --marsh-uid="${MARSH_UID}" --marsh-temp="${MARSH_TEMP}" --marsh-config-file="${MARSH_CONFIG_FILE}" --marsh-config-file-dir="${MARSH_CONFIG_FILE_DIR}" --marsh-config-path="${MARSH_CONFIG_PATH}" --marsh-config-url="${MARSH_CONFIG_URL}" "${DEST_DIR}" "${TARGET_DIR}" {} "${TEMPLATES_DIR}" "${TEMPLATES[$I]}" "${TEMPLATES_CONFIG_EXTRA[$I]:-}" ::: "${DOCUMENTS[@]}"; then
                     echo "Unable to build template: ${TEMPLATES[$I]}"
                     return 1
                 fi
@@ -2215,6 +2215,9 @@ MARKDOWN_FILEEXT_REGEX=$(echo ${MARKDOWN_FILEEXT[@]} | sed 's/ /|/g')
 # discount markdown options
 if [[ -z ${MARKDOWN_OPTIONS+isset} ]]; then
     MARKDOWN_OPTIONS=(${MARKDOWN_OPTIONS_DEFAULT[@]})
+    MARKDOWN_OPTIONS_CSV=$(echo ${MARKDOWN_OPTIONS_DEFAULT[@]} | sed 's/ /,/g')
+else
+    MARKDOWN_OPTIONS_CSV=$(echo ${MARKDOWN_OPTIONS[@]} | sed 's/ /,/g')
 fi
 for I in "${!MARKDOWN_OPTIONS[@]}"; do
     MARKDOWN_OPTIONS[$I]="-f${MARKDOWN_OPTIONS[$I]}"

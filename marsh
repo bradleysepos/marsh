@@ -1960,6 +1960,19 @@ while getopts "${OPTSPEC}" OPT; do
                         exit 1
                     fi
                     ;;
+                markdown)
+                    if [[ -z ${!OPTIND+isset} ]] || in_array "${!OPTIND}" "${OPTARRAY[@]}"; then
+                        # Option without required argument
+                        echo "Option --${OPTARG} requires a value" >&2
+                        echo -e "${HELP}"
+                        exit 1
+                    fi
+                    MARKDOWN="${!OPTIND}"
+                    OPTIND=$((OPTIND + 1))
+                    ;;
+                markdown=*)
+                    MARKDOWN="${OPTARG#*=}"
+                    ;;
                 markdown-file-extensions)
                     if [[ -z ${!OPTIND+isset} ]] || in_array "${!OPTIND}" "${OPTARRAY[@]}"; then
                         # Option without required argument
@@ -1994,19 +2007,6 @@ while getopts "${OPTSPEC}" OPT; do
                     IFS=$'\n'
                     MARKDOWN_OPTIONS=(${MARKDOWN_OPTIONS//,/$IFS})
                     IFS="${OIFS}"
-                    ;;
-                markdown)
-                    if [[ -z ${!OPTIND+isset} ]] || in_array "${!OPTIND}" "${OPTARRAY[@]}"; then
-                        # Option without required argument
-                        echo "Option --${OPTARG} requires a value" >&2
-                        echo -e "${HELP}"
-                        exit 1
-                    fi
-                    MARKDOWN="${!OPTIND}"
-                    OPTIND=$((OPTIND + 1))
-                    ;;
-                markdown=*)
-                    MARKDOWN="${OPTARG#*=}"
                     ;;
                 fetch)
                     FETCH=true

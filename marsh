@@ -17,7 +17,7 @@ MARKDOWN_OPTIONS=(-1.0 +alphalist -autolink -cdata +definitionlist -divquote -dl
 HELP="\
 usage: ${SELF_NAME} [-h | --help]
        ${SELF_NAME} [-v | --version]
-       ${SELF_NAME} build [--fetch] [--force] [-j # | --jobs #]
+       ${SELF_NAME} build [--force] [-j # | --jobs #]
          [--markdown markdown] [--markdown-file-extensions ext1,ext2]
          [--markdown-options opt1,opt2] [config_file]
 where:
@@ -25,8 +25,6 @@ where:
         display this help text
   -v, --version
         display version information
-  --fetch
-        download remote resources
   --force
         remove and replace existing targets (overwrite)
   -j, --jobs
@@ -664,8 +662,8 @@ function parse_template_metadata {  # parse_template_metadata prefix template_di
 # loads target metadata into convenience variables
 function get_target_metadata {  # get_target_metadata source_prefix prefix
     local SOURCE_PREFIX PREFIX
-    local TARGET_PATH TARGET_NAME TEMPLATE_SOURCE TARGET_TYPE TEMPLATE_REMOTE TARGET_FORCE TEMPLATE_FETCH TARGET_NAV
-    local II TEMPLATE_SOURCE TEMPLATE_REMOTE TEMPLATE_FETCH TEMPLATE_CONFIG
+    local TARGET_PATH TARGET_NAME TARGET_TYPE TARGET_FORCE TARGET_NAV
+    local II TEMPLATE_SOURCE TEMPLATE_CONFIG
     local ARCHIVE ARCHIVE_NAME ARCHIVE_ENCODING ARCHIVE_COUNT ARCHIVE_CONTENT ARCHIVE_TYPES ARCHIVE_EXCLUDED_STATES
 
     # init
@@ -678,44 +676,28 @@ function get_target_metadata {  # get_target_metadata source_prefix prefix
     TARGET_NAME="${SOURCE_PREFIX}Name"
     TARGET_SOURCE="${SOURCE_PREFIX}Source"
     TARGET_TYPE="${SOURCE_PREFIX}Type"
-    TARGET_REMOTE="${SOURCE_PREFIX}Remote"
     TARGET_FORCE="${SOURCE_PREFIX}Force"
-    TARGET_FETCH="${SOURCE_PREFIX}Fetch"
     TARGET_NAV="${SOURCE_PREFIX}Navigation"
     [[ "${!TARGET_PATH:-}"   != "" ]] && echo "${PREFIX}PATH=\"${!TARGET_PATH//\"/\\\"}\""
     [[ "${!TARGET_NAME:-}"   != "" ]] && echo "${PREFIX}NAME=\"${!TARGET_NAME//\"/\\\"}\""
     [[ "${!TARGET_SOURCE:-}" != "" ]] && echo "${PREFIX}SOURCE=\"${!TARGET_SOURCE//\"/\\\"}\""
     [[ "${!TARGET_TYPE:-}"   != "" ]] && echo "${PREFIX}TYPE=\"${!TARGET_TYPE//\"/\\\"}\""
-    [[ "${!TARGET_REMOTE:-}" != "" ]] && echo "${PREFIX}REMOTE=\"${!TARGET_REMOTE//\"/\\\"}\""
     [[ "${!TARGET_NAV:-}"    != "" ]] && echo "${PREFIX}NAV=\"${!TARGET_NAV//\"/\\\"}\""
     [[ "${!TARGET_FORCE:-}"  != "" ]] && echo "${PREFIX}FORCE=\"${!TARGET_FORCE//\"/\\\"}\""
-    [[ "${!TARGET_FETCH:-}"  != "" ]] && echo "${PREFIX}FETCH=\"${!TARGET_FETCH//\"/\\\"}\""
 
     # templates
     echo "${PREFIX}TEMPLATES_SOURCE=()"
-    echo "${PREFIX}TEMPLATES_REMOTE=()"
-    echo "${PREFIX}TEMPLATES_FETCH=()"
     echo "${PREFIX}TEMPLATES_CONFIG=()"
     echo "${PREFIX}TEMPLATES=()"
     II=0
     TEMPLATE_SOURCE="${SOURCE_PREFIX}Templates_${II}_Source"
-    TEMPLATE_REMOTE="${SOURCE_PREFIX}Templates_${II}_Remote"
-    TEMPLATE_FETCH="${SOURCE_PREFIX}Templates_${II}_Fetch"
     TEMPLATE_CONFIG="${SOURCE_PREFIX}Templates_${II}_Config"
     while [[ "${!TEMPLATE_SOURCE:-}" != "" ]]; do
         echo "${PREFIX}TEMPLATES_SOURCE+=(\"${!TEMPLATE_SOURCE//\"/\\\"}\")"
-        echo "${PREFIX}TEMPLATES_REMOTE+=(\"${!TEMPLATE_REMOTE//\"/\\\"}\")"
-        if [[ "${!TEMPLATE_FETCH:-}" == "true" ]]; then
-            echo "${PREFIX}TEMPLATES_FETCH+=(true)"
-        else
-            echo "${PREFIX}TEMPLATES_FETCH+=(false)"
-        fi
         echo "${PREFIX}TEMPLATES_CONFIG+=(\"${!TEMPLATE_CONFIG//\"/\\\"}\")"
-        echo "${PREFIX}TEMPLATES+=(\"${!TEMPLATE_SOURCE##*/}-$(md5_string ${!TEMPLATE_REMOTE:-local}:${!TEMPLATE_SOURCE})\")"
+        echo "${PREFIX}TEMPLATES+=(\"${!TEMPLATE_SOURCE##*/}-$(md5_string ${!TEMPLATE_SOURCE})\")"
         II=$((II+1))
         TEMPLATE_SOURCE="${SOURCE_PREFIX}Templates_${II}_Source"
-        TEMPLATE_REMOTE="${SOURCE_PREFIX}Templates_${II}_Remote"
-        TEMPLATE_FETCH="${SOURCE_PREFIX}Templates_${II}_Fetch"
         TEMPLATE_CONFIG="${SOURCE_PREFIX}Templates_${II}_Config"
     done
 
@@ -754,10 +736,10 @@ function get_target_metadata {  # get_target_metadata source_prefix prefix
     return 0
 }
 
-# copies files, fetching if necessary and authorized
-function get_files {  # get_files source dest force fetch uri
-    local SOURCE DEST FORCE FETCH URI
-    local SOURCE_DIR CACHE TYPE REMOTE FILES
+# copies files from local sources
+function get_files {  # get_files source dest force
+    local SOURCE DEST FORCE
+    local SOURCE_DIR FILES
     SOURCE="${1:-}"
     DEST="${2:-}"
     if [[ "${SOURCE}" == "" ]]; then
@@ -770,94 +752,51 @@ function get_files {  # get_files source dest force fetch uri
     SOURCE_DIR="${SOURCE%/*}"
     SOURCE_DIR="${SOURCE_DIR:-.}"
     FORCE="${3:-}"
-    FETCH="${4:-}"
-    URI="${5:-}"
-    CACHE=$(md5_string "${URI}")
-    [[ "${CACHE}" == "" ]] && CACHE=$(md5_string "${SOURCE}")
-    CACHE="${MARSH_TEMP}/${CACHE}"
-    TYPE="file"
-    REMOTE=false
-    if [[ "${URI}" != "" ]]; then
-        if [[ "${URI}" =~ ^(git|https?|ssh): ]] || [[ "${URI}" =~ ^.+@.+: ]]; then
-            # remote git
-            TYPE="git"
-            REMOTE=true
-        elif [[ "${URI}" =~ ^file: ]] || [[ "${URI}" =~ .git$ ]]; then
-            # local git
-            TYPE="git"
-        fi
-    fi
-    if [[ "${REMOTE}" != true ]] || [[ "${FETCH}" == true ]]; then
-        # fetch unnecessary/approved
-        if [[ "${TYPE}" != "file" ]] && [[ ! -e "${CACHE}" ]]; then
-            # cache does not exist, create it
-            mkdir -p "${CACHE}"
-            if [[ "${TYPE}" == "git" ]]; then
-                # clone repository
-                echo "Retrieving source: ${URI}"
-                if ! git clone --depth 1 --recursive "${URI}" "${CACHE}"; then
-                    # unable to clone repository
-                    echo "Unable to retrieve source: ${URI}" >&2
-                    return 1
-                fi
-            fi
-        fi
-        if [[ "${TYPE}" == "git" ]]; then
-            # files path relative to cache
-            SOURCE="${CACHE}/${SOURCE}"
-            SOURCE_DIR="${SOURCE%/*}"
-            SOURCE_DIR="${SOURCE_DIR:-.}"
-        fi
-        # select files for copy
-        if [[ -d "${SOURCE}" ]]; then
-            # entire directory
-            FILES="${SOURCE#$SOURCE_DIR/}"
-            DEST="${DEST%/$FILES}"
-            FILES=("${FILES}")
-        else
-            # directory contents
-            OIFS="${IFS}"
-            IFS=$'\n'
-            FILES=($(cd "${SOURCE_DIR}" >/dev/null 2>&1 && find . -maxdepth 1 -name "${SOURCE##*/}" | sed -e 's/^\.\///' -e 's/^\.$//'))
-            [[ $? -ne 0 ]] && IFS="${OIFS}" && echo "Unable to change into directory: ${SOURCE_DIR}" >&2 && return 1
-            IFS="${OIFS}"
-        fi
-        # loop over files
-        for FILE in ${FILES[@]}; do
-            # sanity
-            if [[ "${SOURCE_DIR}/${FILE}" == "${DEST%/}/${FILE}" ]]; then
-                # same source and destination
-                echo "Source and destination paths are equal: ${DEST}" >&2
-                return 1
-            fi
-            if [[ -e "${DEST%/}/${FILE}" ]] && [[ "${FORCE}" != true ]]; then
-                # path exists
-                echo "Path exists (--force to overwrite): ${DEST%/}/${FILE}" >&2
-                return 1
-            fi
-            # create path
-            DEST="${DEST%/.}"
-            if ! mkdir -p "${DEST}"; then
-                echo "Unable to create path: ${DEST}" >&2
-                return 1
-            fi
-            # clean destination
-            if ! rm -rf "${DEST%/}/${FILE}"; then
-                echo "Unable to replace path: ${DEST}" >&2
-                return 1
-            fi
-            # copy
-            if ! cp -R "${SOURCE_DIR}/${FILE}" "${DEST%/}/${FILE}"; then
-                echo "Unable to copy file: ${SOURCE_DIR}/${FILE} -> ${DEST%/}/${FILE}" >&2
-                return 1
-            fi
-        done
-        return 0
+    # select files for copy
+    if [[ -d "${SOURCE}" ]]; then
+        # entire directory
+        FILES="${SOURCE#$SOURCE_DIR/}"
+        DEST="${DEST%/$FILES}"
+        FILES=("${FILES}")
     else
-        # fetch not explicitly authorized
-        echo "Remote source not authorized (--fetch to override): ${URI}" >&2
-        return 1
+        # directory contents
+        OIFS="${IFS}"
+        IFS=$'\n'
+        FILES=($(cd "${SOURCE_DIR}" >/dev/null 2>&1 && find . -maxdepth 1 -name "${SOURCE##*/}" | sed -e 's/^\.\///' -e 's/^\.$//'))
+        [[ $? -ne 0 ]] && IFS="${OIFS}" && echo "Unable to change into directory: ${SOURCE_DIR}" >&2 && return 1
+        IFS="${OIFS}"
     fi
+    # loop over files
+    for FILE in ${FILES[@]}; do
+        # sanity
+        if [[ "${SOURCE_DIR}/${FILE}" == "${DEST%/}/${FILE}" ]]; then
+            # same source and destination
+            echo "Source and destination paths are equal: ${DEST}" >&2
+            return 1
+        fi
+        if [[ -e "${DEST%/}/${FILE}" ]] && [[ "${FORCE}" != true ]]; then
+            # path exists
+            echo "Path exists (--force to overwrite): ${DEST%/}/${FILE}" >&2
+            return 1
+        fi
+        # create path
+        DEST="${DEST%/.}"
+        if ! mkdir -p "${DEST}"; then
+            echo "Unable to create path: ${DEST}" >&2
+            return 1
+        fi
+        # clean destination
+        if ! rm -rf "${DEST%/}/${FILE}"; then
+            echo "Unable to replace path: ${DEST}" >&2
+            return 1
+        fi
+        # copy
+        if ! cp -R "${SOURCE_DIR}/${FILE}" "${DEST%/}/${FILE}"; then
+            echo "Unable to copy file: ${SOURCE_DIR}/${FILE} -> ${DEST%/}/${FILE}" >&2
+            return 1
+        fi
+    done
+    return 0
 }
 
 # builds an archive of directory contents, sorted by descending date
@@ -1900,7 +1839,6 @@ else
 fi
 
 # args
-FETCH=false
 FORCE=false
 JOBS=1
 if [[ "${SYS_NAME}" == "darwin" ]]; then
@@ -1911,7 +1849,7 @@ fi
 MARKDOWN=""
 OPTIND=1
 OPTSPEC=":-:hvj:"
-OPTARRAY=('-h' '--help' '-v' '--version' '--fetch' '--force' '-j' '--jobs' '--markdown' '--markdown-file-extensions' '--markdown-options')  # all short and long options
+OPTARRAY=('-h' '--help' '-v' '--version' '--force' '-j' '--jobs' '--markdown' '--markdown-file-extensions' '--markdown-options')  # all short and long options
 OPTARRAY+=('marsh-uid' 'marsh-temp' 'marsh-config-file' 'marsh-config-file-dir' 'marsh-config-path' 'marsh-config-url')  # all private options
 while getopts "${OPTSPEC}" OPT; do
     case "${OPT}" in
@@ -2007,15 +1945,6 @@ while getopts "${OPTSPEC}" OPT; do
                     IFS=$'\n'
                     MARKDOWN_OPTIONS=(${MARKDOWN_OPTIONS//,/$IFS})
                     IFS="${OIFS}"
-                    ;;
-                fetch)
-                    FETCH=true
-                    ;;
-                fetch=*)
-                    # Option with prohibited value
-                    echo "Option --${OPTARG%%=*} takes no value" >&2
-                    echo -e "${HELP}"
-                    exit 1
                     ;;
                 force)
                     FORCE=true
@@ -2196,7 +2125,7 @@ if [[ "${MARKDOWN}" != "" ]] && [[ "${MARKDOWN#\/}" == "${MARKDOWN}" ]]; then
     MARKDOWN="$(pwd -P)/${MARKDOWN}"
 fi
 MARKDOWN="${MARKDOWN:-markdown}"
-DEPS=("git" "${MARKDOWN}" "md5|md5sum")
+DEPS=("${MARKDOWN}" "md5|md5sum")
 check_dependencies "${DEPS[@]}" || exit 1
 
 # md5 binary
@@ -2294,11 +2223,7 @@ if [[ "${COMMAND}" == "build" ]]; then
         # get template
         for I in "${!TARGET_TEMPLATES[@]}"; do
             if [[ ! -e "${TEMPLATES_DIR}/${TARGET_TEMPLATES[$I]}" ]]; then
-                # fetch remote?
-                if [[ "${TARGET_TEMPLATES_FETCH[$I]}" == true ]] || [[ "${FETCH}" == true ]]; then
-                    TARGET_TEMPLATES_FETCH[$I]=true
-                fi
-                if [[ "${TARGET_TEMPLATES_REMOTE[$I]}" == "" ]] && [[ ! "${TARGET_TEMPLATES_SOURCE[$I]}" =~ ^/ ]]; then
+                if [[ ! "${TARGET_TEMPLATES_SOURCE[$I]}" =~ ^/ ]]; then
                     TARGET_TEMPLATES_SOURCE[$I]="${MARSH_CONFIG_FILE_DIR}/${TARGET_TEMPLATES_SOURCE[$I]}"
                     TARGET_TEMPLATES_SOURCE[$I]="${TARGET_TEMPLATES_SOURCE[$I]#./}"
                 fi
@@ -2308,9 +2233,7 @@ if [[ "${COMMAND}" == "build" ]]; then
                 fi
                 get_files "${TARGET_TEMPLATES_SOURCE[$I]}/*" \
                           "${TEMPLATES_DIR}/${TARGET_TEMPLATES[$I]}" \
-                          false \
-                          "${TARGET_TEMPLATES_FETCH[$I]}" \
-                          "${TARGET_TEMPLATES_REMOTE[$I]}" || die_gracefully
+                          false || die_gracefully
             fi
         done
 
@@ -2318,19 +2241,14 @@ if [[ "${COMMAND}" == "build" ]]; then
         if [[ "${TARGET_FORCE}" == true ]] || [[ "${FORCE}" == true ]]; then
             TARGET_FORCE=true
         fi
-        if [[ "${TARGET_FETCH}" == true ]] || [[ "${FETCH}" == true ]]; then
-            TARGET_FETCH=true
-        fi
-        if [[ "${TARGET_REMOTE}" == "" ]] && [[ ! "${TARGET_SOURCE}" =~ ^/ ]]; then
+        if [[ ! "${TARGET_SOURCE}" =~ ^/ ]]; then
             TARGET_SOURCE="${MARSH_CONFIG_FILE_DIR}/${TARGET_SOURCE}"
             TARGET_SOURCE="${TARGET_SOURCE#./}"
         fi
         if [[ "${TARGET_SOURCE}" != "" ]]; then
             get_files "${TARGET_SOURCE}" \
                       "${MARSH_CONFIG_PATH}/${TARGET_PATH}" \
-                      "${TARGET_FORCE}" \
-                      "${TARGET_FETCH}" \
-                      "${TARGET_REMOTE}" || die_gracefully
+                      "${TARGET_FORCE}" || die_gracefully
         fi
 
         # build advanced navigation

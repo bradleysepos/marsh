@@ -12,7 +12,7 @@ SELF_DIR=$(cd $(dirname "${BASH_SOURCE[0]}") && pwd -P)
 SELF_DIR="${SELF_DIR:-$(pwd)}"
 SELF_NAME=$(basename "${SELF}")
 SYS_NAME=$(uname | awk '{ print tolower($0)}')
-MARKDOWN_FILEEXT=('markdown' 'md' 'mkd' 'mkdn' 'mdown')
+MARKDOWN_FILEEXT=('markdown' 'md' 'mkd' 'mkdn' 'mdown' 'mdtxt' 'mdtext' 'text')
 MARKDOWN_OPTIONS_DEFAULT=(-1.0 +alphalist -autolink -cdata +definitionlist -divquote -dldiscount +dlextra -emphasis +ext +fencedcode +footnote +githubtags -header +html +image -latex +links -safelink +smarty +strikethrough +style +superscript +tables -tabstop -toc)
 HELP="\
 usage: ${SELF_NAME} [-h | --help]

@@ -12,12 +12,14 @@ SELF_DIR=$(cd $(dirname "${BASH_SOURCE[0]}") && pwd -P)
 SELF_DIR="${SELF_DIR:-$(pwd)}"
 SELF_NAME=$(basename "${SELF}")
 SYS_NAME=$(uname | awk '{ print tolower($0)}')
+MARKDOWN_FILEEXT=('markdown' 'md' 'mkd' 'mkdn' 'mdown')
 MARKDOWN_OPTIONS_DEFAULT=(-1.0 +alphalist -autolink -cdata +definitionlist -divquote -dldiscount +dlextra -emphasis +ext +fencedcode +footnote +githubtags -header +html +image -latex +links -safelink +smarty +strikethrough +style +superscript +tables -tabstop -toc)
 HELP="\
 usage: ${SELF_NAME} [-h | --help]
        ${SELF_NAME} [-v | --version]
        ${SELF_NAME} build [--fetch] [--force] [-j # | --jobs #]
-         [--markdown markdown] [--markdown-options opt1,opt2] [config_file]
+         [--markdown markdown] [--markdown-file-extensions ext1,ext2]
+         [--markdown-options opt1,opt2] [config_file]
 where:
   -h, --help
         display this help text
@@ -32,6 +34,9 @@ where:
         default: automatically chosen by GNU Parallel, if available
   --markdown
         path to markdown application
+  --markdown-file-extensions
+        markdown file extensions to process (comma delimited)
+        default: $(echo ${MARKDOWN_FILEEXT[@]} | sed 's/ /,/g')
   --markdown-options
         markdown translation options (comma delimited)
         default: $(echo ${MARKDOWN_OPTIONS_DEFAULT[@]} | sed 's/ /,/g')"
@@ -1282,7 +1287,7 @@ function build_template {  # build_template dest_dir target_dir document templat
     DEST="${DOCUMENT}"
     DEST_NAME="${DEST%.$DOCUMENT_EXT}"
     DEST_NAME="${DEST_NAME##*/}"
-    if echo "${DOCUMENT_EXT}" | grep -Ei '^(markdown|md|mkd|mkdn|mdown)$' >/dev/null 2>&1; then
+    if echo "${DOCUMENT_EXT}" | grep -Ei "^(${MARKDOWN_FILEEXT_REGEX})$" >/dev/null 2>&1; then
         DEST="${DEST%.*}.html"
     fi
     if [[ "${TARGET_DIR}" != "." ]]; then
@@ -1497,7 +1502,7 @@ function build_template {  # build_template dest_dir target_dir document templat
         for NAV in $(cd "${DEST_DIR}/${TARGET_DIR}" && find . -name "*.${MARSH_UID}.advanced-nav.html" | sed 's/^\.\///'); do
             NAV_NAME="${NAV##*/}"
             NAV_NAME="${NAV_NAME%.$MARSH_UID.advanced-nav.html}.html"
-            NAV_NAME=$(echo "${NAV_NAME}" | sed -E -e 's/\.(markdown|md|mkd|mkdn|mdown)(.html)$/\2/')
+            NAV_NAME=$(echo "${NAV_NAME}" | sed -E -e "s/\.(${MARKDOWN_FILEEXT_REGEX})(.html)$/\2/")
             NAV_DIR="./${NAV}"
             NAV_DIR="${NAV_DIR%/*}"
             NAV_DIR="${NAV_DIR#./}"
@@ -1675,7 +1680,7 @@ function build_document {  # build_document dest_dir target_dir document advance
     ADVANCED_NAV="${ADVANCED_NAV%.$DOCUMENT_EXT}"
 
     # normalize extensions
-    if echo "${DOCUMENT_EXT}" | grep -Ei '^(markdown|md|mkd|mkdn|mdown)$' >/dev/null 2>&1; then
+    if echo "${DOCUMENT_EXT}" | grep -Ei "^(${MARKDOWN_FILEEXT_REGEX})$" >/dev/null 2>&1; then
         DOCUMENT_EXT="markdown"
     fi
 
@@ -1817,21 +1822,21 @@ function build_target {  # build_target dest_dir target advanced_nav templates_d
     else
         DOCUMENTS=$(cd "${DEST_DIR}/${TARGET_DIR}" && find "${TARGET##*/}")
     fi
-    DOCUMENTS=$(echo "${DOCUMENTS}" | grep -Ei '\.(markdown|md|mkd|mkdn|mdown|xml|json)$' | sed 's/^\.\///')
+    DOCUMENTS=$(echo "${DOCUMENTS}" | grep -Ei "\.(${MARKDOWN_FILEEXT_REGEX}|xml|json)$" | sed 's/^\.\///')
     PARALLEL=$(which parallel 2>/dev/null)
     PARALLEL_MARKDOWN=""
     [[ "${MARKDOWN}" != "markdown" ]] && PARALLEL_MARKDOWN="${MARKDOWN}"
     if [[ "${JOBS:-1}" -gt 1 ]] && [[ "${PARALLEL:-}" != "" ]] && [[ "$(${PARALLEL} --version --no-notice 2>/dev/null | head -n 1 | grep -o 'GNU parallel')" == "GNU parallel" ]]; then
         # in parallel
         export -f build_document
-        if ! "${PARALLEL}" --halt now,fail=1 --quote --no-notice --env process_markdown --env build_document --jobs="${JOBS:-1}" "${SELF_DIR}/${SELF_NAME}" build-document --markdown="${PARALLEL_MARKDOWN}" --marsh-uid="${MARSH_UID}" --marsh-temp="${MARSH_TEMP}" --marsh-config-file="${MARSH_CONFIG_FILE}" --marsh-config-file-dir="${MARSH_CONFIG_FILE_DIR}" --marsh-config-path="${MARSH_CONFIG_PATH}" --marsh-config-url="${MARSH_CONFIG_URL}" "${DEST_DIR}" "${TARGET_DIR}" {} {} ::: "${DOCUMENTS[@]}" ::: "${ADVANCED_NAV}"; then
+        if ! "${PARALLEL}" --halt now,fail=1 --quote --no-notice --env process_markdown --env build_document --jobs="${JOBS:-1}" "${SELF_DIR}/${SELF_NAME}" build-document --markdown="${PARALLEL_MARKDOWN}" --markdown-file-extensions="${MARKDOWN_FILEEXT_CSV}" --marsh-uid="${MARSH_UID}" --marsh-temp="${MARSH_TEMP}" --marsh-config-file="${MARSH_CONFIG_FILE}" --marsh-config-file-dir="${MARSH_CONFIG_FILE_DIR}" --marsh-config-path="${MARSH_CONFIG_PATH}" --marsh-config-url="${MARSH_CONFIG_URL}" "${DEST_DIR}" "${TARGET_DIR}" {} {} ::: "${DOCUMENTS[@]}" ::: "${ADVANCED_NAV}"; then
             echo "Unable to build template: ${TEMPLATES[$I]}"
             return 1
         fi
         if [[ "${TEMPLATES_DIR}" != "" ]] && [[ "${#TEMPLATES[@]}" -gt 0 ]]; then
             export -f build_template
             for I in "${!TEMPLATES[@]}"; do
-                if ! "${PARALLEL}" --halt now,fail=1 --quote --no-notice --env process_markdown --env build_template --jobs="${JOBS:-1}" "${SELF_DIR}/${SELF_NAME}" build-templates --markdown="${PARALLEL_MARKDOWN}" --marsh-uid="${MARSH_UID}" --marsh-temp="${MARSH_TEMP}" --marsh-config-file="${MARSH_CONFIG_FILE}" --marsh-config-file-dir="${MARSH_CONFIG_FILE_DIR}" --marsh-config-path="${MARSH_CONFIG_PATH}" --marsh-config-url="${MARSH_CONFIG_URL}" "${DEST_DIR}" "${TARGET_DIR}" {} "${TEMPLATES_DIR}" "${TEMPLATES[$I]}" "${TEMPLATES_CONFIG_EXTRA[$I]:-}" ::: "${DOCUMENTS[@]}"; then
+                if ! "${PARALLEL}" --halt now,fail=1 --quote --no-notice --env process_markdown --env build_template --jobs="${JOBS:-1}" "${SELF_DIR}/${SELF_NAME}" build-templates --markdown="${PARALLEL_MARKDOWN}" --markdown-file-extensions="${MARKDOWN_FILEEXT_CSV}" --marsh-uid="${MARSH_UID}" --marsh-temp="${MARSH_TEMP}" --marsh-config-file="${MARSH_CONFIG_FILE}" --marsh-config-file-dir="${MARSH_CONFIG_FILE_DIR}" --marsh-config-path="${MARSH_CONFIG_PATH}" --marsh-config-url="${MARSH_CONFIG_URL}" "${DEST_DIR}" "${TARGET_DIR}" {} "${TEMPLATES_DIR}" "${TEMPLATES[$I]}" "${TEMPLATES_CONFIG_EXTRA[$I]:-}" ::: "${DOCUMENTS[@]}"; then
                     echo "Unable to build template: ${TEMPLATES[$I]}"
                     return 1
                 fi
@@ -1862,9 +1867,13 @@ function build_target {  # build_target dest_dir target advanced_nav templates_d
 
 # removes temporary files used during target builds
 function clean_target {  # clean_target target
-    local TARGET
+    local TARGET CLEAN_FILTERS EXT
     TARGET="${1:-}"; [[ "${TARGET}" == "" ]] && return 1
-    find "${TARGET}" \( -iname '*.markdown' -or -iname '*.md' -or -iname '*.mkd' -or -iname '*.mkdn' -or -iname '*.mdown' -or -name '*.'"${MARSH_UID}"'.*' \) -delete
+    CLEAN_FILTERS=()
+    for EXT in "${MARKDOWN_FILEEXT[@]}"; do
+        CLEAN_FILTERS+=("-or" "-iname" "*.${EXT}")
+    done
+    find "${TARGET}" \( -name '*.'"${MARSH_UID}"'.*' "${CLEAN_FILTERS[@]}" \) -delete
 }
 
 # commands
@@ -1902,7 +1911,7 @@ fi
 MARKDOWN=""
 OPTIND=1
 OPTSPEC=":-:hvj:"
-OPTARRAY=('-h' '--help' '-v' '--version' '--fetch' '--force' '-j' '--jobs' '--markdown' '--markdown-options')  # all short and long options
+OPTARRAY=('-h' '--help' '-v' '--version' '--fetch' '--force' '-j' '--jobs' '--markdown' '--markdown-file-extensions' '--markdown-options')  # all short and long options
 OPTARRAY+=('marsh-uid' 'marsh-temp' 'marsh-config-file' 'marsh-config-file-dir' 'marsh-config-path' 'marsh-config-url')  # all private options
 while getopts "${OPTSPEC}" OPT; do
     case "${OPT}" in
@@ -1950,6 +1959,20 @@ while getopts "${OPTSPEC}" OPT; do
                         echo -e "${HELP}"
                         exit 1
                     fi
+                    ;;
+                markdown-file-extensions)
+                    if [[ -z ${!OPTIND+isset} ]] || in_array "${!OPTIND}" "${OPTARRAY[@]}"; then
+                        # Option without required argument
+                        echo "Option --${OPTARG} requires a value" >&2
+                        echo -e "${HELP}"
+                        exit 1
+                    fi
+                    MARKDOWN_FILEEXT=(${!OPTIND//,/ })
+                    OPTIND=$((OPTIND + 1))
+                    ;;
+                markdown-file-extensions=*)
+                    MARKDOWN_FILEEXT="${OPTARG#*=}"
+                    MARKDOWN_FILEEXT=(${MARKDOWN_FILEEXT//,/ })
                     ;;
                 markdown-options)
                     if [[ -z ${!OPTIND+isset} ]] || in_array "${!OPTIND}" "${OPTARRAY[@]}"; then
@@ -2184,6 +2207,10 @@ elif hash md5sum >/dev/null 2>&1; then
 else
     exit 1
 fi
+
+# markdown file extensions
+MARKDOWN_FILEEXT_CSV=$(echo ${MARKDOWN_FILEEXT[@]} | sed 's/ /,/g')
+MARKDOWN_FILEEXT_REGEX=$(echo ${MARKDOWN_FILEEXT[@]} | sed 's/ /|/g')
 
 # discount markdown options
 if [[ -z ${MARKDOWN_OPTIONS+isset} ]]; then

@@ -12,14 +12,14 @@ SELF_DIR=$(cd $(dirname "${BASH_SOURCE[0]}") && pwd -P)
 SELF_DIR="${SELF_DIR:-$(pwd)}"
 SELF_NAME=$(basename "${SELF}")
 SYS_NAME=$(uname | awk '{ print tolower($0)}')
-MARKDOWN_FILEEXT=('markdown' 'md' 'mkd' 'mkdn' 'mdown' 'mdtxt' 'mdtext' 'text')
 MARKDOWN_OPTIONS=(-1.0 +alphalist -autolink -cdata +definitionlist -divquote -dldiscount +dlextra -emphasis +ext +fencedcode +footnote +githubtags -header +html +image -latex +links -safelink +smarty +strikethrough +style +superscript +tables -tabstop -toc)
+MARKDOWN_FILEEXT=('markdown' 'md' 'mkd' 'mkdn' 'mdown' 'mdtxt' 'mdtext' 'text')
 HELP="\
 usage: ${SELF_NAME} [-h | --help]
        ${SELF_NAME} [-v | --version]
        ${SELF_NAME} build [--force] [-j # | --jobs #]
-         [--markdown markdown] [--markdown-file-extensions ext1,ext2]
-         [--markdown-options opt1,opt2] [config_file]
+         [--markdown markdown] [--markdown-options opt1,opt2]
+         [--markdown-file-extensions ext1,ext2] [config_file]
 where:
   -h, --help
         display this help text
@@ -32,12 +32,12 @@ where:
         default: automatically chosen by GNU Parallel, if available
   --markdown
         path to discount markdown application
+  --markdown-options
+        discount markdown translation options (comma delimited)
+        default: $(echo ${MARKDOWN_OPTIONS[@]} | sed 's/ /,/g')
   --markdown-file-extensions
         markdown file extensions to process (comma delimited)
-        default: $(echo ${MARKDOWN_FILEEXT[@]} | sed 's/ /,/g')
-  --markdown-options
-        markdown translation options (comma delimited)
-        default: $(echo ${MARKDOWN_OPTIONS[@]} | sed 's/ /,/g')"
+        default: $(echo ${MARKDOWN_FILEEXT[@]} | sed 's/ /,/g')"
 
 # creates bash variables from yaml records
 # extended to support arrays, empty values, and more
@@ -1768,14 +1768,14 @@ function build_target {  # build_target dest_dir target advanced_nav templates_d
     if [[ "${JOBS:-1}" -gt 1 ]] && [[ "${PARALLEL:-}" != "" ]] && [[ "$(${PARALLEL} --version --no-notice 2>/dev/null | head -n 1 | grep -o 'GNU parallel')" == "GNU parallel" ]]; then
         # in parallel
         export -f build_document
-        if ! "${PARALLEL}" --halt now,fail=1 --quote --no-notice --env process_markdown --env build_document --jobs="${JOBS:-1}" "${SELF_DIR}/${SELF_NAME}" build-document --markdown="${PARALLEL_MARKDOWN}" --markdown-file-extensions="${MARKDOWN_FILEEXT_CSV}" --markdown-options="${MARKDOWN_OPTIONS_CSV}" --marsh-uid="${MARSH_UID}" --marsh-temp="${MARSH_TEMP}" --marsh-config-file="${MARSH_CONFIG_FILE}" --marsh-config-file-dir="${MARSH_CONFIG_FILE_DIR}" --marsh-config-path="${MARSH_CONFIG_PATH}" --marsh-config-url="${MARSH_CONFIG_URL}" "${DEST_DIR}" "${TARGET_DIR}" {} {} ::: "${DOCUMENTS[@]}" ::: "${ADVANCED_NAV}"; then
+        if ! "${PARALLEL}" --halt now,fail=1 --quote --no-notice --env process_markdown --env build_document --jobs="${JOBS:-1}" "${SELF_DIR}/${SELF_NAME}" build-document --markdown="${PARALLEL_MARKDOWN}" --markdown-options="${MARKDOWN_OPTIONS_CSV}" --markdown-file-extensions="${MARKDOWN_FILEEXT_CSV}" --marsh-uid="${MARSH_UID}" --marsh-temp="${MARSH_TEMP}" --marsh-config-file="${MARSH_CONFIG_FILE}" --marsh-config-file-dir="${MARSH_CONFIG_FILE_DIR}" --marsh-config-path="${MARSH_CONFIG_PATH}" --marsh-config-url="${MARSH_CONFIG_URL}" "${DEST_DIR}" "${TARGET_DIR}" {} {} ::: "${DOCUMENTS[@]}" ::: "${ADVANCED_NAV}"; then
             echo "Unable to build template: ${TEMPLATES[$I]}"
             return 1
         fi
         if [[ "${TEMPLATES_DIR}" != "" ]] && [[ "${#TEMPLATES[@]}" -gt 0 ]]; then
             export -f build_template
             for I in "${!TEMPLATES[@]}"; do
-                if ! "${PARALLEL}" --halt now,fail=1 --quote --no-notice --env process_markdown --env build_template --jobs="${JOBS:-1}" "${SELF_DIR}/${SELF_NAME}" build-templates --markdown="${PARALLEL_MARKDOWN}" --markdown-file-extensions="${MARKDOWN_FILEEXT_CSV}" --markdown-options="${MARKDOWN_OPTIONS_CSV}" --marsh-uid="${MARSH_UID}" --marsh-temp="${MARSH_TEMP}" --marsh-config-file="${MARSH_CONFIG_FILE}" --marsh-config-file-dir="${MARSH_CONFIG_FILE_DIR}" --marsh-config-path="${MARSH_CONFIG_PATH}" --marsh-config-url="${MARSH_CONFIG_URL}" "${DEST_DIR}" "${TARGET_DIR}" {} "${TEMPLATES_DIR}" "${TEMPLATES[$I]}" "${TEMPLATES_CONFIG_EXTRA[$I]:-}" ::: "${DOCUMENTS[@]}"; then
+                if ! "${PARALLEL}" --halt now,fail=1 --quote --no-notice --env process_markdown --env build_template --jobs="${JOBS:-1}" "${SELF_DIR}/${SELF_NAME}" build-templates --markdown="${PARALLEL_MARKDOWN}" --markdown-options="${MARKDOWN_OPTIONS_CSV}" --markdown-file-extensions="${MARKDOWN_FILEEXT_CSV}" --marsh-uid="${MARSH_UID}" --marsh-temp="${MARSH_TEMP}" --marsh-config-file="${MARSH_CONFIG_FILE}" --marsh-config-file-dir="${MARSH_CONFIG_FILE_DIR}" --marsh-config-path="${MARSH_CONFIG_PATH}" --marsh-config-url="${MARSH_CONFIG_URL}" "${DEST_DIR}" "${TARGET_DIR}" {} "${TEMPLATES_DIR}" "${TEMPLATES[$I]}" "${TEMPLATES_CONFIG_EXTRA[$I]:-}" ::: "${DOCUMENTS[@]}"; then
                     echo "Unable to build template: ${TEMPLATES[$I]}"
                     return 1
                 fi
@@ -1849,7 +1849,7 @@ fi
 MARKDOWN=""
 OPTIND=1
 OPTSPEC=":-:hvj:"
-OPTARRAY=('-h' '--help' '-v' '--version' '--force' '-j' '--jobs' '--markdown' '--markdown-file-extensions' '--markdown-options')  # all short and long options
+OPTARRAY=('-h' '--help' '-v' '--version' '--force' '-j' '--jobs' '--markdown' '--markdown-options' '--markdown-file-extensions')  # all short and long options
 OPTARRAY+=('marsh-uid' 'marsh-temp' 'marsh-config-file' 'marsh-config-file-dir' 'marsh-config-path' 'marsh-config-url')  # all private options
 while getopts "${OPTSPEC}" OPT; do
     case "${OPT}" in
@@ -1911,20 +1911,6 @@ while getopts "${OPTSPEC}" OPT; do
                 markdown=*)
                     MARKDOWN="${OPTARG#*=}"
                     ;;
-                markdown-file-extensions)
-                    if [[ -z ${!OPTIND+isset} ]] || in_array "${!OPTIND}" "${OPTARRAY[@]}"; then
-                        # Option without required argument
-                        echo "Option --${OPTARG} requires a value" >&2
-                        echo -e "${HELP}"
-                        exit 1
-                    fi
-                    MARKDOWN_FILEEXT=(${!OPTIND//,/ })
-                    OPTIND=$((OPTIND + 1))
-                    ;;
-                markdown-file-extensions=*)
-                    MARKDOWN_FILEEXT="${OPTARG#*=}"
-                    MARKDOWN_FILEEXT=(${MARKDOWN_FILEEXT//,/ })
-                    ;;
                 markdown-options)
                     if [[ -z ${!OPTIND+isset} ]] || in_array "${!OPTIND}" "${OPTARRAY[@]}"; then
                         # Option without required argument
@@ -1945,6 +1931,20 @@ while getopts "${OPTSPEC}" OPT; do
                     IFS=$'\n'
                     MARKDOWN_OPTIONS=(${MARKDOWN_OPTIONS//,/$IFS})
                     IFS="${OIFS}"
+                    ;;
+                markdown-file-extensions)
+                    if [[ -z ${!OPTIND+isset} ]] || in_array "${!OPTIND}" "${OPTARRAY[@]}"; then
+                        # Option without required argument
+                        echo "Option --${OPTARG} requires a value" >&2
+                        echo -e "${HELP}"
+                        exit 1
+                    fi
+                    MARKDOWN_FILEEXT=(${!OPTIND//,/ })
+                    OPTIND=$((OPTIND + 1))
+                    ;;
+                markdown-file-extensions=*)
+                    MARKDOWN_FILEEXT="${OPTARG#*=}"
+                    MARKDOWN_FILEEXT=(${MARKDOWN_FILEEXT//,/ })
                     ;;
                 force)
                     FORCE=true

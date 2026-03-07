@@ -49,7 +49,7 @@ where:
 # https://gist.github.com/DinoChiesa/3e3c3866b51290f31243
 # https://gist.github.com/epiloque/8cf512c6d64641bde388
 # https://gist.github.com/pkuczynski/8665367
-function parse_yaml {  # parse_yaml yaml_string_or_file variables_prefix spaces_per_indentation
+function marsh_parse_yaml {  # marsh_parse_yaml yaml_string_or_file variables_prefix spaces_per_indentation
     local INPUT PREFIX INDENT S W FS
     INPUT="${1:-}"
     [[ "${INPUT}" == "" ]] && return 0
@@ -265,7 +265,7 @@ function parse_yaml {  # parse_yaml yaml_string_or_file variables_prefix spaces_
 }
 
 # tests whether a string is an exact match for an array item
-function in_array {  # in_array needle haystack[@]
+function marsh_in_array {  # marsh_in_array needle haystack[@]
     local e
     for e in "${@:2}"; do
         [[ "${e}" == "${1}" ]] && return 0;
@@ -275,9 +275,9 @@ function in_array {  # in_array needle haystack[@]
 
 # creates an array from the contents of flat variables
 # TEST_0="foo"; TEST_1="bar"; TEST_2="baz"
-# eval $(flat_to_array "TEST" "TEST_")  # loops over TEST_{0..2}
+# eval $(marsh_flat_to_array "TEST" "TEST_")  # loops over TEST_{0..2}
 # echo "${TEST[*]}"                     # foo bar baz
-function flat_to_array {  # flat_to_array array_name variable_prefix
+function marsh_flat_to_array {  # marsh_flat_to_array array_name variable_prefix
     local ARRAY_NAME PREFIX INDEX ITEM
     ARRAY_NAME="${1:-}"
     [[ "${ARRAY_NAME}" == "" ]] && return 1
@@ -297,9 +297,9 @@ function flat_to_array {  # flat_to_array array_name variable_prefix
 }
 
 # prints arguments combined with delimiters
-# join_delimited ', ' ', ' ', ' foo bar baz         # foo, bar, baz
-# join_delimited ', ' ' and ' ', and ' foo bar baz  # foo, bar, and baz
-function join_delimited {  # join_delimited delimiter1 delimiter2 delimiter3 args[@]
+# marsh_join_delimited ', ' ', ' ', ' foo bar baz         # foo, bar, baz
+# marsh_join_delimited ', ' ' and ' ', and ' foo bar baz  # foo, bar, and baz
+function marsh_join_delimited {  # marsh_join_delimited delimiter1 delimiter2 delimiter3 args[@]
     local DELIM1 DELIM2 DELIM3
     DELIM1="${1:-}"
     shift 1
@@ -324,7 +324,7 @@ function join_delimited {  # join_delimited delimiter1 delimiter2 delimiter3 arg
 }
 
 # prints md5 hash for a given string
-function md5_string {  # md5_string string
+function marsh_md5_string {  # marsh_md5_string string
     local STRING SYS_NAME
     STRING="${1:-}"
     SYS_NAME=$(uname | awk '{ print tolower($0)}')
@@ -337,14 +337,14 @@ function md5_string {  # md5_string string
 }
 
 # converts html name or number entities to utf-8 character
-function decode_entities {  # decode_entities
+function marsh_decode_entities {  # marsh_decode_entities
     TEXT=$(</dev/stdin)
     echo "${TEXT}" | sed -e 's/&#34;/"/g' -e 's/&quot;/"/g' -e 's/&#38;/\&/g' -e 's/&amp;/\&/g' -e 's/&#39;/'"'"'/g' -e 's/&apos;/'"'"'/g' -e 's/&#60;/</g' -e 's/&lt;/</g' -e 's/&#62;/>/g' -e 's/&gt;/>/g' -e 's/&#160;/ /g' -e 's/&nbsp;/ /g' -e 's/&#161;/¡/g' -e 's/&iexcl;/¡/g' -e 's/&#162;/¢/g' -e 's/&cent;/¢/g' -e 's/&#163;/£/g' -e 's/&pound;/£/g' -e 's/&#164;/¤/g' -e 's/&curren;/¤/g' -e 's/&#165;/¥/g' -e 's/&yen;/¥/g' -e 's/&#166;/¦/g' -e 's/&brvbar;/¦/g' -e 's/&#167;/§/g' -e 's/&sect;/§/g' -e 's/&#168;/¨/g' -e 's/&uml;/¨/g' -e 's/&#169;/©/g' -e 's/&copy;/©/g' -e 's/&#170;/ª/g' -e 's/&ordf;/ª/g' -e 's/&#171;/«/g' -e 's/&laquo;/«/g' -e 's/&#172;/¬/g' -e 's/&not;/¬/g' -e 's/&#173;/­­/g' -e 's/&shy;/­­/g' -e 's/&#174;/®/g' -e 's/&reg;/®/g' -e 's/&#175;/¯/g' -e 's/&macr;/¯/g' -e 's/&#176;/°/g' -e 's/&deg;/°/g' -e 's/&#177;/±/g' -e 's/&plusmn;/±/g' -e 's/&#178;/²/g' -e 's/&sup2;/²/g' -e 's/&#179;/³/g' -e 's/&sup3;/³/g' -e 's/&#180;/´/g' -e 's/&acute;/´/g' -e 's/&#181;/µ/g' -e 's/&micro;/µ/g' -e 's/&#182;/¶/g' -e 's/&para;/¶/g' -e 's/&#183;/·/g' -e 's/&middot;/·/g' -e 's/&#184;/¸/g' -e 's/&cedil;/¸/g' -e 's/&#185;/¹/g' -e 's/&sup1;/¹/g' -e 's/&#186;/º/g' -e 's/&ordm;/º/g' -e 's/&#187;/»/g' -e 's/&raquo;/»/g' -e 's/&#188;/¼/g' -e 's/&frac14;/¼/g' -e 's/&#189;/½/g' -e 's/&frac12;/½/g' -e 's/&#190;/¾/g' -e 's/&frac34;/¾/g' -e 's/&#191;/¿/g' -e 's/&iquest;/¿/g' -e 's/&#215;/×/g' -e 's/&times;/×/g' -e 's/&#247;/÷/g' -e 's/&divide;/÷/g' -e 's/&#192;/À/g' -e 's/&Agrave;/À/g' -e 's/&#193;/Á/g' -e 's/&Aacute;/Á/g' -e 's/&#194;/Â/g' -e 's/&Acirc;/Â/g' -e 's/&#195;/Ã/g' -e 's/&Atilde;/Ã/g' -e 's/&#196;/Ä/g' -e 's/&Auml;/Ä/g' -e 's/&#197;/Å/g' -e 's/&Aring;/Å/g' -e 's/&#198;/Æ/g' -e 's/&AElig;/Æ/g' -e 's/&#199;/Ç/g' -e 's/&Ccedil;/Ç/g' -e 's/&#200;/È/g' -e 's/&Egrave;/È/g' -e 's/&#201;/É/g' -e 's/&Eacute;/É/g' -e 's/&#202;/Ê/g' -e 's/&Ecirc;/Ê/g' -e 's/&#203;/Ë/g' -e 's/&Euml;/Ë/g' -e 's/&#204;/Ì/g' -e 's/&Igrave;/Ì/g' -e 's/&#205;/Í/g' -e 's/&Iacute;/Í/g' -e 's/&#206;/Î/g' -e 's/&Icirc;/Î/g' -e 's/&#207;/Ï/g' -e 's/&Iuml;/Ï/g' -e 's/&#208;/Ð/g' -e 's/&ETH;/Ð/g' -e 's/&#209;/Ñ/g' -e 's/&Ntilde;/Ñ/g' -e 's/&#210;/Ò/g' -e 's/&Ograve;/Ò/g' -e 's/&#211;/Ó/g' -e 's/&Oacute;/Ó/g' -e 's/&#212;/Ô/g' -e 's/&Ocirc;/Ô/g' -e 's/&#213;/Õ/g' -e 's/&Otilde;/Õ/g' -e 's/&#214;/Ö/g' -e 's/&Ouml;/Ö/g' -e 's/&#216;/Ø/g' -e 's/&Oslash;/Ø/g' -e 's/&#217;/Ù/g' -e 's/&Ugrave;/Ù/g' -e 's/&#218;/Ú/g' -e 's/&Uacute;/Ú/g' -e 's/&#219;/Û/g' -e 's/&Ucirc;/Û/g' -e 's/&#220;/Ü/g' -e 's/&Uuml;/Ü/g' -e 's/&#221;/Ý/g' -e 's/&Yacute;/Ý/g' -e 's/&#222;/Þ/g' -e 's/&THORN;/Þ/g' -e 's/&#223;/ß/g' -e 's/&szlig;/ß/g' -e 's/&#224;/à/g' -e 's/&agrave;/à/g' -e 's/&#225;/á/g' -e 's/&aacute;/á/g' -e 's/&#226;/â/g' -e 's/&acirc;/â/g' -e 's/&#227;/ã/g' -e 's/&atilde;/ã/g' -e 's/&#228;/ä/g' -e 's/&auml;/ä/g' -e 's/&#229;/å/g' -e 's/&aring;/å/g' -e 's/&#230;/æ/g' -e 's/&aelig;/æ/g' -e 's/&#231;/ç/g' -e 's/&ccedil;/ç/g' -e 's/&#232;/è/g' -e 's/&egrave;/è/g' -e 's/&#233;/é/g' -e 's/&eacute;/é/g' -e 's/&#234;/ê/g' -e 's/&ecirc;/ê/g' -e 's/&#235;/ë/g' -e 's/&euml;/ë/g' -e 's/&#236;/ì/g' -e 's/&igrave;/ì/g' -e 's/&#237;/í/g' -e 's/&iacute;/í/g' -e 's/&#238;/î/g' -e 's/&icirc;/î/g' -e 's/&#239;/ï/g' -e 's/&iuml;/ï/g' -e 's/&#240;/ð/g' -e 's/&eth;/ð/g' -e 's/&#241;/ñ/g' -e 's/&ntilde;/ñ/g' -e 's/&#242;/ò/g' -e 's/&ograve;/ò/g' -e 's/&#243;/ó/g' -e 's/&oacute;/ó/g' -e 's/&#244;/ô/g' -e 's/&ocirc;/ô/g' -e 's/&#245;/õ/g' -e 's/&otilde;/õ/g' -e 's/&#246;/ö/g' -e 's/&ouml;/ö/g' -e 's/&#248;/ø/g' -e 's/&oslash;/ø/g' -e 's/&#249;/ù/g' -e 's/&ugrave;/ù/g' -e 's/&#250;/ú/g' -e 's/&uacute;/ú/g' -e 's/&#251;/û/g' -e 's/&ucirc;/û/g' -e 's/&#252;/ü/g' -e 's/&uuml;/ü/g' -e 's/&#253;/ý/g' -e 's/&yacute;/ý/g' -e 's/&#254;/þ/g' -e 's/&thorn;/þ/g' -e 's/&#255;/ÿ/g' -e 's/&yuml;/ÿ/g' -e 's/&#8704;/∀/g' -e 's/&forall;/∀/g' -e 's/&#8706;/∂/g' -e 's/&part;/∂/g' -e 's/&#8707;/∃/g' -e 's/&exist;/∃/g' -e 's/&#8709;/∅/g' -e 's/&empty;/∅/g' -e 's/&#8711;/∇/g' -e 's/&nabla;/∇/g' -e 's/&#8712;/∈/g' -e 's/&isin;/∈/g' -e 's/&#8713;/∉/g' -e 's/&notin;/∉/g' -e 's/&#8715;/∋/g' -e 's/&ni;/∋/g' -e 's/&#8719;/∏/g' -e 's/&prod;/∏/g' -e 's/&#8721;/∑/g' -e 's/&sum;/∑/g' -e 's/&#8722;/−/g' -e 's/&minus;/−/g' -e 's/&#8727;/∗/g' -e 's/&lowast;/∗/g' -e 's/&#8730;/√/g' -e 's/&radic;/√/g' -e 's/&#8733;/∝/g' -e 's/&prop;/∝/g' -e 's/&#8734;/∞/g' -e 's/&infin;/∞/g' -e 's/&#8736;/∠/g' -e 's/&ang;/∠/g' -e 's/&#8743;/∧/g' -e 's/&and;/∧/g' -e 's/&#8744;/∨/g' -e 's/&or;/∨/g' -e 's/&#8745;/∩/g' -e 's/&cap;/∩/g' -e 's/&#8746;/∪/g' -e 's/&cup;/∪/g' -e 's/&#8747;/∫/g' -e 's/&int;/∫/g' -e 's/&#8756;/∴/g' -e 's/&there4;/∴/g' -e 's/&#8764;/∼/g' -e 's/&sim;/∼/g' -e 's/&#8773;/≅/g' -e 's/&cong;/≅/g' -e 's/&#8776;/≈/g' -e 's/&asymp;/≈/g' -e 's/&#8800;/≠/g' -e 's/&ne;/≠/g' -e 's/&#8801;/≡/g' -e 's/&equiv;/≡/g' -e 's/&#8804;/≤/g' -e 's/&le;/≤/g' -e 's/&#8805;/≥/g' -e 's/&ge;/≥/g' -e 's/&#8834;/⊂/g' -e 's/&sub;/⊂/g' -e 's/&#8835;/⊃/g' -e 's/&sup;/⊃/g' -e 's/&#8836;/⊄/g' -e 's/&nsub;/⊄/g' -e 's/&#8838;/⊆/g' -e 's/&sube;/⊆/g' -e 's/&#8839;/⊇/g' -e 's/&supe;/⊇/g' -e 's/&#8853;/⊕/g' -e 's/&oplus;/⊕/g' -e 's/&#8855;/⊗/g' -e 's/&otimes;/⊗/g' -e 's/&#8869;/⊥/g' -e 's/&perp;/⊥/g' -e 's/&#8901;/⋅/g' -e 's/&sdot;/⋅/g' -e 's/&#913;/Α/g' -e 's/&Alpha;/Α/g' -e 's/&#914;/Β/g' -e 's/&Beta;/Β/g' -e 's/&#915;/Γ/g' -e 's/&Gamma;/Γ/g' -e 's/&#916;/Δ/g' -e 's/&Delta;/Δ/g' -e 's/&#917;/Ε/g' -e 's/&Epsilon;/Ε/g' -e 's/&#918;/Ζ/g' -e 's/&Zeta;/Ζ/g' -e 's/&#919;/Η/g' -e 's/&Eta;/Η/g' -e 's/&#920;/Θ/g' -e 's/&Theta;/Θ/g' -e 's/&#921;/Ι/g' -e 's/&Iota;/Ι/g' -e 's/&#922;/Κ/g' -e 's/&Kappa;/Κ/g' -e 's/&#923;/Λ/g' -e 's/&Lambda;/Λ/g' -e 's/&#924;/Μ/g' -e 's/&Mu;/Μ/g' -e 's/&#925;/Ν/g' -e 's/&Nu;/Ν/g' -e 's/&#926;/Ξ/g' -e 's/&Xi;/Ξ/g' -e 's/&#927;/Ο/g' -e 's/&Omicron;/Ο/g' -e 's/&#928;/Π/g' -e 's/&Pi;/Π/g' -e 's/&#929;/Ρ/g' -e 's/&Rho;/Ρ/g' -e 's/&#931;/Σ/g' -e 's/&Sigma;/Σ/g' -e 's/&#932;/Τ/g' -e 's/&Tau;/Τ/g' -e 's/&#933;/Υ/g' -e 's/&Upsilon;/Υ/g' -e 's/&#934;/Φ/g' -e 's/&Phi;/Φ/g' -e 's/&#935;/Χ/g' -e 's/&Chi;/Χ/g' -e 's/&#936;/Ψ/g' -e 's/&Psi;/Ψ/g' -e 's/&#937;/Ω/g' -e 's/&Omega;/Ω/g' -e 's/&#945;/α/g' -e 's/&alpha;/α/g' -e 's/&#946;/β/g' -e 's/&beta;/β/g' -e 's/&#947;/γ/g' -e 's/&gamma;/γ/g' -e 's/&#948;/δ/g' -e 's/&delta;/δ/g' -e 's/&#949;/ε/g' -e 's/&epsilon;/ε/g' -e 's/&#950;/ζ/g' -e 's/&zeta;/ζ/g' -e 's/&#951;/η/g' -e 's/&eta;/η/g' -e 's/&#952;/θ/g' -e 's/&theta;/θ/g' -e 's/&#953;/ι/g' -e 's/&iota;/ι/g' -e 's/&#954;/κ/g' -e 's/&kappa;/κ/g' -e 's/&#955;/λ/g' -e 's/&lambda;/λ/g' -e 's/&#956;/μ/g' -e 's/&mu;/μ/g' -e 's/&#957;/ν/g' -e 's/&nu;/ν/g' -e 's/&#958;/ξ/g' -e 's/&xi;/ξ/g' -e 's/&#959;/ο/g' -e 's/&omicron;/ο/g' -e 's/&#960;/π/g' -e 's/&pi;/π/g' -e 's/&#961;/ρ/g' -e 's/&rho;/ρ/g' -e 's/&#962;/ς/g' -e 's/&sigmaf;/ς/g' -e 's/&#963;/σ/g' -e 's/&sigma;/σ/g' -e 's/&#964;/τ/g' -e 's/&tau;/τ/g' -e 's/&#965;/υ/g' -e 's/&upsilon;/υ/g' -e 's/&#966;/φ/g' -e 's/&phi;/φ/g' -e 's/&#967;/χ/g' -e 's/&chi;/χ/g' -e 's/&#968;/ψ/g' -e 's/&psi;/ψ/g' -e 's/&#969;/ω/g' -e 's/&omega;/ω/g' -e 's/&#977;/ϑ/g' -e 's/&thetasym;/ϑ/g' -e 's/&#978;/ϒ/g' -e 's/&upsih;/ϒ/g' -e 's/&#982;/ϖ/g' -e 's/&piv;/ϖ/g' -e 's/&#338;/Œ/g' -e 's/&OElig;/Œ/g' -e 's/&#339;/œ/g' -e 's/&oelig;/œ/g' -e 's/&#352;/Š/g' -e 's/&Scaron;/Š/g' -e 's/&#353;/š/g' -e 's/&scaron;/š/g' -e 's/&#376;/Ÿ/g' -e 's/&Yuml;/Ÿ/g' -e 's/&#402;/ƒ/g' -e 's/&fnof;/ƒ/g' -e 's/&#710;/ˆ/g' -e 's/&circ;/ˆ/g' -e 's/&#732;/˜/g' -e 's/&tilde;/˜/g' -e 's/&#8194;/ /g' -e 's/&ensp;/ /g' -e 's/&#8195;/ /g' -e 's/&emsp;/ /g' -e 's/&#8201;/ /g' -e 's/&thinsp;/ /g' -e 's/&#8204;/‌/g' -e 's/&zwnj;/‌/g' -e 's/&#8205;/‍/g' -e 's/&zwj;/‍/g' -e 's/&#8206;/‎/g' -e 's/&lrm;/‎/g' -e 's/&#8207;/‏/g' -e 's/&rlm;/‏/g' -e 's/&#8211;/–/g' -e 's/&ndash;/–/g' -e 's/&#8212;/—/g' -e 's/&mdash;/—/g' -e 's/&#8216;/‘/g' -e 's/&lsquo;/‘/g' -e 's/&#8217;/’/g' -e 's/&rsquo;/’/g' -e 's/&#8218;/‚/g' -e 's/&sbquo;/‚/g' -e 's/&#8220;/“/g' -e 's/&ldquo;/“/g' -e 's/&#8221;/”/g' -e 's/&rdquo;/”/g' -e 's/&#8222;/„/g' -e 's/&bdquo;/„/g' -e 's/&#8224;/†/g' -e 's/&dagger;/†/g' -e 's/&#8225;/‡/g' -e 's/&Dagger;/‡/g' -e 's/&#8226;/•/g' -e 's/&bull;/•/g' -e 's/&#8230;/…/g' -e 's/&hellip;/…/g' -e 's/&#8240;/‰/g' -e 's/&permil;/‰/g' -e 's/&#8242;/′/g' -e 's/&prime;/′/g' -e 's/&#8243;/″/g' -e 's/&Prime;/″/g' -e 's/&#8249;/‹/g' -e 's/&lsaquo;/‹/g' -e 's/&#8250;/›/g' -e 's/&rsaquo;/›/g' -e 's/&#8254;/‾/g' -e 's/&oline;/‾/g' -e 's/&#8364;/€/g' -e 's/&euro;/€/g' -e 's/&#8482;/™/g' -e 's/&#153;/™/g' -e 's/&trade;/™/g' -e 's/&#8592;/←/g' -e 's/&larr;/←/g' -e 's/&#8593;/↑/g' -e 's/&uarr;/↑/g' -e 's/&#8594;/→/g' -e 's/&rarr;/→/g' -e 's/&#8595;/↓/g' -e 's/&darr;/↓/g' -e 's/&#8596;/↔/g' -e 's/&harr;/↔/g' -e 's/&#8629;/↵/g' -e 's/&crarr;/↵/g' -e 's/&#8968;/⌈/g' -e 's/&lceil;/⌈/g' -e 's/&#8969;/⌉/g' -e 's/&rceil;/⌉/g' -e 's/&#8970;/⌊/g' -e 's/&lfloor;/⌊/g' -e 's/&#8971;/⌋/g' -e 's/&rfloor;/⌋/g' -e 's/&#9674;/◊/g' -e 's/&loz;/◊/g' -e 's/&#9824;/♠/g' -e 's/&spades;/♠/g' -e 's/&#9827;/♣/g' -e 's/&clubs;/♣/g' -e 's/&#9829;/♥/g' -e 's/&hearts;/♥/g' -e 's/&#9830;/♦/g' -e 's/&diams;/♦/g'
     return 0
 }
 
 # transforms a string
-function text_filter {  # text_filter filters[@]
+function marsh_text_filter {  # marsh_text_filter filters[@]
     local FILTERS
     local LF TEXT OPTIONS TEXT_TEMP DATE_FORMAT MAX_CHARS MAX_PARAS MD_EXT_REGEX PROTOCOL_SEP WRAP
     LF=$'\n'
@@ -379,10 +379,10 @@ function text_filter {  # text_filter filters[@]
                 fi
                 ;;
             escape:entities)
-                TEXT=$(echo "${TEXT}" | decode_entities);
+                TEXT=$(echo "${TEXT}" | marsh_decode_entities);
                 ;;
             escape:html)
-                TEXT=$(echo "${TEXT}" | decode_entities);
+                TEXT=$(echo "${TEXT}" | marsh_decode_entities);
                 TEXT=$(echo "${TEXT}" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' -e 's/"/\&quot;/g' -e 's/'"'"'/\&#39;/g');
                 ;;
             escape:json-val)
@@ -393,7 +393,7 @@ function text_filter {  # text_filter filters[@]
                 MAX_PARAS="${OPTIONS[1]:-}"
                 if [[ "${MAX_CHARS}" != "" ]]; then
                     [[ "${MAX_CHARS}" -lt 1 ]] && TEXT="" && break
-                    TEXT=$(echo "${TEXT}" | text_filter headings:remove plaintext)
+                    TEXT=$(echo "${TEXT}" | marsh_text_filter headings:remove plaintext)
                     if [[ "${MAX_PARAS}" != "" ]]; then
                         TEXT=$(echo "${TEXT}" | awk -v RS="\n\n" 'NR<='${MAX_PARAS}' { print $0 }')
                     fi
@@ -411,7 +411,7 @@ function text_filter {  # text_filter filters[@]
                 fi
                 ;;
             excerpt)
-                TEXT=$(echo "${TEXT}" | text_filter excerpt:300:2)
+                TEXT=$(echo "${TEXT}" | marsh_text_filter excerpt:300:2)
                 ;;
             headings:push)
                 TEXT=$(echo "${TEXT}${LF}" | sed -E -e 'N;s/^(.+)\n[=]+$/# \1/' | sed -E -e 'N;s/^(.+)\n[-]+$/## \1/' | sed -E -e 's/^([#]+ )/#\1/' -e 's/^####### (.+)$/**\1**/')
@@ -458,7 +458,7 @@ function text_filter {  # text_filter filters[@]
                 # ':a;s/<[^>]*>//g;/</N;//ba' strips html tags and works across multiple lines (better version of 's/<[^>]*>//g')
                 # '/./,/^$/!d' deletes blank lines at start and collapses consecutive blank lines into one, leaving up to one blank line at end
                 TEXT=$(echo "${TEXT}" | sed -e ':a' -e 's/<[^>]*>//g' -e '/</N' -e '//ba' | sed '/./,/^$/!d')
-                TEXT=$(echo "${TEXT}" | decode_entities)
+                TEXT=$(echo "${TEXT}" | marsh_decode_entities)
                 ;;
             slug)
                 TEXT=$(echo "${TEXT}" | head -n 1 | sed -E -e 's/[ _]+/-/g' -e 's/[^-a-zA-Z0-9.]//g' -e 's/(^-+)|(-+$)//' | awk '{ print tolower($0) }')
@@ -474,17 +474,17 @@ function text_filter {  # text_filter filters[@]
     done
     echo "${TEXT}"
 }
-export -f text_filter
+export -f marsh_text_filter
 
 # prints a list of variables given their assignment commands, one per line, e.g. FOO="bar" prints FOO
-function get_variables {  # get_variables assignments_string
+function marsh_get_variables {  # marsh_get_variables assignments_string
     local STRING
     STRING=$(</dev/stdin)
     echo "${STRING}" | sed -E -e 's/^([^=]+[^+])[+]?=.*/\1/' | sort -u
 }
 
 # tests whether existing file or directory is child of parent directory
-function is_child {  # is_child directory child
+function marsh_is_child {  # marsh_is_child directory child
     local CURRENT_DIR DIRECTORY CHILD CD
     CURRENT_DIR=$(pwd)
     DIRECTORY="${1:-}"
@@ -522,7 +522,7 @@ function is_child {  # is_child directory child
 }
 
 # checks for required external tools
-function check_dependencies {  # check_dependencies $DEP1 $DEP2 ...
+function marsh_check_dependencies {  # marsh_check_dependencies $DEP1 $DEP2 ...
     local DEPS DEPS_EACH DEPS_MULTI ERRORS FOUND
     DEPS=("${@}");
     ERRORS=()
@@ -552,7 +552,7 @@ function check_dependencies {  # check_dependencies $DEP1 $DEP2 ...
 }
 
 # prints bash variable assignments for template metadata
-function parse_template_metadata {  # parse_template_metadata prefix template_dir template_config_extra
+function marsh_parse_template_metadata {  # marsh_parse_template_metadata prefix template_dir template_config_extra
     local PREFIX TEMPLATE_DIR TEMPLATE_CONFIG_EXTRA
     local TEMPLATE_META TEMPLATE_META_VARS
     local TEMPLATE_ASSETS_FONTS TEMPLATE_ASSETS_STYLES TEMPLATE_ASSETS_SCRIPTS TEMPLATE_ASSETS_IMAGES TEMPLATE_ASSETS_AUDIO TEMPLATE_ASSETS_VIDEO TEMPLATE_ASSETS_DOCUMENTS TEMPLATE_ASSETS_OTHER
@@ -566,9 +566,9 @@ function parse_template_metadata {  # parse_template_metadata prefix template_di
 
     # load config
     if [[ -f "${TEMPLATE_DIR}/template.yaml" ]] && [[ -r "${TEMPLATE_DIR}/template.yaml" ]]; then
-        TEMPLATE_META=$(parse_yaml "${TEMPLATE_DIR}/template.yaml" "MARSH_TEMPLATE_")
+        TEMPLATE_META=$(marsh_parse_yaml "${TEMPLATE_DIR}/template.yaml" "MARSH_TEMPLATE_")
         [[ $? -ne 0 ]] && echo "Unable to parse yaml file: ${TEMPLATE_DIR}/template.yaml" >&2 && return 1
-        TEMPLATE_META_VARS=$(echo "${TEMPLATE_META}" | get_variables)
+        TEMPLATE_META_VARS=$(echo "${TEMPLATE_META}" | marsh_get_variables)
         eval "${TEMPLATE_META}"
     else
         echo "Template configuration file not found: ${TEMPLATE_DIR}/template.yaml" >&2
@@ -577,9 +577,9 @@ function parse_template_metadata {  # parse_template_metadata prefix template_di
     if [[ "${TEMPLATE_CONFIG_EXTRA}" != "" ]]; then
         # load extra config
         if [[ -f "${TEMPLATE_CONFIG_EXTRA}" ]] && [[ -r "${TEMPLATE_CONFIG_EXTRA}" ]]; then
-            TEMPLATE_META=$(parse_yaml "${TEMPLATE_CONFIG_EXTRA}" "MARSH_TEMPLATE_")
+            TEMPLATE_META=$(marsh_parse_yaml "${TEMPLATE_CONFIG_EXTRA}" "MARSH_TEMPLATE_")
             [[ $? -ne 0 ]] && echo "Unable to parse yaml file: ${TEMPLATE_CONFIG_EXTRA}" >&2 && return 1
-            TEMPLATE_META_VARS=$(echo "${TEMPLATE_META_VARS}"$'\n'"${TEMPLATE_META}" | get_variables)
+            TEMPLATE_META_VARS=$(echo "${TEMPLATE_META_VARS}"$'\n'"${TEMPLATE_META}" | marsh_get_variables)
             eval "${TEMPLATE_META}"
         else
             echo "Template configuration file not found: ${TEMPLATE_CONFIG_EXTRA}" >&2
@@ -701,7 +701,7 @@ function parse_template_metadata {  # parse_template_metadata prefix template_di
 }
 
 # loads target metadata into convenience variables
-function get_target_metadata {  # get_target_metadata source_prefix prefix
+function marsh_get_target_metadata {  # marsh_get_target_metadata source_prefix prefix
     local SOURCE_PREFIX PREFIX
     local TARGET_PATH TARGET_NAME TARGET_TYPE TARGET_FORCE TARGET_NAV
     local II TEMPLATE_SOURCE TEMPLATE_CONFIG
@@ -736,7 +736,7 @@ function get_target_metadata {  # get_target_metadata source_prefix prefix
     while [[ "${!TEMPLATE_SOURCE:-}" != "" ]]; do
         echo "${PREFIX}TEMPLATES_SOURCE+=(\"${!TEMPLATE_SOURCE//\"/\\\"}\")"
         echo "${PREFIX}TEMPLATES_CONFIG+=(\"${!TEMPLATE_CONFIG//\"/\\\"}\")"
-        echo "${PREFIX}TEMPLATES+=(\"${!TEMPLATE_SOURCE##*/}-$(md5_string ${!TEMPLATE_SOURCE})\")"
+        echo "${PREFIX}TEMPLATES+=(\"${!TEMPLATE_SOURCE##*/}-$(marsh_md5_string ${!TEMPLATE_SOURCE})\")"
         II=$((II+1))
         TEMPLATE_SOURCE="${SOURCE_PREFIX}Templates_${II}_Source"
         TEMPLATE_CONFIG="${SOURCE_PREFIX}Templates_${II}_Config"
@@ -762,9 +762,9 @@ function get_target_metadata {  # get_target_metadata source_prefix prefix
         echo "${PREFIX}ARCHIVES_NAME+=(\"${!ARCHIVE_NAME//\"/\\\"}\")"
         echo "${PREFIX}ARCHIVES_COUNT+=(\"${!ARCHIVE_COUNT//\"/\\\"}\")"
         echo "${PREFIX}ARCHIVES_CONTENT+=(\"${!ARCHIVE_CONTENT//\"/\\\"}\")"
-        eval $(flat_to_array "ARCHIVE_TYPES" "${SOURCE_PREFIX}Archives_${II}_Types_")
+        eval $(marsh_flat_to_array "ARCHIVE_TYPES" "${SOURCE_PREFIX}Archives_${II}_Types_")
         OIFS="${IFS}"; IFS=$(echo @|tr @ '\034'); echo "${PREFIX}ARCHIVES_TYPES+=(\"${ARCHIVE_TYPES[*]//\"/\\\"}\")"; IFS="${OIFS}"
-        eval $(flat_to_array "ARCHIVE_EXCLUDED_STATES" "${SOURCE_PREFIX}Archives_${II}_Exclude_")
+        eval $(marsh_flat_to_array "ARCHIVE_EXCLUDED_STATES" "${SOURCE_PREFIX}Archives_${II}_Exclude_")
         OIFS="${IFS}"; IFS=$(echo @|tr @ '\034'); echo "${PREFIX}ARCHIVES_EXCLUDED_STATES+=(\"${ARCHIVE_EXCLUDED_STATES[*]//\"/\\\"}\")"; IFS="${OIFS}"
         II=$((II+1))
         ARCHIVE="${SOURCE_PREFIX}Archives_${II}_Path"
@@ -778,7 +778,7 @@ function get_target_metadata {  # get_target_metadata source_prefix prefix
 }
 
 # copies files from local sources
-function get_files {  # get_files source dest force
+function marsh_get_files {  # marsh_get_files source dest force
     local SOURCE DEST FORCE
     local SOURCE_DIR FILES
     SOURCE="${1:-}"
@@ -841,7 +841,7 @@ function get_files {  # get_files source dest force
 }
 
 # builds an archive of directory contents, sorted by descending date
-function build_archive {  # build_archive encoding target_dir dest_file dest_title content_length count #types[@] types[@] #excluded_states[@] excluded_states[@]
+function marsh_build_archive {  # marsh_build_archive encoding target_dir dest_file dest_title content_length count #types[@] types[@] #excluded_states[@] excluded_states[@]
     local ENCODING TARGET_DIR DEST DEST_SUB_PREFIX DEST_TITLE CONTENT COUNT NUM_TYPES TYPES NUM_EXCLUDED_STATES EXCLUDED_STATES
     local VALID DOCUMENTS DOCUMENTS_MAX DOCUMENT_META_PREFIX DOCUMENT_META DOCUMENT_META_VARS
     local DOCUMENT TITLE DATE DATE_PRETTY LANGCODE STATE EXCLUDE DEST_SUB URI ABSPATH
@@ -856,7 +856,7 @@ function build_archive {  # build_archive encoding target_dir dest_file dest_tit
     DEST_TITLE="${3:-}"
     CONTENT="${4:-}"
     CONTENT_VALID=('excerpt' 'none' '')
-    if ! in_array "${CONTENT%%:*}" "${CONTENT_VALID[@]}"; then
+    if ! marsh_in_array "${CONTENT%%:*}" "${CONTENT_VALID[@]}"; then
         echo "Invalid archive content type: ${CONTENT%%:*}" >&2
         return 1
     fi
@@ -913,9 +913,9 @@ function build_archive {  # build_archive encoding target_dir dest_file dest_tit
             break
         fi
         DOCUMENT_META_PREFIX=$(echo "marsh_meta_${DOCUMENT}_" | sed -E -e 's/[^A-Za-z0-9_]/_/g')
-        DOCUMENT_META=$(parse_yaml "${TARGET_DIR}/${DOCUMENT%.document}.meta.yaml" "${DOCUMENT_META_PREFIX}")
+        DOCUMENT_META=$(marsh_parse_yaml "${TARGET_DIR}/${DOCUMENT%.document}.meta.yaml" "${DOCUMENT_META_PREFIX}")
         [[ $? -ne 0 ]] && echo "Unable to parse yaml file: ${TARGET_DIR}/${DOCUMENT%.document}.meta.yaml" >&2 && return 1
-        DOCUMENT_META_VARS=$(echo "${DOCUMENT_META}" | get_variables)
+        DOCUMENT_META_VARS=$(echo "${DOCUMENT_META}" | marsh_get_variables)
         eval "${DOCUMENT_META}"
         TYPE="${DOCUMENT_META_PREFIX}Type"
         TYPE="${!TYPE:-}"
@@ -923,7 +923,7 @@ function build_archive {  # build_archive encoding target_dir dest_file dest_tit
             # archives are skipped by default
             continue
         fi
-        if [[ "${#TYPES[@]}" -gt 0 ]] && ! in_array "${TYPE}" "${TYPES[@]}"; then
+        if [[ "${#TYPES[@]}" -gt 0 ]] && ! marsh_in_array "${TYPE}" "${TYPES[@]}"; then
             # skip type if not in list
             continue
         fi
@@ -937,10 +937,10 @@ function build_archive {  # build_archive encoding target_dir dest_file dest_tit
             else
                 # YAML inline array
                 # Key: [ foo, bar, baz ]
-                eval $(flat_to_array "STATE" "${DOCUMENT_META_PREFIX}State_")
+                eval $(marsh_flat_to_array "STATE" "${DOCUMENT_META_PREFIX}State_")
             fi
             for E in "${EXCLUDED_STATES[@]}"; do
-                if in_array "${E}" "${STATE[@]}"; then
+                if marsh_in_array "${E}" "${STATE[@]}"; then
                     # skip excluded state
                     continue 2
                 fi
@@ -969,11 +969,11 @@ function build_archive {  # build_archive encoding target_dir dest_file dest_tit
         elif [[ "${CONTENT%%:}" == "excerpt" ]]; then
             # excerpt
             # filters strip duplicate title
-            <"${TARGET_DIR:-.}/${DOCUMENT}" text_filter headings:push "${CONTENT}" "wrap:div.$(echo ${CONTENT} | sed -e 's/:[^ ]//g' -e 's/ /./g')" >> "${DEST_SUB}.document"
+            <"${TARGET_DIR:-.}/${DOCUMENT}" marsh_text_filter headings:push "${CONTENT}" "wrap:div.$(echo ${CONTENT} | sed -e 's/:[^ ]//g' -e 's/ /./g')" >> "${DEST_SUB}.document"
         else
             # full
             # filters strip duplicate title
-            <"${TARGET_DIR:-.}/${DOCUMENT}" text_filter headings:shift headings:push headings:push >> "${DEST_SUB}.document"
+            <"${TARGET_DIR:-.}/${DOCUMENT}" marsh_text_filter headings:shift headings:push headings:push >> "${DEST_SUB}.document"
         fi
         # copy metadata
         cp "${TARGET_DIR}/${DOCUMENT%.document}.meta.yaml" "${DEST_SUB}.meta.yaml.temp" >/dev/null 2>&1
@@ -990,7 +990,7 @@ function build_archive {  # build_archive encoding target_dir dest_file dest_tit
 }
 
 # builds advanced navigation
-function build_advanced_nav {  # build_advanced_nav target_dir navigation_file
+function marsh_build_advanced_nav {  # marsh_build_advanced_nav target_dir navigation_file
     local TARGET_DIR NAV_NAME
     local NAV_TARGETS NAV_DEST
 
@@ -1009,13 +1009,13 @@ function build_advanced_nav {  # build_advanced_nav target_dir navigation_file
         else
             cp "${NAV_DEST}" "${NAV_DEST}.temp"
         fi
-        <"${NAV_DEST}.temp" text_filter links:md2html | process_markdown > "${NAV_DEST}"
+        <"${NAV_DEST}.temp" marsh_text_filter links:md2html | marsh_process_markdown > "${NAV_DEST}"
         rm -f "${NAV_DEST}.temp"
     done
 }
 
 # builds a template and applies it to a document
-function build_template {  # build_template dest_dir target_dir document templates_dir template template_config_extra
+function marsh_build_template {  # marsh_build_template dest_dir target_dir document templates_dir template template_config_extra
     function process_authors {  # process_authors dest_array source_array
         local DEST_ARRAY SOURCE_ARRAY ITEM
         DEST_ARRAY="${1:-}"
@@ -1222,7 +1222,7 @@ function build_template {  # build_template dest_dir target_dir document templat
                 else
                     TAG_VAR="${!TAG_VAR}"
                 fi
-                TAG_VAR=$(echo "${TAG_VAR}" | text_filter "${TAG_FILTERS[@]}" | sed -e ':a' -e '$!{N' -e 'ba' -e '}' -e 's/[&/\]/\\&/g' -e 's/\n/\\&/g')
+                TAG_VAR=$(echo "${TAG_VAR}" | marsh_text_filter "${TAG_FILTERS[@]}" | sed -e ':a' -e '$!{N' -e 'ba' -e '}' -e 's/[&/\]/\\&/g' -e 's/\n/\\&/g')
                 TAG_VAR=${TAG_VAR%$'\n'}
                 sed -E \
                 -e "/${TAG_ESC}/s//${TAG_VAR:-}/g" \
@@ -1294,7 +1294,7 @@ function build_template {  # build_template dest_dir target_dir document templat
     # document metadata
     if [[ -f "${DOCUMENT}.${MARSH_UID}.meta.yaml" ]] && [[ -r "${DOCUMENT}.${MARSH_UID}.meta.yaml" ]]; then
         # parse metadata
-        DOCUMENT_META=$(parse_yaml "${DOCUMENT}.${MARSH_UID}.meta.yaml" "DOCUMENT_")
+        DOCUMENT_META=$(marsh_parse_yaml "${DOCUMENT}.${MARSH_UID}.meta.yaml" "DOCUMENT_")
         [[ $? -ne 0 ]] && echo "Unable to parse yaml file: ${DOCUMENT}.${MARSH_UID}.meta.yaml" >&2 && return 1
         DOCUMENT_META_VARS=$(echo "${DOCUMENT_META}" | sed -E -e 's/^([^=]+)=.*/\1/')
         eval "${DOCUMENT_META}"
@@ -1302,19 +1302,19 @@ function build_template {  # build_template dest_dir target_dir document templat
 
     # authors
     DOCUMENT_AUTHORS=()
-    eval $(flat_to_array "DOCUMENT_Authors" "DOCUMENT_Authors_")
+    eval $(marsh_flat_to_array "DOCUMENT_Authors" "DOCUMENT_Authors_")
     eval $(process_authors "DOCUMENT_AUTHORS" "DOCUMENT_Authors")
-    DOCUMENT_AUTHORS=$(join_delimited ', ' ' and ' ', and ' ${DOCUMENT_AUTHORS[@]})
+    DOCUMENT_AUTHORS=$(marsh_join_delimited ', ' ' and ' ', and ' ${DOCUMENT_AUTHORS[@]})
 
     # state
-    eval $(flat_to_array "DOCUMENT_State" "DOCUMENT_State_")
+    eval $(marsh_flat_to_array "DOCUMENT_State" "DOCUMENT_State_")
 
     # template
     if [[ "${TEMPLATE_DIR}" != "" ]]; then
         TEMPLATE_PREFIX="TEMPLATE_"
-        TEMPLATE_META=$(parse_template_metadata "${TEMPLATE_PREFIX}" "${TEMPLATE_DIR}/${TEMPLATE}" "${TEMPLATE_CONFIG_EXTRA}")
+        TEMPLATE_META=$(marsh_parse_template_metadata "${TEMPLATE_PREFIX}" "${TEMPLATE_DIR}/${TEMPLATE}" "${TEMPLATE_CONFIG_EXTRA}")
         [[ $? -ne 0 ]] && return 1
-        TEMPLATE_META_VARS=$(echo "${TEMPLATE_META}" | get_variables)
+        TEMPLATE_META_VARS=$(echo "${TEMPLATE_META}" | marsh_get_variables)
         eval "${TEMPLATE_META}"
 
         # partials
@@ -1486,7 +1486,7 @@ function build_template {  # build_template dest_dir target_dir document templat
             NAV_DIR="./${NAV}"
             NAV_DIR="${NAV_DIR%/*}"
             NAV_DIR="${NAV_DIR#./}"
-            if is_child "${DEST_DIR}/${TARGET_DIR}/${NAV_DIR}" "${DOCUMENT}"; then
+            if marsh_is_child "${DEST_DIR}/${TARGET_DIR}/${NAV_DIR}" "${DOCUMENT}"; then
                 NAV_RELPATH="${DOCUMENT_DIR#$NAV_DIR}"
                 NAV_RELPATH="${NAV_RELPATH//[^\/]}"     # leave only slashes
                 NAV_RELPATH="${NAV_RELPATH//[\/]/../}"  # slashes to dirs
@@ -1532,7 +1532,7 @@ function build_template {  # build_template dest_dir target_dir document templat
                 # document metadata
                 if [[ -f "${SUBDOCUMENT%.document}.meta.yaml" ]] && [[ -r "${SUBDOCUMENT%.document}.meta.yaml" ]]; then
                     # parse metadata
-                    SUBDOCUMENT_META=$(parse_yaml "${SUBDOCUMENT%.document}.meta.yaml" "SUBDOCUMENT_")
+                    SUBDOCUMENT_META=$(marsh_parse_yaml "${SUBDOCUMENT%.document}.meta.yaml" "SUBDOCUMENT_")
                     [[ $? -ne 0 ]] && echo "Unable to parse yaml file: ${SUBDOCUMENT%.document}.meta.yaml" >&2 && return 1
                     SUBDOCUMENT_META_VARS=$(echo "${SUBDOCUMENT_META}" | sed -E -e 's/^([^=]+)=.*/\1/')
                     eval "${SUBDOCUMENT_META}"
@@ -1541,11 +1541,11 @@ function build_template {  # build_template dest_dir target_dir document templat
                 SUBDOCUMENT_CONTENT="${SUBDOCUMENT}.document"
                 # authors
                 SUBDOCUMENT_AUTHORS=()
-                eval $(flat_to_array "SUBDOCUMENT_Authors" "SUBDOCUMENT_Authors_")
+                eval $(marsh_flat_to_array "SUBDOCUMENT_Authors" "SUBDOCUMENT_Authors_")
                 eval $(process_authors "SUBDOCUMENT_AUTHORS" "SUBDOCUMENT_Authors")
-                SUBDOCUMENT_AUTHORS=$(join_delimited ', ' ' and ' ', and ' ${SUBDOCUMENT_AUTHORS[@]})
+                SUBDOCUMENT_AUTHORS=$(marsh_join_delimited ', ' ' and ' ', and ' ${SUBDOCUMENT_AUTHORS[@]})
                 # state
-                eval $(flat_to_array "SUBDOCUMENT_State" "SUBDOCUMENT_State_")
+                eval $(marsh_flat_to_array "SUBDOCUMENT_State" "SUBDOCUMENT_State_")
                 if [[ "${DOCUMENT_Type}" == "archive-atom" ]]; then
                     # document template
                     if [[ "${TEMPLATE_Template_Partials_Archive_Atom_Document:-}" != "" ]]; then
@@ -1560,7 +1560,7 @@ function build_template {  # build_template dest_dir target_dir document templat
                     fi
                 else
                     # markdown to html
-                    <"${SUBDOCUMENT}" text_filter links:md2html | process_markdown > "${SUBDOCUMENT}.document"
+                    <"${SUBDOCUMENT}" marsh_text_filter links:md2html | marsh_process_markdown > "${SUBDOCUMENT}.document"
                     # document template
                     if [[ "${DOCUMENT_Type}" == "archive" ]]; then
                         cp "${TEMPLATE_Template_Partials_Archive_HTML_Document}" "${SUBDOCUMENT}"
@@ -1638,7 +1638,7 @@ function build_template {  # build_template dest_dir target_dir document templat
 }
 
 # builds a document from a single file
-function build_document {  # build_document dest_dir target_dir document advanced_nav_name
+function marsh_build_document {  # marsh_build_document dest_dir target_dir document advanced_nav_name
     local DEST_DIR TARGET_DIR DOCUMENT ADVANCED_NAV
     local DOCUMENT_EXT DEST DEST_NAME
 
@@ -1679,9 +1679,9 @@ function build_document {  # build_document dest_dir target_dir document advance
         # unwrap figures (remove p tag)
         # process images with multiple resolution assets
         cp "${DOCUMENT}.${MARSH_UID}.document" "${DOCUMENT}.${MARSH_UID}.document.temp"
-        <"${DOCUMENT}.${MARSH_UID}.document.temp" text_filter links:md2html | sed -E \
+        <"${DOCUMENT}.${MARSH_UID}.document.temp" marsh_text_filter links:md2html | sed -E \
         -e 's|^!\[(.+)]\([ ]*([^ ]+)[ ]*"(.+)"[ ]*\)$|<figure>\n<a href="\2">\n<img src="\2" alt="\1" />\n</a>\n<figcaption>\3</figcaption>\n</figure>|' |
-        process_markdown |
+        marsh_process_markdown |
         sed -E \
         -e 's|<p><figure>|<figure>|' \
         -e 's|</figure></p>|</figure>|' |
@@ -1734,7 +1734,7 @@ function build_document {  # build_document dest_dir target_dir document advance
 }
 
 # builds a target, parallel if possible
-function build_target {  # build_target dest_dir target advanced_nav templates_dir #templates[@] templates[@] #templates_config_extra[@] templates_config_extra[@]
+function marsh_build_target {  # marsh_build_target dest_dir target advanced_nav templates_dir #templates[@] templates[@] #templates_config_extra[@] templates_config_extra[@]
     local DEST_DIR TARGET ADVANCED_NAV TEMPLATES_DIR NUM_TEMPLATES TEMPLATES NUM_TEMPLATES_CONFIG_EXTRA TEMPLATES_CONFIG_EXTRA
     local TEMPLATE_META TEMPLATE_META_VARS
     local TARGET_DIR TEMPLATE_PREFIX DOCUMENTS PARALLEL
@@ -1771,9 +1771,9 @@ function build_target {  # build_target dest_dir target advanced_nav templates_d
     if [[ "${TEMPLATES_DIR}" != "" ]]; then
         for I in "${!TEMPLATES[@]}"; do
             TEMPLATE_PREFIX="TEMPLATE_"
-            TEMPLATE_META=$(parse_template_metadata "${TEMPLATE_PREFIX}" "${TEMPLATES_DIR}/${TEMPLATES[$I]}" "${TEMPLATES_CONFIG_EXTRA[$I]}")
+            TEMPLATE_META=$(marsh_parse_template_metadata "${TEMPLATE_PREFIX}" "${TEMPLATES_DIR}/${TEMPLATES[$I]}" "${TEMPLATES_CONFIG_EXTRA[$I]}")
             [[ $? -ne 0 ]] && return 1
-            TEMPLATE_META_VARS=$(echo "${TEMPLATE_META}" | get_variables)
+            TEMPLATE_META_VARS=$(echo "${TEMPLATE_META}" | marsh_get_variables)
             eval "${TEMPLATE_META}"
             for ASSET in ${TEMPLATE_ASSETS_FONTS[@]} ${TEMPLATE_ASSETS_STYLES[@]} ${TEMPLATE_ASSETS_SCRIPTS[@]} ${TEMPLATE_ASSETS_IMAGES[@]} ${TEMPLATE_ASSETS_AUDIO[@]} ${TEMPLATE_ASSETS_VIDEO[@]} ${TEMPLATE_ASSETS_DOCUMENTS[@]} ${TEMPLATE_ASSETS_BINARIES[@]} ${TEMPLATE_ASSETS_OTHER[@]}; do
                 ASSET="${ASSET%\?*}"
@@ -1809,15 +1809,15 @@ function build_target {  # build_target dest_dir target advanced_nav templates_d
     [[ "${MARKDOWN}" != "markdown" ]] && PARALLEL_MARKDOWN="${MARKDOWN}"
     if [[ "${JOBS:-1}" -gt 1 ]] && [[ "${PARALLEL:-}" != "" ]] && [[ "$(${PARALLEL} --version --no-notice 2>/dev/null | head -n 1 | grep -o 'GNU parallel')" == "GNU parallel" ]]; then
         # in parallel
-        export -f build_document
-        if ! "${PARALLEL}" --halt now,fail=1 --quote --no-notice --env text_filter --env process_markdown --env build_document --jobs="${JOBS:-1}" "${SELF_DIR}/${SELF_NAME}" build-document --markdown="${PARALLEL_MARKDOWN}" --markdown-options="${MARKDOWN_OPTIONS_CSV}" --markdown-file-extensions="${MARKDOWN_FILEEXT_CSV}" --convert-link-extensions="${CONVERT_LINKEXT}" --marsh-uid="${MARSH_UID}" --marsh-temp="${MARSH_TEMP}" --marsh-config-file="${MARSH_CONFIG_FILE}" --marsh-config-file-dir="${MARSH_CONFIG_FILE_DIR}" --marsh-config-path="${MARSH_CONFIG_PATH}" --marsh-config-url="${MARSH_CONFIG_URL}" "${DEST_DIR}" "${TARGET_DIR}" {} {} ::: "${DOCUMENTS[@]}" ::: "${ADVANCED_NAV}"; then
+        export -f marsh_build_document
+        if ! "${PARALLEL}" --halt now,fail=1 --quote --no-notice --env marsh_text_filter --env marsh_process_markdown --env marsh_build_document --jobs="${JOBS:-1}" "${SELF_DIR}/${SELF_NAME}" build-document --markdown="${PARALLEL_MARKDOWN}" --markdown-options="${MARKDOWN_OPTIONS_CSV}" --markdown-file-extensions="${MARKDOWN_FILEEXT_CSV}" --convert-link-extensions="${CONVERT_LINKEXT}" --marsh-uid="${MARSH_UID}" --marsh-temp="${MARSH_TEMP}" --marsh-config-file="${MARSH_CONFIG_FILE}" --marsh-config-file-dir="${MARSH_CONFIG_FILE_DIR}" --marsh-config-path="${MARSH_CONFIG_PATH}" --marsh-config-url="${MARSH_CONFIG_URL}" "${DEST_DIR}" "${TARGET_DIR}" {} {} ::: "${DOCUMENTS[@]}" ::: "${ADVANCED_NAV}"; then
             echo "Unable to build template: ${TEMPLATES[$I]}"
             return 1
         fi
         if [[ "${TEMPLATES_DIR}" != "" ]] && [[ "${#TEMPLATES[@]}" -gt 0 ]]; then
-            export -f build_template
+            export -f marsh_build_template
             for I in "${!TEMPLATES[@]}"; do
-                if ! "${PARALLEL}" --halt now,fail=1 --quote --no-notice --env text_filter --env process_markdown --env build_template --jobs="${JOBS:-1}" "${SELF_DIR}/${SELF_NAME}" build-templates --markdown="${PARALLEL_MARKDOWN}" --markdown-options="${MARKDOWN_OPTIONS_CSV}" --markdown-file-extensions="${MARKDOWN_FILEEXT_CSV}" --convert-link-extensions="${CONVERT_LINKEXT}" --marsh-uid="${MARSH_UID}" --marsh-temp="${MARSH_TEMP}" --marsh-config-file="${MARSH_CONFIG_FILE}" --marsh-config-file-dir="${MARSH_CONFIG_FILE_DIR}" --marsh-config-path="${MARSH_CONFIG_PATH}" --marsh-config-url="${MARSH_CONFIG_URL}" "${DEST_DIR}" "${TARGET_DIR}" {} "${TEMPLATES_DIR}" "${TEMPLATES[$I]}" "${TEMPLATES_CONFIG_EXTRA[$I]:-}" ::: "${DOCUMENTS[@]}"; then
+                if ! "${PARALLEL}" --halt now,fail=1 --quote --no-notice --env marsh_text_filter --env marsh_process_markdown --env marsh_build_template --jobs="${JOBS:-1}" "${SELF_DIR}/${SELF_NAME}" build-templates --markdown="${PARALLEL_MARKDOWN}" --markdown-options="${MARKDOWN_OPTIONS_CSV}" --markdown-file-extensions="${MARKDOWN_FILEEXT_CSV}" --convert-link-extensions="${CONVERT_LINKEXT}" --marsh-uid="${MARSH_UID}" --marsh-temp="${MARSH_TEMP}" --marsh-config-file="${MARSH_CONFIG_FILE}" --marsh-config-file-dir="${MARSH_CONFIG_FILE_DIR}" --marsh-config-path="${MARSH_CONFIG_PATH}" --marsh-config-url="${MARSH_CONFIG_URL}" "${DEST_DIR}" "${TARGET_DIR}" {} "${TEMPLATES_DIR}" "${TEMPLATES[$I]}" "${TEMPLATES_CONFIG_EXTRA[$I]:-}" ::: "${DOCUMENTS[@]}"; then
                     echo "Unable to build template: ${TEMPLATES[$I]}"
                     return 1
                 fi
@@ -1830,13 +1830,13 @@ function build_target {  # build_target dest_dir target advanced_nav templates_d
         DOCUMENTS=($(echo "${DOCUMENTS[@]}"))
         IFS="${OIFS}"
         for DOCUMENT in "${DOCUMENTS[@]}"; do
-            if ! build_document "${DEST_DIR}" "${TARGET_DIR}" "${DOCUMENT}" "${ADVANCED_NAV}"; then
+            if ! marsh_build_document "${DEST_DIR}" "${TARGET_DIR}" "${DOCUMENT}" "${ADVANCED_NAV}"; then
                 echo "Unable to build document: ${DOCUMENT}"
                 return 1
             fi
             if [[ "${TEMPLATES_DIR}" != "" ]] && [[ "${#TEMPLATES[@]}" -gt 0 ]]; then
                 for I in "${!TEMPLATES[@]}"; do
-                    if ! build_template "${DEST_DIR}" "${TARGET_DIR}" "${DOCUMENT}" "${TEMPLATES_DIR}" "${TEMPLATES[$I]}" "${TEMPLATES_CONFIG_EXTRA[$I]:-}"; then
+                    if ! marsh_build_template "${DEST_DIR}" "${TARGET_DIR}" "${DOCUMENT}" "${TEMPLATES_DIR}" "${TEMPLATES[$I]}" "${TEMPLATES_CONFIG_EXTRA[$I]:-}"; then
                         echo "Unable to build template: ${TEMPLATES[$I]}"
                         return 1
                     fi
@@ -1847,7 +1847,7 @@ function build_target {  # build_target dest_dir target advanced_nav templates_d
 }
 
 # removes temporary files used during target builds
-function clean_target {  # clean_target target
+function marsh_clean_target {  # marsh_clean_target target
     local TARGET CLEAN_FILTERS EXT
     TARGET="${1:-}"; [[ "${TARGET}" == "" ]] && return 1
     CLEAN_FILTERS=()
@@ -1868,7 +1868,7 @@ if [[ ! "${COMMAND}" =~ ^- ]]; then
         echo "Command not specified" >&2
         echo -e "${HELP}"
         exit 1
-    elif ! in_array "${COMMAND}" "${COMMANDS[@]}"; then
+    elif ! marsh_in_array "${COMMAND}" "${COMMANDS[@]}"; then
         # invalid command
         echo "Invalid command: ${COMMAND}" >&2
         echo -e "${HELP}"
@@ -1918,7 +1918,7 @@ while getopts "${OPTSPEC}" OPT; do
                     exit 0
                     ;;
                 jobs)
-                    if [[ -z ${!OPTIND+isset} ]] || in_array "${!OPTIND}" "${OPTARRAY[@]}"; then
+                    if [[ -z ${!OPTIND+isset} ]] || marsh_in_array "${!OPTIND}" "${OPTARRAY[@]}"; then
                         # Option without required argument
                         echo "Option --${OPTARG} requires a value" >&2
                         echo -e "${HELP}"
@@ -1941,7 +1941,7 @@ while getopts "${OPTSPEC}" OPT; do
                     fi
                     ;;
                 markdown)
-                    if [[ -z ${!OPTIND+isset} ]] || in_array "${!OPTIND}" "${OPTARRAY[@]}"; then
+                    if [[ -z ${!OPTIND+isset} ]] || marsh_in_array "${!OPTIND}" "${OPTARRAY[@]}"; then
                         # Option without required argument
                         echo "Option --${OPTARG} requires a value" >&2
                         echo -e "${HELP}"
@@ -1954,7 +1954,7 @@ while getopts "${OPTSPEC}" OPT; do
                     MARKDOWN="${OPTARG#*=}"
                     ;;
                 markdown-options)
-                    if [[ -z ${!OPTIND+isset} ]] || in_array "${!OPTIND}" "${OPTARRAY[@]}"; then
+                    if [[ -z ${!OPTIND+isset} ]] || marsh_in_array "${!OPTIND}" "${OPTARRAY[@]}"; then
                         # Option without required argument
                         echo "Option --${OPTARG} requires a value" >&2
                         echo -e "${HELP}"
@@ -1975,7 +1975,7 @@ while getopts "${OPTSPEC}" OPT; do
                     IFS="${OIFS}"
                     ;;
                 markdown-file-extensions)
-                    if [[ -z ${!OPTIND+isset} ]] || in_array "${!OPTIND}" "${OPTARRAY[@]}"; then
+                    if [[ -z ${!OPTIND+isset} ]] || marsh_in_array "${!OPTIND}" "${OPTARRAY[@]}"; then
                         # Option without required argument
                         echo "Option --${OPTARG} requires a value" >&2
                         echo -e "${HELP}"
@@ -1989,7 +1989,7 @@ while getopts "${OPTSPEC}" OPT; do
                     MARKDOWN_FILEEXT=(${MARKDOWN_FILEEXT//,/ })
                     ;;
                 convert-link-extensions)
-                    if [[ -z ${!OPTIND+isset} ]] || in_array "${!OPTIND}" "${OPTARRAY[@]}"; then
+                    if [[ -z ${!OPTIND+isset} ]] || marsh_in_array "${!OPTIND}" "${OPTARRAY[@]}"; then
                         # Option without required argument
                         echo "Option --${OPTARG} requires a value" >&2
                         echo -e "${HELP}"
@@ -2021,7 +2021,7 @@ while getopts "${OPTSPEC}" OPT; do
                     exit 1
                     ;;
                 marsh-uid)
-                    if [[ -z ${!OPTIND+isset} ]] || in_array "${!OPTIND}" "${OPTARRAY[@]}"; then
+                    if [[ -z ${!OPTIND+isset} ]] || marsh_in_array "${!OPTIND}" "${OPTARRAY[@]}"; then
                         # Option without required argument
                         echo "Option --${OPTARG} requires a value" >&2
                         echo -e "${HELP}"
@@ -2034,7 +2034,7 @@ while getopts "${OPTSPEC}" OPT; do
                     MARSH_UID="${OPTARG#*=}"
                     ;;
                 marsh-temp)
-                    if [[ -z ${!OPTIND+isset} ]] || in_array "${!OPTIND}" "${OPTARRAY[@]}"; then
+                    if [[ -z ${!OPTIND+isset} ]] || marsh_in_array "${!OPTIND}" "${OPTARRAY[@]}"; then
                         # Option without required argument
                         echo "Option --${OPTARG} requires a value" >&2
                         echo -e "${HELP}"
@@ -2047,7 +2047,7 @@ while getopts "${OPTSPEC}" OPT; do
                     MARSH_TEMP="${OPTARG#*=}"
                     ;;
                 marsh-config-file)
-                    if [[ -z ${!OPTIND+isset} ]] || in_array "${!OPTIND}" "${OPTARRAY[@]}"; then
+                    if [[ -z ${!OPTIND+isset} ]] || marsh_in_array "${!OPTIND}" "${OPTARRAY[@]}"; then
                         # Option without required argument
                         echo "Option --${OPTARG} requires a value" >&2
                         echo -e "${HELP}"
@@ -2060,7 +2060,7 @@ while getopts "${OPTSPEC}" OPT; do
                     MARSH_CONFIG_FILE="${OPTARG#*=}"
                     ;;
                 marsh-config-file-dir)
-                    if [[ -z ${!OPTIND+isset} ]] || in_array "${!OPTIND}" "${OPTARRAY[@]}"; then
+                    if [[ -z ${!OPTIND+isset} ]] || marsh_in_array "${!OPTIND}" "${OPTARRAY[@]}"; then
                         # Option without required argument
                         echo "Option --${OPTARG} requires a value" >&2
                         echo -e "${HELP}"
@@ -2073,7 +2073,7 @@ while getopts "${OPTSPEC}" OPT; do
                     MARSH_CONFIG_FILE_DIR="${OPTARG#*=}"
                     ;;
                 marsh-config-path)
-                    if [[ -z ${!OPTIND+isset} ]] || in_array "${!OPTIND}" "${OPTARRAY[@]}"; then
+                    if [[ -z ${!OPTIND+isset} ]] || marsh_in_array "${!OPTIND}" "${OPTARRAY[@]}"; then
                         # Option without required argument
                         echo "Option --${OPTARG} requires a value" >&2
                         echo -e "${HELP}"
@@ -2086,7 +2086,7 @@ while getopts "${OPTSPEC}" OPT; do
                     MARSH_CONFIG_PATH="${OPTARG#*=}"
                     ;;
                 marsh-config-url)
-                    if [[ -z ${!OPTIND+isset} ]] || in_array "${!OPTIND}" "${OPTARRAY[@]}"; then
+                    if [[ -z ${!OPTIND+isset} ]] || marsh_in_array "${!OPTIND}" "${OPTARRAY[@]}"; then
                         # Option without required argument
                         echo "Option --${OPTARG} requires a value" >&2
                         echo -e "${HELP}"
@@ -2149,7 +2149,7 @@ if [[ "${COMMAND}" == "" ]]; then
     echo "Command not specified" >&2
     echo -e "${HELP}"
     exit 1
-elif ! in_array "${COMMAND}" "${COMMANDS[@]}"; then
+elif ! marsh_in_array "${COMMAND}" "${COMMANDS[@]}"; then
     # invalid command
     echo "Invalid command: ${COMMAND}" >&2
     echo -e "${HELP}"
@@ -2164,7 +2164,7 @@ if [[ "${MARSH_CONFIG_FILE:-}" == "" ]]; then
         [[ "${MARSH_CONFIG_FILE}" != "" ]] && MARSH_CONFIG_FILE="${MARSH_CONFIG_FILE%/}/marsh-config.yaml"
     fi
     if [[ -f "${MARSH_CONFIG_FILE}" ]] && [[ -r "${MARSH_CONFIG_FILE}" ]]; then
-        MARSH_CONFIG=$(parse_yaml "${MARSH_CONFIG_FILE}" "CONFIG_")
+        MARSH_CONFIG=$(marsh_parse_yaml "${MARSH_CONFIG_FILE}" "CONFIG_")
         [[ $? -ne 0 ]] && echo "Unable to parse yaml file: ${MARSH_CONFIG_FILE}" >&2 && return 1
         eval "${MARSH_CONFIG}"
     else
@@ -2191,7 +2191,7 @@ if [[ "${MARKDOWN}" != "" ]] && [[ "${MARKDOWN#\/}" == "${MARKDOWN}" ]]; then
 fi
 MARKDOWN="${MARKDOWN:-markdown}"
 DEPS=("${MARKDOWN}" "md5|md5sum")
-check_dependencies "${DEPS[@]}" || exit 1
+marsh_check_dependencies "${DEPS[@]}" || exit 1
 
 # md5 binary
 if hash md5 >/dev/null 2>&1; then
@@ -2224,7 +2224,7 @@ if [[ "${#MARKDOWN_UNKNOWN[@]}" -gt 0 ]]; then
     echo ""
     exit
 fi
-function process_markdown {
+function marsh_process_markdown {
     # re[lv]="footnote" is not valid html5; remove it
     if [[ "${#MARKDOWN_OPTIONS_CLIARGS[@]}" -gt 0 ]]; then
         "${MARKDOWN}" ${MARKDOWN_OPTIONS_CLIARGS[@]} ${@} | sed -E -e '/<a href="#[a-z]+:[^"]+" re[lv]="footnote">/s/ re[lv]="footnote"//g'
@@ -2233,7 +2233,7 @@ function process_markdown {
     fi
 }
 #export MARKDOWN
-export -f process_markdown
+export -f marsh_process_markdown
 
 # create target directory
 mkdir -p "${MARSH_CONFIG_PATH}"
@@ -2281,9 +2281,9 @@ if [[ "${COMMAND}" == "build" ]]; then
     # build
     INDEX=0
     PREFIX="CONFIG_Build_Targets_${INDEX}_"
-    while META=$(get_target_metadata "${PREFIX}" "TARGET_"); do
+    while META=$(marsh_get_target_metadata "${PREFIX}" "TARGET_"); do
         eval "${META}"
-        META_VARS=$(echo "${META}" | get_variables)
+        META_VARS=$(echo "${META}" | marsh_get_variables)
 
         # get template
         for I in "${!TARGET_TEMPLATES[@]}"; do
@@ -2296,7 +2296,7 @@ if [[ "${COMMAND}" == "build" ]]; then
                     TARGET_TEMPLATES_CONFIG[$I]="${MARSH_CONFIG_FILE_DIR}/${TARGET_TEMPLATES_CONFIG[$I]}"
                     TARGET_TEMPLATES_CONFIG[$I]="${TARGET_TEMPLATES_CONFIG[$I]#./}"
                 fi
-                get_files "${TARGET_TEMPLATES_SOURCE[$I]}/*" \
+                marsh_get_files "${TARGET_TEMPLATES_SOURCE[$I]}/*" \
                           "${TEMPLATES_DIR}/${TARGET_TEMPLATES[$I]}" \
                           false || die_gracefully
             fi
@@ -2311,19 +2311,19 @@ if [[ "${COMMAND}" == "build" ]]; then
             TARGET_SOURCE="${TARGET_SOURCE#./}"
         fi
         if [[ "${TARGET_SOURCE}" != "" ]]; then
-            get_files "${TARGET_SOURCE}" \
+            marsh_get_files "${TARGET_SOURCE}" \
                       "${MARSH_CONFIG_PATH}/${TARGET_PATH}" \
                       "${TARGET_FORCE}" || die_gracefully
         fi
 
         # build advanced navigation
         if [[ "${TARGET_NAV}" != "" ]]; then
-            build_advanced_nav "${MARSH_CONFIG_PATH}/${TARGET_PATH}" \
+            marsh_build_advanced_nav "${MARSH_CONFIG_PATH}/${TARGET_PATH}" \
                                "${TARGET_NAV}" || die_gracefully
         fi
 
         # build target
-        build_target "${MARSH_CONFIG_PATH}" \
+        marsh_build_target "${MARSH_CONFIG_PATH}" \
                      "${TARGET_PATH}" \
                      "${TARGET_NAV}" \
                      "${TEMPLATES_DIR}" \
@@ -2340,7 +2340,7 @@ if [[ "${COMMAND}" == "build" ]]; then
                 TARGET_ARCHIVE_TYPES=(${TARGET_ARCHIVES_TYPES[$I]:-})
                 TARGET_ARCHIVE_EXCLUDED_STATES=(${TARGET_ARCHIVES_EXCLUDED_STATES[$I]:-})
                 IFS="${OIFS}"
-                if ! build_archive "${TARGET_ARCHIVES_ENCODING[$I]}" \
+                if ! marsh_build_archive "${TARGET_ARCHIVES_ENCODING[$I]}" \
                                    "${MARSH_CONFIG_PATH}/${TARGET_PATH}" \
                                    "${TARGET_ARCHIVES[$I]}" \
                                    "${TARGET_ARCHIVES_NAME[$I]:-$TARGET_NAME}" \
@@ -2350,7 +2350,7 @@ if [[ "${COMMAND}" == "build" ]]; then
                                    "${TARGET_ARCHIVE_TYPES[@]}" \
                                    "${#TARGET_ARCHIVE_EXCLUDED_STATES[@]}" \
                                    "${TARGET_ARCHIVE_EXCLUDED_STATES[@]}" \
-                || ! build_target "${MARSH_CONFIG_PATH}" \
+                || ! marsh_build_target "${MARSH_CONFIG_PATH}" \
                                   "${TARGET_PATH}/${TARGET_ARCHIVES[$I]}" \
                                   "" \
                                   "${TEMPLATES_DIR}" \
@@ -2366,7 +2366,7 @@ if [[ "${COMMAND}" == "build" ]]; then
         done
 
         # clean build files
-        clean_target "${MARSH_CONFIG_PATH}/${TARGET_PATH}"
+        marsh_clean_target "${MARSH_CONFIG_PATH}/${TARGET_PATH}"
 
         # unset temporary global variables
         for VAR in ${META_VARS[@]}; do unset "${VAR}"; done
@@ -2380,10 +2380,10 @@ if [[ "${COMMAND}" == "build" ]]; then
     trap - EXIT INT TERM
 elif [[ "${COMMAND}" == "build-document" ]]; then
     # build single document
-    build_document "${@}"
+    marsh_build_document "${@}"
 elif [[ "${COMMAND}" == "build-templates" ]]; then
     # build templates for document
-    build_template "${@}"
+    marsh_build_template "${@}"
 fi
 
 # done

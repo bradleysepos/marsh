@@ -443,6 +443,18 @@ function text_filter {  # text_filter filters[@]
                     TEXT=$(echo "${TEXT}" | sed -E -e 's~(^|[^!])(\[((\!\[[^][]*\]\([^)]*\)[^][]*)|[^][]+)\]\(<?[^()[:space:]'"${PROTOCOL_SEP}"']+)\.('"${MD_EXT_REGEX}"')([?#][^()[:space:]]*)?(>?)([[:space:]][^)]*)?(\))~\1\2.html\6\7\8\9~g' -e 's~(^[[:space:]]*\[[^][]+\]:[[:space:]]+<?[^[:space:]>]+'"${PROTOCOL_SEP}"'[^[:space:]>]+)\.('"${MD_EXT_REGEX}"')([?#][^[:space:]>]*)?(>?)([[:space:]].*)?$~\1.html\3\4\5~g')
                 fi
                 ;;
+            newlines:reduce)
+                TEXT=$(echo "${TEXT}" | sed -E -e ':a;N;$!ba;s/\n{3,}/\n\n/g')
+                ;;
+            newlines:remove)
+                TEXT=$(echo "${TEXT}" | tr -d '\n')
+                ;;
+            newlines:tospaces)
+                TEXT=$(echo -n "${TEXT}" | tr '\n' ' ')
+                ;;
+            newlines:trim)
+                TEXT=$(echo "${TEXT}" | sed -e '/./,$!d')
+                ;;
             plaintext)
                 # ':a;s/<[^>]*>//g;/</N;//ba' strips html tags and works across multiple lines (better version of 's/<[^>]*>//g')
                 # '/./,/^$/!d' deletes blank lines at start and collapses consecutive blank lines into one, leaving up to one blank line at end
@@ -451,6 +463,9 @@ function text_filter {  # text_filter filters[@]
                 ;;
             slug)
                 TEXT=$(echo "${TEXT}" | head -n 1 | sed -E -e 's/[ _]+/-/g' -e 's/[^-a-zA-Z0-9.]//g' -e 's/(^-+)|(-+$)//' | awk '{ print tolower($0) }')
+                ;;
+            whitespace:trim)
+                TEXT=$(echo "${TEXT}" | sed -e ':a' -e '$!{N' -e 'ba' -e '}' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
                 ;;
             wrap:*)
                 WRAP="${OPTIONS[0]}"

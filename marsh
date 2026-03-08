@@ -395,8 +395,9 @@ function text_filter {  # text_filter filters[@]
                     [[ "${MAX_CHARS}" -lt 1 ]] && TEXT="" && break
                     TEXT=$(echo "${TEXT}" | text_filter headings:remove plaintext)
                     if [[ "${MAX_PARAS}" != "" ]]; then
-                        TEXT=$(echo "${TEXT}" | awk -v RS="\n\n" 'NR<='${MAX_PARAS}'+1 { print $0 }')
+                        TEXT=$(echo "${TEXT}" | awk -v RS="\n\n" 'NR<='${MAX_PARAS}' { print $0 }')
                     fi
+                    TEXT=$(echo "${TEXT}" | marsh_text_filter newlines:tospaces whitespace:trim)
                     TEXT_TEMP=$(echo "${TEXT:0:$MAX_CHARS}")
                     if [[ "${TEXT}" != "${TEXT_TEMP}" ]]; then
                         if [[ "${MAX_CHARS}" -gt 3 ]]; then

@@ -466,9 +466,15 @@ function marsh_text_filter {  # marsh_text_filter filters[@]
             whitespace:trim)
                 TEXT=$(echo "${TEXT}" | sed -e ':a' -e '$!{N' -e 'ba' -e '}' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
                 ;;
+            wrap:special-comment:*)
+                WRAP="${OPTIONS[1]:-}"
+                if [[ "${WRAP}" != "" ]]; then
+                    TEXT=$(echo "<!-- ${WRAP} -->${LF}${TEXT}${LF}<!-- /${WRAP} -->${LF}")
+                fi
+                ;;
             wrap:*)
                 WRAP="${OPTIONS[0]}"
-                TEXT=$(echo "<!-- ${WRAP} -->${LF}${TEXT}${LF}<!-- /${WRAP} -->${LF}")
+                TEXT=$(echo "${WRAP}${TEXT}${WRAP}")
                 ;;
         esac
     done
@@ -969,7 +975,7 @@ function marsh_build_archive {  # marsh_build_archive encoding target_dir dest_f
         elif [[ "${CONTENT%%:}" == "excerpt" ]]; then
             # excerpt
             # filters strip duplicate title
-            <"${TARGET_DIR:-.}/${DOCUMENT}" marsh_text_filter headings:push "${CONTENT}" "wrap:div.$(echo ${CONTENT} | sed -e 's/:[^ ]//g' -e 's/ /./g')" >> "${DEST_SUB}.document"
+            <"${TARGET_DIR:-.}/${DOCUMENT}" marsh_text_filter headings:push "${CONTENT}" "wrap:special-comment:div.$(echo ${CONTENT} | sed -e 's/:[^ ]//g' -e 's/ /./g')" >> "${DEST_SUB}.document"
         else
             # full
             # filters strip duplicate title

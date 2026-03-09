@@ -338,6 +338,8 @@ function marsh_md5_string {  # marsh_md5_string string
 # transforms a string
 function marsh_text_filter {  # marsh_text_filter filter [filter...]
     local FILTER PIPE_STATUS
+    OIFS="${IFS}"
+    IFS=$'\n'
     if [[ "${#@}" -gt 1 ]]; then
         FILTER="${1:-}"
         shift 1
@@ -354,7 +356,8 @@ function marsh_text_filter {  # marsh_text_filter filter [filter...]
     if [[ "${OPTIONS}" == "${FILTER}" ]]; then
         OPTIONS=""
     fi
-    OPTIONS=(${OPTIONS//:/ })
+    OPTIONS=(${OPTIONS//:/$'\n'})
+    IFS="${OIFS}"
     case "${FILTER}" in
         date:rfc2822)
             if [[ "${SYS_NAME}" =~ bsd|darwin ]]; then

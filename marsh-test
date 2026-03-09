@@ -504,6 +504,14 @@ function marsh_test {
             fi
             ;;
         marsh_text_filter:31)
+            TEST_NAME+=":wrap"
+            TEST=$(echo "Some text" | marsh_text_filter wrap:\":\!\")
+            EXPECTED="\"Some text!\""
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_text_filter:32)
             TEST_NAME+=":multiple"
             TEST=$(echo $'\n\n\n\n'"Some text"$'\n'"&#9829;" | marsh_text_filter newlines:trim newlines:tospaces decode:entities wrap:\")
             EXPECTED="\"Some text ♥\""

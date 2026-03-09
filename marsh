@@ -337,7 +337,7 @@ function marsh_md5_string {  # marsh_md5_string string
 
 # transforms a string
 function marsh_text_filter {  # marsh_text_filter filter [filter...]
-    local FILTER OPTIONS MAX_CHARS MAX_PARAS MD_EXT_REGEX PROTOCOL_SEP WRAP PIPE_STATUS
+    local FILTER OPTIONS MAX_CHARS MAX_PARAS MD_EXT_REGEX PROTOCOL_SEP WRAP_START WRAP_END PIPE_STATUS
     if [[ "${#@}" -gt 1 ]]; then
         FILTER="${1:-}"
         shift 1
@@ -444,14 +444,17 @@ function marsh_text_filter {  # marsh_text_filter filter [filter...]
             marsh_text_filter newlines:trim | sed -E -e 's/^[[:space:]]+//' -e 's/[[:space:]]+$//'
             ;;
         wrap:special-comment:*)
-            WRAP="${OPTIONS[1]:-}"
-            if [[ "${WRAP}" != "" ]]; then
-                awk -v WRAP_START="<!-- ${WRAP} -->" -v WRAP_END="<!-- /${WRAP} -->" 'NR==1 { print WRAP_START; printf "\n" } { print $0 } END { printf "\n"; print WRAP_END }'
+            WRAP_START="${OPTIONS[1]:-}"
+            WRAP_END="${WRAP_START}"
+            if [[ "${WRAP_START}" != "" ]]; then
+                awk -v WRAP_START="<!-- ${WRAP_START} -->" -v WRAP_END="<!-- /${WRAP_END} -->" 'NR==1 { print WRAP_START; printf "\n" } { print $0 } END { printf "\n"; print WRAP_END }'
             fi
             ;;
         wrap:*)
-            WRAP="${OPTIONS[0]}"
-            awk -v WRAP="${WRAP}" '{ print WRAP $0 WRAP }'
+            # TODO: support start and end wrap tags, e.g. wrap:<div>:</div>
+            WRAP_START="${OPTIONS[0]:-}"
+            WRAP_END="${OPTIONS[1]:-${WRAP_START}}"
+            awk -v WRAP_START="${WRAP_START}" -v WRAP_END="${WRAP_END}" '{ print WRAP_START $0 WRAP_END }'
             ;;
         *)
             cat

@@ -433,8 +433,8 @@ function marsh_test {
             ;;
         marsh_text_filter:22)
             TEST_NAME+=":newlines_reduce"
-            TEST=$(echo "# Heading 1"$'\n\n\n\n'"Paragraph" | marsh_text_filter newlines:reduce)
-            EXPECTED="# Heading 1"$'\n\n'"Paragraph"
+            TEST=$(echo "# Heading 1"$'\n\n\n\n\n\n'"Paragraph" | marsh_text_filter newlines:reduce:3)
+            EXPECTED="# Heading 1"$'\n\n\n'"Paragraph"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi

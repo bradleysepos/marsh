@@ -389,7 +389,7 @@ function marsh_text_filter {  # marsh_text_filter filter [filter...]
         excerpt:*)
             MAX_CHARS="${OPTIONS[0]:-999999}"
             MAX_PARAS="${OPTIONS[1]:-999999}"
-            marsh_text_filter headings:remove plaintext whitespace:trim | awk -v RS="\n\n" 'NR<='${MAX_PARAS}' { print $0 }' | marsh_text_filter newlines:tospaces | cut -c1-"${MAX_CHARS}"
+            marsh_text_filter headings:remove plaintext whitespace:trim newlines:reduce:2 | awk -v RS="\n\n" 'NR<='${MAX_PARAS}' { print $0 }' | marsh_text_filter newlines:tospaces | cut -c1-"${MAX_CHARS}"
             ;;
         excerpt)
             marsh_text_filter excerpt:300:2
@@ -421,8 +421,13 @@ function marsh_text_filter {  # marsh_text_filter filter [filter...]
                 sed -E -e 's~(\[[^][]+\]|\[!\[[^][]+\]\([^)(]+\)([^]]+)?\])(\([^ #?:]+)('"${MD_EXT_REGEX}"')([#?][^ )]+)?([^]]+)?(\))~\1\3'"${OPTIONS[2]:+\.${OPTIONS[2]}}"'\5\6\7~g' | sed -E -e 's~^( *\[[^][]+\]: +<?[^ #?'"${PROTOCOL_SEP}"']+)('"${MD_EXT_REGEX}"')(>)?([#?][^ ]+)?(.*)$~\1'"${OPTIONS[2]:+\.${OPTIONS[2]}}"'\3\4\5~g'
             fi
             ;;
-        newlines:reduce)
-            sed -E -e ':a;N;$!ba;s/\n{3,}/\n\n/g'
+        newlines:reduce:*)
+            COUNT="${OPTIONS[1]:-2}"
+            SUB=""
+            for I in $(seq 1 "${COUNT}"); do
+                SUB+='\n'
+            done
+            sed -E -e ':a;N;$!ba;s/\n{'"$(( COUNT + 1 ))"',}/'"${SUB}"'/g'
             ;;
         newlines:remove)
             tr -d '\n'

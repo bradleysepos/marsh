@@ -337,7 +337,7 @@ function marsh_md5_string {  # marsh_md5_string string
 
 # transforms a string
 function marsh_text_filter {  # marsh_text_filter filter [filter...]
-    local FILTER OPTIONS MAX_CHARS MAX_PARAS MD_EXT_REGEX PROTOCOL_SEP WRAP_START WRAP_END PIPE_STATUS
+    local FILTER PIPE_STATUS
     if [[ "${#@}" -gt 1 ]]; then
         FILTER="${1:-}"
         shift 1
@@ -348,6 +348,7 @@ function marsh_text_filter {  # marsh_text_filter filter [filter...]
         done
         return 0
     fi
+    local OPTIONS MAX_CHARS MAX_PARAS MD_EXT_REGEX PROTOCOL_SEP WRAP_START WRAP_END
     FILTER="${1:-}"
     OPTIONS="${FILTER#*:}"
     if [[ "${OPTIONS}" == "${FILTER}" ]]; then

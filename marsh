@@ -295,19 +295,6 @@ function marsh_flat_to_array {  # marsh_flat_to_array array_name variable_prefix
     return 0
 }
 
-# prints md5 hash for a given string
-function marsh_md5_string {  # marsh_md5_string string
-    local STRING SYS_NAME
-    STRING="${1:-}"
-    SYS_NAME=$(uname | awk '{ print tolower($0)}')
-    if [[ "${SYS_NAME}" == "darwin" ]]; then
-        echo -n "${STRING}" | md5 -r | awk '{ print $1 }'
-    else
-        echo -n "${STRING}" | md5sum | awk '{ print $1 }'
-    fi
-    return 0
-}
-
 # transforms a string
 function marsh_text_filter {  # marsh_text_filter filter [filter...]
     local FILTER PIPE_STATUS
@@ -369,6 +356,13 @@ function marsh_text_filter {  # marsh_text_filter filter [filter...]
             ;;
         excerpt)
             marsh_text_filter excerpt:300:2
+            ;;
+        hash:md5)
+            if [[ "${SYS_NAME}" =~ bsd|darwin ]]; then
+                md5 -r | awk '{ print $1 }'
+            else
+                md5sum | awk '{ print $1 }'
+            fi
             ;;
         headings:push)
             sed -E -e 'N;s/^(.+)\n[=]+$/# \1/' | sed -E -e 'N;s/^(.+)\n[-]+$/## \1/' | sed -E -e 's/^([#]+ )/#\1/' -e 's/^####### (.+)$/**\1**/' | sed -E -e '/<\/?h[0-6][^>]*>/{s/<(\/)?h6/<\1strong/g' -e 's/<(\/)?h5/<\1h6/g' -e 's/<(\/)?h4/<\1h5/g' -e 's/<(\/)?h3/<\1h4/g' -e 's/<(\/)?h2/<\1h3/g' -e 's/<(\/)?h1/<\1h2/g' -e '}'
@@ -745,7 +739,7 @@ function marsh_get_target_metadata {  # marsh_get_target_metadata source_prefix 
     while [[ "${!TEMPLATE_SOURCE:-}" != "" ]]; do
         echo "${PREFIX}TEMPLATES_SOURCE+=(\"${!TEMPLATE_SOURCE//\"/\\\"}\")"
         echo "${PREFIX}TEMPLATES_CONFIG+=(\"${!TEMPLATE_CONFIG//\"/\\\"}\")"
-        echo "${PREFIX}TEMPLATES+=(\"${!TEMPLATE_SOURCE##*/}-$(marsh_md5_string ${!TEMPLATE_SOURCE})\")"
+        echo "${PREFIX}TEMPLATES+=(\"${!TEMPLATE_SOURCE##*/}-$(echo -n ${!TEMPLATE_SOURCE} | marsh_text_filter hash:md5)\")"
         II=$((II+1))
         TEMPLATE_SOURCE="${SOURCE_PREFIX}Templates_${II}_Source"
         TEMPLATE_CONFIG="${SOURCE_PREFIX}Templates_${II}_Config"

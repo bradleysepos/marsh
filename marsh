@@ -19,7 +19,7 @@ usage: ${SELF_NAME} [-h | --help]
        ${SELF_NAME} build [--force] [-j # | --jobs #]
          [--markdown markdown] [--markdown-options opt1,opt2]
          [--markdown-file-extensions ext1,ext2]
-         [--convert-link-extensions true|false] [config_file]
+         [--markdown-rewrite-links true|false] [config_file]
 where:
   -h, --help
         display this help text
@@ -38,9 +38,9 @@ where:
   --markdown-file-extensions
         markdown file extensions to process (comma delimited)
         default: $(echo ${MARKDOWN_FILEEXT[@]:-} | sed 's/ /,/g')
-  --convert-link-extensions
-        convert markdown syntax relative markdown links to .html
-        default: ${CONVERT_LINKEXT:-}"
+  --markdown-rewrite-links
+        rewrite markdown syntax relative markdown links to *.html
+        default: ${MARKDOWN_REWRITE_LINKS:-}"
 }
 
 # creates bash variables from yaml records
@@ -995,7 +995,7 @@ function marsh_build_archive {  # marsh_build_archive encoding target_dir dest_f
 # builds advanced navigation
 function marsh_build_advanced_nav {  # marsh_build_advanced_nav target_dir navigation_file
     local TARGET_DIR NAV_NAME
-    local NAV_TARGETS NAV_DEST
+    local NAV_TARGETS NAV_DEST TEXT_FILTER
 
     # init
     TARGET_DIR="${1:-}"; [[ "${TARGET_DIR}" == "" ]] && return 1
@@ -1012,7 +1012,11 @@ function marsh_build_advanced_nav {  # marsh_build_advanced_nav target_dir navig
         else
             cp "${NAV_DEST}" "${NAV_DEST}.temp"
         fi
-        <"${NAV_DEST}.temp" marsh_text_filter links:replace-ext:"${MARKDOWN_FILEEXT_CSV}":html | marsh_process_markdown > "${NAV_DEST}"
+        TEXT_FILTER=
+        if [[ "${MARKDOWN_REWRITE_LINKS}" == true ]]; then
+            TEXT_FILTER="links:replace-ext:${MARKDOWN_FILEEXT_CSV}:html"
+        fi
+        <"${NAV_DEST}.temp" marsh_text_filter ${TEXT_FILTER} | marsh_process_markdown > "${NAV_DEST}"
         rm -f "${NAV_DEST}.temp"
     done
 }
@@ -1246,6 +1250,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
     local INDEX DOCUMENT_AUTHORS DOCUMENT_META DOCUMENT_META_VARS
     local SUBDOCUMENTS NUM_SUBDOCUMENTS
     local SUBDOCUMENT SUBDOCUMENT_AUTHORS SUBDOCUMENT_CONTENT SUBDOCUMENT_META SUBDOCUMENT_META_VARS
+    local TEXT_FILTER
     local DOCUMENT_Authors DOCUMENT_State SUBDOCUMENT_Authors
     local NAV NAV_DIR NAV_NAME NAV_RELPATH
 
@@ -1563,7 +1568,11 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                     fi
                 else
                     # markdown to html
-                    <"${SUBDOCUMENT}" marsh_text_filter links:replace-ext:"${MARKDOWN_FILEEXT_CSV}":html | marsh_process_markdown > "${SUBDOCUMENT}.document"
+                    TEXT_FILTER=
+                    if [[ "${MARKDOWN_REWRITE_LINKS}" == true ]]; then
+                        TEXT_FILTER="links:replace-ext:${MARKDOWN_FILEEXT_CSV}:html"
+                    fi
+                    <"${SUBDOCUMENT}" marsh_text_filter ${TEXT_FILTER} | marsh_process_markdown > "${SUBDOCUMENT}.document"
                     # document template
                     if [[ "${DOCUMENT_Type}" == "archive" ]]; then
                         cp "${TEMPLATE_Template_Partials_Archive_HTML_Document}" "${SUBDOCUMENT}"
@@ -1643,7 +1652,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
 # builds a document from a single file
 function marsh_build_document {  # marsh_build_document dest_dir target_dir document advanced_nav_name
     local DEST_DIR TARGET_DIR DOCUMENT ADVANCED_NAV
-    local DOCUMENT_EXT DEST DEST_NAME
+    local DOCUMENT_EXT TEXT_FILTER DEST DEST_NAME
 
     # init
     DEST_DIR="${1:-.}"
@@ -1682,7 +1691,11 @@ function marsh_build_document {  # marsh_build_document dest_dir target_dir docu
         # unwrap figures (remove p tag)
         # process images with multiple resolution assets
         cp "${DOCUMENT}.${MARSH_UID}.document" "${DOCUMENT}.${MARSH_UID}.document.temp"
-        <"${DOCUMENT}.${MARSH_UID}.document.temp" marsh_text_filter links:replace-ext:"${MARKDOWN_FILEEXT_CSV}":html | sed -E \
+        TEXT_FILTER=
+        if [[ "${MARKDOWN_REWRITE_LINKS}" == true ]]; then
+            TEXT_FILTER="links:replace-ext:${MARKDOWN_FILEEXT_CSV}:html"
+        fi
+        <"${DOCUMENT}.${MARSH_UID}.document.temp" marsh_text_filter ${TEXT_FILTER} | sed -E \
         -e 's|^!\[(.+)]\([ ]*([^ ]+)[ ]*"(.+)"[ ]*\)$|<figure>\n<a href="\2">\n<img src="\2" alt="\1" />\n</a>\n<figcaption>\3</figcaption>\n</figure>|' |
         marsh_process_markdown |
         sed -E \
@@ -1813,14 +1826,14 @@ function marsh_build_target {  # marsh_build_target dest_dir target advanced_nav
     if [[ "${JOBS:-1}" -gt 1 ]] && [[ "${PARALLEL:-}" != "" ]] && [[ "$(${PARALLEL} --version --no-notice 2>/dev/null | head -n 1 | grep -o 'GNU parallel')" == "GNU parallel" ]]; then
         # in parallel
         export -f marsh_build_document
-        if ! "${PARALLEL}" --halt now,fail=1 --quote --no-notice --env marsh_text_filter --env marsh_process_markdown --env marsh_build_document --jobs="${JOBS:-1}" "${SELF_DIR}/${SELF_NAME}" build-document --markdown="${PARALLEL_MARKDOWN}" --markdown-options="${MARKDOWN_OPTIONS_CSV}" --markdown-file-extensions="${MARKDOWN_FILEEXT_CSV}" --convert-link-extensions="${CONVERT_LINKEXT}" --marsh-uid="${MARSH_UID}" --marsh-temp="${MARSH_TEMP}" --marsh-config-file="${MARSH_CONFIG_FILE}" --marsh-config-file-dir="${MARSH_CONFIG_FILE_DIR}" --marsh-config-path="${MARSH_CONFIG_PATH}" --marsh-config-url="${MARSH_CONFIG_URL}" "${DEST_DIR}" "${TARGET_DIR}" {} {} ::: "${DOCUMENTS[@]}" ::: "${ADVANCED_NAV}"; then
+        if ! "${PARALLEL}" --halt now,fail=1 --quote --no-notice --env marsh_text_filter --env marsh_process_markdown --env marsh_build_document --jobs="${JOBS:-1}" "${SELF_DIR}/${SELF_NAME}" build-document --markdown="${PARALLEL_MARKDOWN}" --markdown-options="${MARKDOWN_OPTIONS_CSV}" --markdown-file-extensions="${MARKDOWN_FILEEXT_CSV}" --markdown-rewrite-links="${MARKDOWN_REWRITE_LINKS}" --marsh-uid="${MARSH_UID}" --marsh-temp="${MARSH_TEMP}" --marsh-config-file="${MARSH_CONFIG_FILE}" --marsh-config-file-dir="${MARSH_CONFIG_FILE_DIR}" --marsh-config-path="${MARSH_CONFIG_PATH}" --marsh-config-url="${MARSH_CONFIG_URL}" "${DEST_DIR}" "${TARGET_DIR}" {} {} ::: "${DOCUMENTS[@]}" ::: "${ADVANCED_NAV}"; then
             echo "Unable to build template: ${TEMPLATES[$I]}"
             return 1
         fi
         if [[ "${TEMPLATES_DIR}" != "" ]] && [[ "${#TEMPLATES[@]}" -gt 0 ]]; then
             export -f marsh_build_template
             for I in "${!TEMPLATES[@]}"; do
-                if ! "${PARALLEL}" --halt now,fail=1 --quote --no-notice --env marsh_text_filter --env marsh_process_markdown --env marsh_build_template --jobs="${JOBS:-1}" "${SELF_DIR}/${SELF_NAME}" build-templates --markdown="${PARALLEL_MARKDOWN}" --markdown-options="${MARKDOWN_OPTIONS_CSV}" --markdown-file-extensions="${MARKDOWN_FILEEXT_CSV}" --convert-link-extensions="${CONVERT_LINKEXT}" --marsh-uid="${MARSH_UID}" --marsh-temp="${MARSH_TEMP}" --marsh-config-file="${MARSH_CONFIG_FILE}" --marsh-config-file-dir="${MARSH_CONFIG_FILE_DIR}" --marsh-config-path="${MARSH_CONFIG_PATH}" --marsh-config-url="${MARSH_CONFIG_URL}" "${DEST_DIR}" "${TARGET_DIR}" {} "${TEMPLATES_DIR}" "${TEMPLATES[$I]}" "${TEMPLATES_CONFIG_EXTRA[$I]:-}" ::: "${DOCUMENTS[@]}"; then
+                if ! "${PARALLEL}" --halt now,fail=1 --quote --no-notice --env marsh_text_filter --env marsh_process_markdown --env marsh_build_template --jobs="${JOBS:-1}" "${SELF_DIR}/${SELF_NAME}" build-templates --markdown="${PARALLEL_MARKDOWN}" --markdown-options="${MARKDOWN_OPTIONS_CSV}" --markdown-file-extensions="${MARKDOWN_FILEEXT_CSV}" --markdown-rewrite-links="${MARKDOWN_REWRITE_LINKS}" --marsh-uid="${MARSH_UID}" --marsh-temp="${MARSH_TEMP}" --marsh-config-file="${MARSH_CONFIG_FILE}" --marsh-config-file-dir="${MARSH_CONFIG_FILE_DIR}" --marsh-config-path="${MARSH_CONFIG_PATH}" --marsh-config-url="${MARSH_CONFIG_URL}" "${DEST_DIR}" "${TARGET_DIR}" {} "${TEMPLATES_DIR}" "${TEMPLATES[$I]}" "${TEMPLATES_CONFIG_EXTRA[$I]:-}" ::: "${DOCUMENTS[@]}"; then
                     echo "Unable to build template: ${TEMPLATES[$I]}"
                     return 1
                 fi
@@ -1867,7 +1880,7 @@ function marsh_cli {
     # args with help
     MARKDOWN_OPTIONS=(-1.0 +alphalist -autolink -cdata +definitionlist -divquote -dldiscount +dlextra -emphasis +ext +fencedcode +footnote +githubtags -header +html +image -latex +links -safelink +smarty +strikethrough +style +superscript +tables -tabstop -toc)
     MARKDOWN_FILEEXT=('markdown' 'md' 'mkd' 'mkdn' 'mdown' 'mdtxt' 'mdtext' 'text')
-    CONVERT_LINKEXT=true
+    MARKDOWN_REWRITE_LINKS=true
 
     # env vars
     marsh_env_cli
@@ -1906,7 +1919,7 @@ function marsh_cli {
     MARKDOWN=""
     OPTIND=1
     OPTSPEC=":-:hvj:"
-    OPTARRAY=('-h' '--help' '-v' '--version' '--force' '-j' '--jobs' '--markdown' '--markdown-options' '--markdown-file-extensions' '--convert-link-extensions')  # all short and long options
+    OPTARRAY=('-h' '--help' '-v' '--version' '--force' '-j' '--jobs' '--markdown' '--markdown-options' '--markdown-file-extensions' '--markdown-rewrite-links')  # all short and long options
     OPTARRAY+=('marsh-uid' 'marsh-temp' 'marsh-config-file' 'marsh-config-file-dir' 'marsh-config-path' 'marsh-config-url')  # all private options
     while getopts "${OPTSPEC}" OPT; do
         case "${OPT}" in
@@ -2003,24 +2016,24 @@ function marsh_cli {
                         MARKDOWN_FILEEXT="${OPTARG#*=}"
                         MARKDOWN_FILEEXT=(${MARKDOWN_FILEEXT//,/ })
                         ;;
-                    convert-link-extensions)
+                    markdown-rewrite-links)
                         if [[ -z ${!OPTIND+isset} ]] || marsh_in_array "${!OPTIND}" "${OPTARRAY[@]}"; then
                             # Option without required argument
                             echo "Option --${OPTARG} requires a value" >&2
                             echo -e "${HELP}"
                             return 1
                         fi
-                        CONVERT_LINKEXT=$(echo "${!OPTIND}" | awk '{ print tolower($0) }')
-                        if [[ "${CONVERT_LINKEXT}" != true ]] && [[ "${CONVERT_LINKEXT}" != false ]]; then
+                        MARKDOWN_REWRITE_LINKS=$(echo "${!OPTIND}" | awk '{ print tolower($0) }')
+                        if [[ "${MARKDOWN_REWRITE_LINKS}" != true ]] && [[ "${MARKDOWN_REWRITE_LINKS}" != false ]]; then
                             echo "Option --${OPTARG} requires boolean string value true or false" >&2
                             echo -e "${HELP}"
                             return 1
                         fi
                         OPTIND=$((OPTIND + 1))
                         ;;
-                    convert-link-extensions=*)
-                        CONVERT_LINKEXT=$(echo "${OPTARG#*=}" | awk '{ print tolower($0) }')
-                        if [[ "${CONVERT_LINKEXT}" != true ]] && [[ "${CONVERT_LINKEXT}" != false ]]; then
+                    markdown-rewrite-links=*)
+                        MARKDOWN_REWRITE_LINKS=$(echo "${OPTARG#*=}" | awk '{ print tolower($0) }')
+                        if [[ "${MARKDOWN_REWRITE_LINKS}" != true ]] && [[ "${MARKDOWN_REWRITE_LINKS}" != false ]]; then
                             echo "Option --${OPTARG%%=*} requires boolean string value true or false" >&2
                             echo -e "${HELP}"
                             return 1

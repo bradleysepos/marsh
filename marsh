@@ -1038,76 +1038,84 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
         return 0
     }
 
-    function process_conditionals {  # process_conditionals file tag comparitor list[@]
-        local FILE TAG COMPARITOR LIST
+    function process_conditionals {  # process_conditionals file tag list[@]
+        local FILE TAG LIST_SEP LIST_RAW
         local FILE_TEMP
         FILE="${1:-}";       [[ "${FILE}" == "" ]] && return 1
         TAG="${2:-}";        [[ "${TAG}" == "" ]]  && return 1
-        COMPARITOR="${3:-}"; [[ "${COMPARITOR}" == "" ]] && return 1
-        LIST="${4:-}";       [[ "${LIST}" == "" ]] && return 1
-        LIST=(${4:-})
+        shift 2
+        [[ "${#@}" -eq 0 ]] && return 1
+        LIST_SEP=$(printf '\034')
+        LIST_RAW=$(printf "%s${LIST_SEP}" "$@")
+        LIST_RAW="${LIST_RAW%${LIST_SEP}}"
         FILE_TEMP=$(mktemp "${MARSH_TEMP}/conditional-XXXXXX")
-        # process match
-        for ITEM in ${LIST[@]}; do
-            cp "${FILE}" "${FILE_TEMP}"
-            <"${FILE_TEMP}" \
-            awk '/^[ ]*\{%[ ]*if[ ]+'${TAG//\./\.}'[ ]+'${COMPARITOR// /[ ]+}'[ ]+"'${ITEM}'"[ ]*%\}[ ]*$/ {
-                    tag=1;
-                    line=1;
-                    delete buffer;
-                }
-                {
-                    buffer[line++]=$0;
-                }
-                (tag==1 && (/^[ ]*\{%[ ]*endif[ ]*%\}[ ]*$/ || /^[ ]*\{%[ ]*else[ ]*%\}[ ]*$/)) {
-                    for (i=2; i < line-1; i++) {
-                        print buffer[i];
+        awk -v tag="${TAG}" -v list_raw="${LIST_RAW}" -v list_sep="${LIST_SEP}" '
+            BEGIN {
+                if (list_raw != "") {
+                    list_count = split(list_raw, allowed_items, list_sep);
+                    for (i = 1; i <= list_count; i++) {
+                        allowed[allowed_items[i]] = 1;
                     }
                 }
-                (tag>0 && /^[ ]*\{%[ ]*else[ ]*%\}[ ]*$/) {
-                    tag=2;
-                    next;
+                supported["is"] = 1;
+                supported["is not"] = 1;
+                supported["equals"] = 1;
+                supported["does not equal"] = 1;
+                supported["contains"] = 1;
+                supported["does not contain"] = 1;
+                re_if = "^[ ]*\\{%[ ]*if[ ]+(.+)[ ]+\"([^\"]+)\"[ ]*%\\}[ ]*$";
+                re_else = "^[ ]*\\{%[ ]*else[ ]*%\\}[ ]*$";
+                re_endif = "^[ ]*\\{%[ ]*endif[ ]*%\\}[ ]*$";
+            }
+            function eval_condition(comp, cond_value) {
+                if (comp == "contains") {
+                    return (cond_value in allowed);
                 }
-                (tag>0 && /^[ ]*\{%[ ]*endif[ ]*%\}[ ]*$/) {
-                    tag=0;
-                    next;
+                if (comp == "does not contain") {
+                    return !(cond_value in allowed);
                 }
-                (tag==0) {
-                    print;
-                }' \
-            > "${FILE}"
-        done
-        # process else
-        cp "${FILE}" "${FILE_TEMP}"
-        <"${FILE_TEMP}" \
-        awk '/^[ ]*\{%[ ]*if[ ]+'${TAG//\./\.}'[ ]+'${COMPARITOR// /[ ]+}'[ ]+".+"[ ]*%\}[ ]*$/ {
-                tag=1;
-                line=1;
-                delete buffer;
+                if (comp == "is" || comp == "equals") {
+                    return (list_count == 1 && cond_value == allowed_items[1]);
+                }
+                if (comp == "is not" || comp == "does not equal") {
+                    return (list_count == 1 && cond_value != allowed_items[1]);
+                }
+                return 0;
+            }
+            !in_conditional {
+                if (match($0, re_if, matches)) {
+                    condition = matches[1];
+                    sub(/[ ]+$/, "", condition);
+                    line_tag = condition;
+                    sub(/[ ].*$/, "", line_tag);
+                    line_comparator = condition;
+                    sub(/^[^ ]+[ ]+/, "", line_comparator);
+                    if (line_tag == tag && (line_comparator in supported)) {
+                        in_conditional = 1;
+                        branch_matches = eval_condition(line_comparator, matches[2]);
+                        in_else = 0;
+                        next;
+                    }
+                }
+                print;
+                next;
             }
             {
-                buffer[line++]=$0;
-            }
-            (tag==1) {
-                delete buffer;
-            }
-            (tag==2 && /^[ ]*\{%[ ]*endif[ ]*%\}[ ]*$/) {
-                for (i=2; i < line-1; i++) {
-                    print buffer[i];
+                if ($0 ~ re_else) {
+                    in_else = 1;
+                    next;
                 }
-            }
-            (tag>0 && /^[ ]*\{%[ ]*else[ ]*%\}[ ]*$/) {
-                tag=2;
-                next;
-            }
-            (tag>0 && /^[ ]*\{%[ ]*endif[ ]*%\}[ ]*$/) {
-                tag=0;
-                next;
-            }
-            (tag==0) {
-                print;
-            }' \
-        > "${FILE}"
+                if ($0 ~ re_endif) {
+                    in_conditional = 0;
+                    branch_matches = 0;
+                    in_else = 0;
+                    next;
+                }
+                if ((branch_matches && !in_else) || (!branch_matches && in_else)) {
+                    print;
+                }
+            }' "${FILE}" > "${FILE_TEMP}" || return 1
+        mv "${FILE_TEMP}" "${FILE}"
     }
 
     function clean_conditionals {  # clean_conditionals file
@@ -1336,8 +1344,8 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                 TEMPLATE_TEMP=$(mktemp "${MARSH_TEMP}/template-XXXXXX")
                 cp "${PARTIALS[$J]}" "${TEMPLATE_TEMP}"
                 PARTIALS[$J]="${TEMPLATE_TEMP}"
-                # process
-                process_conditionals "${PARTIALS[$J]}" "document.state" "contains" "${DOCUMENT_State[@]}"
+                # process document.state
+                process_conditionals "${PARTIALS[$J]}" "document.state" "${DOCUMENT_State[@]}"
                 # remove remaining conditionals
                 clean_conditionals "${PARTIALS[$J]}"
             fi

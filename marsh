@@ -1337,8 +1337,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                 else
                     return 1
                 fi
-                TAG_VALUE=$(echo "${TAG_VALUE}" | marsh_text_filter "${TAG_FILTERS[@]}" | sed -e ':a' -e '$!{N' -e 'ba' -e '}' -e 's/[&/\]/\\&/g' -e 's/\n/\\&/g')
-                TAG_VALUE=${TAG_VALUE%$'\n'}
+                TAG_VALUE=$(printf '%s' "${TAG_VALUE}" | marsh_text_filter "${TAG_FILTERS[@]}" | escape_template_substitution)
                 sed -E \
                 -e "/${TAG_ESC}/s//${TAG_VALUE:-}/g" \
                 -i".${MARSH_UID}.backup" "${DOCUMENT}" && rm -f "${DOCUMENT}.${MARSH_UID}.backup"

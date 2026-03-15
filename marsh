@@ -1340,12 +1340,13 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                 TAG_VALUE=$(printf '%s' "${TAG_VALUE}" | marsh_text_filter "${TAG_FILTERS[@]}" | escape_template_substitution)
                 sed -E \
                 -e "/${TAG_ESC}/s//${TAG_VALUE:-}/g" \
-                -i".${MARSH_UID}.backup" "${DOCUMENT}" && rm -f "${DOCUMENT}.${MARSH_UID}.backup"
+                -i".${MARSH_UID}.backup" "${DOCUMENT}"
             else
                 # ignore unknown tags
                 :
             fi
         done
+        rm -f "${DOCUMENT}.${MARSH_UID}.backup"
     }
 
     local DEST_DIR TARGET_DIR

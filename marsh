@@ -1260,6 +1260,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
     local SUBDOCUMENT SUBDOCUMENT_AUTHORS SUBDOCUMENT_CONTENT SUBDOCUMENT_META SUBDOCUMENT_META_VARS
     local TEXT_FILTER
     local DOCUMENT_Authors DOCUMENT_State SUBDOCUMENT_Authors
+    local PARTIAL_CONDITIONAL_TAGS
     local NAV NAV_DIR NAV_NAME NAV_RELPATH
 
     # init
@@ -1339,16 +1340,23 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
         for J in "${!PARTIALS[@]}"; do
             [[ "${PARTIALS[$J]}" == "" ]] && continue
             # grep to avoid unnecessary processing
-            if [[ "$(<${PARTIALS[$J]} grep -Eo '\{%[ ]*if[ ]+')" != "" ]]; then
+            OIFS="${IFS}"
+            IFS=$'\n'
+            PARTIAL_CONDITIONAL_TAGS=($(awk 'match($0, /^[ ]*\{%[ ]*if[ ]+([^ ]+).*%\}[ ]*$/, matches) { print matches[1] }' "${PARTIALS[$J]}" | sort -u))
+            IFS="${OIFS}"
+            if [[ "${#PARTIAL_CONDITIONAL_TAGS[@]}" -gt 0 ]]; then
                 # template contains conditionals, operate using a copy
                 TEMPLATE_TEMP=$(mktemp "${MARSH_TEMP}/template-XXXXXX")
                 cp "${PARTIALS[$J]}" "${TEMPLATE_TEMP}"
                 PARTIALS[$J]="${TEMPLATE_TEMP}"
-                # process document.state
-                process_conditionals "${PARTIALS[$J]}" "document.state" "${DOCUMENT_State[@]}"
+                # process known tags
+                if marsh_in_array "document.state" "${PARTIAL_CONDITIONAL_TAGS[@]}"; then
+                    process_conditionals "${PARTIALS[$J]}" "document.state" "${DOCUMENT_State[@]}"
+                fi
                 # remove remaining conditionals
                 clean_conditionals "${PARTIALS[$J]}"
             fi
+            unset PARTIAL_CONDITIONAL_TAGS
         done
         TEMPLATE_Template_Partials_Redirect="${PARTIALS[0]:-}"
         TEMPLATE_Template_Partials_Base="${PARTIALS[1]:-}"

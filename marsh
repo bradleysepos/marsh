@@ -1359,6 +1359,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
     local INDEX DOCUMENT_AUTHORS DOCUMENT_META DOCUMENT_META_VARS
     local SUBDOCUMENTS NUM_SUBDOCUMENTS
     local SUBDOCUMENT SUBDOCUMENT_AUTHORS SUBDOCUMENT_CONTENT SUBDOCUMENT_META SUBDOCUMENT_META_VARS
+    local SUBDOCUMENT_RENDER SUBDOCUMENT_TEMPLATE SUBDOCUMENT_CONTENT_ESC
     local TEXT_FILTER
     local DOCUMENT_Authors DOCUMENT_State SUBDOCUMENT_Authors
     local PARTIAL_CONDITIONAL_TAGS
@@ -1617,6 +1618,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
         NUM_SUBDOCUMENTS="${#SUBDOCUMENTS[@]}"
         IFS="${OIFS}"
         if [[ "${NUM_SUBDOCUMENTS}" -gt 0 ]]; then
+            : > "${DOCUMENT}.${MARSH_UID}.subdocuments" || return 1
             for J in ${!SUBDOCUMENTS[@]}; do
                 # full path
                 SUBDOCUMENT="${DEST_DIR}/${TARGET_DIR}/${DOCUMENT_DIR}/${SUBDOCUMENTS[$J]}"
@@ -1637,17 +1639,18 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                 SUBDOCUMENT_AUTHORS=$(printf '%s\n' "${SUBDOCUMENT_AUTHORS[@]}" | marsh_text_filter 'join:, : and :, and ')
                 # state
                 eval $(marsh_flat_to_array "SUBDOCUMENT_State" "SUBDOCUMENT_State_")
+                SUBDOCUMENT_TEMPLATE=$(<"${SUBDOCUMENT}")
                 if [[ "${DOCUMENT_Type}" == "archive-atom" ]]; then
                     # document template
                     if [[ "${TEMPLATE_Template_Partials_Archive_Atom_Document:-}" != "" ]]; then
                         cp "${SUBDOCUMENT}" "${SUBDOCUMENT}.document"
-                        cp "${TEMPLATE_Template_Partials_Archive_Atom_Document}" "${SUBDOCUMENT}"
+                        SUBDOCUMENT_TEMPLATE=$(<"${TEMPLATE_Template_Partials_Archive_Atom_Document}")
                     fi
                 elif [[ "${DOCUMENT_Type}" == "archive-json" ]]; then
                     # document template
                     if [[ "${TEMPLATE_Template_Partials_Archive_JSON_Document:-}" != "" ]]; then
                         cp "${SUBDOCUMENT}" "${SUBDOCUMENT}.document"
-                        cp "${TEMPLATE_Template_Partials_Archive_JSON_Document}" "${SUBDOCUMENT}"
+                        SUBDOCUMENT_TEMPLATE=$(<"${TEMPLATE_Template_Partials_Archive_JSON_Document}")
                     fi
                 else
                     # markdown to html
@@ -1658,36 +1661,55 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                     <"${SUBDOCUMENT}" marsh_text_filter ${TEXT_FILTER} | marsh_process_markdown > "${SUBDOCUMENT}.document"
                     # document template
                     if [[ "${DOCUMENT_Type}" == "archive" ]]; then
-                        cp "${TEMPLATE_Template_Partials_Archive_HTML_Document}" "${SUBDOCUMENT}"
+                        SUBDOCUMENT_TEMPLATE=$(<"${TEMPLATE_Template_Partials_Archive_HTML_Document}")
                     else
-                        cp "${TEMPLATE_Template_Partials_Document}" "${SUBDOCUMENT}"
+                        SUBDOCUMENT_TEMPLATE=$(<"${TEMPLATE_Template_Partials_Document}")
                     fi
                 fi
-                # inject html into template
-                SUB=$(<"${SUBDOCUMENT}.document" sed -e ':a' -e '$!{N' -e 'ba' -e '}' -e 's/[&/\]/\\&/g' -e 's/\n/\\&/g')
-                SUB=${SUB%$'\n'}
-                SUB=${SUB%\\}
-                sed -E \
-                -e "/\{\{[ ]*document[ ]*\}\}/s//${SUB}/g" \
-                -i".${MARSH_UID}.backup" "${SUBDOCUMENT}" && rm -f "${SUBDOCUMENT}.${MARSH_UID}.backup"
-                unset SUB
-                sed -E \
-                -e 's/\{\{[ ]*subdocuments[ ]*\}\}//g' \
-                -i".${MARSH_UID}.backup" "${SUBDOCUMENT}" && rm -f "${SUBDOCUMENT}.${MARSH_UID}.backup"
+                SUBDOCUMENT_CONTENT_ESC=$(<"${SUBDOCUMENT}.document" escape_template_substitution)
+                SUBDOCUMENT_RENDER=$(printf '%s' "${SUBDOCUMENT_TEMPLATE}" | sed -E \
+                -e "/\{\{[ ]*document[ ]*\}\}/s//${SUBDOCUMENT_CONTENT_ESC}/g" \
+                -e 's/\{\{[ ]*subdocuments[ ]*\}\}//g')
                 # template tags
                 if [[ "${DOCUMENT_Type}" == "archive-json" ]] && [[ "${J}" -eq $((NUM_SUBDOCUMENTS - 1)) ]]; then
-                    sed -E \
-                    -e 's/\{\{[ ]*util.json-separator[ ]*\}\}//g' \
-                    -i".${MARSH_UID}.backup" "${SUBDOCUMENT}" && rm -f "${SUBDOCUMENT}.${MARSH_UID}.backup"
+                    SUBDOCUMENT_RENDER=$(printf '%s' "${SUBDOCUMENT_RENDER}" | sed -E -e 's/\{\{[ ]*util.json-separator[ ]*\}\}//g')
                 fi
+                printf '%s\n' "${SUBDOCUMENT_RENDER}" > "${SUBDOCUMENT}" || return 1
                 replace_tags "${SUBDOCUMENT}" "SUBDOCUMENT_"
                 # combine with previous subdocuments
                 cat "${SUBDOCUMENT}" >> "${DOCUMENT}.${MARSH_UID}.subdocuments"
                 # unset temporary global variables
                 for VAR in ${SUBDOCUMENT_META_VARS[@]}; do unset "${VAR}"; done
             done
-            cp "${DEST}" "${DEST}.${MARSH_UID}.temp"
-            <"${DEST}.${MARSH_UID}.temp" awk 'BEGIN { while (getline < "'"${DOCUMENT}.${MARSH_UID}.subdocuments"'") txt=txt $0 "\n"; gsub(/[&]/, "\\\\&", txt) } /\{\{[ ]*subdocuments[ ]*\}\}/{ gsub(/\{\{[ ]*subdocuments[ ]*\}\}/, txt) } 1' > "${DEST}"
+            awk -v subdocuments_file="${DOCUMENT}.${MARSH_UID}.subdocuments" '
+            function emit_subdocuments(prefix, suffix, line, first, previous) {
+                first = 1
+                previous = ""
+                while ((getline line < subdocuments_file) > 0) {
+                    if (first) {
+                        line = prefix line
+                        first = 0
+                    }
+                    if (previous != "") {
+                        print previous
+                    }
+                    previous = line
+                }
+                close(subdocuments_file)
+                if (first) {
+                    print prefix suffix
+                } else {
+                    print previous suffix
+                }
+            }
+            {
+                if (match($0, /\{\{[ ]*subdocuments[ ]*\}\}/)) {
+                    emit_subdocuments(substr($0, 1, RSTART - 1), substr($0, RSTART + RLENGTH))
+                } else {
+                    print
+                }
+            }' "${DEST}" > "${DEST}.${MARSH_UID}.temp" || return 1
+            mv "${DEST}.${MARSH_UID}.temp" "${DEST}" || return 1
         fi
 
         # unset temporary global variables

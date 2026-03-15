@@ -1134,90 +1134,93 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
         [[ "${TAG_NAME}" == "" ]] && return 1
         PREFIX="${2:-}"
 
+        TAG_VAR=""
+        TAG_TYPE=""
+
         case "${TAG_NAME}" in
             base.relpath|document.relpath)
-                echo 'TAG_VAR="'"${PREFIX}"'RELPATH"'
-                echo 'TAG_TYPE="string"'
+                TAG_VAR="${PREFIX}RELPATH"
+                TAG_TYPE="string"
                 ;;
             base.abspath|document.abspath)
-                echo 'TAG_VAR="'"${PREFIX}"'ABSPATH"'
-                echo 'TAG_TYPE="string"'
+                TAG_VAR="${PREFIX}ABSPATH"
+                TAG_TYPE="string"
                 ;;
             document.uri)
-                echo 'TAG_VAR="'"${PREFIX}"'URI"'
-                echo 'TAG_TYPE="string"'
+                TAG_VAR="${PREFIX}URI"
+                TAG_TYPE="string"
                 ;;
             document)
-                echo 'TAG_VAR="'"${PREFIX}"'CONTENT"'
-                echo 'TAG_TYPE="file"'
+                TAG_VAR="${PREFIX}CONTENT"
+                TAG_TYPE="file"
                 ;;
             document.authors)
-                echo 'TAG_VAR="'"${PREFIX}"'AUTHORS"'
-                echo 'TAG_TYPE="string"'
+                TAG_VAR="${PREFIX}AUTHORS"
+                TAG_TYPE="string"
                 ;;
             document.copyright)
-                echo 'TAG_VAR="'"${PREFIX}"'Copyright"'
-                echo 'TAG_TYPE="string"'
+                TAG_VAR="${PREFIX}Copyright"
+                TAG_TYPE="string"
                 ;;
             document.credits-url)
-                echo 'TAG_VAR="'"${PREFIX}"'Credits_URL"'
-                echo 'TAG_TYPE="string"'
+                TAG_VAR="${PREFIX}Credits_URL"
+                TAG_TYPE="string"
                 ;;
             document.date)
-                echo 'TAG_VAR="'"${PREFIX}"'Date"'
-                echo 'TAG_TYPE="string"'
+                TAG_VAR="${PREFIX}Date"
+                TAG_TYPE="string"
                 ;;
             document.language)
-                echo 'TAG_VAR="'"${PREFIX}"'Language"'
-                echo 'TAG_TYPE="string"'
+                TAG_VAR="${PREFIX}Language"
+                TAG_TYPE="string"
                 ;;
             document.language-code)
-                echo 'TAG_VAR="'"${PREFIX}"'Language_Code"'
-                echo 'TAG_TYPE="string"'
+                TAG_VAR="${PREFIX}Language_Code"
+                TAG_TYPE="string"
                 ;;
             document.license)
-                echo 'TAG_VAR="'"${PREFIX}"'License"'
-                echo 'TAG_TYPE="string"'
+                TAG_VAR="${PREFIX}License"
+                TAG_TYPE="string"
                 ;;
             document.license-abbr)
-                echo 'TAG_VAR="'"${PREFIX}"'License_Abbr"'
-                echo 'TAG_TYPE="string"'
+                TAG_VAR="${PREFIX}License_Abbr"
+                TAG_TYPE="string"
                 ;;
             document.license-url)
-                echo 'TAG_VAR="'"${PREFIX}"'License_URL"'
-                echo 'TAG_TYPE="string"'
+                TAG_VAR="${PREFIX}License_URL"
+                TAG_TYPE="string"
                 ;;
             document.project)
-                echo 'TAG_VAR="'"${PREFIX}"'Project"'
-                echo 'TAG_TYPE="string"'
+                TAG_VAR="${PREFIX}Project"
+                TAG_TYPE="string"
                 ;;
             document.project-version)
-                echo 'TAG_VAR="'"${PREFIX}"'Project_Version"'
-                echo 'TAG_TYPE="string"'
+                TAG_VAR="${PREFIX}Project_Version"
+                TAG_TYPE="string"
                 ;;
             document.project-url)
-                echo 'TAG_VAR="'"${PREFIX}"'Project_URL"'
-                echo 'TAG_TYPE="string"'
+                TAG_VAR="${PREFIX}Project_URL"
+                TAG_TYPE="string"
                 ;;
             document.redirect-url)
-                echo 'TAG_VAR="'"${PREFIX}"'Redirect_URL"'
-                echo 'TAG_TYPE="string"'
+                TAG_VAR="${PREFIX}Redirect_URL"
+                TAG_TYPE="string"
                 ;;
             document.state)
-                echo 'TAG_VAR="'"${PREFIX}"'State_"'
-                echo 'TAG_TYPE="array"'
+                TAG_VAR="${PREFIX}State_"
+                TAG_TYPE="array"
                 ;;
             document.title)
-                echo 'TAG_VAR="'"${PREFIX}"'Title"'
-                echo 'TAG_TYPE="string"'
+                TAG_VAR="${PREFIX}Title"
+                TAG_TYPE="string"
                 ;;
             document.type)
-                echo 'TAG_VAR="'"${PREFIX}"'Type"'
-                echo 'TAG_TYPE="string"'
+                TAG_VAR="${PREFIX}Type"
+                TAG_TYPE="string"
                 ;;
             util.json-separator)
-                echo 'TAG_VAR="UTIL_JSON_SEPARATOR"'
-                echo 'TAG_TYPE="string"'
+                TAG_VAR="UTIL_JSON_SEPARATOR"
+                TAG_TYPE="string"
                 ;;
             *)
                 return 1
@@ -1271,13 +1274,13 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
         TAG_NAME_VALUE="${TAG_PARTS[0]:-}"
         [[ "${TAG_NAME_VALUE}" == "" ]] && return 1
 
-        echo "TAG_NAME=\"${TAG_NAME_VALUE//\"/\\\"}\""
-        echo "TAG_FILTERS=()"
+        TAG_NAME="${TAG_NAME_VALUE}"
+        TAG_FILTERS=()
         for TAG_INDEX in "${!TAG_PARTS[@]}"; do
             [[ "${TAG_INDEX}" -eq 0 ]] && continue
             TAG_PART="${TAG_PARTS[$TAG_INDEX]}"
             [[ "${TAG_PART}" == "" ]] && continue
-            echo "TAG_FILTERS+=(\"${TAG_PART//\"/\\\"}\")"
+            TAG_FILTERS+=("${TAG_PART}")
         done
         return 0
     }
@@ -1315,10 +1318,10 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
         # loop over tags
         for I in "${!TAGS[@]}"; do
             TAG_ESC=$(echo "${TAGS[$I]}" | sed 's/[][/.|$(){}?+*^]/\\&/g')
-            eval "$(parse_template_tag "${TAGS[$I]}")" || return 1
+            parse_template_tag "${TAGS[$I]}" || return 1
             TAG_VAR=""
             TAG_TYPE=""
-            eval "$(resolve_tag_metadata "${TAG_NAME}" "${PREFIX}" 2>/dev/null || true)"
+            resolve_tag_metadata "${TAG_NAME}" "${PREFIX}" 2>/dev/null || true
             if [[ "${TAG_VAR}" != "" ]] && [[ "${TAG_TYPE}" != "" ]]; then
                 if [[ "${TAG_TYPE}" == "array" ]]; then
                     eval "$(marsh_flat_to_array "TAG_VALUES" "${TAG_VAR}")"

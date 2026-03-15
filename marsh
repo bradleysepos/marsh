@@ -1226,28 +1226,87 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
         return 0
     }
 
+    function parse_template_tag {  # parse_template_tag tag_string
+        local TAG_STRING TAG_BODY TAG_CHAR TAG_CURRENT TAG_QUOTE TAG_ESCAPE TAG_INDEX TAG_PART TAG_NAME_VALUE
+        local TAG_PARTS
+
+        TAG_STRING="${1:-}"
+        [[ "${TAG_STRING}" == "" ]] && return 1
+        TAG_BODY=$(echo "${TAG_STRING}" | sed -E -e 's/^\{\{[ ]*//' -e 's/[ ]*\}\}$//')
+        TAG_PARTS=()
+        TAG_CURRENT=""
+        TAG_QUOTE=""
+        TAG_ESCAPE=false
+
+        for (( TAG_INDEX=0; TAG_INDEX<${#TAG_BODY}; TAG_INDEX++ )); do
+            TAG_CHAR="${TAG_BODY:${TAG_INDEX}:1}"
+            if [[ "${TAG_ESCAPE}" == true ]]; then
+                TAG_CURRENT+="${TAG_CHAR}"
+                TAG_ESCAPE=false
+            elif [[ "${TAG_CHAR}" == '\' ]]; then
+                TAG_ESCAPE=true
+            elif [[ "${TAG_CHAR}" == '|' ]] && [[ "${TAG_QUOTE}" == "" ]]; then
+                TAG_PARTS+=("$(echo "${TAG_CURRENT}" | sed -E -e 's/^[ ]+//' -e 's/[ ]+$//')")
+                TAG_CURRENT=""
+            elif [[ "${TAG_CHAR}" == "'" ]] && [[ "${TAG_QUOTE}" != '"' ]]; then
+                if [[ "${TAG_QUOTE}" == "'" ]]; then
+                    TAG_QUOTE=""
+                else
+                    TAG_QUOTE="'"
+                fi
+            elif [[ "${TAG_CHAR}" == '"' ]] && [[ "${TAG_QUOTE}" != "'" ]]; then
+                if [[ "${TAG_QUOTE}" == '"' ]]; then
+                    TAG_QUOTE=""
+                else
+                    TAG_QUOTE='"'
+                fi
+            else
+                TAG_CURRENT+="${TAG_CHAR}"
+            fi
+        done
+
+        [[ "${TAG_ESCAPE}" == true ]] && return 1
+        [[ "${TAG_QUOTE}" != "" ]] && return 1
+        TAG_PARTS+=("$(echo "${TAG_CURRENT}" | sed -E -e 's/^[ ]+//' -e 's/[ ]+$//')")
+        TAG_NAME_VALUE="${TAG_PARTS[0]:-}"
+        [[ "${TAG_NAME_VALUE}" == "" ]] && return 1
+
+        echo "TAG_NAME=\"${TAG_NAME_VALUE//\"/\\\"}\""
+        echo "TAG_FILTERS=()"
+        for TAG_INDEX in "${!TAG_PARTS[@]}"; do
+            [[ "${TAG_INDEX}" -eq 0 ]] && continue
+            TAG_PART="${TAG_PARTS[$TAG_INDEX]}"
+            [[ "${TAG_PART}" == "" ]] && continue
+            echo "TAG_FILTERS+=(\"${TAG_PART//\"/\\\"}\")"
+        done
+        return 0
+    }
+
     function replace_tags {  # replace_tags document prefix
         local DOCUMENT PREFIX
-        local TAGS TAG_ESC TAG_VAL TAG_NAME TAG_FILTERS TAG_VAR TAG_TYPE TAG_VALUE TAG_VALUES
+        local TAGS TAG_ESC TAG_NAME TAG_FILTERS TAG_VAR TAG_TYPE TAG_VALUE TAG_VALUES
+        local TAG_FRAGMENT_UNQUOTED TAG_FRAGMENT_DOUBLE TAG_FRAGMENT_SINGLE TAG_FRAGMENT TAG_REGEX
 
         # init
         DOCUMENT="${1:-}"
         PREFIX="${2:-}"
         [[ "${DOCUMENT}" == "" ]] && return 1
+        TAG_FRAGMENT_UNQUOTED='([^|}"'"'"' \\]|\\.)+'
+        TAG_FRAGMENT_DOUBLE='"(\\.|[^"\\])*"'
+        TAG_FRAGMENT_SINGLE="'(\\.|[^'\\])*'"
+        TAG_FRAGMENT="(${TAG_FRAGMENT_UNQUOTED}|${TAG_FRAGMENT_DOUBLE}|${TAG_FRAGMENT_SINGLE})+"
+        TAG_REGEX="\\{\\{[ ]*[a-z][a-z0-9.-]*([ ]*\\|[ ]*${TAG_FRAGMENT})*[ ]*\\}\\}"
 
         # find template tags
         OIFS="${IFS}"
         IFS=$'\n'
-        TAGS=($(<"${DOCUMENT}" grep -Eo '\{\{[ ]*([a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)?)[ ]*(([ ]*\|[ ]*[a-z][a-z0-9-]*(:[a-z0-9][a-z0-9-]*)*)*)[ ]*\}\}'))
+        TAGS=($(<"${DOCUMENT}" grep -Eo "${TAG_REGEX}"))
         IFS="${OIFS}"
 
         # loop over tags
         for I in "${!TAGS[@]}"; do
             TAG_ESC=$(echo "${TAGS[$I]}" | sed 's/[][/.|$(){}?+*^]/\\&/g')
-            TAG_VAL=$(echo "${TAGS[$I]}" | sed -E -e 's/\{\{[ ]*([a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)?)[ ]*(([ ]*\|[ ]*[a-z][a-z0-9-]*(:[a-z0-9][a-z0-9-]*)*)*)[ ]*\}\}/\1\3/')
-            TAG_NAME="${TAG_VAL%%|*}"
-            TAG_FILTERS="${TAG_VAL#$TAG_NAME}"
-            TAG_FILTERS=(${TAG_FILTERS//|/ })
+            eval "$(parse_template_tag "${TAGS[$I]}")" || return 1
             TAG_VAR=""
             TAG_TYPE=""
             eval "$(resolve_tag_metadata "${TAG_NAME}" "${PREFIX}" 2>/dev/null || true)"

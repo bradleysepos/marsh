@@ -1128,6 +1128,84 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
         return 0
     }
 
+    function resolve_tag_metadata {  # resolve_tag_metadata tag_name prefix
+        local TAG_NAME PREFIX
+        TAG_NAME="${1:-}"
+        [[ "${TAG_NAME}" == "" ]] && return 1
+        PREFIX="${2:-}"
+
+        case "${TAG_NAME}" in
+            base.relpath|document.relpath)
+                echo 'TAG_VAR="'"${PREFIX}"'RELPATH"'
+                ;;
+            base.abspath|document.abspath)
+                echo 'TAG_VAR="'"${PREFIX}"'ABSPATH"'
+                ;;
+            document.uri)
+                echo 'TAG_VAR="'"${PREFIX}"'URI"'
+                ;;
+            document)
+                echo 'TAG_VAR="'"${PREFIX}"'CONTENT"'
+                echo 'TAG_READFILE=true'
+                ;;
+            document.authors)
+                echo 'TAG_VAR="'"${PREFIX}"'AUTHORS"'
+                ;;
+            document.copyright)
+                echo 'TAG_VAR="'"${PREFIX}"'Copyright"'
+                ;;
+            document.credits-url)
+                echo 'TAG_VAR="'"${PREFIX}"'Credits_URL"'
+                ;;
+            document.date)
+                echo 'TAG_VAR="'"${PREFIX}"'Date"'
+                ;;
+            document.language)
+                echo 'TAG_VAR="'"${PREFIX}"'Language"'
+                ;;
+            document.language-code)
+                echo 'TAG_VAR="'"${PREFIX}"'Language_Code"'
+                ;;
+            document.license)
+                echo 'TAG_VAR="'"${PREFIX}"'License"'
+                ;;
+            document.license-abbr)
+                echo 'TAG_VAR="'"${PREFIX}"'License_Abbr"'
+                ;;
+            document.license-url)
+                echo 'TAG_VAR="'"${PREFIX}"'License_URL"'
+                ;;
+            document.project)
+                echo 'TAG_VAR="'"${PREFIX}"'Project"'
+                ;;
+            document.project-version)
+                echo 'TAG_VAR="'"${PREFIX}"'Project_Version"'
+                ;;
+            document.project-url)
+                echo 'TAG_VAR="'"${PREFIX}"'Project_URL"'
+                ;;
+            document.redirect-url)
+                echo 'TAG_VAR="'"${PREFIX}"'Redirect_URL"'
+                ;;
+            document.state)
+                echo 'TAG_VAR="'"${PREFIX}"'State"'
+                ;;
+            document.title)
+                echo 'TAG_VAR="'"${PREFIX}"'Title"'
+                ;;
+            document.type)
+                echo 'TAG_VAR="'"${PREFIX}"'Type"'
+                ;;
+            util.json-separator)
+                echo 'TAG_VAR="UTIL_JSON_SEPARATOR"'
+                ;;
+            *)
+                return 1
+                ;;
+        esac
+        return 0
+    }
+
     function replace_tags {  # replace_tags document prefix
         local DOCUMENT PREFIX
         local TAGS TAG_ESC TAG_VAL TAG_NAME TAG_FILTERS TAG_VAR TAG_READFILE
@@ -1150,83 +1228,9 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
             TAG_NAME="${TAG_VAL%%|*}"
             TAG_FILTERS="${TAG_VAL#$TAG_NAME}"
             TAG_FILTERS=(${TAG_FILTERS//|/ })
+            TAG_VAR=""
             TAG_READFILE=false
-            # map tag to variable
-            case "${TAG_NAME}" in
-                base.relpath)
-                    TAG_VAR="${PREFIX}RELPATH"
-                    ;;
-                document.relpath)
-                    TAG_VAR="${PREFIX}RELPATH"
-                    ;;
-                base.abspath)
-                    TAG_VAR="${PREFIX}ABSPATH"
-                    ;;
-                document.abspath)
-                    TAG_VAR="${PREFIX}ABSPATH"
-                    ;;
-                document.uri)
-                    TAG_VAR="${PREFIX}URI"
-                    ;;
-                document)
-                    TAG_VAR="${PREFIX}CONTENT"
-                    TAG_READFILE=true
-                    ;;
-                document.authors)
-                    TAG_VAR="${PREFIX}AUTHORS"
-                    ;;
-                document.copyright)
-                    TAG_VAR="${PREFIX}Copyright"
-                    ;;
-                document.credits-url)
-                    TAG_VAR="${PREFIX}Credits_URL"
-                    ;;
-                document.date)
-                    TAG_VAR="${PREFIX}Date"
-                    ;;
-                document.language)
-                    TAG_VAR="${PREFIX}Language"
-                    ;;
-                document.language-code)
-                    TAG_VAR="${PREFIX}Language_Code"
-                    ;;
-                document.license)
-                    TAG_VAR="${PREFIX}License"
-                    ;;
-                document.license-abbr)
-                    TAG_VAR="${PREFIX}License_Abbr"
-                    ;;
-                document.license-url)
-                    TAG_VAR="${PREFIX}License_URL"
-                    ;;
-                document.project)
-                    TAG_VAR="${PREFIX}Project"
-                    ;;
-                document.project-version)
-                    TAG_VAR="${PREFIX}Project_Version"
-                    ;;
-                document.project-url)
-                    TAG_VAR="${PREFIX}Project_URL"
-                    ;;
-                document.redirect-url)
-                    TAG_VAR="${PREFIX}Redirect_URL"
-                    ;;
-                document.state)
-                    TAG_VAR="${PREFIX}State"
-                    ;;
-                document.title)
-                    TAG_VAR="${PREFIX}Title"
-                    ;;
-                document.type)
-                    TAG_VAR="${PREFIX}Type"
-                    ;;
-                util.json-separator)
-                    TAG_VAR="UTIL_JSON_SEPARATOR"
-                    ;;
-                *)
-                    TAG_VAR=""
-                    ;;
-            esac
+            eval "$(resolve_tag_metadata "${TAG_NAME}" "${PREFIX}" 2>/dev/null || true)"
             if [[ "${TAG_VAR}" != "" ]]; then
                 if [[ "${TAG_READFILE}" == true ]]; then
                     if [[ -f "${!TAG_VAR}" ]] && [[ -r "${!TAG_VAR}" ]]; then

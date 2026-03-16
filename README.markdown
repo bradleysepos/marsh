@@ -89,8 +89,8 @@ Build:
     - Name:   My Website
       Path:   .
       Source: source
-      Templates:
-        - Source: templates/default
+      Template:
+        Source: templates/default
 ...
 ```
 
@@ -272,13 +272,13 @@ Build:
     - Name:   My Website
       Path:   .
       Source: source/*
-      Templates:
-        - Source: templates/default
+      Template:
+        Source: templates/default
     - Name:   Website news
       Path:   news
       Source: source/news
-      Templates:
-          Source: templates/default
+      Template:
+        Source: templates/default
       Archives:
         - Name:     Latest News
           Path:     index.markdown

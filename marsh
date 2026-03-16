@@ -1754,9 +1754,8 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
 }
 
 # builds a document from a single file
-function marsh_build_document {  # marsh_build_document dest_dir target_dir document advanced_nav_name
-    local DEST_DIR TARGET_DIR DOCUMENT ADVANCED_NAV
-    local DOCUMENT_EXT TEXT_FILTER DEST DEST_NAME
+function marsh_build_document {  # marsh_build_document dest_dir target_dir document
+    local DEST_DIR TARGET_DIR DOCUMENT DOCUMENT_EXT DOCUMENT_DIR TEXT_FILTER
 
     # init
     DEST_DIR="${1:-.}"
@@ -1770,10 +1769,6 @@ function marsh_build_document {  # marsh_build_document dest_dir target_dir docu
     DOCUMENT_DIR="${DOCUMENT_DIR%/*}"
     DOCUMENT_DIR="${DOCUMENT_DIR#./}"
     DOCUMENT="${DEST_DIR}/${TARGET_DIR}/${DOCUMENT}"
-    TEMPLATE_DIR="${4:-}"
-    TEMPLATE_CONFIG_EXTRA="${5:-}"
-    ADVANCED_NAV="${6:-}"
-    ADVANCED_NAV="${ADVANCED_NAV%.$DOCUMENT_EXT}"
 
     # normalize extensions
     if echo "${DOCUMENT_EXT}" | grep -Ei "^(${MARKDOWN_FILEEXT_REGEX})$" >/dev/null 2>&1; then
@@ -1913,7 +1908,7 @@ function marsh_build_target {  # marsh_build_target dest_dir target advanced_nav
     if [[ "${JOBS:-1}" -gt 1 ]] && [[ "${PARALLEL:-}" != "" ]] && [[ "$(${PARALLEL} --version --no-notice 2>/dev/null | head -n 1 | grep -o 'GNU parallel')" == "GNU parallel" ]]; then
         # in parallel
         export -f marsh_build_document
-        if ! "${PARALLEL}" --halt now,fail=1 --quote --no-notice --env marsh_text_filter --env marsh_process_markdown --env marsh_build_document --jobs="${JOBS:-1}" "${SELF_DIR}/${SELF_NAME}" build-document --markdown="${PARALLEL_MARKDOWN}" --markdown-options="${MARKDOWN_OPTIONS_CSV}" --markdown-file-extensions="${MARKDOWN_FILEEXT_CSV}" --markdown-rewrite-links="${MARKDOWN_REWRITE_LINKS}" --marsh-uid="${MARSH_UID}" --marsh-temp="${MARSH_TEMP}" --marsh-config-file="${MARSH_CONFIG_FILE}" --marsh-config-file-dir="${MARSH_CONFIG_FILE_DIR}" --marsh-config-path="${MARSH_CONFIG_PATH}" --marsh-config-url="${MARSH_CONFIG_URL}" "${DEST_DIR}" "${TARGET_DIR}" {} {} ::: "${DOCUMENTS[@]}" ::: "${ADVANCED_NAV}"; then
+        if ! "${PARALLEL}" --halt now,fail=1 --quote --no-notice --env marsh_text_filter --env marsh_process_markdown --env marsh_build_document --jobs="${JOBS:-1}" "${SELF_DIR}/${SELF_NAME}" build-document --markdown="${PARALLEL_MARKDOWN}" --markdown-options="${MARKDOWN_OPTIONS_CSV}" --markdown-file-extensions="${MARKDOWN_FILEEXT_CSV}" --markdown-rewrite-links="${MARKDOWN_REWRITE_LINKS}" --marsh-uid="${MARSH_UID}" --marsh-temp="${MARSH_TEMP}" --marsh-config-file="${MARSH_CONFIG_FILE}" --marsh-config-file-dir="${MARSH_CONFIG_FILE_DIR}" --marsh-config-path="${MARSH_CONFIG_PATH}" --marsh-config-url="${MARSH_CONFIG_URL}" "${DEST_DIR}" "${TARGET_DIR}" {} ::: "${DOCUMENTS[@]}"; then
             echo "Unable to build one or more documents in target: ${TARGET}"
             return 1
         fi
@@ -1931,7 +1926,7 @@ function marsh_build_target {  # marsh_build_target dest_dir target advanced_nav
         DOCUMENTS=($(echo "${DOCUMENTS[@]}"))
         IFS="${OIFS}"
         for DOCUMENT in "${DOCUMENTS[@]}"; do
-            if ! marsh_build_document "${DEST_DIR}" "${TARGET_DIR}" "${DOCUMENT}" "${ADVANCED_NAV}"; then
+            if ! marsh_build_document "${DEST_DIR}" "${TARGET_DIR}" "${DOCUMENT}"; then
                 echo "Unable to build document: ${DOCUMENT}"
                 return 1
             fi

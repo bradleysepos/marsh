@@ -1295,13 +1295,8 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
         return 0
     }
 
-    function escape_template_substitution {
-        local VALUE
-        VALUE=$(</dev/stdin)
-        VALUE=$(echo "${VALUE}" | sed -e ':a' -e '$!{N' -e 'ba' -e '}' -e 's/[&/\]/\\&/g' -e 's/\n/\\&/g')
-        VALUE=${VALUE%$'\n'}
-        VALUE=${VALUE%\\}
-        printf '%s' "${VALUE}"
+    function escape_substitution {
+        printf '%s' "$(</dev/stdin)" | sed -e ':a' -e '$!{N' -e 'ba' -e '}' -e 's/[&/\]/\\&/g' -e 's/\n/\\&/g'
     }
 
     function replace_tags {  # replace_tags document prefix
@@ -1347,7 +1342,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                 else
                     return 1
                 fi
-                TAG_VALUE=$(printf '%s' "${TAG_VALUE}" | marsh_text_filter "${TAG_FILTERS[@]}" | escape_template_substitution)
+                TAG_VALUE=$(printf '%s' "${TAG_VALUE}" | marsh_text_filter "${TAG_FILTERS[@]}" | escape_substitution)
                 sed -E \
                 -e "/${TAG_ESC}/s//${TAG_VALUE:-}/g" \
                 -i".${MARSH_UID}.backup" "${DOCUMENT}"
@@ -1597,15 +1592,15 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
             fi
         done
 
-        TEMPLATE_BODY_ESC=$(printf '%s' "${TEMPLATE_BODY}" | escape_template_substitution)
-        TEMPLATE_DOCUMENT_ESC=$(printf '%s' "${TEMPLATE_DOCUMENT_TEMPLATE}" | escape_template_substitution)
-        TEMPLATE_HEADER_ESC=$(printf '%s' "${TEMPLATE_HEADER_TEMPLATE}" | escape_template_substitution)
-        TEMPLATE_FOOTER_ESC=$(printf '%s' "${TEMPLATE_FOOTER_TEMPLATE}" | escape_template_substitution)
-        TEMPLATE_NAV_ESC=$(printf '%s' "${TEMPLATE_NAV_TEMPLATE}" | escape_template_substitution)
-        TEMPLATE_NOTICE_ESC=$(printf '%s' "${TEMPLATE_NOTICE_TEMPLATE}" | escape_template_substitution)
-        TEMPLATE_SCRIPTS_ESC=$(printf '%s' "${TEMPLATE_SCRIPTS}" | escape_template_substitution)
-        TEMPLATE_STYLES_ESC=$(printf '%s' "${TEMPLATE_STYLES}" | escape_template_substitution)
-        TEMPLATE_ADVNAV_ESC=$(printf '%s' "${TEMPLATE_ADVNAV}" | escape_template_substitution)
+        TEMPLATE_BODY_ESC=$(printf '%s' "${TEMPLATE_BODY}" | escape_substitution)
+        TEMPLATE_DOCUMENT_ESC=$(printf '%s' "${TEMPLATE_DOCUMENT_TEMPLATE}" | escape_substitution)
+        TEMPLATE_HEADER_ESC=$(printf '%s' "${TEMPLATE_HEADER_TEMPLATE}" | escape_substitution)
+        TEMPLATE_FOOTER_ESC=$(printf '%s' "${TEMPLATE_FOOTER_TEMPLATE}" | escape_substitution)
+        TEMPLATE_NAV_ESC=$(printf '%s' "${TEMPLATE_NAV_TEMPLATE}" | escape_substitution)
+        TEMPLATE_NOTICE_ESC=$(printf '%s' "${TEMPLATE_NOTICE_TEMPLATE}" | escape_substitution)
+        TEMPLATE_SCRIPTS_ESC=$(printf '%s' "${TEMPLATE_SCRIPTS}" | escape_substitution)
+        TEMPLATE_STYLES_ESC=$(printf '%s' "${TEMPLATE_STYLES}" | escape_substitution)
+        TEMPLATE_ADVNAV_ESC=$(printf '%s' "${TEMPLATE_ADVNAV}" | escape_substitution)
 
         TEMPLATE_RENDER=$(printf '%s' "${TEMPLATE_RENDER}" | sed -E \
         -e "/\{\{[ ]*template\.body[ ]*\}\}/s//${TEMPLATE_BODY_ESC:-}/g" \
@@ -1679,7 +1674,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                         SUBDOCUMENT_TEMPLATE=$(<"${TEMPLATE_Template_Partials_Document}")
                     fi
                 fi
-                SUBDOCUMENT_CONTENT_ESC=$(<"${SUBDOCUMENT}.document" escape_template_substitution)
+                SUBDOCUMENT_CONTENT_ESC=$(<"${SUBDOCUMENT}.document" escape_substitution)
                 SUBDOCUMENT_RENDER=$(printf '%s' "${SUBDOCUMENT_TEMPLATE}" | sed -E \
                 -e "/\{\{[ ]*document[ ]*\}\}/s//${SUBDOCUMENT_CONTENT_ESC}/g" \
                 -e 's/\{\{[ ]*subdocuments[ ]*\}\}//g')

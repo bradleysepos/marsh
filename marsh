@@ -217,7 +217,7 @@ function marsh_parse_yaml {  # marsh_parse_yaml yaml_string_or_file variables_pr
             for (i = 0; i < level; i++) {
                 if (vname[i] != "") {
                     out = out "_" vname[i];
-                    if (adepth[i] > -1) { out = out "_" adepth[i+1]; }
+                    if (adepth[i] > -1 && adepth[i+1] > -1) { out = out "_" adepth[i+1]; }
                 } else {
                     out = out "_" adepth[i+1];
                 }

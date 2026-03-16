@@ -91,6 +91,8 @@ Build:
       Source: source
       Template:
         Source: templates/default
+        Overrides:
+          - templates/default/template-override.yaml
 ...
 ```
 
@@ -274,11 +276,15 @@ Build:
       Source: source/*
       Template:
         Source: templates/default
+        Overrides:
+          - templates/default/template-override.yaml
     - Name:   Website news
       Path:   news
       Source: source/news
       Template:
         Source: templates/default
+        Overrides:
+          - templates/default/template-override.yaml
       Archives:
         - Name:     Latest News
           Path:     index.markdown

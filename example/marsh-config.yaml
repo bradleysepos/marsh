@@ -9,23 +9,23 @@ Build:
       Path:   .
       Force:  true
       Source: source/*
-      Templates:
-        - Source: ../templates/default
-          #Config: templates/default/template-extra.yaml
+      Template:
+        Source: ../templates/default
+        #Config: templates/default/template-extra.yaml
     - Name:   About Marsh Example
       Path:   about
       Force:  true
       Source: source/about
-      Templates:
-        - Source: ../templates/default
-          #Config: templates/default/template-extra.yaml
+      Template:
+        Source: ../templates/default
+        #Config: templates/default/template-extra.yaml
     - Name:   Marsh Example News
       Path:   news
       Force:  true
       Source: source/news
-      Templates:
-        - Source: ../templates/default
-          #Config: templates/default/template-extra.yaml
+      Template:
+        Source: ../templates/default
+        #Config: templates/default/template-extra.yaml
       Archives:
         - Name:     Marsh Example News
           Path:     index.markdown

@@ -555,8 +555,8 @@ function marsh_check_dependencies {  # marsh_check_dependencies $DEP1 $DEP2 ...
 }
 
 # prints bash variable assignments for template metadata
-function marsh_parse_template_metadata {  # marsh_parse_template_metadata prefix template_dir template_config_extra
-    local PREFIX TEMPLATE_DIR TEMPLATE_CONFIG_EXTRA
+function marsh_parse_template_metadata {  # marsh_parse_template_metadata prefix template_dir #template_overrides[@] template_overrides[@]
+    local PREFIX TEMPLATE_DIR NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDE TEMPLATE_OVERRIDES
     local TEMPLATE_META TEMPLATE_META_VARS
     local TEMPLATE_ASSETS_FONTS TEMPLATE_ASSETS_STYLES TEMPLATE_ASSETS_SCRIPTS TEMPLATE_ASSETS_IMAGES TEMPLATE_ASSETS_AUDIO TEMPLATE_ASSETS_VIDEO TEMPLATE_ASSETS_DOCUMENTS TEMPLATE_ASSETS_OTHER
     local INDEX ASSET_TYPES ASSET_TYPE_UPPER ASSET FILTER_INDEX REGEX EXTENDED MATCH REPLACE EXTRA ASSETS_INDEX ASSETS ASSETS_TEMP
@@ -565,7 +565,15 @@ function marsh_parse_template_metadata {  # marsh_parse_template_metadata prefix
     PREFIX="${1:-}"
     TEMPLATE_DIR="${2:-}"
     [[ "${TEMPLATE_DIR}" == "" ]] && return 1
-    TEMPLATE_CONFIG_EXTRA="${3:-}"
+    shift 2
+    NUM_TEMPLATE_OVERRIDES="${1:-0}"
+    shift 1
+    TEMPLATE_OVERRIDES=()
+    while [[ "${NUM_TEMPLATE_OVERRIDES}" -gt 0 ]] && [[ "${#@}" -gt 0 ]]; do
+        TEMPLATE_OVERRIDES+=("${1}")
+        NUM_TEMPLATE_OVERRIDES=$((NUM_TEMPLATE_OVERRIDES - 1))
+        shift 1
+    done
 
     # load config
     if [[ -f "${TEMPLATE_DIR}/template.yaml" ]] && [[ -r "${TEMPLATE_DIR}/template.yaml" ]]; then
@@ -577,18 +585,18 @@ function marsh_parse_template_metadata {  # marsh_parse_template_metadata prefix
         echo "Template configuration file not found: ${TEMPLATE_DIR}/template.yaml" >&2
         return 1
     fi
-    if [[ "${TEMPLATE_CONFIG_EXTRA}" != "" ]]; then
-        # load extra config
-        if [[ -f "${TEMPLATE_CONFIG_EXTRA}" ]] && [[ -r "${TEMPLATE_CONFIG_EXTRA}" ]]; then
-            TEMPLATE_META=$(marsh_parse_yaml "${TEMPLATE_CONFIG_EXTRA}" "MARSH_TEMPLATE_")
-            [[ $? -ne 0 ]] && echo "Unable to parse yaml file: ${TEMPLATE_CONFIG_EXTRA}" >&2 && return 1
+    for TEMPLATE_OVERRIDE in "${TEMPLATE_OVERRIDES[@]}"; do
+        [[ "${TEMPLATE_OVERRIDE}" == "" ]] && continue
+        if [[ -f "${TEMPLATE_OVERRIDE}" ]] && [[ -r "${TEMPLATE_OVERRIDE}" ]]; then
+            TEMPLATE_META=$(marsh_parse_yaml "${TEMPLATE_OVERRIDE}" "MARSH_TEMPLATE_")
+            [[ $? -ne 0 ]] && echo "Unable to parse yaml file: ${TEMPLATE_OVERRIDE}" >&2 && return 1
             TEMPLATE_META_VARS=$(echo "${TEMPLATE_META_VARS}"$'\n'"${TEMPLATE_META}" | marsh_get_variables)
             eval "${TEMPLATE_META}"
         else
-            echo "Template configuration file not found: ${TEMPLATE_CONFIG_EXTRA}" >&2
+            echo "Template configuration override file not found: ${TEMPLATE_OVERRIDE}" >&2
             return 1
         fi
-    fi
+    done
 
     # print partials paths relative to template dir
     [[ "${MARSH_TEMPLATE_Template_Partials_Base:-}"     != "" ]] && echo "${PREFIX}Template_Partials_Base=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Base//\"/\\\"}\""
@@ -707,7 +715,7 @@ function marsh_parse_template_metadata {  # marsh_parse_template_metadata prefix
 function marsh_get_target_metadata {  # marsh_get_target_metadata source_prefix prefix
     local SOURCE_PREFIX PREFIX
     local TARGET_PATH TARGET_NAME TARGET_TYPE TARGET_FORCE TARGET_NAV
-    local II TEMPLATE_SOURCE TEMPLATE_CONFIG
+    local II TEMPLATE_SOURCE TEMPLATE_OVERRIDE TEMPLATE_OVERRIDES
     local ARCHIVE ARCHIVE_NAME ARCHIVE_ENCODING ARCHIVE_COUNT ARCHIVE_CONTENT ARCHIVE_TYPES ARCHIVE_EXCLUDED_STATES
 
     # init
@@ -731,9 +739,12 @@ function marsh_get_target_metadata {  # marsh_get_target_metadata source_prefix 
 
     # template
     TEMPLATE_SOURCE="${SOURCE_PREFIX}Template_Source"
-    TEMPLATE_CONFIG="${SOURCE_PREFIX}Template_Config"
+    eval $(marsh_flat_to_array "TEMPLATE_OVERRIDES" "${SOURCE_PREFIX}Template_Overrides_")
     [[ "${!TEMPLATE_SOURCE:-}" != "" ]] && echo "${PREFIX}TEMPLATE_SOURCE=\"${!TEMPLATE_SOURCE//\"/\\\"}\""
-    [[ "${!TEMPLATE_CONFIG:-}" != "" ]] && echo "${PREFIX}TEMPLATE_CONFIG=\"${!TEMPLATE_CONFIG//\"/\\\"}\""
+    echo "${PREFIX}TEMPLATE_OVERRIDES=()"
+    for TEMPLATE_OVERRIDE in "${TEMPLATE_OVERRIDES[@]}"; do
+        [[ "${TEMPLATE_OVERRIDE}" != "" ]] && echo "${PREFIX}TEMPLATE_OVERRIDES+=(\"${TEMPLATE_OVERRIDE//\"/\\\"}\")"
+    done
     [[ "${!TEMPLATE_SOURCE:-}" != "" ]] && echo "${PREFIX}TEMPLATE=\"${!TEMPLATE_SOURCE##*/}-$(echo -n ${!TEMPLATE_SOURCE} | marsh_text_filter hash:md5)\""
 
     # archives
@@ -1023,7 +1034,7 @@ function marsh_build_advanced_nav {  # marsh_build_advanced_nav target_dir navig
 }
 
 # builds a template and applies it to a document
-function marsh_build_template {  # marsh_build_template dest_dir target_dir document templates_dir template template_config_extra
+function marsh_build_template {  # marsh_build_template dest_dir target_dir document templates_dir template #template_overrides[@] template_overrides[@]
     function process_authors {  # process_authors dest_array source_array
         local DEST_ARRAY SOURCE_ARRAY ITEM
         DEST_ARRAY="${1:-}"
@@ -1348,7 +1359,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
     local DEST_DIR TARGET_DIR
     local DOCUMENT DOCUMENT_EXT DOCUMENT_DIR DOCUMENT_RELPATH DOCUMENT_ABSPATH DOCUMENT_URI
     local DEST DEST_NAME
-    local TEMPLATE_DIR TEMPLATE TEMPLATE_CONFIG_EXTRA
+    local TEMPLATE_DIR TEMPLATE NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDE TEMPLATE_OVERRIDES
     local TEMPLATE_PREFIX TEMPLATE_META TEMPLATE_META_VARS PARTIALS TEMPLATE_BASE TEMPLATE_TEMP
     local TEMPLATE_RENDER
     local TEMPLATE_BODY TEMPLATE_DOCUMENT_TEMPLATE TEMPLATE_HEADER_TEMPLATE TEMPLATE_FOOTER_TEMPLATE
@@ -1396,7 +1407,15 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
     DOCUMENT_URI="${DOCUMENT_ABSPATH:+$DOCUMENT_ABSPATH/}${DEST##*/}"
     TEMPLATE_DIR="${4:-}"
     TEMPLATE="${5:-}"
-    TEMPLATE_CONFIG_EXTRA="${6:-}"
+    shift 5
+    NUM_TEMPLATE_OVERRIDES="${1:-0}"
+    shift 1
+    TEMPLATE_OVERRIDES=()
+    while [[ "${NUM_TEMPLATE_OVERRIDES}" -gt 0 ]] && [[ "${#@}" -gt 0 ]]; do
+        TEMPLATE_OVERRIDES+=("${1}")
+        NUM_TEMPLATE_OVERRIDES=$((NUM_TEMPLATE_OVERRIDES - 1))
+        shift 1
+    done
 
     # utility vars
     UTIL_JSON_SEPARATOR=","
@@ -1430,7 +1449,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
     # template
     if [[ "${TEMPLATE_DIR}" != "" ]]; then
         TEMPLATE_PREFIX="TEMPLATE_"
-        TEMPLATE_META=$(marsh_parse_template_metadata "${TEMPLATE_PREFIX}" "${TEMPLATE_DIR}/${TEMPLATE}" "${TEMPLATE_CONFIG_EXTRA}")
+        TEMPLATE_META=$(marsh_parse_template_metadata "${TEMPLATE_PREFIX}" "${TEMPLATE_DIR}/${TEMPLATE}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}")
         [[ $? -ne 0 ]] && return 1
         TEMPLATE_META_VARS=$(echo "${TEMPLATE_META}" | marsh_get_variables)
         eval "${TEMPLATE_META}"
@@ -1849,8 +1868,8 @@ function marsh_build_document {  # marsh_build_document dest_dir target_dir docu
 }
 
 # builds a target, parallel if possible
-function marsh_build_target {  # marsh_build_target dest_dir target advanced_nav templates_dir template template_config_extra
-    local DEST_DIR TARGET ADVANCED_NAV TEMPLATES_DIR TEMPLATE TEMPLATE_CONFIG_EXTRA
+function marsh_build_target {  # marsh_build_target dest_dir target advanced_nav templates_dir template #template_overrides[@] template_overrides[@]
+    local DEST_DIR TARGET ADVANCED_NAV TEMPLATES_DIR TEMPLATE NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDES
     local TEMPLATE_META TEMPLATE_META_VARS
     local TARGET_DIR TEMPLATE_PREFIX DOCUMENTS PARALLEL
 
@@ -1865,12 +1884,20 @@ function marsh_build_target {  # marsh_build_target dest_dir target advanced_nav
     ADVANCED_NAV="${3:-}"
     TEMPLATES_DIR="${4:-}"
     TEMPLATE="${5:-}"
-    TEMPLATE_CONFIG_EXTRA="${6:-}"
+    shift 5
+    NUM_TEMPLATE_OVERRIDES="${1:-0}"
+    shift 1
+    TEMPLATE_OVERRIDES=()
+    while [[ "${NUM_TEMPLATE_OVERRIDES}" -gt 0 ]] && [[ "${#@}" -gt 0 ]]; do
+        TEMPLATE_OVERRIDES+=("${1}")
+        NUM_TEMPLATE_OVERRIDES=$((NUM_TEMPLATE_OVERRIDES - 1))
+        shift 1
+    done
 
     # copy template assets
     if [[ "${TEMPLATES_DIR}" != "" ]] && [[ "${TEMPLATE}" != "" ]]; then
         TEMPLATE_PREFIX="TEMPLATE_"
-        TEMPLATE_META=$(marsh_parse_template_metadata "${TEMPLATE_PREFIX}" "${TEMPLATES_DIR}/${TEMPLATE}" "${TEMPLATE_CONFIG_EXTRA}")
+        TEMPLATE_META=$(marsh_parse_template_metadata "${TEMPLATE_PREFIX}" "${TEMPLATES_DIR}/${TEMPLATE}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}")
         [[ $? -ne 0 ]] && return 1
         TEMPLATE_META_VARS=$(echo "${TEMPLATE_META}" | marsh_get_variables)
         eval "${TEMPLATE_META}"
@@ -1914,7 +1941,7 @@ function marsh_build_target {  # marsh_build_target dest_dir target advanced_nav
         fi
         if [[ "${TEMPLATES_DIR}" != "" ]] && [[ "${TEMPLATE}" != "" ]]; then
             export -f marsh_build_template
-            if ! "${PARALLEL}" --halt now,fail=1 --quote --no-notice --env marsh_text_filter --env marsh_process_markdown --env marsh_build_template --jobs="${JOBS:-1}" "${SELF_DIR}/${SELF_NAME}" build-template --markdown="${PARALLEL_MARKDOWN}" --markdown-options="${MARKDOWN_OPTIONS_CSV}" --markdown-file-extensions="${MARKDOWN_FILEEXT_CSV}" --markdown-rewrite-links="${MARKDOWN_REWRITE_LINKS}" --marsh-uid="${MARSH_UID}" --marsh-temp="${MARSH_TEMP}" --marsh-config-file="${MARSH_CONFIG_FILE}" --marsh-config-file-dir="${MARSH_CONFIG_FILE_DIR}" --marsh-config-path="${MARSH_CONFIG_PATH}" --marsh-config-url="${MARSH_CONFIG_URL}" "${DEST_DIR}" "${TARGET_DIR}" {} "${TEMPLATES_DIR}" "${TEMPLATE}" "${TEMPLATE_CONFIG_EXTRA:-}" ::: "${DOCUMENTS[@]}"; then
+            if ! "${PARALLEL}" --halt now,fail=1 --quote --no-notice --env marsh_text_filter --env marsh_process_markdown --env marsh_build_template --jobs="${JOBS:-1}" "${SELF_DIR}/${SELF_NAME}" build-template --markdown="${PARALLEL_MARKDOWN}" --markdown-options="${MARKDOWN_OPTIONS_CSV}" --markdown-file-extensions="${MARKDOWN_FILEEXT_CSV}" --markdown-rewrite-links="${MARKDOWN_REWRITE_LINKS}" --marsh-uid="${MARSH_UID}" --marsh-temp="${MARSH_TEMP}" --marsh-config-file="${MARSH_CONFIG_FILE}" --marsh-config-file-dir="${MARSH_CONFIG_FILE_DIR}" --marsh-config-path="${MARSH_CONFIG_PATH}" --marsh-config-url="${MARSH_CONFIG_URL}" "${DEST_DIR}" "${TARGET_DIR}" {} "${TEMPLATES_DIR}" "${TEMPLATE}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" ::: "${DOCUMENTS[@]}"; then
                 echo "Unable to build template: ${TEMPLATE}"
                 return 1
             fi
@@ -1931,7 +1958,7 @@ function marsh_build_target {  # marsh_build_target dest_dir target advanced_nav
                 return 1
             fi
             if [[ "${TEMPLATES_DIR}" != "" ]] && [[ "${TEMPLATE}" != "" ]]; then
-                if ! marsh_build_template "${DEST_DIR}" "${TARGET_DIR}" "${DOCUMENT}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${TEMPLATE_CONFIG_EXTRA:-}"; then
+                if ! marsh_build_template "${DEST_DIR}" "${TARGET_DIR}" "${DOCUMENT}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}"; then
                     echo "Unable to build template: ${TEMPLATE}"
                     return 1
                 fi
@@ -2398,10 +2425,12 @@ function marsh_cli {
                         TARGET_TEMPLATE_SOURCE="${MARSH_CONFIG_FILE_DIR}/${TARGET_TEMPLATE_SOURCE}"
                         TARGET_TEMPLATE_SOURCE="${TARGET_TEMPLATE_SOURCE#./}"
                     fi
-                    if [[ "${TARGET_TEMPLATE_CONFIG:-}" != "" ]] && [[ ! "${TARGET_TEMPLATE_CONFIG}" =~ ^/ ]]; then
-                        TARGET_TEMPLATE_CONFIG="${MARSH_CONFIG_FILE_DIR}/${TARGET_TEMPLATE_CONFIG}"
-                        TARGET_TEMPLATE_CONFIG="${TARGET_TEMPLATE_CONFIG#./}"
-                    fi
+                    for I in "${!TARGET_TEMPLATE_OVERRIDES[@]}"; do
+                        if [[ "${TARGET_TEMPLATE_OVERRIDES[$I]:-}" != "" ]] && [[ ! "${TARGET_TEMPLATE_OVERRIDES[$I]}" =~ ^/ ]]; then
+                            TARGET_TEMPLATE_OVERRIDES[$I]="${MARSH_CONFIG_FILE_DIR}/${TARGET_TEMPLATE_OVERRIDES[$I]}"
+                            TARGET_TEMPLATE_OVERRIDES[$I]="${TARGET_TEMPLATE_OVERRIDES[$I]#./}"
+                        fi
+                    done
                     marsh_get_files "${TARGET_TEMPLATE_SOURCE}/*" \
                             "${TEMPLATES_DIR}/${TARGET_TEMPLATE}" \
                             false || die_gracefully
@@ -2434,7 +2463,8 @@ function marsh_cli {
                         "${TARGET_NAV}" \
                         "${TEMPLATES_DIR}" \
                         "${TARGET_TEMPLATE:-}" \
-                        "${TARGET_TEMPLATE_CONFIG:-}" || die_gracefully
+                        "${#TARGET_TEMPLATE_OVERRIDES[@]}" \
+                        "${TARGET_TEMPLATE_OVERRIDES[@]}" || die_gracefully
 
             # archives
             for I in "${!TARGET_ARCHIVES[@]}"; do
@@ -2461,7 +2491,8 @@ function marsh_cli {
                                     "" \
                                     "${TEMPLATES_DIR}" \
                                     "${TARGET_TEMPLATE:-}" \
-                                    "${TARGET_TEMPLATE_CONFIG:-}"
+                                    "${#TARGET_TEMPLATE_OVERRIDES[@]}" \
+                                    "${TARGET_TEMPLATE_OVERRIDES[@]}"
                     then
                         die_gracefully
                     fi

@@ -729,21 +729,12 @@ function marsh_get_target_metadata {  # marsh_get_target_metadata source_prefix 
     [[ "${!TARGET_NAV:-}"    != "" ]] && echo "${PREFIX}NAV=\"${!TARGET_NAV//\"/\\\"}\""
     [[ "${!TARGET_FORCE:-}"  != "" ]] && echo "${PREFIX}FORCE=\"${!TARGET_FORCE//\"/\\\"}\""
 
-    # templates
-    echo "${PREFIX}TEMPLATES_SOURCE=()"
-    echo "${PREFIX}TEMPLATES_CONFIG=()"
-    echo "${PREFIX}TEMPLATES=()"
-    II=0
-    TEMPLATE_SOURCE="${SOURCE_PREFIX}Templates_${II}_Source"
-    TEMPLATE_CONFIG="${SOURCE_PREFIX}Templates_${II}_Config"
-    while [[ "${!TEMPLATE_SOURCE:-}" != "" ]]; do
-        echo "${PREFIX}TEMPLATES_SOURCE+=(\"${!TEMPLATE_SOURCE//\"/\\\"}\")"
-        echo "${PREFIX}TEMPLATES_CONFIG+=(\"${!TEMPLATE_CONFIG//\"/\\\"}\")"
-        echo "${PREFIX}TEMPLATES+=(\"${!TEMPLATE_SOURCE##*/}-$(echo -n ${!TEMPLATE_SOURCE} | marsh_text_filter hash:md5)\")"
-        II=$((II+1))
-        TEMPLATE_SOURCE="${SOURCE_PREFIX}Templates_${II}_Source"
-        TEMPLATE_CONFIG="${SOURCE_PREFIX}Templates_${II}_Config"
-    done
+    # template
+    TEMPLATE_SOURCE="${SOURCE_PREFIX}Template_Source"
+    TEMPLATE_CONFIG="${SOURCE_PREFIX}Template_Config"
+    [[ "${!TEMPLATE_SOURCE:-}" != "" ]] && echo "${PREFIX}TEMPLATE_SOURCE=\"${!TEMPLATE_SOURCE//\"/\\\"}\""
+    [[ "${!TEMPLATE_CONFIG:-}" != "" ]] && echo "${PREFIX}TEMPLATE_CONFIG=\"${!TEMPLATE_CONFIG//\"/\\\"}\""
+    [[ "${!TEMPLATE_SOURCE:-}" != "" ]] && echo "${PREFIX}TEMPLATE=\"${!TEMPLATE_SOURCE##*/}-$(echo -n ${!TEMPLATE_SOURCE} | marsh_text_filter hash:md5)\""
 
     # archives
     echo "${PREFIX}ARCHIVES=()"
@@ -1863,8 +1854,8 @@ function marsh_build_document {  # marsh_build_document dest_dir target_dir docu
 }
 
 # builds a target, parallel if possible
-function marsh_build_target {  # marsh_build_target dest_dir target advanced_nav templates_dir #templates[@] templates[@] #templates_config_extra[@] templates_config_extra[@]
-    local DEST_DIR TARGET ADVANCED_NAV TEMPLATES_DIR NUM_TEMPLATES TEMPLATES NUM_TEMPLATES_CONFIG_EXTRA TEMPLATES_CONFIG_EXTRA
+function marsh_build_target {  # marsh_build_target dest_dir target advanced_nav templates_dir template template_config_extra
+    local DEST_DIR TARGET ADVANCED_NAV TEMPLATES_DIR TEMPLATE TEMPLATE_CONFIG_EXTRA
     local TEMPLATE_META TEMPLATE_META_VARS
     local TARGET_DIR TEMPLATE_PREFIX DOCUMENTS PARALLEL
 
@@ -1878,46 +1869,29 @@ function marsh_build_target {  # marsh_build_target dest_dir target advanced_nav
     TARGET="${TARGET:-*}"
     ADVANCED_NAV="${3:-}"
     TEMPLATES_DIR="${4:-}"
-    shift 4
-    NUM_TEMPLATES="${1:-0}"
-    shift 1
-    TEMPLATES=()
-    while [[ "${NUM_TEMPLATES}" -gt 0 ]] && [[ "${#@}" -gt 0 ]]; do
-        TEMPLATES+=("${1}")
-        NUM_TEMPLATES=$((NUM_TEMPLATES - 1 ))
-        shift
-    done
-    NUM_TEMPLATES_CONFIG_EXTRA="${1:-0}"
-    shift 1
-    TEMPLATES_CONFIG_EXTRA=()
-    while [[ "${NUM_TEMPLATES_CONFIG_EXTRA}" -gt 0 ]] && [[ "${#@}" -gt 0 ]]; do
-        TEMPLATES_CONFIG_EXTRA+=("${1}")
-        NUM_TEMPLATES_CONFIG_EXTRA=$((NUM_TEMPLATES_CONFIG_EXTRA - 1 ))
-        shift
-    done
+    TEMPLATE="${5:-}"
+    TEMPLATE_CONFIG_EXTRA="${6:-}"
 
     # copy template assets
-    if [[ "${TEMPLATES_DIR}" != "" ]]; then
-        for I in "${!TEMPLATES[@]}"; do
-            TEMPLATE_PREFIX="TEMPLATE_"
-            TEMPLATE_META=$(marsh_parse_template_metadata "${TEMPLATE_PREFIX}" "${TEMPLATES_DIR}/${TEMPLATES[$I]}" "${TEMPLATES_CONFIG_EXTRA[$I]}")
-            [[ $? -ne 0 ]] && return 1
-            TEMPLATE_META_VARS=$(echo "${TEMPLATE_META}" | marsh_get_variables)
-            eval "${TEMPLATE_META}"
-            for ASSET in ${TEMPLATE_ASSETS_FONTS[@]} ${TEMPLATE_ASSETS_STYLES[@]} ${TEMPLATE_ASSETS_SCRIPTS[@]} ${TEMPLATE_ASSETS_IMAGES[@]} ${TEMPLATE_ASSETS_AUDIO[@]} ${TEMPLATE_ASSETS_VIDEO[@]} ${TEMPLATE_ASSETS_DOCUMENTS[@]} ${TEMPLATE_ASSETS_BINARIES[@]} ${TEMPLATE_ASSETS_OTHER[@]}; do
-                ASSET="${ASSET%\?*}"
-                if [[ -d "${TEMPLATES_DIR}/${TEMPLATES[$I]}/${ASSET}" ]]; then
-                    mkdir -p "${DEST_DIR}/${TARGET_DIR}/${ASSET}"
-                elif [[ -f "${TEMPLATES_DIR}/${TEMPLATES[$I]}/${ASSET}" ]]; then
-                    mkdir -p "${DEST_DIR}/${TARGET_DIR}/${ASSET%/*}"
-                fi
-                if [[ -e "${TEMPLATES_DIR}/${TEMPLATES[$I]}/${ASSET}" ]] && [[ -r "${TEMPLATES_DIR}/${TEMPLATES[$I]}/${ASSET}" ]]; then
-                    cp -R "${TEMPLATES_DIR}/${TEMPLATES[$I]}/${ASSET}" "${DEST_DIR}/${TARGET_DIR}/${ASSET}"
-                fi
-            done
-            # unset temporary global variables
-            for VAR in ${TEMPLATE_META_VARS[@]}; do unset "${VAR}"; done
+    if [[ "${TEMPLATES_DIR}" != "" ]] && [[ "${TEMPLATE}" != "" ]]; then
+        TEMPLATE_PREFIX="TEMPLATE_"
+        TEMPLATE_META=$(marsh_parse_template_metadata "${TEMPLATE_PREFIX}" "${TEMPLATES_DIR}/${TEMPLATE}" "${TEMPLATE_CONFIG_EXTRA}")
+        [[ $? -ne 0 ]] && return 1
+        TEMPLATE_META_VARS=$(echo "${TEMPLATE_META}" | marsh_get_variables)
+        eval "${TEMPLATE_META}"
+        for ASSET in ${TEMPLATE_ASSETS_FONTS[@]} ${TEMPLATE_ASSETS_STYLES[@]} ${TEMPLATE_ASSETS_SCRIPTS[@]} ${TEMPLATE_ASSETS_IMAGES[@]} ${TEMPLATE_ASSETS_AUDIO[@]} ${TEMPLATE_ASSETS_VIDEO[@]} ${TEMPLATE_ASSETS_DOCUMENTS[@]} ${TEMPLATE_ASSETS_BINARIES[@]} ${TEMPLATE_ASSETS_OTHER[@]}; do
+            ASSET="${ASSET%\?*}"
+            if [[ -d "${TEMPLATES_DIR}/${TEMPLATE}/${ASSET}" ]]; then
+                mkdir -p "${DEST_DIR}/${TARGET_DIR}/${ASSET}"
+            elif [[ -f "${TEMPLATES_DIR}/${TEMPLATE}/${ASSET}" ]]; then
+                mkdir -p "${DEST_DIR}/${TARGET_DIR}/${ASSET%/*}"
+            fi
+            if [[ -e "${TEMPLATES_DIR}/${TEMPLATE}/${ASSET}" ]] && [[ -r "${TEMPLATES_DIR}/${TEMPLATE}/${ASSET}" ]]; then
+                cp -R "${TEMPLATES_DIR}/${TEMPLATE}/${ASSET}" "${DEST_DIR}/${TARGET_DIR}/${ASSET}"
+            fi
         done
+        # unset temporary global variables
+        for VAR in ${TEMPLATE_META_VARS[@]}; do unset "${VAR}"; done
     fi
 
     # build target documents
@@ -1943,14 +1917,12 @@ function marsh_build_target {  # marsh_build_target dest_dir target advanced_nav
             echo "Unable to build template: ${TEMPLATES[$I]}"
             return 1
         fi
-        if [[ "${TEMPLATES_DIR}" != "" ]] && [[ "${#TEMPLATES[@]}" -gt 0 ]]; then
+        if [[ "${TEMPLATES_DIR}" != "" ]] && [[ "${TEMPLATE}" != "" ]]; then
             export -f marsh_build_template
-            for I in "${!TEMPLATES[@]}"; do
-                if ! "${PARALLEL}" --halt now,fail=1 --quote --no-notice --env marsh_text_filter --env marsh_process_markdown --env marsh_build_template --jobs="${JOBS:-1}" "${SELF_DIR}/${SELF_NAME}" build-templates --markdown="${PARALLEL_MARKDOWN}" --markdown-options="${MARKDOWN_OPTIONS_CSV}" --markdown-file-extensions="${MARKDOWN_FILEEXT_CSV}" --markdown-rewrite-links="${MARKDOWN_REWRITE_LINKS}" --marsh-uid="${MARSH_UID}" --marsh-temp="${MARSH_TEMP}" --marsh-config-file="${MARSH_CONFIG_FILE}" --marsh-config-file-dir="${MARSH_CONFIG_FILE_DIR}" --marsh-config-path="${MARSH_CONFIG_PATH}" --marsh-config-url="${MARSH_CONFIG_URL}" "${DEST_DIR}" "${TARGET_DIR}" {} "${TEMPLATES_DIR}" "${TEMPLATES[$I]}" "${TEMPLATES_CONFIG_EXTRA[$I]:-}" ::: "${DOCUMENTS[@]}"; then
-                    echo "Unable to build template: ${TEMPLATES[$I]}"
-                    return 1
-                fi
-            done
+            if ! "${PARALLEL}" --halt now,fail=1 --quote --no-notice --env marsh_text_filter --env marsh_process_markdown --env marsh_build_template --jobs="${JOBS:-1}" "${SELF_DIR}/${SELF_NAME}" build-template --markdown="${PARALLEL_MARKDOWN}" --markdown-options="${MARKDOWN_OPTIONS_CSV}" --markdown-file-extensions="${MARKDOWN_FILEEXT_CSV}" --markdown-rewrite-links="${MARKDOWN_REWRITE_LINKS}" --marsh-uid="${MARSH_UID}" --marsh-temp="${MARSH_TEMP}" --marsh-config-file="${MARSH_CONFIG_FILE}" --marsh-config-file-dir="${MARSH_CONFIG_FILE_DIR}" --marsh-config-path="${MARSH_CONFIG_PATH}" --marsh-config-url="${MARSH_CONFIG_URL}" "${DEST_DIR}" "${TARGET_DIR}" {} "${TEMPLATES_DIR}" "${TEMPLATE}" "${TEMPLATE_CONFIG_EXTRA:-}" ::: "${DOCUMENTS[@]}"; then
+                echo "Unable to build template: ${TEMPLATE}"
+                return 1
+            fi
         fi
     else
         # serially
@@ -1963,13 +1935,11 @@ function marsh_build_target {  # marsh_build_target dest_dir target advanced_nav
                 echo "Unable to build document: ${DOCUMENT}"
                 return 1
             fi
-            if [[ "${TEMPLATES_DIR}" != "" ]] && [[ "${#TEMPLATES[@]}" -gt 0 ]]; then
-                for I in "${!TEMPLATES[@]}"; do
-                    if ! marsh_build_template "${DEST_DIR}" "${TARGET_DIR}" "${DOCUMENT}" "${TEMPLATES_DIR}" "${TEMPLATES[$I]}" "${TEMPLATES_CONFIG_EXTRA[$I]:-}"; then
-                        echo "Unable to build template: ${TEMPLATES[$I]}"
-                        return 1
-                    fi
-                done
+            if [[ "${TEMPLATES_DIR}" != "" ]] && [[ "${TEMPLATE}" != "" ]]; then
+                if ! marsh_build_template "${DEST_DIR}" "${TARGET_DIR}" "${DOCUMENT}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${TEMPLATE_CONFIG_EXTRA:-}"; then
+                    echo "Unable to build template: ${TEMPLATE}"
+                    return 1
+                fi
             fi
         done
     fi
@@ -1999,7 +1969,7 @@ function marsh_cli {
     marsh_env_cli
 
     # commands
-    COMMANDS=('build' 'build-document' 'build-templates')
+    COMMANDS=('build' 'build-document' 'build-template')
     COMMAND="${1:-}"
 
     # validate command
@@ -2427,21 +2397,21 @@ function marsh_cli {
             META_VARS=$(echo "${META}" | marsh_get_variables)
 
             # get template
-            for I in "${!TARGET_TEMPLATES[@]}"; do
-                if [[ ! -e "${TEMPLATES_DIR}/${TARGET_TEMPLATES[$I]}" ]]; then
-                    if [[ ! "${TARGET_TEMPLATES_SOURCE[$I]}" =~ ^/ ]]; then
-                        TARGET_TEMPLATES_SOURCE[$I]="${MARSH_CONFIG_FILE_DIR}/${TARGET_TEMPLATES_SOURCE[$I]}"
-                        TARGET_TEMPLATES_SOURCE[$I]="${TARGET_TEMPLATES_SOURCE[$I]#./}"
+            if [[ "${TARGET_TEMPLATE_SOURCE:-}" != "" ]]; then
+                if [[ ! -e "${TEMPLATES_DIR}/${TARGET_TEMPLATE}" ]]; then
+                    if [[ ! "${TARGET_TEMPLATE_SOURCE}" =~ ^/ ]]; then
+                        TARGET_TEMPLATE_SOURCE="${MARSH_CONFIG_FILE_DIR}/${TARGET_TEMPLATE_SOURCE}"
+                        TARGET_TEMPLATE_SOURCE="${TARGET_TEMPLATE_SOURCE#./}"
                     fi
-                    if [[ "${TARGET_TEMPLATES_CONFIG[$I]}" != "" ]] && [[ ! "${TARGET_TEMPLATES_CONFIG[$I]}" =~ ^/ ]]; then
-                        TARGET_TEMPLATES_CONFIG[$I]="${MARSH_CONFIG_FILE_DIR}/${TARGET_TEMPLATES_CONFIG[$I]}"
-                        TARGET_TEMPLATES_CONFIG[$I]="${TARGET_TEMPLATES_CONFIG[$I]#./}"
+                    if [[ "${TARGET_TEMPLATE_CONFIG:-}" != "" ]] && [[ ! "${TARGET_TEMPLATE_CONFIG}" =~ ^/ ]]; then
+                        TARGET_TEMPLATE_CONFIG="${MARSH_CONFIG_FILE_DIR}/${TARGET_TEMPLATE_CONFIG}"
+                        TARGET_TEMPLATE_CONFIG="${TARGET_TEMPLATE_CONFIG#./}"
                     fi
-                    marsh_get_files "${TARGET_TEMPLATES_SOURCE[$I]}/*" \
-                            "${TEMPLATES_DIR}/${TARGET_TEMPLATES[$I]}" \
+                    marsh_get_files "${TARGET_TEMPLATE_SOURCE}/*" \
+                            "${TEMPLATES_DIR}/${TARGET_TEMPLATE}" \
                             false || die_gracefully
                 fi
-            done
+            fi
 
             # get source files for target
             if [[ "${TARGET_FORCE}" == true ]] || [[ "${FORCE}" == true ]]; then
@@ -2468,10 +2438,8 @@ function marsh_cli {
                         "${TARGET_PATH}" \
                         "${TARGET_NAV}" \
                         "${TEMPLATES_DIR}" \
-                        "${#TARGET_TEMPLATES[@]}" \
-                        "${TARGET_TEMPLATES[@]}" \
-                        "${#TARGET_TEMPLATES_CONFIG[@]}" \
-                        "${TARGET_TEMPLATES_CONFIG[@]}" || die_gracefully
+                        "${TARGET_TEMPLATE:-}" \
+                        "${TARGET_TEMPLATE_CONFIG:-}" || die_gracefully
 
             # archives
             for I in "${!TARGET_ARCHIVES[@]}"; do
@@ -2497,10 +2465,8 @@ function marsh_cli {
                                     "${TARGET_PATH}/${TARGET_ARCHIVES[$I]}" \
                                     "" \
                                     "${TEMPLATES_DIR}" \
-                                    "${#TARGET_TEMPLATES[@]}" \
-                                    "${TARGET_TEMPLATES[@]}" \
-                                    "${#TARGET_TEMPLATES_CONFIG[@]}" \
-                                    "${TARGET_TEMPLATES_CONFIG[@]}"
+                                    "${TARGET_TEMPLATE:-}" \
+                                    "${TARGET_TEMPLATE_CONFIG:-}"
                     then
                         die_gracefully
                     fi
@@ -2524,8 +2490,8 @@ function marsh_cli {
     elif [[ "${COMMAND}" == "build-document" ]]; then
         # build single document
         marsh_build_document "${@}"
-    elif [[ "${COMMAND}" == "build-templates" ]]; then
-        # build templates for document
+    elif [[ "${COMMAND}" == "build-template" ]]; then
+        # build template for document
         marsh_build_template "${@}"
     fi
 

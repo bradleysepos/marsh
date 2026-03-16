@@ -749,6 +749,8 @@ function marsh_get_target_metadata {  # marsh_get_target_metadata source_prefix 
     echo "${PREFIX}ARCHIVES=()"
     echo "${PREFIX}ARCHIVES_ENCODING=()"
     echo "${PREFIX}ARCHIVES_NAME=()"
+    echo "${PREFIX}ARCHIVES_LANGUAGE=()"
+    echo "${PREFIX}ARCHIVES_LANGUAGE_CODE=()"
     echo "${PREFIX}ARCHIVES_COUNT=()"
     echo "${PREFIX}ARCHIVES_CONTENT=()"
     echo "${PREFIX}ARCHIVES_TYPES=()"
@@ -757,12 +759,16 @@ function marsh_get_target_metadata {  # marsh_get_target_metadata source_prefix 
     ARCHIVE="${SOURCE_PREFIX}Archives_${II}_Path"
     ARCHIVE_ENCODING="${SOURCE_PREFIX}Archives_${II}_Encoding"
     ARCHIVE_NAME="${SOURCE_PREFIX}Archives_${II}_Name"
+    ARCHIVE_LANGUAGE="${SOURCE_PREFIX}Archives_${II}_Language"
+    ARCHIVE_LANGUAGE_CODE="${SOURCE_PREFIX}Archives_${II}_Language_Code"
     ARCHIVE_COUNT="${SOURCE_PREFIX}Archives_${II}_Count"
     ARCHIVE_CONTENT="${SOURCE_PREFIX}Archives_${II}_Content"
     while [[ "${!ARCHIVE:-}" != "" ]]; do
         echo "${PREFIX}ARCHIVES+=(\"${!ARCHIVE//\"/\\\"}\")"
         echo "${PREFIX}ARCHIVES_ENCODING+=(\"${!ARCHIVE_ENCODING//\"/\\\"}\")"
         echo "${PREFIX}ARCHIVES_NAME+=(\"${!ARCHIVE_NAME//\"/\\\"}\")"
+        echo "${PREFIX}ARCHIVES_LANGUAGE+=(\"${!ARCHIVE_LANGUAGE//\"/\\\"}\")"
+        echo "${PREFIX}ARCHIVES_LANGUAGE_CODE+=(\"${!ARCHIVE_LANGUAGE_CODE//\"/\\\"}\")"
         echo "${PREFIX}ARCHIVES_COUNT+=(\"${!ARCHIVE_COUNT//\"/\\\"}\")"
         echo "${PREFIX}ARCHIVES_CONTENT+=(\"${!ARCHIVE_CONTENT//\"/\\\"}\")"
         eval $(marsh_flat_to_array "ARCHIVE_TYPES" "${SOURCE_PREFIX}Archives_${II}_Types_")
@@ -773,6 +779,8 @@ function marsh_get_target_metadata {  # marsh_get_target_metadata source_prefix 
         ARCHIVE="${SOURCE_PREFIX}Archives_${II}_Path"
         ARCHIVE_ENCODING="${SOURCE_PREFIX}Archives_${II}_Encoding"
         ARCHIVE_NAME="${SOURCE_PREFIX}Archives_${II}_Name"
+        ARCHIVE_LANGUAGE="${SOURCE_PREFIX}Archives_${II}_Language"
+        ARCHIVE_LANGUAGE_CODE="${SOURCE_PREFIX}Archives_${II}_Language_Code"
         ARCHIVE_COUNT="${SOURCE_PREFIX}Archives_${II}_Count"
         ARCHIVE_CONTENT="${SOURCE_PREFIX}Archives_${II}_Content"
     done
@@ -844,8 +852,8 @@ function marsh_get_files {  # marsh_get_files source dest force
 }
 
 # builds an archive of directory contents, sorted by descending date
-function marsh_build_archive {  # marsh_build_archive encoding target_dir dest_file dest_title content_length count #types[@] types[@] #excluded_states[@] excluded_states[@]
-    local ENCODING TARGET_DIR DEST DEST_SUB_PREFIX DEST_TITLE CONTENT COUNT NUM_TYPES TYPES NUM_EXCLUDED_STATES EXCLUDED_STATES
+function marsh_build_archive {  # marsh_build_archive encoding target_dir dest_file dest_title language langcode content_length count #types[@] types[@] #excluded_states[@] excluded_states[@]
+    local ENCODING TARGET_DIR DEST DEST_SUB_PREFIX DEST_TITLE LANGUAGE LANGCODE CONTENT COUNT NUM_TYPES TYPES NUM_EXCLUDED_STATES EXCLUDED_STATES
     local VALID DOCUMENTS DOCUMENTS_MAX DOCUMENT_META_PREFIX DOCUMENT_META DOCUMENT_META_VARS
     local DOCUMENT TITLE DATE DATE_PRETTY LANGCODE STATE EXCLUDE DEST_SUB URI ABSPATH
 
@@ -857,14 +865,16 @@ function marsh_build_archive {  # marsh_build_archive encoding target_dir dest_f
     DEST="${TARGET_DIR}/${DEST}"
     DEST_SUB_PREFIX="${DEST}.${MARSH_UID}.subdocuments"
     DEST_TITLE="${3:-}"
-    CONTENT="${4:-}"
+    LANGUAGE="${4:-}"
+    LANGCODE="${5:-}"
+    CONTENT="${6:-}"
     CONTENT_VALID=('excerpt' 'none' '')
     if ! marsh_in_array "${CONTENT%%:*}" "${CONTENT_VALID[@]}"; then
         echo "Invalid archive content type: ${CONTENT%%:*}" >&2
         return 1
     fi
-    COUNT="${5:-}"
-    shift 5
+    COUNT="${7:-}"
+    shift 7
     NUM_TYPES="${1:-0}"
     shift 1
     TYPES=()
@@ -894,8 +904,8 @@ function marsh_build_archive {  # marsh_build_archive encoding target_dir dest_f
     fi
     echo "Date: $(date -u '+%Y-%m-%d %H:%M:%S')" >> "${DEST}"
     echo "Title: ${DEST_TITLE}" >> "${DEST}"
-    echo "Language: English" >> "${DEST}"
-    echo "Language_Code: en" >> "${DEST}"
+    echo "Language: ${LANGUAGE}" >> "${DEST}"
+    echo "Language_Code: ${LANGCODE}" >> "${DEST}"
     echo "---" >> "${DEST}"
     echo "" >> "${DEST}"
     if [[ "${ENCODING}" == "html" ]]; then
@@ -2480,6 +2490,8 @@ function marsh_cli {
                                     "${MARSH_CONFIG_PATH}/${TARGET_PATH}" \
                                     "${TARGET_ARCHIVES[$I]}" \
                                     "${TARGET_ARCHIVES_NAME[$I]:-$TARGET_NAME}" \
+                                    "${TARGET_ARCHIVES_LANGUAGE[$I]:-}" \
+                                    "${TARGET_ARCHIVES_LANGUAGE_CODE[$I]:-}" \
                                     "${TARGET_ARCHIVES_CONTENT[$I]}" \
                                     "${TARGET_ARCHIVES_COUNT[$I]}" \
                                     "${#TARGET_ARCHIVE_TYPES[@]}" \

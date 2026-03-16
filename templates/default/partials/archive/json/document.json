@@ -4,12 +4,12 @@
       "date_published": "{{ document.date | date:rfc3339 }}",
       "date_modified": "{{ document.date | date:rfc3339 }}",
       "_rights": {
-        "copyright": "Copyright {{ document.copyright | escape:entities }}"
+        "copyright": "Copyright {{ document.copyright | decode:entities }}"
       },
-      "title": "{{ document.title | escape:entities }}",
+      "title": "{{ document.title | decode:entities }}",
       "author": {
-        "name": "{{ document.authors | escape:entities }}"
+        "name": "{{ document.authors | decode:entities }}"
       },
-      "summary": "{{ document | excerpt:100:1 | escape:entities | escape:json-val }}",
+      "summary": "{{ document | excerpt:100:1 | decode:entities | escape:json-val }}",
       "content_html": "{{ document | escape:json-val }}"
     }{{ util.json-separator }}

@@ -350,6 +350,16 @@ function marsh_text_filter {  # marsh_text_filter filter [filter...]
     IFS="${OIFS}"
     local MAX_CHARS MAX_PARAS MD_EXT_REGEX PROTOCOL_SEP WRAP_START WRAP_END
     case "${FILTER}" in
+        append:*)
+            APPEND="${OPTIONS[0]:-}"
+            APPEND="${APPEND//\\/\\\\}"
+            awk -v APPEND="${APPEND}" '{ print $0 APPEND }'
+            ;;
+        append-type:multiline:*)
+            APPEND="${OPTIONS[1]:-}"
+            APPEND="${APPEND//\\/\\\\}"
+            awk -v APPEND="${APPEND}" '{ print } END { print APPEND }'
+            ;;
         date:rfc2822)
             if [[ "${SYS_NAME}" =~ bsd|darwin ]]; then
                 sed -E -e 's/^([0-9]{4}-[0-9]{2}-[0-9]{2})$/\1 00:00:00/' | TZ=UTC date -jf '%Y-%m-%d %H:%M:%S' -R "$(</dev/stdin)" 2>/dev/null
@@ -522,6 +532,16 @@ function marsh_text_filter {  # marsh_text_filter filter [filter...]
             # ':a;s/<[^>]*>//g;/</N;//ba' strips html tags and works across multiple lines (better version of 's/<[^>]*>//g')
             # '/./,/^$/!d' deletes blank lines at start and collapses consecutive blank lines into one, leaving up to one blank line at end
             sed -e ':a' -e 's/<[^>]*>//g' -e '/</N' -e '//ba' | sed '/./,/^$/!d' | marsh_text_filter decode:entities
+            ;;
+        prepend:*)
+            PREPEND="${OPTIONS[0]:-}"
+            PREPEND="${PREPEND//\\/\\\\}"
+            awk -v PREPEND="${PREPEND}" '{ print PREPEND $0 }'
+            ;;
+        prepend-type:multiline:*)
+            PREPEND="${OPTIONS[1]:-}"
+            PREPEND="${PREPEND//\\/\\\\}"
+            awk -v PREPEND="${PREPEND}" 'NR==1 { print PREPEND } { print }'
             ;;
         slug)
             head -n 1 | sed -E -e 's/[ _]+/-/g' -e 's/[^-a-zA-Z0-9.]//g' -e 's/(^-+)|(-+$)//' | awk '{ print tolower($0) }'

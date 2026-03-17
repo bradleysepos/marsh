@@ -389,7 +389,7 @@ function marsh_text_filter {  # marsh_text_filter filter [filter...]
         excerpt:*)
             MAX_CHARS="${OPTIONS[0]:-999999}"
             MAX_PARAS="${OPTIONS[1]:-999999}"
-            marsh_text_filter headings:remove plaintext whitespace:trim newlines:reduce:2 | awk -v RS="\n\n" 'NR<='${MAX_PARAS}' { print $0 }' | marsh_text_filter newlines:tospaces | cut -c1-"${MAX_CHARS}"
+            marsh_text_filter headings:remove plaintext newlines:trim whitespace:trim newlines:reduce:2 | awk -v RS="\n\n" 'NR<='${MAX_PARAS}' { print $0 }' | marsh_text_filter newlines:tospaces | cut -c1-"${MAX_CHARS}"
             ;;
         excerpt)
             marsh_text_filter excerpt:300:2
@@ -527,7 +527,7 @@ function marsh_text_filter {  # marsh_text_filter filter [filter...]
             head -n 1 | sed -E -e 's/[ _]+/-/g' -e 's/[^-a-zA-Z0-9.]//g' -e 's/(^-+)|(-+$)//' | awk '{ print tolower($0) }'
             ;;
         whitespace:trim)
-            marsh_text_filter newlines:trim | sed -E -e 's/^[[:space:]]+//' -e 's/[[:space:]]+$//'
+            sed -E -e 's/^[ \t]+//' -e 's/[ \t]+$//'
             ;;
         wrap:*)
             # TODO: support start and end wrap tags, e.g. wrap:<div>:</div>

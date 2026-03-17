@@ -593,8 +593,11 @@ function marsh_test {
             ;;
         marsh_text_filter:46)
             TEST_NAME+=":whitespace_trim"
-            TEST=$(echo $'\n\n\n\n'"           # Heading 1"$'\n\n\n\n'"Paragraph"$'\t\n\n\n\n'"    " | marsh_text_filter whitespace:trim)
-            EXPECTED="# Heading 1"$'\n\n\n\n'"Paragraph"
+            # Add a delimiter after filters have been appliedto preserve trailing newlines
+            # in the test variable, and afterward remove it using parameter expansion
+            TEST=$(printf '%s' $'\n\n\n\n'"           # Heading 1"$'\n\n\n\n'"Paragraph"$'\t\n\n\n\n'"    " | marsh_text_filter whitespace:trim; printf '\001')
+            TEST="${TEST%$'\001'}"
+            EXPECTED=$'\n\n\n\n'"# Heading 1"$'\n\n\n\n'"Paragraph"$'\n\n\n\n'""
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi

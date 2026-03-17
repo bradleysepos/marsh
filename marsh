@@ -1312,7 +1312,15 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
         for (( TAG_INDEX=0; TAG_INDEX<${#TAG_BODY}; TAG_INDEX++ )); do
             TAG_CHAR="${TAG_BODY:${TAG_INDEX}:1}"
             if [[ "${TAG_ESCAPE}" == true ]]; then
-                TAG_CURRENT+="${TAG_CHAR}"
+                case "${TAG_CHAR}" in
+                    '\'|'|'|'"'|"'")
+                        TAG_CURRENT+="${TAG_CHAR}"
+                        ;;
+                    *)
+                        TAG_CURRENT+='\'
+                        TAG_CURRENT+="${TAG_CHAR}"
+                        ;;
+                esac
                 TAG_ESCAPE=false
             elif [[ "${TAG_CHAR}" == '\' ]]; then
                 TAG_ESCAPE=true

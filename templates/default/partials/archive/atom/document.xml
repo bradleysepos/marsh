@@ -6,7 +6,7 @@
         <rights>Copyright {{ document.copyright | decode:entities }}</rights>
         <title>{{ document.title | decode:entities }}</title>
         <author>
-            <name>{{ document.authors | decode:entities }}</name>
+            <name>{{ document.authors | email:remove-angle-addr | join-type:oxford | decode:entities }}</name>
         </author>
         <summary>{{ document | excerpt:100:1 | decode:entities }}</summary>
         <content type="html">

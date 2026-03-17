@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8" />
-    <meta name="author" content="{{ document.authors }}" />
+    <meta name="author" content="{{ document.authors | email:remove-angle-addr | join-type:oxford }}" />
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ document.project }} &mdash; {{ document.title }}</title>
 </head>

@@ -1388,7 +1388,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
 
         # loop over tags
         for I in "${!TAGS[@]}"; do
-            TAG_ESC=$(echo "${TAGS[$I]}" | sed 's/[][/.|$(){}?+*^]/\\&/g')
+            TAG_ESC=$(printf '%s' "${TAGS[$I]}" | sed -e 's/[\\]/\\\\/g' -e 's/[][/.|$(){}?+*^]/\\&/g')
             parse_template_tag "${TAGS[$I]}" || return 1
             TAG_VAR=""
             TAG_TYPE=""

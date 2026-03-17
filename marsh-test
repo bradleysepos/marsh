@@ -635,6 +635,14 @@ function marsh_test {
             fi
             ;;
         marsh_text_filter:51)
+            TEST_NAME+=":wrap_type_multiline"
+            TEST=$(echo "Some text"$'\n\n'"More text" | marsh_text_filter wrap-type:multiline:before:after)
+            EXPECTED="before"$'\n\n'"Some text"$'\n\n'"More text"$'\n\n'"after"
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_text_filter:52)
             TEST_NAME+=":wrap_type_special_comment"
             TEST=$(echo "Some text"$'\n\n'"<p>Some HTML</p>" | marsh_text_filter wrap-type:special-comment:div.wrapper)
             EXPECTED="<!-- div.wrapper -->"$'\n\n'"Some text"$'\n\n'"<p>Some HTML</p>"$'\n\n'"<!-- /div.wrapper -->"
@@ -642,7 +650,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_filter:52)
+        marsh_text_filter:53)
             TEST_NAME+=":multiple"
             TEST=$(echo $'\n\n\n\n'"Some text"$'\n'"&#9829;" | marsh_text_filter newlines:trim newlines:tospaces decode:entities wrap:\")
             EXPECTED="\"Some text ♥\""
@@ -650,7 +658,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_filter:53)
+        marsh_text_filter:54)
             TEST_NAME+=":multiple"
             TEST=$(echo "First item"$'\n'"Second item"$'\n'"Third item" | marsh_text_filter items:slice:1 escape:nbsp wrap:\" join-type:oxford)
             EXPECTED="\"First&nbsp;item\", \"Second&nbsp;item\", and \"Third&nbsp;item\""

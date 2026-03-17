@@ -536,6 +536,15 @@ function marsh_text_filter {  # marsh_text_filter filter [filter...]
             WRAP_END="${WRAP_END//\\/\\\\}"
             awk -v WRAP_START="${WRAP_START}" -v WRAP_END="${WRAP_END}" '{ print WRAP_START $0 WRAP_END }'
             ;;
+        wrap-type:multiline:*)
+            WRAP_START="${OPTIONS[1]:-}"
+            WRAP_END="${OPTIONS[2]:-${WRAP_START}}"
+            WRAP_START="${WRAP_START//\\/\\\\}"
+            WRAP_END="${WRAP_END//\\/\\\\}"
+            if [[ "${WRAP_START}" != "" ]]; then
+                awk -v WRAP_START="${WRAP_START}" -v WRAP_END="${WRAP_END}" 'NR==1 { print WRAP_START; printf "\n" } { print $0 } END { printf "\n"; print WRAP_END }'
+            fi
+            ;;
         wrap-type:special-comment:*)
             WRAP_START="${OPTIONS[1]:-}"
             WRAP_END="${WRAP_START}"

@@ -310,13 +310,45 @@ function marsh_text_filter {  # marsh_text_filter filter [filter...]
         done
         return 0
     fi
-    local OPTIONS MAX_CHARS MAX_PARAS MD_EXT_REGEX PROTOCOL_SEP WRAP_START WRAP_END
-    OPTIONS="${FILTER#*:}"
-    if [[ "${OPTIONS}" == "${FILTER}" ]]; then
-        OPTIONS=""
+    local OPTIONS OPTIONS_STRING OPTION_CURRENT OPTION_INDEX OPTION_CHAR OPTION_NEXT
+    OPTIONS=()
+    OPTIONS_STRING="${FILTER#*:}"
+    if [[ "${OPTIONS_STRING}" == "${FILTER}" ]]; then
+        :
+    elif [[ "${OPTIONS_STRING}" != *\\* ]]; then
+        OPTIONS=(${OPTIONS_STRING//:/$'\n'})
+    else
+        OPTION_CURRENT=""
+        OPTION_INDEX=0
+        while [[ "${OPTION_INDEX}" -lt "${#OPTIONS_STRING}" ]]; do
+            OPTION_CHAR="${OPTIONS_STRING:${OPTION_INDEX}:1}"
+            if [[ "${OPTION_CHAR}" == '\' ]]; then
+                OPTION_INDEX=$((OPTION_INDEX + 1))
+                if [[ "${OPTION_INDEX}" -ge "${#OPTIONS_STRING}" ]]; then
+                    OPTION_CURRENT+='\'
+                    break
+                fi
+                OPTION_NEXT="${OPTIONS_STRING:${OPTION_INDEX}:1}"
+                if [[ "${OPTION_NEXT}" == ':' ]]; then
+                    OPTION_CURRENT+=':'
+                elif [[ "${OPTION_NEXT}" == '\' ]]; then
+                    OPTION_CURRENT+='\'
+                else
+                    OPTION_CURRENT+='\'
+                    OPTION_CURRENT+="${OPTION_NEXT}"
+                fi
+            elif [[ "${OPTION_CHAR}" == ':' ]]; then
+                OPTIONS+=("${OPTION_CURRENT}")
+                OPTION_CURRENT=""
+            else
+                OPTION_CURRENT+="${OPTION_CHAR}"
+            fi
+            OPTION_INDEX=$((OPTION_INDEX + 1))
+        done
+        OPTIONS+=("${OPTION_CURRENT}")
     fi
-    OPTIONS=(${OPTIONS//:/$'\n'})
     IFS="${OIFS}"
+    local MAX_CHARS MAX_PARAS MD_EXT_REGEX PROTOCOL_SEP WRAP_START WRAP_END
     case "${FILTER}" in
         date:rfc2822)
             if [[ "${SYS_NAME}" =~ bsd|darwin ]]; then
@@ -415,6 +447,9 @@ function marsh_text_filter {  # marsh_text_filter filter [filter...]
             DELIM1="${OPTIONS[0]:-}"
             DELIM2="${OPTIONS[1]:-${DELIM1}}"
             DELIM3="${OPTIONS[2]:-${DELIM2}}"
+            DELIM1="${DELIM1//\\/\\\\}"
+            DELIM2="${DELIM2//\\/\\\\}"
+            DELIM3="${DELIM3//\\/\\\\}"
             awk -v RS='\n' -v DELIM1="${DELIM1}" -v DELIM2="${DELIM2}" -v DELIM3="${DELIM3}" '
             {
                 lines[NR] = $0
@@ -495,11 +530,15 @@ function marsh_text_filter {  # marsh_text_filter filter [filter...]
             # TODO: support start and end wrap tags, e.g. wrap:<div>:</div>
             WRAP_START="${OPTIONS[0]:-}"
             WRAP_END="${OPTIONS[1]:-${WRAP_START}}"
+            WRAP_START="${WRAP_START//\\/\\\\}"
+            WRAP_END="${WRAP_END//\\/\\\\}"
             awk -v WRAP_START="${WRAP_START}" -v WRAP_END="${WRAP_END}" '{ print WRAP_START $0 WRAP_END }'
             ;;
         wrap-type:special-comment:*)
             WRAP_START="${OPTIONS[1]:-}"
             WRAP_END="${WRAP_START}"
+            WRAP_START="${WRAP_START//\\/\\\\}"
+            WRAP_END="${WRAP_END//\\/\\\\}"
             if [[ "${WRAP_START}" != "" ]]; then
                 awk -v WRAP_START="<!-- ${WRAP_START} -->" -v WRAP_END="<!-- /${WRAP_END} -->" 'NR==1 { print WRAP_START; printf "\n" } { print $0 } END { printf "\n"; print WRAP_END }'
             fi

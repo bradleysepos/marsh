@@ -432,6 +432,14 @@ function marsh_test {
             fi
             ;;
         marsh_text_filter:26)
+            TEST_NAME+=":join_type_oxford"
+            TEST=$(echo "I am foo"$'\n'"I am bar" | marsh_text_filter join-type:oxford)
+            EXPECTED="I am foo and I am bar"
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_text_filter:27)
             TEST_NAME+=":links_replace_ext"
             TEST=$(echo "[foo](foo.markdown) [foo](foo.md) [foo](foo.text) [foo](foo.md \"title\") [![image](image.jpg)](imagepage.md) [![image](image.jpg) \"title\"](imagepage.md) [![image](image.jpg)](imagepage.md \"title\") [![image](image.jpg) \"title\"](imagepage.md \"title\")"$'\n\n'"[1]: reference1.md"$'\n'"[2]: reference2.md \"title\""$'\n'"[3]: reference3.md#anchor \"title\""$'\n'"[4label]: reference4.md?qs=qs&qs2=qs2#anchor 'title'"$'\n'"[label5]: <reference5.md?qs=qs&qs2=qs2#anchor> (title)" | marsh_text_filter links:replace-ext:md,markdown:html)
             EXPECTED="[foo](foo.html) [foo](foo.html) [foo](foo.text) [foo](foo.html \"title\") [![image](image.jpg)](imagepage.html) [![image](image.jpg) \"title\"](imagepage.html) [![image](image.jpg)](imagepage.html \"title\") [![image](image.jpg) \"title\"](imagepage.html \"title\")"$'\n\n'"[1]: reference1.html"$'\n'"[2]: reference2.html \"title\""$'\n'"[3]: reference3.html#anchor \"title\""$'\n'"[4label]: reference4.html?qs=qs&qs2=qs2#anchor 'title'"$'\n'"[label5]: <reference5.html?qs=qs&qs2=qs2#anchor> (title)"
@@ -439,7 +447,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_filter:27)
+        marsh_text_filter:28)
             TEST_NAME+=":links_replace_ext"
             TEST=$(echo "[foo](foo.markdown) [foo](foo.md) [foo](foo.text)" | marsh_text_filter links:replace-ext:md,markdown)
             EXPECTED="[foo](foo) [foo](foo) [foo](foo.text)"
@@ -447,7 +455,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_filter:28)
+        marsh_text_filter:29)
             TEST_NAME+=":newlines_reduce"
             TEST=$(echo "# Heading 1"$'\n\n\n\n\n\n'"Paragraph" | marsh_text_filter newlines:reduce:3)
             EXPECTED="# Heading 1"$'\n\n\n'"Paragraph"
@@ -455,7 +463,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_filter:29)
+        marsh_text_filter:30)
             TEST_NAME+=":newlines_remove"
             TEST=$(echo "# Heading 1"$'\n\n\n\n'"Paragraph" | marsh_text_filter newlines:remove)
             EXPECTED="# Heading 1Paragraph"
@@ -463,7 +471,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_filter:30)
+        marsh_text_filter:31)
             TEST_NAME+=":newlines_tospaces"
             TEST=$(echo "# Heading 1"$'\n\n\n\n'"Paragraph" | marsh_text_filter newlines:tospaces)
             EXPECTED="# Heading 1    Paragraph"
@@ -471,7 +479,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_filter:31)
+        marsh_text_filter:32)
             TEST_NAME+=":newlines_trim"
             TEST=$(echo $'\n\n\n\n'"# Heading 1"$'\n\n\n\n'"Paragraph"$'\n\n\n\n' | marsh_text_filter newlines:trim)
             EXPECTED="# Heading 1"$'\n\n\n\n'"Paragraph"
@@ -479,7 +487,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_filter:32)
+        marsh_text_filter:33)
             TEST_NAME+=":plaintext"
             TEST=$(echo "<div><p>Some HTML content and entities to decode: &lt; &gt; &amp; &#34; &#165; &#9829;<br><br /></p></div>" | marsh_text_filter plaintext)
             EXPECTED="Some HTML content and entities to decode: < > & \" ¥ ♥"
@@ -487,7 +495,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_filter:33)
+        marsh_text_filter:34)
             TEST_NAME+=":slug"
             TEST=$(echo "Title of something" | marsh_text_filter slug)
             EXPECTED="title-of-something"
@@ -495,7 +503,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_filter:34)
+        marsh_text_filter:35)
             TEST_NAME+=":whitespace_trim"
             TEST=$(echo $'\n\n\n\n'"           # Heading 1"$'\n\n\n\n'"Paragraph"$'\t\n\n\n\n'"    " | marsh_text_filter whitespace:trim)
             EXPECTED="# Heading 1"$'\n\n\n\n'"Paragraph"
@@ -503,7 +511,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_filter:35)
+        marsh_text_filter:36)
             TEST_NAME+=":wrap"
             TEST=$(echo "Some text"$'\n\n'"<p>Some HTML</p>" | marsh_text_filter wrap:special-comment:div.wrapper)
             EXPECTED="<!-- div.wrapper -->"$'\n\n'"Some text"$'\n\n'"<p>Some HTML</p>"$'\n\n'"<!-- /div.wrapper -->"
@@ -511,7 +519,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_filter:36)
+        marsh_text_filter:37)
             TEST_NAME+=":wrap"
             TEST=$(echo "Some text" | marsh_text_filter wrap:\")
             EXPECTED="\"Some text\""
@@ -519,7 +527,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_filter:37)
+        marsh_text_filter:38)
             TEST_NAME+=":wrap"
             TEST=$(echo "Some text" | marsh_text_filter wrap:\":\!\")
             EXPECTED="\"Some text!\""
@@ -527,7 +535,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_filter:38)
+        marsh_text_filter:39)
             TEST_NAME+=":multiple"
             TEST=$(echo $'\n\n\n\n'"Some text"$'\n'"&#9829;" | marsh_text_filter newlines:trim newlines:tospaces decode:entities wrap:\")
             EXPECTED="\"Some text ♥\""

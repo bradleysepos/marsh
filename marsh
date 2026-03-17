@@ -416,6 +416,9 @@ function marsh_text_filter {  # marsh_text_filter filter [filter...]
         join)
             marsh_text_filter join:
             ;;
+        join-type:oxford)
+            marsh_text_filter 'join:, : and :, and '
+            ;;
         links:replace-ext:*)
             # convert relative links with markdown file extensions to html
             # examples:

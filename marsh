@@ -376,6 +376,33 @@ function marsh_text_filter {  # marsh_text_filter filter [filter...]
         headings:remove)
             sed -E -e 'N;s/^(.+)\n[=]+$/# \1/' | sed -E -e 'N;s/^(.+)\n[-]+$/## \1/' | sed -E -e '/^[#]+ .+$/d' | sed -E -e 's/<(h1|h2|h3|h4|h5|h6)[^>]*>.*<\/(h1|h2|h3|h4|h5|h6)>//g' | marsh_text_filter newlines:trim
             ;;
+        items:count)
+            awk -v RS='\n' 'END { print NR }'
+            ;;
+        items:first)
+            awk -v RS='\n' 'NR==1 { print; exit }'
+            ;;
+        items:last)
+            awk -v RS='\n' 'END { print }'
+            ;;
+        items:randomize)
+            shuf
+            ;;
+        items:slice:*)
+            START="${OPTIONS[1]:-0}"
+            END="${OPTIONS[2]:-0}"
+            if [[ "${END}" -gt 0 ]]; then
+                awk -v RS='\n' 'NR>='"${START}"' && NR<='"${END}"' { print }'
+            else
+                awk -v RS='\n' 'NR>='"${START}"' { print }'
+            fi
+            ;;
+        items:sort)
+            sort
+            ;;
+        items:unique)
+            awk -v RS='\n' '!seen[$0]++'
+            ;;
         join:*)
             # joins lines using one or more delimiters
             # if one delimiters is provided, it is used to join all lines

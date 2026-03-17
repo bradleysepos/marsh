@@ -577,24 +577,24 @@ function marsh_test {
             ;;
         marsh_text_filter:44)
             TEST_NAME+=":wrap"
-            TEST=$(echo "Some text"$'\n\n'"<p>Some HTML</p>" | marsh_text_filter wrap:special-comment:div.wrapper)
-            EXPECTED="<!-- div.wrapper -->"$'\n\n'"Some text"$'\n\n'"<p>Some HTML</p>"$'\n\n'"<!-- /div.wrapper -->"
-            if [[ "${TEST}" == "${EXPECTED}" ]]; then
-                RES="[PASS]"
-            fi
-            ;;
-        marsh_text_filter:45)
-            TEST_NAME+=":wrap"
             TEST=$(echo "Some text" | marsh_text_filter wrap:\")
             EXPECTED="\"Some text\""
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_filter:46)
+        marsh_text_filter:45)
             TEST_NAME+=":wrap"
             TEST=$(echo "Some text" | marsh_text_filter wrap:\":\!\")
             EXPECTED="\"Some text!\""
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_text_filter:46)
+            TEST_NAME+=":wrap_type_special_comment"
+            TEST=$(echo "Some text"$'\n\n'"<p>Some HTML</p>" | marsh_text_filter wrap-type:special-comment:div.wrapper)
+            EXPECTED="<!-- div.wrapper -->"$'\n\n'"Some text"$'\n\n'"<p>Some HTML</p>"$'\n\n'"<!-- /div.wrapper -->"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi

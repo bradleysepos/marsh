@@ -1041,21 +1041,6 @@ function marsh_build_advanced_nav {  # marsh_build_advanced_nav target_dir navig
 
 # builds a template and applies it to a document
 function marsh_build_template {  # marsh_build_template dest_dir target_dir document templates_dir template #template_overrides[@] template_overrides[@]
-    function process_authors {  # process_authors dest_array source_array
-        local DEST_ARRAY SOURCE_ARRAY ITEM
-        DEST_ARRAY="${1:-}"
-        [[ "${DEST_ARRAY}" == "" ]] && return 1
-        SOURCE_ARRAY="${2:-}"
-        [[ "${SOURCE_ARRAY}" == "" ]] && return 1
-        echo "${DEST_ARRAY}=()"
-        SOURCE_ARRAY="${SOURCE_ARRAY}[@]"
-        for ITEM in "${!SOURCE_ARRAY}"; do
-            ITEM=$(echo "${ITEM}" | sed -E -e 's/[ ]+<[^>]+>//g' -e 's/[ ]/\&nbsp\;/g')
-            echo "${DEST_ARRAY}+=(\"${ITEM}\")"
-        done
-        return 0
-    }
-
     function process_conditionals {  # process_conditionals file tag list[@]
         local FILE TAG LIST_SEP LIST_RAW
         local FILE_TEMP
@@ -1173,8 +1158,8 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                 TAG_TYPE="file"
                 ;;
             document.authors)
-                TAG_VAR="${PREFIX}AUTHORS"
-                TAG_TYPE="string"
+                TAG_VAR="${PREFIX}Authors_"
+                TAG_TYPE="array"
                 ;;
             document.copyright)
                 TAG_VAR="${PREFIX}Copyright"
@@ -1372,12 +1357,12 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
     local TEMPLATE_STYLES TEMPLATE_SCRIPTS TEMPLATE_NAV_TEMPLATE TEMPLATE_NOTICE_TEMPLATE TEMPLATE_ADVNAV
     local TEMPLATE_BODY_ESC TEMPLATE_DOCUMENT_ESC TEMPLATE_HEADER_ESC TEMPLATE_FOOTER_ESC
     local TEMPLATE_NAV_ESC TEMPLATE_NOTICE_ESC TEMPLATE_SCRIPTS_ESC TEMPLATE_STYLES_ESC TEMPLATE_ADVNAV_ESC
-    local INDEX DOCUMENT_AUTHORS DOCUMENT_META DOCUMENT_META_VARS
+    local INDEX DOCUMENT_META DOCUMENT_META_VARS
     local SUBDOCUMENTS NUM_SUBDOCUMENTS
-    local SUBDOCUMENT SUBDOCUMENT_AUTHORS SUBDOCUMENT_CONTENT SUBDOCUMENT_META SUBDOCUMENT_META_VARS
+    local SUBDOCUMENT SUBDOCUMENT_CONTENT SUBDOCUMENT_META SUBDOCUMENT_META_VARS
     local SUBDOCUMENT_RENDER SUBDOCUMENT_TEMPLATE SUBDOCUMENT_CONTENT_ESC
     local TEXT_FILTER
-    local DOCUMENT_Authors DOCUMENT_State SUBDOCUMENT_Authors
+    local DOCUMENT_State
     local PARTIAL_CONDITIONAL_TAGS
     local NAV NAV_DIR NAV_NAME NAV_RELPATH
 
@@ -1442,12 +1427,6 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
         DOCUMENT_META_VARS=$(echo "${DOCUMENT_META}" | sed -E -e 's/^([^=]+)=.*/\1/')
         eval "${DOCUMENT_META}"
     fi
-
-    # authors
-    DOCUMENT_AUTHORS=()
-    eval $(marsh_flat_to_array "DOCUMENT_Authors" "DOCUMENT_Authors_")
-    eval $(process_authors "DOCUMENT_AUTHORS" "DOCUMENT_Authors")
-    DOCUMENT_AUTHORS=$(printf '%s\n' "${DOCUMENT_AUTHORS[@]}" | marsh_text_filter 'join:, : and :, and ')
 
     # state
     eval $(marsh_flat_to_array "DOCUMENT_State" "DOCUMENT_State_")
@@ -1656,11 +1635,6 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                 fi
                 cp "${SUBDOCUMENT}" "${SUBDOCUMENT}.document"
                 SUBDOCUMENT_CONTENT="${SUBDOCUMENT}.document"
-                # authors
-                SUBDOCUMENT_AUTHORS=()
-                eval $(marsh_flat_to_array "SUBDOCUMENT_Authors" "SUBDOCUMENT_Authors_")
-                eval $(process_authors "SUBDOCUMENT_AUTHORS" "SUBDOCUMENT_Authors")
-                SUBDOCUMENT_AUTHORS=$(printf '%s\n' "${SUBDOCUMENT_AUTHORS[@]}" | marsh_text_filter 'join:, : and :, and ')
                 # state
                 eval $(marsh_flat_to_array "SUBDOCUMENT_State" "SUBDOCUMENT_State_")
                 SUBDOCUMENT_TEMPLATE=$(<"${SUBDOCUMENT}")

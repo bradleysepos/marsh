@@ -678,11 +678,19 @@ function marsh_text_filter {  # marsh_text_filter filter [filter...]
             ;;
         newlines:reduce:*)
             COUNT="${OPTIONS[1]:-2}"
-            SUB=""
-            for I in $(seq 1 "${COUNT}"); do
-                SUB+='\n'
-            done
-            sed -E -e ':a;N;$!ba;s/\n{'"$(( COUNT + 1 ))"',}/'"${SUB}"'/g'
+            awk -v COUNT="${COUNT}" '
+            {
+                if ($0 == "") {
+                    blank_lines++
+                    if (blank_lines < COUNT) {
+                        print
+                    }
+                } else {
+                    blank_lines = 0
+                    print
+                }
+            }
+            '
             ;;
         newlines:remove)
             tr -d '\n'

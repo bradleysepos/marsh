@@ -2237,7 +2237,7 @@ function marsh_cli {
     set -o pipefail
 
     # args with help
-    MARKDOWN_OPTIONS=(-1.0 +alphalist -autolink -cdata +definitionlist -divquote -dldiscount +dlextra -emphasis +ext +fencedcode +footnote +githubtags -header +html +image -latex +links -safelink +smarty +strikethrough +style +superscript +tables -tabstop -toc)
+    MARKDOWN_OPTIONS=(-1.0 +alphalist -autolink -cdata +definitionlist -divquote -dldiscount +dlextra +ext +fencedcode +footnote +githubtags -header +html +image -latex +links -safelink +smarty +strikethrough +style +superscript +tables -tabstop -toc)
     MARKDOWN_FILEEXT=('markdown' 'md' 'mkd' 'mkdn' 'mdown' 'mdtxt' 'mdtext' 'text')
     MARKDOWN_REWRITE_LINKS=true
 

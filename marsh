@@ -383,6 +383,9 @@ function marsh_text_filter {  # marsh_text_filter filter [filter...]
         escape:json-val)
             sed -e 's/"/\\"/g' | awk '(NR==1) { printf "%s", $0 } (NR>1) { printf "\\n%s", $0 }'
             ;;
+        escape:nbsp)
+            sed -e 's/ /\&nbsp;/g'
+            ;;
         excerpt:*)
             MAX_CHARS="${OPTIONS[0]:-999999}"
             MAX_PARAS="${OPTIONS[1]:-999999}"

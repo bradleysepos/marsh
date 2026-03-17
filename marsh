@@ -530,7 +530,6 @@ function marsh_text_filter {  # marsh_text_filter filter [filter...]
             sed -E -e 's/^[ \t]+//' -e 's/[ \t]+$//'
             ;;
         wrap:*)
-            # TODO: support start and end wrap tags, e.g. wrap:<div>:</div>
             WRAP_START="${OPTIONS[0]:-}"
             WRAP_END="${OPTIONS[1]:-${WRAP_START}}"
             WRAP_START="${WRAP_START//\\/\\\\}"

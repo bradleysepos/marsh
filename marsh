@@ -298,10 +298,10 @@ function marsh_flat_to_array {  # marsh_flat_to_array array_name variable_prefix
 # transforms a string
 function marsh_text_filter {  # marsh_text_filter filter [filter...]
     local FILTER PIPE_STATUS
+    FILTER="${1:-}"
     OIFS="${IFS}"
     IFS=$'\n'
     if [[ "${#@}" -gt 1 ]]; then
-        FILTER="${1:-}"
         shift 1
         marsh_text_filter "${FILTER}" | marsh_text_filter "${@}"
         PIPE_STATUS=(${PIPESTATUS[@]})
@@ -311,7 +311,6 @@ function marsh_text_filter {  # marsh_text_filter filter [filter...]
         return 0
     fi
     local OPTIONS MAX_CHARS MAX_PARAS MD_EXT_REGEX PROTOCOL_SEP WRAP_START WRAP_END
-    FILTER="${1:-}"
     OPTIONS="${FILTER#*:}"
     if [[ "${OPTIONS}" == "${FILTER}" ]]; then
         OPTIONS=""

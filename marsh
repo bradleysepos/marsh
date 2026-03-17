@@ -295,6 +295,171 @@ function marsh_flat_to_array {  # marsh_flat_to_array array_name variable_prefix
     return 0
 }
 
+# transforms headings without relying on GNU sed multiline behavior
+function marsh_text_filter_headings {  # marsh_text_filter_headings action
+    local ACTION="${1:-}"
+    awk -v ACTION="${ACTION}" '
+    BEGIN {
+        prefix[1] = "# "
+        prefix[2] = "## "
+        prefix[3] = "### "
+        prefix[4] = "#### "
+        prefix[5] = "##### "
+        prefix[6] = "###### "
+    }
+
+    function remove_html_level(line, level, pattern) {
+        pattern = "<h" level "[^>]*>[^<]*</h" level ">"
+        while (match(line, pattern)) {
+            line = substr(line, 1, RSTART - 1) substr(line, RSTART + RLENGTH)
+        }
+        return line
+    }
+
+    function remove_all_html_headings(line, level) {
+        for (level = 1; level <= 6; level++) {
+            line = remove_html_level(line, level)
+        }
+        return line
+    }
+
+    function rewrite_html_open_tags(line, from, to, tag, open_tag, attrs) {
+        tag = "<h" from "[^>]*>"
+        while (match(line, tag)) {
+            open_tag = substr(line, RSTART, RLENGTH)
+            attrs = substr(open_tag, 4, length(open_tag) - 4)
+            line = substr(line, 1, RSTART - 1) "<h" to attrs ">" substr(line, RSTART + RLENGTH)
+        }
+        return line
+    }
+
+    function rewrite_html_close_tags(line, from, to, tag) {
+        tag = "</h" from ">"
+        while (match(line, tag)) {
+            line = substr(line, 1, RSTART - 1) "</h" to ">" substr(line, RSTART + RLENGTH)
+        }
+        return line
+    }
+
+    function rewrite_html_strong_tags(line, level, open_tag, attrs) {
+        level = 6
+        while (match(line, "<h" level "[^>]*>")) {
+            open_tag = substr(line, RSTART, RLENGTH)
+            attrs = substr(open_tag, 4, length(open_tag) - 4)
+            line = substr(line, 1, RSTART - 1) "<strong" attrs ">" substr(line, RSTART + RLENGTH)
+        }
+        while (match(line, "</h" level ">")) {
+            line = substr(line, 1, RSTART - 1) "</strong>" substr(line, RSTART + RLENGTH)
+        }
+        return line
+    }
+
+    function transform_markdown(line, hashes, text, level, split_pos) {
+        if (substr(line, 1, 1) != "#") {
+            return line
+        }
+        if (match(line, /^#+ /)) {
+            split_pos = RLENGTH
+            hashes = substr(line, 1, split_pos - 1)
+            text = substr(line, split_pos + 1)
+            level = length(hashes)
+            if (ACTION == "push") {
+                level++
+                if (level == 7) {
+                    return "**" text "**"
+                }
+                return prefix[level] text
+            }
+            if (ACTION == "shift") {
+                if (level == 1) {
+                    return ""
+                }
+                return prefix[level - 1] text
+            }
+            if (ACTION == "remove") {
+                return ""
+            }
+        }
+        return line
+    }
+
+    function transform_html(line) {
+        if (index(line, "<h") == 0) {
+            return line
+        }
+        if (ACTION == "push") {
+            line = rewrite_html_strong_tags(line)
+            line = rewrite_html_open_tags(line, 5, 6)
+            line = rewrite_html_close_tags(line, 5, 6)
+            line = rewrite_html_open_tags(line, 4, 5)
+            line = rewrite_html_close_tags(line, 4, 5)
+            line = rewrite_html_open_tags(line, 3, 4)
+            line = rewrite_html_close_tags(line, 3, 4)
+            line = rewrite_html_open_tags(line, 2, 3)
+            line = rewrite_html_close_tags(line, 2, 3)
+            line = rewrite_html_open_tags(line, 1, 2)
+            line = rewrite_html_close_tags(line, 1, 2)
+            return line
+        }
+        if (ACTION == "shift") {
+            line = remove_html_level(line, 1)
+            line = rewrite_html_open_tags(line, 2, 1)
+            line = rewrite_html_close_tags(line, 2, 1)
+            line = rewrite_html_open_tags(line, 3, 2)
+            line = rewrite_html_close_tags(line, 3, 2)
+            line = rewrite_html_open_tags(line, 4, 3)
+            line = rewrite_html_close_tags(line, 4, 3)
+            line = rewrite_html_open_tags(line, 5, 4)
+            line = rewrite_html_close_tags(line, 5, 4)
+            line = rewrite_html_open_tags(line, 6, 5)
+            line = rewrite_html_close_tags(line, 6, 5)
+            return line
+        }
+        if (ACTION == "remove") {
+            return remove_all_html_headings(line)
+        }
+        return line
+    }
+
+    function emit_line(line, transformed) {
+        if (substr(line, 1, 1) != "#" && index(line, "<h") == 0) {
+            print line
+            return
+        }
+        transformed = transform_markdown(line)
+        transformed = transform_html(transformed)
+        if (transformed == "" && line != "") {
+            return
+        }
+        print transformed
+    }
+
+    {
+        if (have_pending) {
+            if ($0 ~ /^=+$/) {
+                emit_line("# " pending)
+                have_pending = 0
+                next
+            }
+            if ($0 ~ /^-+$/) {
+                emit_line("## " pending)
+                have_pending = 0
+                next
+            }
+            emit_line(pending)
+        }
+        pending = $0
+        have_pending = 1
+    }
+
+    END {
+        if (have_pending) {
+            emit_line(pending)
+        }
+    }
+    '
+}
+
 # transforms a string
 function marsh_text_filter {  # marsh_text_filter filter [filter...]
     local FILTER PIPE_STATUS
@@ -412,13 +577,13 @@ function marsh_text_filter {  # marsh_text_filter filter [filter...]
             fi
             ;;
         headings:push)
-            sed -E -e 'N;s/^(.+)\n[=]+$/# \1/' | sed -E -e 'N;s/^(.+)\n[-]+$/## \1/' | sed -E -e 's/^([#]+ )/#\1/' -e 's/^####### (.+)$/**\1**/' | sed -E -e '/<\/?h[0-6][^>]*>/{s/<(\/)?h6/<\1strong/g' -e 's/<(\/)?h5/<\1h6/g' -e 's/<(\/)?h4/<\1h5/g' -e 's/<(\/)?h3/<\1h4/g' -e 's/<(\/)?h2/<\1h3/g' -e 's/<(\/)?h1/<\1h2/g' -e '}'
+            marsh_text_filter_headings push
             ;;
         headings:shift)
-            sed -E -e 'N;s/^(.+)\n[=]+$/# \1/' | sed -E -e 'N;s/^(.+)\n[-]+$/## \1/' | sed -E -e '/^# .+$/d' -e 's/^#([#]+ )/\1/' | sed -E -e '/<h1[^>]*>.*<\/h1>/s///g' | sed -E -e '/<\/?h[0-6][^>]*>/{s/<(\/*)h2/<\1h1/g' -e 's/<(\/*)h3/<\1h2/g' -e 's/<(\/*)h4/<\1h3/g' -e 's/<(\/*)h5/<\1h4/g' -e 's/<(\/*)h6/<\1h5/g' -e '}' | marsh_text_filter newlines:trim
+            marsh_text_filter_headings shift | marsh_text_filter newlines:trim
             ;;
         headings:remove)
-            sed -E -e 'N;s/^(.+)\n[=]+$/# \1/' | sed -E -e 'N;s/^(.+)\n[-]+$/## \1/' | sed -E -e '/^[#]+ .+$/d' | sed -E -e 's/<(h1|h2|h3|h4|h5|h6)[^>]*>.*<\/(h1|h2|h3|h4|h5|h6)>//g' | marsh_text_filter newlines:trim
+            marsh_text_filter_headings remove | marsh_text_filter newlines:trim
             ;;
         items:count)
             awk -v RS='\n' 'END { print NR }'

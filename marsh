@@ -701,9 +701,9 @@ function marsh_text_filter {  # marsh_text_filter filter [filter...]
             sed -e '/./,$!d'
             ;;
         plaintext)
-            # ':a;s/<[^>]*>//g;/</N;//ba' strips html tags and works across multiple lines (better version of 's/<[^>]*>//g')
+            # ':a;s/<[^>]*>//g;/</{;$!{N;ba;};}' strips html tags and works across multiple lines (better version of 's/<[^>]*>//g')
             # '/./,/^$/!d' deletes blank lines at start and collapses consecutive blank lines into one, leaving up to one blank line at end
-            sed -e ':a' -e 's/<[^>]*>//g' -e '/</N' -e '//ba' | sed '/./,/^$/!d' | marsh_text_filter decode:entities
+            sed -e ':a' -e 's/<[^>]*>//g' -e '/</{' -e '$!{N' -e 'ba' -e '}' -e '}' | sed '/./,/^$/!d' | marsh_text_filter decode:entities
             ;;
         prepend:*)
             PREPEND="${OPTIONS[0]:-}"

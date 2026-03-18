@@ -593,6 +593,40 @@ function marsh_text_filter {  # marsh_text_filter filter [filter...]
         items:first)
             awk -v RS='\n' 'NR==1 { print; exit }'
             ;;
+        items:json-array|items:json-array:*)
+            ITEM_KEY="${OPTIONS[1]:-}"
+            awk -v ITEM_KEY="${ITEM_KEY//\\/\\\\}" -v TAB=$'\t' '
+            function json_escape(value) {
+                gsub(/\\/, "\\\\", value)
+                gsub(/"/, "\\\"", value)
+                gsub(TAB, "\\t", value)
+                return value
+            }
+            BEGIN {
+                key_escaped = json_escape(ITEM_KEY)
+            }
+            {
+                if ($0 == "") {
+                    next
+                }
+                value_escaped = json_escape($0)
+                if (emitted) {
+                    printf ","
+                }
+                if (ITEM_KEY != "") {
+                    printf "{\"%s\":\"%s\"}", key_escaped, value_escaped
+                } else {
+                    printf "\"%s\"", value_escaped
+                }
+                emitted = 1
+            }
+            END {
+                if (emitted) {
+                    printf "\n"
+                }
+            }
+            '
+            ;;
         items:last)
             awk -v RS='\n' 'END { print }'
             ;;

@@ -8,8 +8,9 @@
       },
       "title": "{{ document.title | decode:entities }}",
       "author": {
-        "name": "{{ document.authors | email:remove-angle-addr | join-type:oxford | decode:entities }}"
+        "name": "{{ document.authors | email:remove-angle-addr | decode:entities | join-type:oxford }}"
       },
+      "authors": [ {{ document.authors | email:remove-angle-addr | decode:entities | items:json-array:name }} ],
       "summary": "{{ document | excerpt:100:1 | decode:entities | escape:json-val }}",
       "content_html": "{{ document | escape:json-val }}"
     }{{ util.json-separator }}

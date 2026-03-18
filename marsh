@@ -1352,8 +1352,15 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                 return 0;
             }
             !in_conditional {
-                if (match($0, re_if, matches)) {
-                    condition = matches[1];
+                if ($0 ~ re_if) {
+                    condition_line = $0;
+                    sub(/^[ ]*\{%[ ]*if[ ]+/, "", condition_line);
+                    sub(/[ ]*%\}[ ]*$/, "", condition_line);
+                    cond_value = condition_line;
+                    sub(/^[^"]*"/, "", cond_value);
+                    sub(/".*$/, "", cond_value);
+                    condition = condition_line;
+                    sub(/[ ]+"[^"]+"[ ]*$/, "", condition);
                     sub(/[ ]+$/, "", condition);
                     line_tag = condition;
                     sub(/[ ].*$/, "", line_tag);
@@ -1361,7 +1368,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                     sub(/^[^ ]+[ ]+/, "", line_comparator);
                     if (line_tag == tag && (line_comparator in supported)) {
                         in_conditional = 1;
-                        branch_matches = eval_condition(line_comparator, matches[2]);
+                        branch_matches = eval_condition(line_comparator, cond_value);
                         in_else = 0;
                         next;
                     }
@@ -1721,7 +1728,12 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
             # grep to avoid unnecessary processing
             OIFS="${IFS}"
             IFS=$'\n'
-            PARTIAL_CONDITIONAL_TAGS=($(awk 'match($0, /^[ ]*\{%[ ]*if[ ]+([^ ]+).*%\}[ ]*$/, matches) { print matches[1] }' "${PARTIALS[$J]}" | sort -u))
+            PARTIAL_CONDITIONAL_TAGS=($(awk '$0 ~ /^[ ]*\{%[ ]*if[ ]+[^ ]+.*%\}[ ]*$/ {
+                line = $0
+                sub(/^[ ]*\{%[ ]*if[ ]+/, "", line)
+                sub(/[ ].*$/, "", line)
+                print line
+            }' "${PARTIALS[$J]}" | sort -u))
             IFS="${OIFS}"
             if [[ "${#PARTIAL_CONDITIONAL_TAGS[@]}" -gt 0 ]]; then
                 # template contains conditionals, operate using a copy

@@ -2082,7 +2082,7 @@ function marsh_build_document {  # marsh_build_document dest_dir target_dir docu
             TEXT_FILTER="links:replace-ext:${MARKDOWN_FILEEXT_CSV}:html"
         fi
         <"${DOCUMENT}.${MARSH_UID}.document.temp" marsh_text_filter ${TEXT_FILTER} | sed -E \
-        -e 's|^!\[(.+)]\([ ]*([^ ]+)[ ]*"(.+)"[ ]*\)$|<figure>\n<a href="\2">\n<img src="\2" alt="\1" />\n</a>\n<figcaption>\3</figcaption>\n</figure>|' |
+        -e 's|^!\[(.+)]\([ ]*([^ ]+)[ ]*"(.+)"[ ]*\)$|<figure>'$'\\\n''<a href="\2">'$'\\\n''<img src="\2" alt="\1" />'$'\\\n''</a>'$'\\\n''<figcaption>\3</figcaption>'$'\\\n''</figure>|' |
         marsh_process_markdown |
         sed -E \
         -e 's|<p><figure>|<figure>|' \

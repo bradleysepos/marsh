@@ -1725,7 +1725,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
         # conditionals
         for J in "${!PARTIALS[@]}"; do
             [[ "${PARTIALS[$J]}" == "" ]] && continue
-            # grep to avoid unnecessary processing
+            # first search for conditionals to avoid unnecessary processing
             OIFS="${IFS}"
             IFS=$'\n'
             PARTIAL_CONDITIONAL_TAGS=($(awk '$0 ~ /^[ ]*\{%[ ]*if[ ]+[^ ]+.*%\}[ ]*$/ {

@@ -517,13 +517,13 @@ function marsh_text_filter {  # marsh_text_filter filter [filter...]
     IFS="${OIFS}"
     local MAX_CHARS MAX_PARAS MD_EXT_REGEX PROTOCOL_SEP WRAP_START WRAP_END
     case "${FILTER}" in
-        append:*)
-            APPEND="${OPTIONS[0]:-}"
+        items:append:*)
+            APPEND="${OPTIONS[1]:-}"
             APPEND="${APPEND//\\/\\\\}"
             awk -v APPEND="${APPEND}" '{ print $0 APPEND }'
             ;;
-        append-type:multiline:*)
-            APPEND="${OPTIONS[1]:-}"
+        append:*)
+            APPEND="${OPTIONS[0]:-}"
             APPEND="${APPEND//\\/\\\\}"
             awk -v APPEND="${APPEND}" '{ print } END { print APPEND }'
             ;;
@@ -566,7 +566,7 @@ function marsh_text_filter {  # marsh_text_filter filter [filter...]
         excerpt:*)
             MAX_CHARS="${OPTIONS[0]:-999999}"
             MAX_PARAS="${OPTIONS[1]:-999999}"
-            marsh_text_filter headings:remove plaintext newlines:trim whitespace:trim newlines:reduce:2 | awk -v RS='' 'NR<='${MAX_PARAS}' { print $0 }' | marsh_text_filter newlines:tospaces | cut -c1-"${MAX_CHARS}"
+            marsh_text_filter headings:remove plaintext newlines:trim items:trim newlines:reduce:2 | awk -v RS='' 'NR<='${MAX_PARAS}' { print $0 }' | marsh_text_filter newlines:tospaces | cut -c1-"${MAX_CHARS}"
             ;;
         excerpt)
             marsh_text_filter excerpt:300:2
@@ -679,19 +679,19 @@ function marsh_text_filter {  # marsh_text_filter filter [filter...]
         items:unique)
             awk -v RS='\n' '!seen[$0]++'
             ;;
-        join|join:*)
+        items:join|items:join:*)
             # joins lines using one or more delimiters
             # if one delimiters is provided, it is used to join all lines
             # if two delimiters are provided, the second is used where the input is a pair of lines
             # if three delimiters are provided, the first is used to join all lines except the last pair,
             # which is joined using the third delimiters
-            # foo bar baz | join:,                  ->  foo, bar, baz
-            # foo bar baz | 'join:, : and '         ->  foo, bar, baz
-            # foo bar     | 'join:, : and '         ->  foo and bar
-            # foo bar baz | 'join:, : and :, and '  ->  foo, bar, and baz
-            DELIM1="${OPTIONS[0]:-}"
-            DELIM2="${OPTIONS[1]:-${DELIM1}}"
-            DELIM3="${OPTIONS[2]:-${DELIM2}}"
+            # foo bar baz | items:join:,                        ->  foo, bar, baz
+            # foo bar baz | 'items:join:, : and '              ->  foo, bar, baz
+            # foo bar     | 'items:join:, : and '              ->  foo and bar
+            # foo bar baz | 'items:join:, : and :, and '       ->  foo, bar, and baz
+            DELIM1="${OPTIONS[1]:-}"
+            DELIM2="${OPTIONS[2]:-${DELIM1}}"
+            DELIM3="${OPTIONS[3]:-${DELIM2}}"
             DELIM1="${DELIM1//\\/\\\\}"
             DELIM2="${DELIM2//\\/\\\\}"
             DELIM3="${DELIM3//\\/\\\\}"
@@ -719,8 +719,8 @@ function marsh_text_filter {  # marsh_text_filter filter [filter...]
             }
             '
             ;;
-        join-type:oxford)
-            marsh_text_filter 'join:, : and :, and '
+        items:join-type:oxford)
+            marsh_text_filter 'items:join:, : and :, and '
             ;;
         links:replace-ext:*)
             # convert relative links with markdown file extensions to html
@@ -771,32 +771,32 @@ function marsh_text_filter {  # marsh_text_filter filter [filter...]
             # '/./,/^$/!d' deletes blank lines at start and collapses consecutive blank lines into one, leaving up to one blank line at end
             sed -e ':a' -e 's/<[^>]*>//g' -e '/</{' -e '$!{N' -e 'ba' -e '}' -e '}' | sed '/./,/^$/!d' | marsh_text_filter decode:entities
             ;;
-        prepend:*)
-            PREPEND="${OPTIONS[0]:-}"
+        items:prepend:*)
+            PREPEND="${OPTIONS[1]:-}"
             PREPEND="${PREPEND//\\/\\\\}"
             awk -v PREPEND="${PREPEND}" '{ print PREPEND $0 }'
             ;;
-        prepend-type:multiline:*)
-            PREPEND="${OPTIONS[1]:-}"
+        prepend:*)
+            PREPEND="${OPTIONS[0]:-}"
             PREPEND="${PREPEND//\\/\\\\}"
             awk -v PREPEND="${PREPEND}" 'NR==1 { print PREPEND } { print }'
             ;;
         slug)
             head -n 1 | sed -E -e 's/[ _]+/-/g' -e 's/[^-a-zA-Z0-9.]//g' -e 's/(^-+)|(-+$)//' | awk '{ print tolower($0) }'
             ;;
-        whitespace:trim)
+        items:trim)
             sed -E -e 's/^[ '$'\t'']+//' -e 's/[ '$'\t'']+$//'
             ;;
-        wrap:*)
-            WRAP_START="${OPTIONS[0]:-}"
-            WRAP_END="${OPTIONS[1]:-${WRAP_START}}"
+        items:wrap:*)
+            WRAP_START="${OPTIONS[1]:-}"
+            WRAP_END="${OPTIONS[2]:-${WRAP_START}}"
             WRAP_START="${WRAP_START//\\/\\\\}"
             WRAP_END="${WRAP_END//\\/\\\\}"
             awk -v WRAP_START="${WRAP_START}" -v WRAP_END="${WRAP_END}" '{ print WRAP_START $0 WRAP_END }'
             ;;
-        wrap-type:multiline:*)
-            WRAP_START="${OPTIONS[1]:-}"
-            WRAP_END="${OPTIONS[2]:-${WRAP_START}}"
+        wrap:*)
+            WRAP_START="${OPTIONS[0]:-}"
+            WRAP_END="${OPTIONS[1]:-${WRAP_START}}"
             WRAP_START="${WRAP_START//\\/\\\\}"
             WRAP_END="${WRAP_END//\\/\\\\}"
             if [[ "${WRAP_START}" != "" ]]; then

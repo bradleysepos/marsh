@@ -224,24 +224,24 @@ function marsh_test {
             fi
             ;;
         marsh_text_filter:0)
-            TEST_NAME+=":append"
-            TEST=$(echo "Some text" | marsh_text_filter append:\!)
+            TEST_NAME+=":items_append"
+            TEST=$(echo "Some text" | marsh_text_filter items:append:\!)
             EXPECTED="Some text!"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
             ;;
         marsh_text_filter:1)
-            TEST_NAME+=":append"
-            TEST=$(echo "Some text" | marsh_text_filter 'append:\\\:')
+            TEST_NAME+=":items_append"
+            TEST=$(echo "Some text" | marsh_text_filter 'items:append:\\\:')
             EXPECTED='Some text\:'
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
             ;;
         marsh_text_filter:2)
-            TEST_NAME+=":append_type_multiline"
-            TEST=$(echo "Some text"$'\n\n'"More text" | marsh_text_filter append-type:multiline:after)
+            TEST_NAME+=":append"
+            TEST=$(echo "Some text"$'\n\n'"More text" | marsh_text_filter append:after)
             EXPECTED="Some text"$'\n\n'"More text"$'\n'"after"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -578,56 +578,56 @@ function marsh_test {
             fi
             ;;
         marsh_text_filter:44)
-            TEST_NAME+=":join"
-            TEST=$(echo "I am foo"$'\n'"I am bar"$'\n'"I am baz" | marsh_text_filter join)
+            TEST_NAME+=":items_join"
+            TEST=$(echo "I am foo"$'\n'"I am bar"$'\n'"I am baz" | marsh_text_filter items:join)
             EXPECTED="I am fooI am barI am baz"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
             ;;
         marsh_text_filter:45)
-            TEST_NAME+=":join"
-            TEST=$(echo "I am foo"$'\n'"I am bar"$'\n'"I am baz" | marsh_text_filter join:,)
+            TEST_NAME+=":items_join"
+            TEST=$(echo "I am foo"$'\n'"I am bar"$'\n'"I am baz" | marsh_text_filter items:join:,)
             EXPECTED="I am foo,I am bar,I am baz"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
             ;;
         marsh_text_filter:46)
-            TEST_NAME+=":join"
-            TEST=$(echo "I am foo"$'\n'"I am bar"$'\n'"I am baz" | marsh_text_filter 'join:, : and :, and ')
+            TEST_NAME+=":items_join"
+            TEST=$(echo "I am foo"$'\n'"I am bar"$'\n'"I am baz" | marsh_text_filter 'items:join:, : and :, and ')
             EXPECTED="I am foo, I am bar, and I am baz"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
             ;;
         marsh_text_filter:47)
-            TEST_NAME+=":join"
-            TEST=$(echo "I am foo"$'\n'"I am bar" | marsh_text_filter 'join:, : and :, and ')
+            TEST_NAME+=":items_join"
+            TEST=$(echo "I am foo"$'\n'"I am bar" | marsh_text_filter 'items:join:, : and :, and ')
             EXPECTED="I am foo and I am bar"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
             ;;
         marsh_text_filter:48)
-            TEST_NAME+=":join"
-            TEST=$(echo "I am foo"$'\n'"I am bar"$'\n'"I am baz" | marsh_text_filter 'join:\:')
+            TEST_NAME+=":items_join"
+            TEST=$(echo "I am foo"$'\n'"I am bar"$'\n'"I am baz" | marsh_text_filter 'items:join:\:')
             EXPECTED="I am foo:I am bar:I am baz"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
             ;;
         marsh_text_filter:49)
-            TEST_NAME+=":join"
-            TEST=$(echo "I am foo"$'\n'"I am bar" | marsh_text_filter 'join:\\\:')
+            TEST_NAME+=":items_join"
+            TEST=$(echo "I am foo"$'\n'"I am bar" | marsh_text_filter 'items:join:\\\:')
             EXPECTED='I am foo\:I am bar'
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
             ;;
         marsh_text_filter:50)
-            TEST_NAME+=":join_type_oxford"
-            TEST=$(echo "I am foo"$'\n'"I am bar" | marsh_text_filter join-type:oxford)
+            TEST_NAME+=":items_join_type_oxford"
+            TEST=$(echo "I am foo"$'\n'"I am bar" | marsh_text_filter items:join-type:oxford)
             EXPECTED="I am foo and I am bar"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -698,24 +698,24 @@ function marsh_test {
             fi
             ;;
         marsh_text_filter:59)
-            TEST_NAME+=":prepend"
-            TEST=$(echo "Some text" | marsh_text_filter prepend:\!)
+            TEST_NAME+=":items_prepend"
+            TEST=$(echo "Some text" | marsh_text_filter items:prepend:\!)
             EXPECTED="!Some text"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
             ;;
         marsh_text_filter:60)
-            TEST_NAME+=":prepend"
-            TEST=$(echo "Some text" | marsh_text_filter 'prepend:\\\:')
+            TEST_NAME+=":items_prepend"
+            TEST=$(echo "Some text" | marsh_text_filter 'items:prepend:\\\:')
             EXPECTED='\:Some text'
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
             ;;
         marsh_text_filter:61)
-            TEST_NAME+=":prepend_type_multiline"
-            TEST=$(echo "Some text"$'\n\n'"More text" | marsh_text_filter prepend-type:multiline:before)
+            TEST_NAME+=":prepend"
+            TEST=$(echo "Some text"$'\n\n'"More text" | marsh_text_filter prepend:before)
             EXPECTED="before"$'\n'"Some text"$'\n\n'"More text"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -730,10 +730,10 @@ function marsh_test {
             fi
             ;;
         marsh_text_filter:63)
-            TEST_NAME+=":whitespace_trim"
+            TEST_NAME+=":items_trim"
             # Add a delimiter after filters have been appliedto preserve trailing newlines
             # in the test variable, and afterward remove it using parameter expansion
-            TEST=$(printf '%s' $'\n\n\n\n'"           # Heading 1"$'\n\n\n\n'"Paragraph"$'\t\n\n\n\n'"    " | marsh_text_filter whitespace:trim; printf '\001')
+            TEST=$(printf '%s' $'\n\n\n\n'"           # Heading 1"$'\n\n\n\n'"Paragraph"$'\t\n\n\n\n'"    " | marsh_text_filter items:trim; printf '\001')
             TEST="${TEST%$'\001'}"
             EXPECTED=$'\n\n\n\n'"# Heading 1"$'\n\n\n\n'"Paragraph"$'\n\n\n\n'""
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
@@ -741,40 +741,40 @@ function marsh_test {
             fi
             ;;
         marsh_text_filter:64)
-            TEST_NAME+=":wrap"
-            TEST=$(echo "Some text" | marsh_text_filter wrap:\")
+            TEST_NAME+=":items_wrap"
+            TEST=$(echo "Some text" | marsh_text_filter items:wrap:\")
             EXPECTED="\"Some text\""
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
             ;;
         marsh_text_filter:65)
-            TEST_NAME+=":wrap"
-            TEST=$(echo "Some text" | marsh_text_filter wrap:\":\!\")
+            TEST_NAME+=":items_wrap"
+            TEST=$(echo "Some text" | marsh_text_filter items:wrap:\":\!\")
             EXPECTED="\"Some text!\""
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
             ;;
         marsh_text_filter:66)
-            TEST_NAME+=":wrap"
-            TEST=$(echo "Some text" | marsh_text_filter 'wrap:\:')
+            TEST_NAME+=":items_wrap"
+            TEST=$(echo "Some text" | marsh_text_filter 'items:wrap:\:')
             EXPECTED=":Some text:"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
             ;;
         marsh_text_filter:67)
-            TEST_NAME+=":wrap"
-            TEST=$(echo "Some text" | marsh_text_filter 'wrap:\\\:')
+            TEST_NAME+=":items_wrap"
+            TEST=$(echo "Some text" | marsh_text_filter 'items:wrap:\\\:')
             EXPECTED='\:Some text\:'
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
             ;;
         marsh_text_filter:68)
-            TEST_NAME+=":wrap_type_multiline"
-            TEST=$(echo "Some text"$'\n\n'"More text" | marsh_text_filter wrap-type:multiline:before:after)
+            TEST_NAME+=":wrap"
+            TEST=$(echo "Some text"$'\n\n'"More text" | marsh_text_filter wrap:before:after)
             EXPECTED="before"$'\n\n'"Some text"$'\n\n'"More text"$'\n\n'"after"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -790,7 +790,7 @@ function marsh_test {
             ;;
         marsh_text_filter:70)
             TEST_NAME+=":multiple"
-            TEST=$(echo $'\n\n\n\n'"Some text"$'\n'"&#9829;" | marsh_text_filter newlines:trim newlines:tospaces decode:entities wrap:\")
+            TEST=$(echo $'\n\n\n\n'"Some text"$'\n'"&#9829;" | marsh_text_filter newlines:trim newlines:tospaces decode:entities items:wrap:\")
             EXPECTED="\"Some text ♥\""
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -798,7 +798,7 @@ function marsh_test {
             ;;
         marsh_text_filter:71)
             TEST_NAME+=":multiple"
-            TEST=$(echo "First item"$'\n'"Second item"$'\n'"Third item" | marsh_text_filter items:slice:1 escape:nbsp wrap:\" join-type:oxford)
+            TEST=$(echo "First item"$'\n'"Second item"$'\n'"Third item" | marsh_text_filter items:slice:1 escape:nbsp items:wrap:\" items:join-type:oxford)
             EXPECTED="\"First&nbsp;item\", \"Second&nbsp;item\", and \"Third&nbsp;item\""
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"

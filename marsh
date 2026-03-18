@@ -627,6 +627,40 @@ function marsh_text_filter {  # marsh_text_filter filter [filter...]
             }
             '
             ;;
+        items:xml-wrap:*)
+            XML_TAG="${OPTIONS[1]:-tag}"
+            XML_TAG_OPEN=""
+            XML_TAG_CLOSE=""
+            for ((I = 2; I < ${#OPTIONS[@]}; I++)); do
+                [[ "${OPTIONS[$I]:-}" == "" ]] && continue
+                XML_TAG_OPEN="<${OPTIONS[$I]}>${XML_TAG_OPEN}"
+                XML_TAG_CLOSE+="</${OPTIONS[$I]}>"
+            done
+            awk -v XML_TAG="${XML_TAG}" -v XML_TAG_OPEN="${XML_TAG_OPEN}" -v XML_TAG_CLOSE="${XML_TAG_CLOSE}" '
+            function xml_escape(value) {
+                gsub(/&/, "\\&amp;", value)
+                gsub(/</, "\\&lt;", value)
+                gsub(/>/, "\\&gt;", value)
+                return value
+            }
+            BEGIN {
+                tag = XML_TAG
+            }
+            {
+                if ($0 == "") {
+                    next
+                }
+                value_escaped = xml_escape($0)
+                printf "%s<%s>%s</%s>%s", XML_TAG_OPEN, tag, value_escaped, tag, XML_TAG_CLOSE
+                emitted = 1
+            }
+            END {
+                if (emitted) {
+                    printf "\n"
+                }
+            }
+            '
+            ;;
         items:last)
             awk -v RS='\n' 'END { print }'
             ;;

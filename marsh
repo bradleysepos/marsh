@@ -258,7 +258,9 @@ function marsh_parse_yaml {  # marsh_parse_yaml yaml_string_or_file variables_pr
                     print out "=" vals[i];
                 }
             }
-            delete vals;
+            for (i in vals) {
+                delete vals[i];
+            }
             prev_level = level;
         }'
 }
@@ -564,7 +566,7 @@ function marsh_text_filter {  # marsh_text_filter filter [filter...]
         excerpt:*)
             MAX_CHARS="${OPTIONS[0]:-999999}"
             MAX_PARAS="${OPTIONS[1]:-999999}"
-            marsh_text_filter headings:remove plaintext newlines:trim whitespace:trim newlines:reduce:2 | awk -v RS="\n\n" 'NR<='${MAX_PARAS}' { print $0 }' | marsh_text_filter newlines:tospaces | cut -c1-"${MAX_CHARS}"
+            marsh_text_filter headings:remove plaintext newlines:trim whitespace:trim newlines:reduce:2 | awk -v RS='' 'NR<='${MAX_PARAS}' { print $0 }' | marsh_text_filter newlines:tospaces | cut -c1-"${MAX_CHARS}"
             ;;
         excerpt)
             marsh_text_filter excerpt:300:2
@@ -1400,7 +1402,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
         FILE_TEMP=$(mktemp "${MARSH_TEMP}/conditional-XXXXXX")
         # remove unsupported conditionals
         cp "${FILE}" "${FILE_TEMP}"
-        <"${FILE_TEMP}" awk '/^[ ]*\{%[ ]*if[^%]+%\}[ ]*$/ {k=1;i=1;delete a} {a[i++]=$0} (k==1 && /^[ ]*\{%[ ]*endif[ ]*%\}[ ]*$/) {k=0;next} (k==0) { print }' > "${FILE}"
+        <"${FILE_TEMP}" awk '/^[ ]*\{%[ ]*if[^%]+%\}[ ]*$/ {k=1;i=1;for (j in a) delete a[j]} {a[i++]=$0} (k==1 && /^[ ]*\{%[ ]*endif[ ]*%\}[ ]*$/) {k=0;next} (k==0) { print }' > "${FILE}"
         return 0
     }
 
@@ -2089,8 +2091,8 @@ function marsh_build_document {  # marsh_build_document dest_dir target_dir docu
         {
             if ($0 ~ " src=\"[^\"]+\"")
             {
-                split($0, a, " ");
-                for(i=1; i<=length(a); i++)
+                num_fields = split($0, a, " ");
+                for(i=1; i<=num_fields; i++)
                 {
                     if (a[i] ~ "^src=\"[^\"]+\"$")
                     {

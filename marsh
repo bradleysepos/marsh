@@ -594,15 +594,15 @@ function marsh_text_filter {  # marsh_text_filter filter [filter...]
             awk -v RS='\n' 'NR==1 { print; exit }'
             ;;
         items:join|items:join:*)
-            # joins lines using one or more delimiters
-            # if one delimiters is provided, it is used to join all lines
-            # if two delimiters are provided, the second is used where the input is a pair of lines
-            # if three delimiters are provided, the first is used to join all lines except the last pair,
-            # which is joined using the third delimiters
-            # foo bar baz | items:join:,                        ->  foo, bar, baz
-            # foo bar baz | 'items:join:, : and '              ->  foo, bar, baz
-            # foo bar     | 'items:join:, : and '              ->  foo and bar
-            # foo bar baz | 'items:join:, : and :, and '       ->  foo, bar, and baz
+            # Joins lines using one or more delimiters.
+            # If one delimiters is provided, it is used to join all lines.
+            # If two delimiters are provided, the second is used where the input is a pair of lines.
+            # If three delimiters are provided, the first is used to join all lines except the last pair,
+            # which is joined using the third delimiters.
+            # foo bar baz |  items:join:,                 ->  foo, bar, baz
+            # foo bar baz | 'items:join:, : and '         ->  foo, bar, baz
+            # foo bar     | 'items:join:, : and '         ->  foo and bar
+            # foo bar baz | 'items:join:, : and :, and '  ->  foo, bar, and baz
             DELIM1="${OPTIONS[1]:-}"
             DELIM2="${OPTIONS[2]:-${DELIM1}}"
             DELIM3="${OPTIONS[3]:-${DELIM2}}"

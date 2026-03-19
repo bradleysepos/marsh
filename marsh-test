@@ -305,8 +305,10 @@ function marsh_test {
             ;;
         marsh_text_filter:10)
             TEST_NAME+=":email_remove_angle_addr"
-            TEST=$(echo "John Doe <john.doe@example.com> (jdoe42)" | marsh_text_filter email:remove-angle-addr)
-            EXPECTED="John Doe (jdoe42)"
+            TEST=$(echo "John Doe <john.doe@example.com> (jdoe42)"$'\n\n'"<john.doe@example.com>"$'\n\n'"<p>Some HTML <span>content</span></p>" | marsh_text_filter email:remove-angle-addr)
+            # According to RFC 2822, angle-addr seems to be valid only as part of name-addr
+            # and invalid as a standalone addr-spec wrapped in angle brackets
+            EXPECTED="John Doe (jdoe42)"$'\n\n'"<john.doe@example.com>"$'\n\n'"<p>Some HTML <span>content</span></p>"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi

@@ -517,11 +517,6 @@ function marsh_text_filter {  # marsh_text_filter filter [filter...]
     IFS="${OIFS}"
     local MAX_CHARS MAX_PARAS MD_EXT_REGEX PROTOCOL_SEP WRAP_START WRAP_END
     case "${FILTER}" in
-        items:append:*)
-            APPEND="${OPTIONS[1]:-}"
-            APPEND="${APPEND//\\/\\\\}"
-            awk -v APPEND="${APPEND}" '{ print $0 APPEND }'
-            ;;
         append:*)
             APPEND="${OPTIONS[0]:-}"
             APPEND="${APPEND//\\/\\\\}"
@@ -587,97 +582,16 @@ function marsh_text_filter {  # marsh_text_filter filter [filter...]
         headings:remove)
             marsh_text_filter_headings remove | marsh_text_filter newlines:trim
             ;;
+        items:append:*)
+            APPEND="${OPTIONS[1]:-}"
+            APPEND="${APPEND//\\/\\\\}"
+            awk -v APPEND="${APPEND}" '{ print $0 APPEND }'
+            ;;
         items:count)
             awk -v RS='\n' 'END { print NR }'
             ;;
         items:first)
             awk -v RS='\n' 'NR==1 { print; exit }'
-            ;;
-        items:json-array|items:json-array:*)
-            ITEM_KEY="${OPTIONS[1]:-}"
-            awk -v ITEM_KEY="${ITEM_KEY//\\/\\\\}" -v TAB=$'\t' '
-            function json_escape(value) {
-                gsub(/\\/, "\\\\", value)
-                gsub(/"/, "\\\"", value)
-                gsub(TAB, "\\t", value)
-                return value
-            }
-            BEGIN {
-                key_escaped = json_escape(ITEM_KEY)
-            }
-            {
-                if ($0 == "") {
-                    next
-                }
-                value_escaped = json_escape($0)
-                if (emitted) {
-                    printf ","
-                }
-                if (ITEM_KEY != "") {
-                    printf "{\"%s\":\"%s\"}", key_escaped, value_escaped
-                } else {
-                    printf "\"%s\"", value_escaped
-                }
-                emitted = 1
-            }
-            END {
-                if (emitted) {
-                    printf "\n"
-                }
-            }
-            '
-            ;;
-        items:xml-wrap:*)
-            XML_TAG="${OPTIONS[1]:-tag}"
-            XML_TAG_OPEN=""
-            XML_TAG_CLOSE=""
-            for ((I = 2; I < ${#OPTIONS[@]}; I++)); do
-                [[ "${OPTIONS[$I]:-}" == "" ]] && continue
-                XML_TAG_OPEN="<${OPTIONS[$I]}>${XML_TAG_OPEN}"
-                XML_TAG_CLOSE+="</${OPTIONS[$I]}>"
-            done
-            awk -v XML_TAG="${XML_TAG}" -v XML_TAG_OPEN="${XML_TAG_OPEN}" -v XML_TAG_CLOSE="${XML_TAG_CLOSE}" '
-            function xml_escape(value) {
-                gsub(/&/, "\\&amp;", value)
-                gsub(/</, "\\&lt;", value)
-                gsub(/>/, "\\&gt;", value)
-                return value
-            }
-            BEGIN {
-                tag = XML_TAG
-            }
-            {
-                if ($0 == "") {
-                    next
-                }
-                value_escaped = xml_escape($0)
-                printf "%s<%s>%s</%s>%s", XML_TAG_OPEN, tag, value_escaped, tag, XML_TAG_CLOSE
-                emitted = 1
-            }
-            END {
-                if (emitted) {
-                    printf "\n"
-                }
-            }
-            '
-            ;;
-        items:last)
-            awk -v RS='\n' 'END { print }'
-            ;;
-        items:slice:*)
-            START="${OPTIONS[1]:-0}"
-            END="${OPTIONS[2]:-0}"
-            if [[ "${END}" -gt 0 ]]; then
-                awk -v RS='\n' 'NR>='"${START}"' && NR<='"${END}"' { print }'
-            else
-                awk -v RS='\n' 'NR>='"${START}"' { print }'
-            fi
-            ;;
-        items:sort)
-            sort
-            ;;
-        items:unique)
-            awk -v RS='\n' '!seen[$0]++'
             ;;
         items:join|items:join:*)
             # joins lines using one or more delimiters
@@ -721,6 +635,107 @@ function marsh_text_filter {  # marsh_text_filter filter [filter...]
             ;;
         items:join-type:oxford)
             marsh_text_filter 'items:join:, : and :, and '
+            ;;
+        items:json-array|items:json-array:*)
+            ITEM_KEY="${OPTIONS[1]:-}"
+            awk -v ITEM_KEY="${ITEM_KEY//\\/\\\\}" -v TAB=$'\t' '
+            function json_escape(value) {
+                gsub(/\\/, "\\\\", value)
+                gsub(/"/, "\\\"", value)
+                gsub(TAB, "\\t", value)
+                return value
+            }
+            BEGIN {
+                key_escaped = json_escape(ITEM_KEY)
+            }
+            {
+                if ($0 == "") {
+                    next
+                }
+                value_escaped = json_escape($0)
+                if (emitted) {
+                    printf ","
+                }
+                if (ITEM_KEY != "") {
+                    printf "{\"%s\":\"%s\"}", key_escaped, value_escaped
+                } else {
+                    printf "\"%s\"", value_escaped
+                }
+                emitted = 1
+            }
+            END {
+                if (emitted) {
+                    printf "\n"
+                }
+            }
+            '
+            ;;
+        items:last)
+            awk -v RS='\n' 'END { print }'
+            ;;
+        items:prepend:*)
+            PREPEND="${OPTIONS[1]:-}"
+            PREPEND="${PREPEND//\\/\\\\}"
+            awk -v PREPEND="${PREPEND}" '{ print PREPEND $0 }'
+            ;;
+        items:slice:*)
+            START="${OPTIONS[1]:-0}"
+            END="${OPTIONS[2]:-0}"
+            if [[ "${END}" -gt 0 ]]; then
+                awk -v RS='\n' 'NR>='"${START}"' && NR<='"${END}"' { print }'
+            else
+                awk -v RS='\n' 'NR>='"${START}"' { print }'
+            fi
+            ;;
+        items:sort)
+            sort
+            ;;
+        items:trim)
+            sed -E -e 's/^[ '$'\t'']+//' -e 's/[ '$'\t'']+$//'
+            ;;
+        items:unique)
+            awk -v RS='\n' '!seen[$0]++'
+            ;;
+        items:wrap:*)
+            WRAP_START="${OPTIONS[1]:-}"
+            WRAP_END="${OPTIONS[2]:-${WRAP_START}}"
+            WRAP_START="${WRAP_START//\\/\\\\}"
+            WRAP_END="${WRAP_END//\\/\\\\}"
+            awk -v WRAP_START="${WRAP_START}" -v WRAP_END="${WRAP_END}" '{ print WRAP_START $0 WRAP_END }'
+            ;;
+        items:xml-wrap:*)
+            XML_TAG="${OPTIONS[1]:-tag}"
+            XML_TAG_OPEN=""
+            XML_TAG_CLOSE=""
+            for ((I = 2; I < ${#OPTIONS[@]}; I++)); do
+                [[ "${OPTIONS[$I]:-}" == "" ]] && continue
+                XML_TAG_OPEN="<${OPTIONS[$I]}>${XML_TAG_OPEN}"
+                XML_TAG_CLOSE+="</${OPTIONS[$I]}>"
+            done
+            awk -v XML_TAG="${XML_TAG}" -v XML_TAG_OPEN="${XML_TAG_OPEN}" -v XML_TAG_CLOSE="${XML_TAG_CLOSE}" '
+            function xml_escape(value) {
+                gsub(/&/, "\\&amp;", value)
+                gsub(/</, "\\&lt;", value)
+                gsub(/>/, "\\&gt;", value)
+                return value
+            }
+            BEGIN {
+                tag = XML_TAG
+            }
+            {
+                if ($0 == "") {
+                    next
+                }
+                value_escaped = xml_escape($0)
+                printf "%s<%s>%s</%s>%s", XML_TAG_OPEN, tag, value_escaped, tag, XML_TAG_CLOSE
+                emitted = 1
+            }
+            END {
+                if (emitted) {
+                    printf "\n"
+                }
+            }
+            '
             ;;
         links:replace-ext:*)
             # convert relative links with markdown file extensions to html
@@ -771,11 +786,6 @@ function marsh_text_filter {  # marsh_text_filter filter [filter...]
             # '/./,/^$/!d' deletes blank lines at start and collapses consecutive blank lines into one, leaving up to one blank line at end
             sed -e ':a' -e 's/<[^>]*>//g' -e '/</{' -e '$!{N' -e 'ba' -e '}' -e '}' | sed '/./,/^$/!d' | marsh_text_filter decode:entities
             ;;
-        items:prepend:*)
-            PREPEND="${OPTIONS[1]:-}"
-            PREPEND="${PREPEND//\\/\\\\}"
-            awk -v PREPEND="${PREPEND}" '{ print PREPEND $0 }'
-            ;;
         prepend:*)
             PREPEND="${OPTIONS[0]:-}"
             PREPEND="${PREPEND//\\/\\\\}"
@@ -783,16 +793,6 @@ function marsh_text_filter {  # marsh_text_filter filter [filter...]
             ;;
         slug)
             head -n 1 | sed -E -e 's/[ _]+/-/g' -e 's/[^-a-zA-Z0-9.]//g' -e 's/(^-+)|(-+$)//' | awk '{ print tolower($0) }'
-            ;;
-        items:trim)
-            sed -E -e 's/^[ '$'\t'']+//' -e 's/[ '$'\t'']+$//'
-            ;;
-        items:wrap:*)
-            WRAP_START="${OPTIONS[1]:-}"
-            WRAP_END="${OPTIONS[2]:-${WRAP_START}}"
-            WRAP_START="${WRAP_START//\\/\\\\}"
-            WRAP_END="${WRAP_END//\\/\\\\}"
-            awk -v WRAP_START="${WRAP_START}" -v WRAP_END="${WRAP_END}" '{ print WRAP_START $0 WRAP_END }'
             ;;
         wrap:*)
             WRAP_START="${OPTIONS[0]:-}"

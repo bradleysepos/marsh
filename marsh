@@ -832,6 +832,71 @@ function marsh_get_variables {  # marsh_get_variables assignments_string
     echo "${STRING}" | sed -E -e 's/^([^=]+[^+])[+]?=.*/\1/' | sort -u
 }
 
+# extracts yaml frontmatter and document body
+function marsh_extract_frontmatter {  # marsh_extract_frontmatter source meta_dest body_dest
+    local SOURCE META_DEST BODY_DEST META_TEMP BODY_TEMP
+    SOURCE="${1:-}"
+    META_DEST="${2:-}"
+    BODY_DEST="${3:-}"
+    [[ "${SOURCE}" == "" ]] && return 1
+    [[ "${META_DEST}" == "" ]] && return 1
+    [[ "${BODY_DEST}" == "" ]] && return 1
+
+    META_TEMP=$(mktemp "${MARSH_TEMP}/document-meta-XXXXXX") || return 1
+    BODY_TEMP=$(mktemp "${MARSH_TEMP}/document-body-XXXXXX") || {
+        rm -f "${META_TEMP}"
+        return 1
+    }
+
+    awk -v meta_out="${META_TEMP}" -v body_out="${BODY_TEMP}" '
+    NR == 1 {
+        if ($0 ~ /^---[ ]*(#.*)?$/) {
+            have_yaml = 1
+            in_yaml = 1
+            if (meta_out != "") {
+                print "---" > meta_out
+            }
+            next
+        }
+    }
+    have_yaml && in_yaml {
+        if ($0 ~ /^---[ ]*(#.*)?$/) {
+            in_yaml = 0
+            next
+        }
+        if (meta_out != "") {
+            print >> meta_out
+        }
+        next
+    }
+    {
+        print >> body_out
+    }
+    END {
+        if (!have_yaml) {
+            exit 1
+        }
+        if (meta_out != "") {
+            print "..." >> meta_out
+        }
+    }' "${SOURCE}"
+    if [[ "$?" -ne 0 ]]; then
+        rm -f "${META_TEMP}"
+        rm -f "${BODY_TEMP}"
+        return 1
+    fi
+    mv "${META_TEMP}" "${META_DEST}" || {
+        rm -f "${META_TEMP}"
+        rm -f "${BODY_TEMP}"
+        return 1
+    }
+    mv "${BODY_TEMP}" "${BODY_DEST}" || {
+        rm -f "${BODY_TEMP}"
+        return 1
+    }
+    return 0
+}
+
 # tests whether existing file or directory is child of parent directory
 function marsh_is_child {  # marsh_is_child directory child
     local CURRENT_DIR DIRECTORY CHILD CD
@@ -1404,18 +1469,17 @@ function marsh_build_advanced_nav {  # marsh_build_advanced_nav target_dir navig
     for NAV_TARGET in ${NAV_TARGETS[@]}; do
         NAV_TARGET="${TARGET_DIR}/${NAV_TARGET}"
         NAV_DEST="${NAV_TARGET}.${MARSH_UID}.advanced-nav.html"
-        cp "${NAV_TARGET}" "${NAV_DEST}"
-        if head -n 1 "${NAV_DEST}" 2>/dev/null | grep -E '^---[ ]*(#.*)?$' >/dev/null 2>&1; then
-            # remove yaml
-            <"${NAV_DEST}" tail -n +$(awk '{ drop = 0; } /^---[ ]*(#.*)?$/ { if (NR==1) { drop = 1 } else if (NR>1) { exit } else { drop = 0; next } } drop == 0 { print }' "${NAV_DEST}" | wc -l | awk '{ print $1+3 }') > "${NAV_DEST}.temp"
+        if head -n 1 "${NAV_TARGET}" 2>/dev/null | grep -E '^---[ ]*(#.*)?$' >/dev/null 2>&1; then
+            marsh_extract_frontmatter "${NAV_TARGET}" "${NAV_DEST}.meta.yaml" "${NAV_DEST}.temp" || return 1
         else
-            cp "${NAV_DEST}" "${NAV_DEST}.temp"
+            cp "${NAV_TARGET}" "${NAV_DEST}.temp"
         fi
         TEXT_FILTER=
         if [[ "${MARKDOWN_REWRITE_LINKS}" == true ]]; then
             TEXT_FILTER="links:replace-ext:${MARKDOWN_FILEEXT_CSV}:html"
         fi
         <"${NAV_DEST}.temp" marsh_text_filter ${TEXT_FILTER} | marsh_process_markdown > "${NAV_DEST}"
+        rm -f "${NAV_DEST}.meta.yaml" 2>/dev/null || true
         rm -f "${NAV_DEST}.temp"
     done
 }
@@ -2198,10 +2262,7 @@ function marsh_build_document {  # marsh_build_document dest_dir target_dir docu
 
     # split yaml and markdown, keep original
     if head -n 1 "${DOCUMENT}" 2>/dev/null | grep -E '^---[ ]*(#.*)?$' >/dev/null 2>&1; then
-        echo "---" > "${DOCUMENT}.${MARSH_UID}.meta.yaml"
-        <"${DOCUMENT}" awk '{ drop = 0; } /^---[ ]*(#.*)?$/ { if (NR==1) { drop = 1 } else if (NR>1) { exit } else { drop = 0; next } } drop == 0 { print }' >> "${DOCUMENT}.${MARSH_UID}.meta.yaml"
-        <"${DOCUMENT}" tail -n +$(wc -l "${DOCUMENT}.${MARSH_UID}.meta.yaml" | awk '{ print $1+3 }') > "${DOCUMENT}.${MARSH_UID}.document"
-        echo "..." >> "${DOCUMENT}.${MARSH_UID}.meta.yaml"
+        marsh_extract_frontmatter "${DOCUMENT}" "${DOCUMENT}.${MARSH_UID}.meta.yaml" "${DOCUMENT}.${MARSH_UID}.document" || return 1
     fi
 
     if [[ "${DOCUMENT_EXT}" == "markdown" ]]; then

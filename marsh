@@ -897,41 +897,46 @@ function marsh_extract_frontmatter {  # marsh_extract_frontmatter source meta_de
     return 0
 }
 
-# tests whether existing file or directory is child of parent directory
-function marsh_is_child {  # marsh_is_child directory child
-    local CURRENT_DIR DIRECTORY CHILD CD
-    CURRENT_DIR=$(pwd)
-    DIRECTORY="${1:-}"
-    [[ ! -d "${DIRECTORY}" ]] && return 1
-    DIRECTORY="${DIRECTORY%/}/"
-    CHILD="${2:-}"
-    if [[ -d "${CHILD}" ]]; then
-        CHILD_DIR="${CHILD%/}/"
-    elif [[ -f "${CHILD}" ]]; then
-        CHILD_DIR="${CHILD%/*}/"
-    else
-        return 1
-    fi
+# finds the closest generated advanced navigation file for a document
+function marsh_find_advanced_nav {  # marsh_find_advanced_nav target_dir document navigation_file
+    local TARGET_DIR DOCUMENT NAV_FILE DOCUMENT_DIR SEARCH_DIR NAV_PATH
 
-    # parent dir
-    cd "${DIRECTORY}" >/dev/null 2>&1 || return 1
-    DIRECTORY=$(pwd -P . 2>/dev/null || command pwd)
-    cd "${CURRENT_DIR}"
+    # init
+    TARGET_DIR="${1:-}"
+    DOCUMENT="${2:-}"
+    NAV_FILE="${3:-}"
+    [[ "${TARGET_DIR}" == "" ]] && return 1
+    [[ "${DOCUMENT}" == "" ]] && return 1
+    [[ "${NAV_FILE}" == "" ]] && return 1
 
-    # child dir
-    cd "${CHILD_DIR}" >/dev/null 2>&1 || return 1
-    CHILD_DIR=$(pwd -P . 2>/dev/null || command pwd)
-    cd "${CURRENT_DIR}"
+    # set up document path and search directory
+    if [[ "${DOCUMENT#${TARGET_DIR}/}" != "${DOCUMENT}" ]]; then
+        DOCUMENT="${DOCUMENT#${TARGET_DIR}/}"
+    fi
+    DOCUMENT="${DOCUMENT#./}"
+    DOCUMENT_DIR="./${DOCUMENT}"
+    DOCUMENT_DIR="${DOCUMENT_DIR%/*}"
+    DOCUMENT_DIR="${DOCUMENT_DIR#./}"
+    DOCUMENT_DIR="${DOCUMENT_DIR:-.}"
+    SEARCH_DIR="${DOCUMENT_DIR}"
 
-    # compare
-    if [[ -f "${CHILD}" ]] && [[ "${DIRECTORY}" == "${CHILD_DIR}" ]]; then
-        # file in directory root
-        return 0
-    fi
-    if [[ "${DIRECTORY}" != "${CHILD_DIR}" ]] && [[ "${CHILD_DIR#$DIRECTORY}" != "${CHILD_DIR}" ]]; then
-        # subdirectory or file in subdirectory
-        return 0
-    fi
+    # search for advanced nav file in document directory and parent directories
+    while true; do
+        NAV_PATH="${NAV_FILE#\./}.${MARSH_UID}.advanced-nav.html"
+        if [[ "${SEARCH_DIR}" != "." ]]; then
+            NAV_PATH="${SEARCH_DIR}/${NAV_PATH}"
+        fi
+        if [[ -f "${TARGET_DIR}/${NAV_PATH}" ]] && [[ -r "${TARGET_DIR}/${NAV_PATH}" ]]; then
+            printf '%s\n' "${NAV_PATH}"
+            return 0
+        fi
+        [[ "${SEARCH_DIR}" == "." ]] && break
+        if [[ "${SEARCH_DIR}" =~ / ]]; then
+            SEARCH_DIR="${SEARCH_DIR%/*}"
+        else
+            SEARCH_DIR="."
+        fi
+    done
     return 1
 }
 
@@ -1458,14 +1463,15 @@ function marsh_build_archive {  # marsh_build_archive encoding target_dir dest_f
 
 # builds advanced navigation
 function marsh_build_advanced_nav {  # marsh_build_advanced_nav target_dir navigation_file
-    local TARGET_DIR NAV_NAME
-    local NAV_TARGETS NAV_DEST TEXT_FILTER
+    local TARGET_DIR NAV_FILE NAV_TARGETS NAV_DEST TEXT_FILTER
 
     # init
-    TARGET_DIR="${1:-}"; [[ "${TARGET_DIR}" == "" ]] && return 1
-    NAV_NAME="${2:-}";   [[ "${NAV_NAME}" == "" ]]   && return 1
+    TARGET_DIR="${1:-}"
+    NAV_FILE="${2:-}"
+    [[ "${TARGET_DIR}" == "" ]] && return 1
+    [[ "${NAV_FILE}" == "" ]]   && return 1
 
-    NAV_TARGETS=$(cd "${TARGET_DIR}" && find . -name "${NAV_NAME}" | sed 's/^\.\///')
+    NAV_TARGETS=$(cd "${TARGET_DIR}" && find . -name "${NAV_FILE#\./}")
     for NAV_TARGET in ${NAV_TARGETS[@]}; do
         NAV_TARGET="${TARGET_DIR}/${NAV_TARGET}"
         NAV_DEST="${NAV_TARGET}.${MARSH_UID}.advanced-nav.html"
@@ -1485,7 +1491,7 @@ function marsh_build_advanced_nav {  # marsh_build_advanced_nav target_dir navig
 }
 
 # builds a template and applies it to a document
-function marsh_build_template {  # marsh_build_template dest_dir target_dir document templates_dir template #template_overrides[@] template_overrides[@]
+function marsh_build_template {  # marsh_build_template dest_dir target_dir document advanced_nav templates_dir template #template_overrides[@] template_overrides[@]
     function process_conditionals {  # process_conditionals file tag list[@]
         local FILE TAG LIST_SEP LIST_RAW
         local FILE_TEMP
@@ -1828,7 +1834,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
         return "${RES}"
     }
 
-    local DEST_DIR TARGET_DIR
+    local DEST_DIR TARGET_DIR ADVANCED_NAV
     local DOCUMENT DOCUMENT_EXT DOCUMENT_DIR DOCUMENT_RELPATH DOCUMENT_ABSPATH DOCUMENT_URI
     local DEST DEST_NAME
     local TEMPLATE_DIR TEMPLATE NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDE TEMPLATE_OVERRIDES
@@ -1854,6 +1860,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
     TARGET_DIR="${TARGET_DIR%/}"
     DOCUMENT="${3:-}"
     [[ "${DOCUMENT}" == "" ]] && return 1
+    ADVANCED_NAV="${4:-}"
     DOCUMENT_EXT="${DOCUMENT##*.}"
     DOCUMENT_DIR="./${DOCUMENT}"
     DOCUMENT_DIR="${DOCUMENT_DIR%/*}"
@@ -1877,9 +1884,9 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
     DEST="${DEST_DIR}/${DEST}"
     DOCUMENT="${DEST_DIR}/${TARGET_DIR}/${DOCUMENT}"
     DOCUMENT_URI="${DOCUMENT_ABSPATH:+$DOCUMENT_ABSPATH/}${DEST##*/}"
-    TEMPLATE_DIR="${4:-}"
-    TEMPLATE="${5:-}"
-    shift 5
+    TEMPLATE_DIR="${5:-}"
+    TEMPLATE="${6:-}"
+    shift 6
     NUM_TEMPLATE_OVERRIDES="${1:-0}"
     shift 1
     TEMPLATE_OVERRIDES=()
@@ -2051,16 +2058,22 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
 
         # advanced navigation
         TEMPLATE_ADVNAV=""
-        for NAV in $(cd "${DEST_DIR}/${TARGET_DIR}" && find . -name "*.${MARSH_UID}.advanced-nav.html" | sed 's/^\.\///'); do
-            NAV_NAME="${NAV##*/}"
-            NAV_NAME="${NAV_NAME%.$MARSH_UID.advanced-nav.html}.html"
-            NAV_NAME=$(echo "${NAV_NAME}" | sed -E -e "s/\.(${MARKDOWN_FILEEXT_REGEX})(.html)$/\2/")
-            NAV_DIR="./${NAV}"
-            NAV_DIR="${NAV_DIR%/*}"
-            NAV_DIR="${NAV_DIR#./}"
-            if marsh_is_child "${DEST_DIR}/${TARGET_DIR}/${NAV_DIR}" "${DOCUMENT}"; then
-                NAV_RELPATH="${DOCUMENT_DIR#$NAV_DIR}"
-                NAV_RELPATH="${NAV_RELPATH//[^\/]}"     # leave only slashes
+        if [[ "${ADVANCED_NAV}" != "" ]]; then
+            NAV=$(marsh_find_advanced_nav "${DEST_DIR}/${TARGET_DIR}" "${DOCUMENT}" "${ADVANCED_NAV}")
+            if [[ "${NAV:-}" != "" ]]; then
+                NAV_NAME="${ADVANCED_NAV}.html"
+                NAV_NAME=$(echo "${NAV_NAME}" | sed -E -e "s/\.(${MARKDOWN_FILEEXT_REGEX})(.html)$/\2/")
+                if [[ "${NAV}" =~ / ]]; then
+                    NAV_DIR="${NAV%/*}"
+                else
+                    NAV_DIR="."
+                fi
+                if [[ "${NAV_DIR}" == "." ]]; then
+                    NAV_RELPATH="${DOCUMENT_DIR}"
+                else
+                    NAV_RELPATH="${DOCUMENT_DIR#$NAV_DIR}"
+                fi
+                NAV_RELPATH="${NAV_RELPATH//[^\/]/}"     # leave only slashes
                 NAV_RELPATH="${NAV_RELPATH//[\/]/../}"  # slashes to dirs
                 NAV_RELPATH="${NAV_RELPATH:-.}"         # empty to current dir
                 NAV_RELPATH="${NAV_RELPATH%/}"          # drop trailing slash
@@ -2069,9 +2082,8 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                 -e 's|(<a href=")([^.])|\1'"${NAV_RELPATH}/"'\2|g' | \
                 sed -E \
                 -e 's|<a (href="[^"]*'"${NAV_RELPATH}/${DEST_NAME}.html"'"[^>]*)>([^<>]+)</a>|<a \1 class="selected">\2</a>|g')
-                break
             fi
-        done
+        fi
 
         TEMPLATE_BODY_ESC=$(printf '%s' "${TEMPLATE_BODY}" | escape_substitution)
         TEMPLATE_DOCUMENT_ESC=$(printf '%s' "${TEMPLATE_DOCUMENT_TEMPLATE}" | escape_substitution)
@@ -2404,7 +2416,7 @@ function marsh_build_target {  # marsh_build_target dest_dir target advanced_nav
         fi
         if [[ "${TEMPLATES_DIR}" != "" ]] && [[ "${TEMPLATE}" != "" ]]; then
             export -f marsh_build_template
-            if ! "${PARALLEL}" --halt now,fail=1 --quote --no-notice --env marsh_text_filter --env marsh_process_markdown --env marsh_build_template --jobs="${JOBS:-1}" "${SELF_DIR}/${SELF_NAME}" build-template --markdown="${PARALLEL_MARKDOWN}" --markdown-options="${MARKDOWN_OPTIONS_CSV}" --markdown-file-extensions="${MARKDOWN_FILEEXT_CSV}" --markdown-rewrite-links="${MARKDOWN_REWRITE_LINKS}" --marsh-uid="${MARSH_UID}" --marsh-temp="${MARSH_TEMP}" --marsh-config-file="${MARSH_CONFIG_FILE}" --marsh-config-file-dir="${MARSH_CONFIG_FILE_DIR}" --marsh-config-path="${MARSH_CONFIG_PATH}" --marsh-config-url="${MARSH_CONFIG_URL}" "${DEST_DIR}" "${TARGET_DIR}" {} "${TEMPLATES_DIR}" "${TEMPLATE}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" ::: "${DOCUMENTS[@]}"; then
+            if ! "${PARALLEL}" --halt now,fail=1 --quote --no-notice --env marsh_text_filter --env marsh_process_markdown --env marsh_build_template --jobs="${JOBS:-1}" "${SELF_DIR}/${SELF_NAME}" build-template --markdown="${PARALLEL_MARKDOWN}" --markdown-options="${MARKDOWN_OPTIONS_CSV}" --markdown-file-extensions="${MARKDOWN_FILEEXT_CSV}" --markdown-rewrite-links="${MARKDOWN_REWRITE_LINKS}" --marsh-uid="${MARSH_UID}" --marsh-temp="${MARSH_TEMP}" --marsh-config-file="${MARSH_CONFIG_FILE}" --marsh-config-file-dir="${MARSH_CONFIG_FILE_DIR}" --marsh-config-path="${MARSH_CONFIG_PATH}" --marsh-config-url="${MARSH_CONFIG_URL}" "${DEST_DIR}" "${TARGET_DIR}" {} "${ADVANCED_NAV}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" ::: "${DOCUMENTS[@]}"; then
                 echo "Unable to build template: ${TEMPLATE}"
                 return 1
             fi
@@ -2421,7 +2433,7 @@ function marsh_build_target {  # marsh_build_target dest_dir target advanced_nav
                 return 1
             fi
             if [[ "${TEMPLATES_DIR}" != "" ]] && [[ "${TEMPLATE}" != "" ]]; then
-                if ! marsh_build_template "${DEST_DIR}" "${TARGET_DIR}" "${DOCUMENT}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}"; then
+                if ! marsh_build_template "${DEST_DIR}" "${TARGET_DIR}" "${DOCUMENT}" "${ADVANCED_NAV}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}"; then
                     echo "Unable to build template: ${TEMPLATE}"
                     return 1
                 fi

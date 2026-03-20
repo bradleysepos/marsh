@@ -1051,6 +1051,47 @@ function marsh_parse_template_metadata {  # marsh_parse_template_metadata prefix
     for VAR in ${TEMPLATE_META_VARS[@]}; do unset "${VAR}"; done
 }
 
+# loads cached template metadata assignments where available
+function marsh_get_template_metadata {  # marsh_get_template_metadata prefix template_dir #template_overrides[@] template_overrides[@]
+    local PREFIX TEMPLATE_DIR NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDES
+    local CACHE_DIR CACHE_KEY CACHE_FILE CACHE_TEMP TEMPLATE_META
+
+    # init
+    PREFIX="${1:-}"
+    TEMPLATE_DIR="${2:-}"
+    [[ "${TEMPLATE_DIR}" == "" ]] && return 1
+    shift 2
+    NUM_TEMPLATE_OVERRIDES="${1:-0}"
+    shift 1
+    TEMPLATE_OVERRIDES=()
+    while [[ "${NUM_TEMPLATE_OVERRIDES}" -gt 0 ]] && [[ "${#@}" -gt 0 ]]; do
+        TEMPLATE_OVERRIDES+=("${1}")
+        NUM_TEMPLATE_OVERRIDES=$((NUM_TEMPLATE_OVERRIDES - 1))
+        shift 1
+    done
+
+    # create cache directory and key
+    CACHE_DIR="${MARSH_TEMP}/template-metadata-cache"
+    mkdir -p "${CACHE_DIR}" >/dev/null 2>&1 || return 1
+    CACHE_KEY=$(printf '%s\034' "${PREFIX}" "${TEMPLATE_DIR}" "${TEMPLATE_OVERRIDES[@]}" | marsh_text_filter hash:md5)
+    CACHE_FILE="${CACHE_DIR}/${CACHE_KEY}.meta"
+    if [[ -f "${CACHE_FILE}" ]] && [[ -r "${CACHE_FILE}" ]]; then
+        cat "${CACHE_FILE}"
+        return 0
+    fi
+
+    # parse and cache template metadata
+    TEMPLATE_META=$(marsh_parse_template_metadata "${PREFIX}" "${TEMPLATE_DIR}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}")
+    [[ $? -ne 0 ]] && return 1
+    CACHE_TEMP=$(mktemp "${CACHE_DIR}/metadata-XXXXXX") || return 1
+    printf '%s\n' "${TEMPLATE_META}" > "${CACHE_TEMP}" || {
+        rm -f "${CACHE_TEMP}"
+        return 1
+    }
+    mv "${CACHE_TEMP}" "${CACHE_FILE}" 2>/dev/null || rm -f "${CACHE_TEMP}"
+    printf '%s\n' "${TEMPLATE_META}"
+}
+
 # loads target metadata into convenience variables
 function marsh_get_target_metadata {  # marsh_get_target_metadata source_prefix prefix
     local SOURCE_PREFIX PREFIX
@@ -1783,7 +1824,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
     # template
     if [[ "${TEMPLATE_DIR}" != "" ]]; then
         TEMPLATE_PREFIX="TEMPLATE_"
-        TEMPLATE_META=$(marsh_parse_template_metadata "${TEMPLATE_PREFIX}" "${TEMPLATE_DIR}/${TEMPLATE}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}")
+        TEMPLATE_META=$(marsh_get_template_metadata "${TEMPLATE_PREFIX}" "${TEMPLATE_DIR}/${TEMPLATE}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}")
         [[ $? -ne 0 ]] && return 1
         TEMPLATE_META_VARS=$(echo "${TEMPLATE_META}" | marsh_get_variables)
         eval "${TEMPLATE_META}"
@@ -2231,7 +2272,7 @@ function marsh_build_target {  # marsh_build_target dest_dir target advanced_nav
     # copy template assets
     if [[ "${TEMPLATES_DIR}" != "" ]] && [[ "${TEMPLATE}" != "" ]]; then
         TEMPLATE_PREFIX="TEMPLATE_"
-        TEMPLATE_META=$(marsh_parse_template_metadata "${TEMPLATE_PREFIX}" "${TEMPLATES_DIR}/${TEMPLATE}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}")
+        TEMPLATE_META=$(marsh_get_template_metadata "${TEMPLATE_PREFIX}" "${TEMPLATES_DIR}/${TEMPLATE}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}")
         [[ $? -ne 0 ]] && return 1
         TEMPLATE_META_VARS=$(echo "${TEMPLATE_META}" | marsh_get_variables)
         eval "${TEMPLATE_META}"

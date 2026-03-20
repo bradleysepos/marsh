@@ -1684,8 +1684,8 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
 
     function replace_tags {  # replace_tags document prefix
         local DOCUMENT PREFIX
-        local TAGS TAG_ESC TAG_NAME TAG_FILTERS TAG_VAR TAG_TYPE TAG_VALUE TAG_VALUES
         local TAG_FRAGMENT_UNQUOTED TAG_FRAGMENT_DOUBLE TAG_FRAGMENT_SINGLE TAG_FRAGMENT TAG_REGEX
+        local TAGS UNIQUE_TAGS REPLACEMENTS TAG_ESC TAG_NAME TAG_FILTERS TAG_VAR TAG_TYPE TAG_VALUE TAG_VALUES
 
         # init
         DOCUMENT="${1:-}"
@@ -1702,11 +1702,21 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
         IFS=$'\n'
         TAGS=($(<"${DOCUMENT}" grep -Eo "${TAG_REGEX}"))
         IFS="${OIFS}"
+        [[ "${#TAGS[@]}" -eq 0 ]] && return 0
+        UNIQUE_TAGS=()
+        REPLACEMENTS=$(mktemp "${MARSH_TEMP}/template-tags-XXXXXX") || return 1
 
-        # loop over tags
+        # build single replacement script handling all unique tags
         for I in "${!TAGS[@]}"; do
+            if marsh_in_array "${TAGS[$I]}" "${UNIQUE_TAGS[@]}"; then
+                continue
+            fi
+            UNIQUE_TAGS+=("${TAGS[$I]}")
             TAG_ESC=$(printf '%s' "${TAGS[$I]}" | sed -e 's/[\\]/\\\\/g' -e 's/[][/.|$(){}?+*^]/\\&/g')
-            parse_template_tag "${TAGS[$I]}" || return 1
+            parse_template_tag "${TAGS[$I]}" || {
+                rm -f "${REPLACEMENTS}"
+                return 1
+            }
             TAG_VAR=""
             TAG_TYPE=""
             resolve_tag_metadata "${TAG_NAME}" "${PREFIX}" 2>/dev/null || true
@@ -1718,23 +1728,34 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                     if [[ -f "${!TAG_VAR}" ]] && [[ -r "${!TAG_VAR}" ]]; then
                         TAG_VALUE=$(<"${!TAG_VAR}")
                     else
+                        rm -f "${REPLACEMENTS}"
                         return 1
                     fi
                 elif [[ "${TAG_TYPE}" == "string" ]]; then
                     TAG_VALUE="${!TAG_VAR}"
                 else
+                    rm -f "${REPLACEMENTS}"
                     return 1
                 fi
                 TAG_VALUE=$(printf '%s' "${TAG_VALUE}" | marsh_text_filter "${TAG_FILTERS[@]}" | escape_substitution)
-                sed -E \
-                -e "/${TAG_ESC}/s//${TAG_VALUE:-}/g" \
-                -i".${MARSH_UID}.backup" "${DOCUMENT}"
+                printf '/%s/s//%s/g\n' "${TAG_ESC}" "${TAG_VALUE:-}" >> "${REPLACEMENTS}" || {
+                    rm -f "${REPLACEMENTS}"
+                    return 1
+                }
             else
                 # ignore unknown tags
                 :
             fi
         done
+
+        # perform replacements in a single pass
+        RES=0
+        if [[ -s "${REPLACEMENTS}" ]]; then
+            sed -E -f "${REPLACEMENTS}" -i".${MARSH_UID}.backup" "${DOCUMENT}" || RES=1
+        fi
+        rm -f "${REPLACEMENTS}"
         rm -f "${DOCUMENT}.${MARSH_UID}.backup"
+        return "${RES}"
     }
 
     local DEST_DIR TARGET_DIR

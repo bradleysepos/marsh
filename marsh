@@ -2638,6 +2638,8 @@ function marsh_cli {
     local MARKDOWN_OPTIONS_CSV MARKDOWN_OPTIONS_CLIARGS MARKDOWN_FILEEXT_CSV
     local INDEX PREFIX META META_VARS OIFS I VAR
     local TARGET_ARCHIVE_TYPES TARGET_ARCHIVE_EXCLUDED_STATES
+    local BUILD_DEST_DIR BUILD_TARGET_DIR BUILD_DOCUMENT BUILD_ADVANCED_NAV
+    local BUILD_TEMPLATES_DIR BUILD_TEMPLATE BUILD_NUM_TEMPLATE_OVERRIDES BUILD_TEMPLATE_OVERRIDES
 
     # args with help
     MARKDOWN_OPTIONS=(-1.0 +alphalist -autolink -cdata +definitionlist -divquote -dldiscount +dlextra +ext +fencedcode +footnote +githubtags -header +html +image -latex +links -safelink +smarty +strikethrough +style +superscript +tables -tabstop -toc)
@@ -2946,6 +2948,16 @@ function marsh_cli {
         return 1
     fi
 
+    # build document/template dispatch vars
+    BUILD_DEST_DIR="${1:-}"
+    BUILD_TARGET_DIR="${2:-}"
+    BUILD_DOCUMENT="${3:-}"
+    BUILD_ADVANCED_NAV="${4:-}"
+    BUILD_TEMPLATES_DIR="${5:-}"
+    BUILD_TEMPLATE="${6:-}"
+    BUILD_NUM_TEMPLATE_OVERRIDES="${7:-0}"
+    BUILD_TEMPLATE_OVERRIDES=("${@:8}")
+
     # parse config
     if [[ "${MARSH_CONFIG_FILE:-}" == "" ]]; then
         MARSH_CONFIG_FILE="${1:-$(pwd -P)}"
@@ -3170,10 +3182,10 @@ function marsh_cli {
         trap - EXIT INT TERM
     elif [[ "${COMMAND}" == "build-document" ]]; then
         # build single document
-        marsh_build_document "${1:-}" "${2:-}" "${3:-}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_FILEEXT_CSV}" "${MARKDOWN_REWRITE_LINKS}"
+        marsh_build_document "${BUILD_DEST_DIR}" "${BUILD_TARGET_DIR}" "${BUILD_DOCUMENT}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_FILEEXT_CSV}" "${MARKDOWN_REWRITE_LINKS}"
     elif [[ "${COMMAND}" == "build-template" ]]; then
         # build template for document
-        marsh_build_template "${1:-}" "${2:-}" "${3:-}" "${4:-}" "${5:-}" "${6:-}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_FILEEXT_CSV}" "${MARKDOWN_REWRITE_LINKS}" "${7:-0}" "${@:8}"
+        marsh_build_template "${BUILD_DEST_DIR}" "${BUILD_TARGET_DIR}" "${BUILD_DOCUMENT}" "${BUILD_ADVANCED_NAV}" "${BUILD_TEMPLATES_DIR}" "${BUILD_TEMPLATE}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_FILEEXT_CSV}" "${MARKDOWN_REWRITE_LINKS}" "${BUILD_NUM_TEMPLATE_OVERRIDES}" "${BUILD_TEMPLATE_OVERRIDES[@]}"
     fi
 
     # done

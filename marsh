@@ -1420,22 +1420,25 @@ function marsh_build_archive {  # marsh_build_archive encoding target_dir dest_f
 
     # init
     ENCODING="${1:-html}"
-    shift 1
-    TARGET_DIR="${1:-}"; [[ "${TARGET_DIR}" == "" ]] && return 1
-    DEST="${2:-}";       [[ "${DEST}" == "" ]] && return 1
+    TARGET_DIR="${2:-}"
+    DEST="${3:-}"
+    [[ "${TARGET_DIR}" == "" ]] && return 1
+    [[ "${DEST}" == "" ]] && return 1
     DEST="${TARGET_DIR}/${DEST}"
     DEST_SUB_PREFIX="${DEST}.${MARSH_UID}.subdocuments"
-    DEST_TITLE="${3:-}"
-    LANGUAGE="${4:-}"
-    LANGCODE="${5:-}"
-    CONTENT="${6:-}"
+    shift 3
+    DEST_TITLE="${1:-}"
+    LANGUAGE="${2:-}"
+    LANGCODE="${3:-}"
+    CONTENT="${4:-}"
     CONTENT_VALID=('excerpt' 'none' '')
     if ! marsh_in_array "${CONTENT%%:*}" "${CONTENT_VALID[@]}"; then
         echo "Invalid archive content type: ${CONTENT%%:*}" >&2
         return 1
     fi
-    COUNT="${7:-}"
-    shift 7
+    shift 4
+    COUNT="${1:-}"
+    shift 1
     NUM_TYPES="${1:-0}"
     shift 1
     TYPES=()

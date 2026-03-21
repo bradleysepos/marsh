@@ -2561,6 +2561,11 @@ function marsh_clean_target {  # marsh_clean_target target
 function marsh_cli {
     set -o pipefail
 
+    local COMMANDS COMMAND OPTSPEC OPTARRAY
+    local DEPS MARKDOWN_UNKNOWN UNKNOWN TEMP_DIR TEMPLATES_DIR FORCE
+    local INDEX PREFIX META META_VARS OIFS I VAR
+    local TARGET_ARCHIVE_TYPES TARGET_ARCHIVE_EXCLUDED_STATES
+
     # args with help
     MARKDOWN_OPTIONS=(-1.0 +alphalist -autolink -cdata +definitionlist -divquote -dldiscount +dlextra +ext +fencedcode +footnote +githubtags -header +html +image -latex +links -safelink +smarty +strikethrough +style +superscript +tables -tabstop -toc)
     MARKDOWN_FILEEXT=('markdown' 'md' 'mkd' 'mkdn' 'mdown' 'mdtxt' 'mdtext' 'text')

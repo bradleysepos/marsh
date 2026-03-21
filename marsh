@@ -846,6 +846,28 @@ function marsh_get_subdocuments {  # marsh_get_subdocuments document
     done
 }
 
+# returns success when file extension is a markdown file extension
+function marsh_is_markdown_extension {  # marsh_is_markdown_extension file_ext
+    local FILE_EXT MD_EXT
+
+    FILE_EXT="${1:-}"
+    FILE_EXT=$(printf '%s' "${FILE_EXT}" | awk '{ print tolower($0) }')
+    for MD_EXT in "${MARKDOWN_FILEEXT[@]}"; do
+        [[ "${FILE_EXT}" == "${MD_EXT}" ]] && return 0
+    done
+    return 1
+}
+
+# returns success when file begins with yaml frontmatter
+function marsh_has_frontmatter {  # marsh_has_frontmatter source
+    local SOURCE FIRST_LINE
+
+    SOURCE="${1:-}"
+    [[ "${SOURCE}" == "" ]] && return 1
+    IFS= read -r FIRST_LINE < "${SOURCE}" || return 1
+    [[ "${FIRST_LINE}" =~ ^---\ *(#.*)?$ ]]
+}
+
 # extracts yaml frontmatter and document body
 function marsh_extract_frontmatter {  # marsh_extract_frontmatter source meta_dest body_dest
     local SOURCE META_DEST BODY_DEST META_TEMP BODY_TEMP
@@ -1537,7 +1559,7 @@ function marsh_build_advanced_nav {  # marsh_build_advanced_nav target_dir navig
     for NAV_TARGET in ${NAV_TARGETS[@]}; do
         NAV_TARGET="${TARGET_DIR}/${NAV_TARGET}"
         NAV_DEST="${NAV_TARGET}.${MARSH_UID}.advanced-nav.html"
-        if head -n 1 "${NAV_TARGET}" 2>/dev/null | grep -E '^---[ ]*(#.*)?$' >/dev/null 2>&1; then
+        if marsh_has_frontmatter "${NAV_TARGET}"; then
             marsh_extract_frontmatter "${NAV_TARGET}" "${NAV_DEST}.meta.yaml" "${NAV_DEST}.temp" || return 1
         else
             cp "${NAV_TARGET}" "${NAV_DEST}.temp"
@@ -1937,7 +1959,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
     DEST="${DOCUMENT}"
     DEST_NAME="${DEST%.$DOCUMENT_EXT}"
     DEST_NAME="${DEST_NAME##*/}"
-    if echo "${DOCUMENT_EXT}" | grep -Ei "^(${MARKDOWN_FILEEXT_REGEX})$" >/dev/null 2>&1; then
+    if marsh_is_markdown_extension "${DOCUMENT_EXT}"; then
         DEST="${DEST%.*}.html"
     fi
     if [[ "${TARGET_DIR}" != "." ]]; then
@@ -2336,7 +2358,7 @@ function marsh_build_document {  # marsh_build_document dest_dir target_dir docu
     ARCHIVE_META="${DOCUMENT_PATH}.${MARSH_UID}.archive-meta"
 
     # normalize extensions
-    if echo "${DOCUMENT_EXT}" | grep -Ei "^(${MARKDOWN_FILEEXT_REGEX})$" >/dev/null 2>&1; then
+    if marsh_is_markdown_extension "${DOCUMENT_EXT}"; then
         DOCUMENT_EXT="markdown"
     fi
 
@@ -2344,7 +2366,7 @@ function marsh_build_document {  # marsh_build_document dest_dir target_dir docu
     rm -f "${ARCHIVE_META}"
 
     # extract frontmatter metadata and document body
-    if head -n 1 "${DOCUMENT_PATH}" 2>/dev/null | grep -E '^---[ ]*(#.*)?$' >/dev/null 2>&1; then
+    if marsh_has_frontmatter "${DOCUMENT_PATH}"; then
         marsh_extract_frontmatter "${DOCUMENT_PATH}" "${DOCUMENT_META}" "${DOCUMENT_BODY}" || return 1
     fi
 
@@ -2892,6 +2914,9 @@ function marsh_cli {
     fi
 
     # markdown file extensions
+    for I in "${!MARKDOWN_FILEEXT[@]}"; do
+        MARKDOWN_FILEEXT[$I]=$(printf '%s' "${MARKDOWN_FILEEXT[$I]}" | awk '{ print tolower($0) }')
+    done
     MARKDOWN_FILEEXT_CSV=$(echo ${MARKDOWN_FILEEXT[@]} | sed 's/ /,/g')
     MARKDOWN_FILEEXT_REGEX=$(echo ${MARKDOWN_FILEEXT[@]} | sed 's/ /|/g')
 

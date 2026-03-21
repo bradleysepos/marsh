@@ -2447,8 +2447,8 @@ function marsh_build_document {  # marsh_build_document dest_dir target_dir docu
 }
 
 # builds a target, parallel if possible
-function marsh_build_target {  # marsh_build_target dest_dir target advanced_nav templates_dir template #template_overrides[@] template_overrides[@]
-    local DEST_DIR TARGET ADVANCED_NAV TEMPLATES_DIR TEMPLATE NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDES
+function marsh_build_target {  # marsh_build_target dest_dir target jobs advanced_nav templates_dir template #template_overrides[@] template_overrides[@]
+    local DEST_DIR TARGET JOBS ADVANCED_NAV TEMPLATES_DIR TEMPLATE NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDES
     local TEMPLATE_META TEMPLATE_META_VARS
     local TARGET_DIR TEMPLATE_PREFIX DOCUMENTS PARALLEL PARALLEL_MARKDOWN ASSET VAR
 
@@ -2460,10 +2460,11 @@ function marsh_build_target {  # marsh_build_target dest_dir target advanced_nav
     TARGET_DIR="${TARGET%/*}"
     TARGET_DIR="${TARGET_DIR:-.}"
     TARGET="${TARGET:-*}"
-    ADVANCED_NAV="${3:-}"
-    TEMPLATES_DIR="${4:-}"
-    TEMPLATE="${5:-}"
-    shift 5
+    JOBS="${3:-1}"
+    ADVANCED_NAV="${4:-}"
+    TEMPLATES_DIR="${5:-}"
+    TEMPLATE="${6:-}"
+    shift 6
     NUM_TEMPLATE_OVERRIDES="${1:-0}"
     shift 1
     TEMPLATE_OVERRIDES=()
@@ -2562,7 +2563,7 @@ function marsh_cli {
     set -o pipefail
 
     local COMMANDS COMMAND OPTSPEC OPTARRAY
-    local DEPS MARKDOWN_UNKNOWN UNKNOWN TEMP_DIR TEMPLATES_DIR FORCE
+    local DEPS MARKDOWN_UNKNOWN UNKNOWN TEMP_DIR TEMPLATES_DIR FORCE JOBS
     local INDEX PREFIX META META_VARS OIFS I VAR
     local TARGET_ARCHIVE_TYPES TARGET_ARCHIVE_EXCLUDED_STATES
 
@@ -3038,6 +3039,7 @@ function marsh_cli {
             # build target
             marsh_build_target "${MARSH_CONFIG_PATH}" \
                         "${TARGET_PATH}" \
+                        "${JOBS}" \
                         "${TARGET_NAV}" \
                         "${TEMPLATES_DIR}" \
                         "${TARGET_TEMPLATE:-}" \
@@ -3066,6 +3068,7 @@ function marsh_cli {
                                     "${TARGET_ARCHIVE_EXCLUDED_STATES[@]}" \
                     || ! marsh_build_target "${MARSH_CONFIG_PATH}" \
                                     "${TARGET_PATH}/${TARGET_ARCHIVES[$I]}" \
+                                    "${JOBS}" \
                                     "" \
                                     "${TEMPLATES_DIR}" \
                                     "${TARGET_TEMPLATE:-}" \

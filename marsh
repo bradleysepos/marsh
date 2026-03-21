@@ -847,15 +847,47 @@ function marsh_get_subdocuments {  # marsh_get_subdocuments document
 }
 
 # returns success when file extension is a markdown file extension
-function marsh_is_markdown_extension {  # marsh_is_markdown_extension file_ext
-    local FILE_EXT MD_EXT
+function marsh_is_markdown_extension {  # marsh_is_markdown_extension file_ext markdown_fileext_csv
+    local FILE_EXT MARKDOWN_FILEEXT_CSV MD_EXT
 
     FILE_EXT="${1:-}"
+    MARKDOWN_FILEEXT_CSV="${2:-}"
+    [[ "${FILE_EXT}" == "" ]] && return 1
+    [[ "${MARKDOWN_FILEEXT_CSV}" == "" ]] && return 1
     FILE_EXT=$(printf '%s' "${FILE_EXT}" | awk '{ print tolower($0) }')
-    for MD_EXT in "${MARKDOWN_FILEEXT[@]}"; do
+    for MD_EXT in ${MARKDOWN_FILEEXT_CSV//,/ }; do
         [[ "${FILE_EXT}" == "${MD_EXT}" ]] && return 0
     done
     return 1
+}
+
+# processes markdown from stdin using explicit runtime configuration
+function marsh_process_markdown {  # marsh_process_markdown markdown_command markdown_options_csv [args...]
+    local MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_OPTIONS MARKDOWN_OPTIONS_CLIARGS OIFS I
+
+    MARKDOWN_COMMAND="${1:-}"
+    MARKDOWN_OPTIONS_CSV="${2:-}"
+    [[ "${MARKDOWN_COMMAND}" == "" ]] && return 1
+    shift 2
+
+    MARKDOWN_OPTIONS=()
+    MARKDOWN_OPTIONS_CLIARGS=()
+    if [[ "${MARKDOWN_OPTIONS_CSV}" != "" ]]; then
+        OIFS="${IFS}"
+        IFS=$'\n'
+        MARKDOWN_OPTIONS=(${MARKDOWN_OPTIONS_CSV//,/$IFS})
+        IFS="${OIFS}"
+        for I in "${!MARKDOWN_OPTIONS[@]}"; do
+            MARKDOWN_OPTIONS_CLIARGS+=("-f${MARKDOWN_OPTIONS[$I]}")
+        done
+    fi
+
+    # re[lv]="footnote" is not valid html5; remove it
+    if [[ "${#MARKDOWN_OPTIONS_CLIARGS[@]}" -gt 0 ]]; then
+        "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CLIARGS[@]}" "$@" | sed -E -e '/<a href="#[a-z]+:[^"]+" re[lv]="footnote">/s/ re[lv]="footnote"//g'
+    else
+        "${MARKDOWN_COMMAND}" "$@" | sed -E -e '/<a href="#[a-z]+:[^"]+" re[lv]="footnote">/s/ re[lv]="footnote"//g'
+    fi
 }
 
 # returns success when file begins with yaml frontmatter
@@ -1547,14 +1579,22 @@ function marsh_build_archive {  # marsh_build_archive encoding target_dir dest_f
 }
 
 # builds advanced navigation
-function marsh_build_advanced_nav {  # marsh_build_advanced_nav target_dir navigation_file
-    local TARGET_DIR NAV_FILE NAV_TARGETS NAV_DEST TEXT_FILTER
+function marsh_build_advanced_nav {  # marsh_build_advanced_nav target_dir navigation_file markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links
+    local TARGET_DIR NAV_FILE MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_REWRITE_LINKS
+    local NAV_TARGETS NAV_DEST TEXT_FILTER
 
     # init
     TARGET_DIR="${1:-}"
     NAV_FILE="${2:-}"
+    MARKDOWN_COMMAND="${3:-}"
+    MARKDOWN_OPTIONS_CSV="${4:-}"
+    MARKDOWN_FILEEXT_CSV="${5:-}"
+    MARKDOWN_REWRITE_LINKS="${6:-}"
     [[ "${TARGET_DIR}" == "" ]] && return 1
     [[ "${NAV_FILE}" == "" ]]   && return 1
+    [[ "${MARKDOWN_COMMAND}" == "" ]] && return 1
+    [[ "${MARKDOWN_FILEEXT_CSV}" == "" ]] && return 1
+    [[ "${MARKDOWN_REWRITE_LINKS}" == "" ]] && return 1
 
     NAV_TARGETS=$(cd "${TARGET_DIR}" && find . -name "${NAV_FILE#\./}")
     for NAV_TARGET in ${NAV_TARGETS[@]}; do
@@ -1569,14 +1609,14 @@ function marsh_build_advanced_nav {  # marsh_build_advanced_nav target_dir navig
         if [[ "${MARKDOWN_REWRITE_LINKS}" == true ]]; then
             TEXT_FILTER="links:replace-ext:${MARKDOWN_FILEEXT_CSV}:html"
         fi
-        <"${NAV_DEST}.temp" marsh_text_filter ${TEXT_FILTER} | marsh_process_markdown > "${NAV_DEST}"
+        <"${NAV_DEST}.temp" marsh_text_filter ${TEXT_FILTER} | marsh_process_markdown "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" > "${NAV_DEST}"
         rm -f "${NAV_DEST}.meta.yaml" 2>/dev/null || true
         rm -f "${NAV_DEST}.temp"
     done
 }
 
 # builds a template and applies it to a document
-function marsh_build_template {  # marsh_build_template dest_dir target_dir document advanced_nav templates_dir template #template_overrides[@] template_overrides[@]
+function marsh_build_template {  # marsh_build_template dest_dir target_dir document advanced_nav templates_dir template markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links #template_overrides[@] template_overrides[@]
     function process_conditionals {  # process_conditionals file tag list[@]
         local FILE TAG LIST_SEP LIST_RAW
         local FILE_TEMP
@@ -1922,7 +1962,8 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
     local DEST_DIR TARGET_DIR ADVANCED_NAV
     local DOCUMENT DOCUMENT_EXT DOCUMENT_DIR DOCUMENT_RELPATH DOCUMENT_ABSPATH DOCUMENT_URI
     local DEST DEST_NAME
-    local TEMPLATE_DIR TEMPLATE NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDES
+    local TEMPLATE_DIR TEMPLATE MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_FILEEXT_REGEX MARKDOWN_REWRITE_LINKS
+    local NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDES
     local TEMPLATE_PREFIX TEMPLATE_META TEMPLATE_META_VARS PARTIALS TEMPLATE_BASE TEMPLATE_TEMP
     local TEMPLATE_RENDER
     local TEMPLATE_BODY TEMPLATE_DOCUMENT_TEMPLATE TEMPLATE_HEADER_TEMPLATE TEMPLATE_FOOTER_TEMPLATE
@@ -1946,6 +1987,26 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
     DOCUMENT="${3:-}"
     [[ "${DOCUMENT}" == "" ]] && return 1
     ADVANCED_NAV="${4:-}"
+    TEMPLATE_DIR="${5:-}"
+    TEMPLATE="${6:-}"
+    MARKDOWN_COMMAND="${7:-}"
+    MARKDOWN_OPTIONS_CSV="${8:-}"
+    MARKDOWN_FILEEXT_CSV="${9:-}"
+    MARKDOWN_FILEEXT_REGEX="${MARKDOWN_FILEEXT_CSV//,/|}"
+    MARKDOWN_REWRITE_LINKS="${10:-}"
+    shift 10
+    [[ "${MARKDOWN_COMMAND}" == "" ]] && return 1
+    [[ "${MARKDOWN_FILEEXT_CSV}" == "" ]] && return 1
+    [[ "${MARKDOWN_REWRITE_LINKS}" == "" ]] && return 1
+    NUM_TEMPLATE_OVERRIDES="${1:-0}"
+    shift 1
+    TEMPLATE_OVERRIDES=()
+    while [[ "${NUM_TEMPLATE_OVERRIDES}" -gt 0 ]] && [[ "${#@}" -gt 0 ]]; do
+        TEMPLATE_OVERRIDES+=("${1}")
+        NUM_TEMPLATE_OVERRIDES=$((NUM_TEMPLATE_OVERRIDES - 1))
+        shift 1
+    done
+
     DOCUMENT_EXT="${DOCUMENT##*.}"
     DOCUMENT_DIR="./${DOCUMENT}"
     DOCUMENT_DIR="${DOCUMENT_DIR%/*}"
@@ -1960,7 +2021,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
     DEST="${DOCUMENT}"
     DEST_NAME="${DEST%.$DOCUMENT_EXT}"
     DEST_NAME="${DEST_NAME##*/}"
-    if marsh_is_markdown_extension "${DOCUMENT_EXT}"; then
+    if marsh_is_markdown_extension "${DOCUMENT_EXT}" "${MARKDOWN_FILEEXT_CSV}"; then
         DEST="${DEST%.*}.html"
     fi
     if [[ "${TARGET_DIR}" != "." ]]; then
@@ -1969,17 +2030,6 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
     DEST="${DEST_DIR}/${DEST}"
     DOCUMENT="${DEST_DIR}/${TARGET_DIR}/${DOCUMENT}"
     DOCUMENT_URI="${DOCUMENT_ABSPATH:+$DOCUMENT_ABSPATH/}${DEST##*/}"
-    TEMPLATE_DIR="${5:-}"
-    TEMPLATE="${6:-}"
-    shift 6
-    NUM_TEMPLATE_OVERRIDES="${1:-0}"
-    shift 1
-    TEMPLATE_OVERRIDES=()
-    while [[ "${NUM_TEMPLATE_OVERRIDES}" -gt 0 ]] && [[ "${#@}" -gt 0 ]]; do
-        TEMPLATE_OVERRIDES+=("${1}")
-        NUM_TEMPLATE_OVERRIDES=$((NUM_TEMPLATE_OVERRIDES - 1))
-        shift 1
-    done
 
     # utility vars
     UTIL_JSON_SEPARATOR=","
@@ -2239,7 +2289,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                     if [[ "${MARKDOWN_REWRITE_LINKS}" == true ]]; then
                         TEXT_FILTER="links:replace-ext:${MARKDOWN_FILEEXT_CSV}:html"
                     fi
-                    <"${SUBDOCUMENT}" marsh_text_filter ${TEXT_FILTER} | marsh_process_markdown > "${SUBDOCUMENT}.document" || return 1
+                    <"${SUBDOCUMENT}" marsh_text_filter ${TEXT_FILTER} | marsh_process_markdown "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" > "${SUBDOCUMENT}.document" || return 1
                     SUBDOCUMENT_BODY="${SUBDOCUMENT}.document"
                     # document template
                     if [[ "${DOCUMENT_Type}" == "archive" ]]; then
@@ -2337,8 +2387,9 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
 }
 
 # builds a document from a single file
-function marsh_build_document {  # marsh_build_document dest_dir target_dir document
+function marsh_build_document {  # marsh_build_document dest_dir target_dir document markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links
     local DEST_DIR TARGET_DIR DOCUMENT DOCUMENT_EXT DOCUMENT_DIR TEXT_FILTER
+    local MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_REWRITE_LINKS
     local TARGET_PATH DOCUMENT_PATH DOCUMENT_META DOCUMENT_BODY ARCHIVE_META ARCHIVE_META_TEMP
 
     # init
@@ -2347,7 +2398,14 @@ function marsh_build_document {  # marsh_build_document dest_dir target_dir docu
     TARGET_DIR="${2:-.}"
     TARGET_DIR="${TARGET_DIR%/}"
     DOCUMENT="${3:-}"
+    MARKDOWN_COMMAND="${4:-}"
+    MARKDOWN_OPTIONS_CSV="${5:-}"
+    MARKDOWN_FILEEXT_CSV="${6:-}"
+    MARKDOWN_REWRITE_LINKS="${7:-}"
     [[ "${DOCUMENT}" == "" ]] && return 1
+    [[ "${MARKDOWN_COMMAND}" == "" ]] && return 1
+    [[ "${MARKDOWN_FILEEXT_CSV}" == "" ]] && return 1
+    [[ "${MARKDOWN_REWRITE_LINKS}" == "" ]] && return 1
     DOCUMENT_EXT="${DOCUMENT##*.}"
     DOCUMENT_DIR="./${DOCUMENT}"
     DOCUMENT_DIR="${DOCUMENT_DIR%/*}"
@@ -2359,7 +2417,7 @@ function marsh_build_document {  # marsh_build_document dest_dir target_dir docu
     ARCHIVE_META="${DOCUMENT_PATH}.${MARSH_UID}.archive-meta"
 
     # normalize extensions
-    if marsh_is_markdown_extension "${DOCUMENT_EXT}"; then
+    if marsh_is_markdown_extension "${DOCUMENT_EXT}" "${MARKDOWN_FILEEXT_CSV}"; then
         DOCUMENT_EXT="markdown"
     fi
 
@@ -2384,7 +2442,7 @@ function marsh_build_document {  # marsh_build_document dest_dir target_dir docu
         fi
         <"${DOCUMENT_BODY}.temp" marsh_text_filter ${TEXT_FILTER} | sed -E \
         -e 's|^!\[(.+)]\([ ]*([^ ]+)[ ]*"(.+)"[ ]*\)$|<figure>'$'\\\n''<a href="\2">'$'\\\n''<img src="\2" alt="\1" />'$'\\\n''</a>'$'\\\n''<figcaption>\3</figcaption>'$'\\\n''</figure>|' |
-        marsh_process_markdown |
+        marsh_process_markdown "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" |
         sed -E \
         -e 's|<p><figure>|<figure>|' \
         -e 's|</figure></p>|</figure>|' |
@@ -2447,8 +2505,10 @@ function marsh_build_document {  # marsh_build_document dest_dir target_dir docu
 }
 
 # builds a target, parallel if possible
-function marsh_build_target {  # marsh_build_target dest_dir target jobs advanced_nav templates_dir template #template_overrides[@] template_overrides[@]
-    local DEST_DIR TARGET JOBS ADVANCED_NAV TEMPLATES_DIR TEMPLATE NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDES
+function marsh_build_target {  # marsh_build_target dest_dir target jobs advanced_nav templates_dir template markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links #template_overrides[@] template_overrides[@]
+    local DEST_DIR TARGET JOBS ADVANCED_NAV TEMPLATES_DIR TEMPLATE
+    local MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_FILEEXT_REGEX MARKDOWN_REWRITE_LINKS
+    local NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDES
     local TEMPLATE_META TEMPLATE_META_VARS
     local TARGET_DIR TEMPLATE_PREFIX DOCUMENTS PARALLEL PARALLEL_MARKDOWN ASSET VAR
 
@@ -2464,7 +2524,15 @@ function marsh_build_target {  # marsh_build_target dest_dir target jobs advance
     ADVANCED_NAV="${4:-}"
     TEMPLATES_DIR="${5:-}"
     TEMPLATE="${6:-}"
-    shift 6
+    MARKDOWN_COMMAND="${7:-}"
+    MARKDOWN_OPTIONS_CSV="${8:-}"
+    MARKDOWN_FILEEXT_CSV="${9:-}"
+    MARKDOWN_FILEEXT_REGEX="${MARKDOWN_FILEEXT_CSV//,/|}"
+    MARKDOWN_REWRITE_LINKS="${10:-}"
+    shift 10
+    [[ "${MARKDOWN_COMMAND}" == "" ]] && return 1
+    [[ "${MARKDOWN_FILEEXT_CSV}" == "" ]] && return 1
+    [[ "${MARKDOWN_REWRITE_LINKS}" == "" ]] && return 1
     NUM_TEMPLATE_OVERRIDES="${1:-0}"
     shift 1
     TEMPLATE_OVERRIDES=()
@@ -2511,7 +2579,7 @@ function marsh_build_target {  # marsh_build_target dest_dir target jobs advance
     DOCUMENTS=$(echo "${DOCUMENTS}" | grep -Ei "\.(${MARKDOWN_FILEEXT_REGEX}|xml|json)$" | sed 's/^\.\///')
     PARALLEL=$(command -v parallel 2>/dev/null)
     PARALLEL_MARKDOWN=""
-    [[ "${MARKDOWN}" != "markdown" ]] && PARALLEL_MARKDOWN="${MARKDOWN}"
+    [[ "${MARKDOWN_COMMAND}" != "markdown" ]] && PARALLEL_MARKDOWN="${MARKDOWN_COMMAND}"
     if [[ "${JOBS:-1}" -gt 1 ]] && [[ "${PARALLEL:-}" != "" ]] && [[ "$(${PARALLEL} --version --no-notice 2>/dev/null | head -n 1 | grep -o 'GNU parallel')" == "GNU parallel" ]]; then
         # in parallel
         export -f marsh_build_document
@@ -2533,12 +2601,12 @@ function marsh_build_target {  # marsh_build_target dest_dir target jobs advance
         DOCUMENTS=($(echo "${DOCUMENTS[@]}"))
         IFS="${OIFS}"
         for DOCUMENT in "${DOCUMENTS[@]}"; do
-            if ! marsh_build_document "${DEST_DIR}" "${TARGET_DIR}" "${DOCUMENT}"; then
+            if ! marsh_build_document "${DEST_DIR}" "${TARGET_DIR}" "${DOCUMENT}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_FILEEXT_CSV}" "${MARKDOWN_REWRITE_LINKS}"; then
                 echo "Unable to build document: ${DOCUMENT}"
                 return 1
             fi
             if [[ "${TEMPLATES_DIR}" != "" ]] && [[ "${TEMPLATE}" != "" ]]; then
-                if ! marsh_build_template "${DEST_DIR}" "${TARGET_DIR}" "${DOCUMENT}" "${ADVANCED_NAV}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}"; then
+                if ! marsh_build_template "${DEST_DIR}" "${TARGET_DIR}" "${DOCUMENT}" "${ADVANCED_NAV}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_FILEEXT_CSV}" "${MARKDOWN_REWRITE_LINKS}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}"; then
                     echo "Unable to build template: ${TEMPLATE}"
                     return 1
                 fi
@@ -2548,11 +2616,13 @@ function marsh_build_target {  # marsh_build_target dest_dir target jobs advance
 }
 
 # removes temporary files used during target builds
-function marsh_clean_target {  # marsh_clean_target target
-    local TARGET CLEAN_FILTERS EXT
+function marsh_clean_target {  # marsh_clean_target target markdown_fileext_csv
+    local TARGET MARKDOWN_FILEEXT_CSV CLEAN_FILTERS EXT
     TARGET="${1:-}"; [[ "${TARGET}" == "" ]] && return 1
+    MARKDOWN_FILEEXT_CSV="${2:-}"
+    [[ "${MARKDOWN_FILEEXT_CSV}" == "" ]] && return 1
     CLEAN_FILTERS=()
-    for EXT in "${MARKDOWN_FILEEXT[@]}"; do
+    for EXT in ${MARKDOWN_FILEEXT_CSV//,/ }; do
         CLEAN_FILTERS+=("-or" "-iname" "*.${EXT}")
     done
     find "${TARGET}" \( -name '*.'"${MARSH_UID}"'.*' "${CLEAN_FILTERS[@]}" \) -delete
@@ -2564,6 +2634,8 @@ function marsh_cli {
 
     local COMMANDS COMMAND OPTSPEC OPTARRAY
     local DEPS MARKDOWN_UNKNOWN UNKNOWN TEMP_DIR TEMPLATES_DIR FORCE JOBS
+    local MARKDOWN_COMMAND MARKDOWN_OPTIONS MARKDOWN_FILEEXT MARKDOWN_REWRITE_LINKS
+    local MARKDOWN_OPTIONS_CSV MARKDOWN_OPTIONS_CLIARGS MARKDOWN_FILEEXT_CSV
     local INDEX PREFIX META META_VARS OIFS I VAR
     local TARGET_ARCHIVE_TYPES TARGET_ARCHIVE_EXCLUDED_STATES
 
@@ -2606,7 +2678,7 @@ function marsh_cli {
     elif [[ "${SYS_NAME}" == "linux" ]]; then
         JOBS=$(nproc)
     fi
-    MARKDOWN=""
+    MARKDOWN_COMMAND=""
     OPTIND=1
     OPTSPEC=":-:hvj:"
     OPTARRAY=('-h' '--help' '-v' '--version' '--force' '-j' '--jobs' '--markdown' '--markdown-options' '--markdown-file-extensions' '--markdown-rewrite-links')  # all short and long options
@@ -2665,11 +2737,11 @@ function marsh_cli {
                             echo -e "${HELP}"
                             return 1
                         fi
-                        MARKDOWN="${!OPTIND}"
+                        MARKDOWN_COMMAND="${!OPTIND}"
                         OPTIND=$((OPTIND + 1))
                         ;;
                     markdown=*)
-                        MARKDOWN="${OPTARG#*=}"
+                        MARKDOWN_COMMAND="${OPTARG#*=}"
                         ;;
                     markdown-options)
                         if [[ -z ${!OPTIND+isset} ]] || marsh_in_array "${!OPTIND}" "${OPTARRAY[@]}"; then
@@ -2904,11 +2976,11 @@ function marsh_cli {
     fi
 
     # dependencies
-    if [[ "${MARKDOWN}" != "" ]] && [[ "${MARKDOWN#\/}" == "${MARKDOWN}" ]]; then
-        MARKDOWN="$(pwd -P)/${MARKDOWN}"
+    if [[ "${MARKDOWN_COMMAND}" != "" ]] && [[ "${MARKDOWN_COMMAND#\/}" == "${MARKDOWN_COMMAND}" ]]; then
+        MARKDOWN_COMMAND="$(pwd -P)/${MARKDOWN_COMMAND}"
     fi
-    MARKDOWN="${MARKDOWN:-markdown}"
-    DEPS=("${MARKDOWN}" "md5|md5sum")
+    MARKDOWN_COMMAND="${MARKDOWN_COMMAND:-markdown}"
+    DEPS=("${MARKDOWN_COMMAND}" "md5|md5sum")
     marsh_check_dependencies "${DEPS[@]}" || return 1
 
     # markdown file extensions
@@ -2916,7 +2988,6 @@ function marsh_cli {
         MARKDOWN_FILEEXT[$I]=$(printf '%s' "${MARKDOWN_FILEEXT[$I]}" | awk '{ print tolower($0) }')
     done
     MARKDOWN_FILEEXT_CSV=$(echo ${MARKDOWN_FILEEXT[@]} | sed 's/ /,/g')
-    MARKDOWN_FILEEXT_REGEX=$(echo ${MARKDOWN_FILEEXT[@]} | sed 's/ /|/g')
 
     # discount markdown options
     MARKDOWN_OPTIONS_CSV=$(echo ${MARKDOWN_OPTIONS[@]} | sed 's/ /,/g')
@@ -2926,7 +2997,7 @@ function marsh_cli {
     done
     OIFS="${IFS}"
     IFS=$'\n'
-    MARKDOWN_UNKNOWN=($("${MARKDOWN}" ${MARKDOWN_OPTIONS_CLIARGS[@]} -VV 2>&1 >/dev/null | grep -i "unknown" | sed -E -e 's/^markdown: unknown option <([^>]+)>$/\1/'))
+    MARKDOWN_UNKNOWN=($("${MARKDOWN_COMMAND}" ${MARKDOWN_OPTIONS_CLIARGS[@]} -VV 2>&1 >/dev/null | grep -i "unknown" | sed -E -e 's/^markdown: unknown option <([^>]+)>$/\1/'))
     IFS="${OIFS}"
     if [[ "${#MARKDOWN_UNKNOWN[@]}" -gt 0 ]]; then
         echo -n "Unknown markdown options:" >&2
@@ -2936,15 +3007,6 @@ function marsh_cli {
         echo ""
         exit
     fi
-    function marsh_process_markdown {
-        # re[lv]="footnote" is not valid html5; remove it
-        if [[ "${#MARKDOWN_OPTIONS_CLIARGS[@]}" -gt 0 ]]; then
-            "${MARKDOWN}" ${MARKDOWN_OPTIONS_CLIARGS[@]} ${@} | sed -E -e '/<a href="#[a-z]+:[^"]+" re[lv]="footnote">/s/ re[lv]="footnote"//g'
-        else
-            "${MARKDOWN}" ${@} | sed -E -e '/<a href="#[a-z]+:[^"]+" re[lv]="footnote">/s/ re[lv]="footnote"//g'
-        fi
-    }
-    #export MARKDOWN
     export -f marsh_process_markdown
 
     # create target directory
@@ -3033,7 +3095,11 @@ function marsh_cli {
             # build advanced navigation
             if [[ "${TARGET_NAV}" != "" ]]; then
                 marsh_build_advanced_nav "${MARSH_CONFIG_PATH}/${TARGET_PATH}" \
-                                "${TARGET_NAV}" || die_gracefully
+                                "${TARGET_NAV}" \
+                                "${MARKDOWN_COMMAND}" \
+                                "${MARKDOWN_OPTIONS_CSV}" \
+                                "${MARKDOWN_FILEEXT_CSV}" \
+                                "${MARKDOWN_REWRITE_LINKS}" || die_gracefully
             fi
 
             # build target
@@ -3043,6 +3109,10 @@ function marsh_cli {
                         "${TARGET_NAV}" \
                         "${TEMPLATES_DIR}" \
                         "${TARGET_TEMPLATE:-}" \
+                        "${MARKDOWN_COMMAND}" \
+                        "${MARKDOWN_OPTIONS_CSV}" \
+                        "${MARKDOWN_FILEEXT_CSV}" \
+                        "${MARKDOWN_REWRITE_LINKS}" \
                         "${#TARGET_TEMPLATE_OVERRIDES[@]}" \
                         "${TARGET_TEMPLATE_OVERRIDES[@]}" || die_gracefully
 
@@ -3072,6 +3142,10 @@ function marsh_cli {
                                     "" \
                                     "${TEMPLATES_DIR}" \
                                     "${TARGET_TEMPLATE:-}" \
+                                    "${MARKDOWN_COMMAND}" \
+                                    "${MARKDOWN_OPTIONS_CSV}" \
+                                    "${MARKDOWN_FILEEXT_CSV}" \
+                                    "${MARKDOWN_REWRITE_LINKS}" \
                                     "${#TARGET_TEMPLATE_OVERRIDES[@]}" \
                                     "${TARGET_TEMPLATE_OVERRIDES[@]}"
                     then
@@ -3082,7 +3156,7 @@ function marsh_cli {
             done
 
             # clean build files
-            marsh_clean_target "${MARSH_CONFIG_PATH}/${TARGET_PATH}"
+            marsh_clean_target "${MARSH_CONFIG_PATH}/${TARGET_PATH}" "${MARKDOWN_FILEEXT_CSV}"
 
             # unset temporary global variables
             for VAR in ${META_VARS[@]}; do unset "${VAR}"; done
@@ -3096,10 +3170,10 @@ function marsh_cli {
         trap - EXIT INT TERM
     elif [[ "${COMMAND}" == "build-document" ]]; then
         # build single document
-        marsh_build_document "${@}"
+        marsh_build_document "${1:-}" "${2:-}" "${3:-}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_FILEEXT_CSV}" "${MARKDOWN_REWRITE_LINKS}"
     elif [[ "${COMMAND}" == "build-template" ]]; then
         # build template for document
-        marsh_build_template "${@}"
+        marsh_build_template "${1:-}" "${2:-}" "${3:-}" "${4:-}" "${5:-}" "${6:-}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_FILEEXT_CSV}" "${MARKDOWN_REWRITE_LINKS}" "${7:-0}" "${@:8}"
     fi
 
     # done

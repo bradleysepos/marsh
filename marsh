@@ -992,6 +992,7 @@ function marsh_get_archive_metadata {  # marsh_get_archive_metadata target_dir d
 
     # parse
     META_PREFIX=$(echo "marsh_archive_${META}_" | sed -E -e 's/[^A-Za-z0-9_]/_/g')
+    META_PREFIX=$(echo "${META_PREFIX}" | sed -E -e 's/_{2,}/_/g')
     META_ASSIGNMENTS=$(marsh_parse_yaml "${META}" "${META_PREFIX}")
     [[ $? -ne 0 ]] && return 1
     META_VARS=$(echo "${META_ASSIGNMENTS}" | marsh_get_variables)

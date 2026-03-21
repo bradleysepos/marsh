@@ -2910,15 +2910,6 @@ function marsh_cli {
     DEPS=("${MARKDOWN}" "md5|md5sum")
     marsh_check_dependencies "${DEPS[@]}" || return 1
 
-    # md5 binary
-    if hash md5 >/dev/null 2>&1; then
-        MD5="md5 -r"
-    elif hash md5sum >/dev/null 2>&1; then
-        MD5="md5sum"
-    else
-        return 1
-    fi
-
     # markdown file extensions
     for I in "${!MARKDOWN_FILEEXT[@]}"; do
         MARKDOWN_FILEEXT[$I]=$(printf '%s' "${MARKDOWN_FILEEXT[$I]}" | awk '{ print tolower($0) }')

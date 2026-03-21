@@ -1973,8 +1973,8 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
     local TEMPLATE_NAV_ESC TEMPLATE_NOTICE_ESC TEMPLATE_SCRIPTS_ESC TEMPLATE_STYLES_ESC TEMPLATE_ADVNAV_ESC
     local DOCUMENT_META DOCUMENT_META_VARS DOCUMENT_CONTENT
     local SUBDOCUMENTS NUM_SUBDOCUMENTS
-    local SUBDOCUMENT SUBDOCUMENT_BODY SUBDOCUMENT_META SUBDOCUMENT_META_VARS
-    local SUBDOCUMENT_RENDER SUBDOCUMENT_TEMPLATE SUBDOCUMENT_BODY_ESC
+    local SUBDOCUMENT SUBDOCUMENT_CONTENT SUBDOCUMENT_CONTENT_ESC SUBDOCUMENT_META SUBDOCUMENT_META_VARS
+    local SUBDOCUMENT_RENDER SUBDOCUMENT_TEMPLATE
     local TEXT_FILTER UTIL_JSON_SEPARATOR OIFS I J VAR
     local DOCUMENT_State
     local PARTIAL_CONDITIONAL_TAGS
@@ -2272,14 +2272,14 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                 SUBDOCUMENT_TEMPLATE=$(<"${SUBDOCUMENT}")
                 if [[ "${DOCUMENT_Type}" == "archive-atom" ]]; then
                     cp "${SUBDOCUMENT}" "${SUBDOCUMENT}.document" || return 1
-                    SUBDOCUMENT_BODY="${SUBDOCUMENT}.document"
+                    SUBDOCUMENT_CONTENT="${SUBDOCUMENT}.document"
                     # document template
                     if [[ "${TEMPLATE_Template_Partials_Archive_Atom_Document:-}" != "" ]]; then
                         SUBDOCUMENT_TEMPLATE=$(<"${TEMPLATE_Template_Partials_Archive_Atom_Document}")
                     fi
                 elif [[ "${DOCUMENT_Type}" == "archive-json" ]]; then
                     cp "${SUBDOCUMENT}" "${SUBDOCUMENT}.document" || return 1
-                    SUBDOCUMENT_BODY="${SUBDOCUMENT}.document"
+                    SUBDOCUMENT_CONTENT="${SUBDOCUMENT}.document"
                     # document template
                     if [[ "${TEMPLATE_Template_Partials_Archive_JSON_Document:-}" != "" ]]; then
                         SUBDOCUMENT_TEMPLATE=$(<"${TEMPLATE_Template_Partials_Archive_JSON_Document}")
@@ -2291,7 +2291,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                         TEXT_FILTER="links:replace-ext:${MARKDOWN_FILEEXT_CSV}:html"
                     fi
                     <"${SUBDOCUMENT}" marsh_text_filter ${TEXT_FILTER} | marsh_process_markdown "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" > "${SUBDOCUMENT}.document" || return 1
-                    SUBDOCUMENT_BODY="${SUBDOCUMENT}.document"
+                    SUBDOCUMENT_CONTENT="${SUBDOCUMENT}.document"
                     # document template
                     if [[ "${DOCUMENT_Type}" == "archive" ]]; then
                         SUBDOCUMENT_TEMPLATE=$(<"${TEMPLATE_Template_Partials_Archive_HTML_Document}")
@@ -2299,16 +2299,16 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                         SUBDOCUMENT_TEMPLATE=$(<"${TEMPLATE_Template_Partials_Document}")
                     fi
                 fi
-                SUBDOCUMENT_BODY_ESC=$(<"${SUBDOCUMENT_BODY}" escape_substitution)
+                SUBDOCUMENT_CONTENT_ESC=$(<"${SUBDOCUMENT_CONTENT}" escape_substitution)
                 SUBDOCUMENT_RENDER=$(printf '%s' "${SUBDOCUMENT_TEMPLATE}" | sed -E \
-                    -e "/\{\{[ ]*document[ ]*\}\}/s//${SUBDOCUMENT_BODY_ESC}/g" \
+                    -e "/\{\{[ ]*document[ ]*\}\}/s//${SUBDOCUMENT_CONTENT_ESC}/g" \
                     -e 's/\{\{[ ]*subdocuments[ ]*\}\}//g')
                 # template tags
                 if [[ "${DOCUMENT_Type}" == "archive-json" ]] && [[ "${J}" -eq $((NUM_SUBDOCUMENTS - 1)) ]]; then
                     SUBDOCUMENT_RENDER=$(printf '%s' "${SUBDOCUMENT_RENDER}" | sed -E -e 's/\{\{[ ]*util.json-separator[ ]*\}\}//g')
                 fi
                 printf '%s\n' "${SUBDOCUMENT_RENDER}" > "${SUBDOCUMENT}" || return 1
-                replace_tags "${SUBDOCUMENT}" "SUBDOCUMENT_"
+                replace_tags "${SUBDOCUMENT}" "SUBDOCUMENT_" || return 1
                 # combine with previous subdocuments
                 cat "${SUBDOCUMENT}" >> "${DOCUMENT}.${MARSH_UID}.subdocuments"
                 # unset temporary global variables

@@ -1051,7 +1051,7 @@ function marsh_check_dependencies {  # marsh_check_dependencies $DEP1 $DEP2 ...
         DEPS_MULTI=(${DEPS_EACH//|/ })
         FOUND=false
         for DEP in ${DEPS_MULTI[@]}; do
-            if echo "${DEP}" | grep '/' >/dev/null 2>&1; then
+            if [[ "${DEP}" == */* ]]; then
                 if [[ -x "${DEP}" ]]; then
                     FOUND=true
                 fi
@@ -1062,7 +1062,7 @@ function marsh_check_dependencies {  # marsh_check_dependencies $DEP1 $DEP2 ...
             fi
         done
         if [[ "${FOUND}" == false ]]; then
-            ERRORS+=("$(echo ${DEPS_MULTI[@]} | sed 's/ /|/')")
+            ERRORS+=("${DEPS_EACH}")
         fi
     done
     if [[ "${#ERRORS[@]}" -ne 0 ]]; then

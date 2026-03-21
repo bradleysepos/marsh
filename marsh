@@ -1044,7 +1044,7 @@ function marsh_find_advanced_nav {  # marsh_find_advanced_nav target_dir documen
 
 # checks for required external tools
 function marsh_check_dependencies {  # marsh_check_dependencies $DEP1 $DEP2 ...
-    local DEPS DEPS_EACH DEPS_MULTI ERRORS FOUND
+    local DEPS ERRORS DEPS_EACH DEPS_MULTI FOUND DEP
     DEPS=("${@}");
     ERRORS=()
     for DEPS_EACH in ${DEPS[@]}; do
@@ -1414,9 +1414,9 @@ function marsh_get_files {  # marsh_get_files source dest force
 
 # builds an archive of directory contents, sorted by descending date
 function marsh_build_archive {  # marsh_build_archive encoding target_dir dest_file dest_title language langcode content_length count #types[@] types[@] #excluded_states[@] excluded_states[@]
-    local ENCODING TARGET_DIR DEST DEST_SUB_PREFIX DEST_TITLE LANGUAGE LANGCODE CONTENT COUNT NUM_TYPES TYPES NUM_EXCLUDED_STATES EXCLUDED_STATES
-    local VALID DOCUMENTS ARCHIVE_META
-    local DOCUMENT TYPE TITLE DATE STATE DEST_SUB URI ABSPATH
+    local ENCODING TARGET_DIR DEST DEST_SUB_PREFIX DEST_TITLE LANGUAGE LANGCODE CONTENT CONTENT_VALID
+    local COUNT NUM_TYPES TYPES NUM_EXCLUDED_STATES EXCLUDED_STATES
+    local VALID OIFS DOCUMENTS DOCUMENT TYPE TITLE DATE URI ABSPATH STATE ARCHIVE_META E DEST_SUB
 
     # init
     ENCODING="${1:-html}"
@@ -1926,11 +1926,11 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
     local TEMPLATE_STYLES TEMPLATE_SCRIPTS TEMPLATE_NAV_TEMPLATE TEMPLATE_NOTICE_TEMPLATE TEMPLATE_ADVNAV
     local TEMPLATE_BODY_ESC TEMPLATE_DOCUMENT_ESC TEMPLATE_HEADER_ESC TEMPLATE_FOOTER_ESC
     local TEMPLATE_NAV_ESC TEMPLATE_NOTICE_ESC TEMPLATE_SCRIPTS_ESC TEMPLATE_STYLES_ESC TEMPLATE_ADVNAV_ESC
-    local DOCUMENT_META DOCUMENT_META_VARS
+    local DOCUMENT_META DOCUMENT_META_VARS DOCUMENT_CONTENT
     local SUBDOCUMENTS NUM_SUBDOCUMENTS
     local SUBDOCUMENT SUBDOCUMENT_BODY SUBDOCUMENT_META SUBDOCUMENT_META_VARS
     local SUBDOCUMENT_RENDER SUBDOCUMENT_TEMPLATE SUBDOCUMENT_BODY_ESC
-    local TEXT_FILTER
+    local TEXT_FILTER UTIL_JSON_SEPARATOR OIFS I J VAR
     local DOCUMENT_State
     local PARTIAL_CONDITIONAL_TAGS
     local NAV NAV_DIR NAV_NAME NAV_RELPATH
@@ -2447,7 +2447,7 @@ function marsh_build_document {  # marsh_build_document dest_dir target_dir docu
 function marsh_build_target {  # marsh_build_target dest_dir target advanced_nav templates_dir template #template_overrides[@] template_overrides[@]
     local DEST_DIR TARGET ADVANCED_NAV TEMPLATES_DIR TEMPLATE NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDES
     local TEMPLATE_META TEMPLATE_META_VARS
-    local TARGET_DIR TEMPLATE_PREFIX DOCUMENTS PARALLEL
+    local TARGET_DIR TEMPLATE_PREFIX DOCUMENTS PARALLEL PARALLEL_MARKDOWN ASSET VAR
 
     # init
     DEST_DIR="${1:-.}"

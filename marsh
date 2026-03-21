@@ -832,6 +832,20 @@ function marsh_get_variables {  # marsh_get_variables assignments_string
     echo "${STRING}" | sed -E -e 's/^([^=]+[^+])[+]?=.*/\1/' | sort -u
 }
 
+# lists archive subdocuments in numeric order
+function marsh_get_subdocuments {  # marsh_get_subdocuments document
+    local DOCUMENT INDEX
+
+    DOCUMENT="${1:-}"
+    [[ "${DOCUMENT}" == "" ]] && return 1
+
+    INDEX=0
+    while [[ -f "${DOCUMENT}.${MARSH_UID}.subdocuments.${INDEX}.document" ]]; do
+        printf '%s\n' "${DOCUMENT}.${MARSH_UID}.subdocuments.${INDEX}.document"
+        INDEX=$((INDEX + 1))
+    done
+}
+
 # extracts yaml frontmatter and document body
 function marsh_extract_frontmatter {  # marsh_extract_frontmatter source meta_dest body_dest
     local SOURCE META_DEST BODY_DEST META_TEMP BODY_TEMP
@@ -2163,14 +2177,14 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
         # subdocuments
         OIFS="${IFS}"
         IFS=$'\n'
-        SUBDOCUMENTS=($(cd "${DEST_DIR}/${TARGET_DIR}/${DOCUMENT_DIR}" && find . -name "${DEST_NAME}${DOCUMENT_EXT:+.$DOCUMENT_EXT}.*" | grep -E '.+\.'"${MARSH_UID}"'\.subdocuments\.[0-9]+\.document$' | sed 's/^\.\///' | sed -E -e 's/(\.'"${MARSH_UID}"'\.subdocuments\.)/\1\|/' | sort -t \| -k2 -g | sed -E -e 's/(\.'"${MARSH_UID}"'\.subdocuments\.)\|/\1/'))
+        SUBDOCUMENTS=($(marsh_get_subdocuments "${DOCUMENT}"))
         NUM_SUBDOCUMENTS="${#SUBDOCUMENTS[@]}"
         IFS="${OIFS}"
         if [[ "${NUM_SUBDOCUMENTS}" -gt 0 ]]; then
             : > "${DOCUMENT}.${MARSH_UID}.subdocuments" || return 1
             for J in ${!SUBDOCUMENTS[@]}; do
                 # full path
-                SUBDOCUMENT="${DEST_DIR}/${TARGET_DIR}/${DOCUMENT_DIR}/${SUBDOCUMENTS[$J]}"
+                SUBDOCUMENT="${SUBDOCUMENTS[$J]}"
                 # document metadata
                 if [[ -f "${SUBDOCUMENT%.document}.meta.yaml" ]] && [[ -r "${SUBDOCUMENT%.document}.meta.yaml" ]]; then
                     # parse metadata

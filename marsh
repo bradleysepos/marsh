@@ -862,16 +862,19 @@ function marsh_is_markdown_extension {  # marsh_is_markdown_extension file_ext m
 }
 
 # resolves a template tag to shell variable assignments
-function marsh_resolve_tag_metadata {  # marsh_resolve_tag_metadata tag_name prefix
-    local TAG_NAME PREFIX TAG_VAR TAG_TYPE
+function marsh_resolve_tag_metadata {  # marsh_resolve_tag_metadata tag_name prefix metadata_vars[@]
+    local TAG_NAME PREFIX METADATA_VARS TAG_VAR TAG_TYPE
+    local OIFS META_VAR NORMALIZED_TAG NORMALIZED_META MATCH_VAR MATCH_COUNT
 
+    # init
     TAG_NAME="${1:-}"
     [[ "${TAG_NAME}" == "" ]] && return 1
     PREFIX="${2:-}"
+    METADATA_VARS="${3:-}"
 
+    # handle known metadata tags
     TAG_VAR=""
     TAG_TYPE=""
-
     case "${TAG_NAME}" in
         base.relpath|document.relpath)
             TAG_VAR="${PREFIX}RELPATH"
@@ -958,9 +961,35 @@ function marsh_resolve_tag_metadata {  # marsh_resolve_tag_metadata tag_name pre
             TAG_TYPE="string"
             ;;
         *)
-            return 1
             ;;
     esac
+
+    # handle all other metadata tags, only string values are supported
+    # tag names begin with 'document.' and a list of metadata variables must be provided to match against
+    # normalization follows the output pattern of converting to lowercase and replacing underscores with dashes
+    if [[ "${TAG_VAR}" == "" ]] && [[ "${TAG_TYPE}" == "" ]]; then
+        [[ "${TAG_NAME#document.}" != "${TAG_NAME}" ]] || return 1
+        [[ "${METADATA_VARS}" != "" ]] || return 1
+        NORMALIZED_TAG="${TAG_NAME#document.}"
+        NORMALIZED_TAG=$(printf '%s' "${NORMALIZED_TAG}" | awk '{ print tolower($0) }')
+        MATCH_VAR=""
+        MATCH_COUNT=0
+        OIFS="${IFS}"
+        IFS=$'\n'
+        for META_VAR in ${METADATA_VARS}; do
+            [[ "${META_VAR}" == "${PREFIX}"* ]] || continue
+            NORMALIZED_META="${META_VAR#${PREFIX}}"
+            NORMALIZED_META=$(printf '%s' "${NORMALIZED_META}" | awk '{ print tolower($0) }')
+            NORMALIZED_META="${NORMALIZED_META//_/-}"
+            [[ "${NORMALIZED_META}" == "${NORMALIZED_TAG}" ]] || continue
+            MATCH_VAR="${META_VAR}"
+            MATCH_COUNT=$((MATCH_COUNT + 1))
+        done
+        IFS="${OIFS}"
+        [[ "${MATCH_COUNT}" -eq 1 ]] || return 1
+        TAG_VAR="${MATCH_VAR}"
+        TAG_TYPE="string"
+    fi
 
     printf 'TAG_VAR=%q\n' "${TAG_VAR}"
     printf 'TAG_TYPE=%q\n' "${TAG_TYPE}"
@@ -1893,14 +1922,15 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
         printf '%s' "$(</dev/stdin)" | sed -e ':a' -e '$!{N' -e 'ba' -e '}' -e 's/[&/\]/\\&/g' -e 's/\n/\\&/g'
     }
 
-    function replace_tags {  # replace_tags document prefix
-        local DOCUMENT PREFIX
+    function replace_tags {  # replace_tags document prefix metadata_vars[@]
+        local DOCUMENT PREFIX METADATA_VARS
         local TAG_FRAGMENT_UNQUOTED TAG_FRAGMENT_DOUBLE TAG_FRAGMENT_SINGLE TAG_FRAGMENT TAG_REGEX
         local TAGS UNIQUE_TAGS REPLACEMENTS TAG_ESC TAG_NAME TAG_FILTERS TAG_VAR TAG_TYPE TAG_VALUE TAG_VALUES
 
         # init
         DOCUMENT="${1:-}"
         PREFIX="${2:-}"
+        METADATA_VARS="${3:-}"
         [[ "${DOCUMENT}" == "" ]] && return 1
         TAG_FRAGMENT_UNQUOTED='([^|}"'"'"' \\]|\\.)+'
         TAG_FRAGMENT_DOUBLE='"(\\.|[^"\\])*"'
@@ -1930,7 +1960,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
             }
             TAG_VAR=""
             TAG_TYPE=""
-            eval "$(marsh_resolve_tag_metadata "${TAG_NAME}" "${PREFIX}" 2>/dev/null)" || true
+            eval "$(marsh_resolve_tag_metadata "${TAG_NAME}" "${PREFIX}" "${METADATA_VARS}" 2>/dev/null)" || true
             if [[ "${TAG_VAR}" != "" ]] && [[ "${TAG_TYPE}" != "" ]]; then
                 if [[ "${TAG_TYPE}" == "array" ]]; then
                     eval "$(marsh_flat_to_array "TAG_VALUES" "${TAG_VAR}")"
@@ -2097,7 +2127,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                 for CONDITIONAL_TAG in "${PARTIAL_CONDITIONAL_TAGS[@]}"; do
                     TAG_VAR=""
                     TAG_TYPE=""
-                    eval "$(marsh_resolve_tag_metadata "${CONDITIONAL_TAG}" "DOCUMENT_" 2>/dev/null)" || continue
+                    eval "$(marsh_resolve_tag_metadata "${CONDITIONAL_TAG}" "DOCUMENT_" "${DOCUMENT_META_VARS:-}" 2>/dev/null)" || continue
                     if [[ "${TAG_TYPE}" == "array" ]]; then
                         CONDITIONAL_VALUES=()
                         eval $(marsh_flat_to_array "CONDITIONAL_VALUES" "${TAG_VAR}")
@@ -2265,7 +2295,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
         printf '%s\n' "${TEMPLATE_RENDER}" > "${DEST}" || return 1
 
         # template tags
-        replace_tags "${DEST}" "DOCUMENT_"
+        replace_tags "${DEST}" "DOCUMENT_" "${DOCUMENT_META_VARS:-}"
 
         # subdocuments
         OIFS="${IFS}"
@@ -2327,7 +2357,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                     SUBDOCUMENT_RENDER=$(printf '%s' "${SUBDOCUMENT_RENDER}" | sed -E -e 's/\{\{[ ]*util.json-separator[ ]*\}\}//g')
                 fi
                 printf '%s\n' "${SUBDOCUMENT_RENDER}" > "${SUBDOCUMENT}" || return 1
-                replace_tags "${SUBDOCUMENT}" "SUBDOCUMENT_" || return 1
+                replace_tags "${SUBDOCUMENT}" "SUBDOCUMENT_" "${SUBDOCUMENT_META_VARS:-}" || return 1
                 # combine with previous subdocuments
                 cat "${SUBDOCUMENT}" >> "${DOCUMENT}.${MARSH_UID}.subdocuments"
                 # unset temporary global variables

@@ -215,24 +215,57 @@ function marsh_test {
             fi
             ;;
         marsh_resolve_tag_metadata:0)
-            TEST_NAME+=":string_tag"
-            TEST=$(marsh_resolve_tag_metadata "document.project-version" "DOCUMENT_")
-            EXPECTED="TAG_VAR=DOCUMENT_Project_Version"$'\n'"TAG_TYPE=string"
+            TEST_NAME+=":generated"
+            TEST=$(marsh_resolve_tag_metadata "document.uri" "DOCUMENT_")
+            EXPECTED="TAG_VAR=DOCUMENT_URI"$'\n'"TAG_TYPE=string"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
             ;;
         marsh_resolve_tag_metadata:1)
-            TEST_NAME+=":array_tag"
+            TEST_NAME+=":known"
+            TEST=$(marsh_resolve_tag_metadata "document.title" "DOCUMENT_")
+            EXPECTED="TAG_VAR=DOCUMENT_Title"$'\n'"TAG_TYPE=string"
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_resolve_tag_metadata:2)
+            TEST_NAME+=":known"
+            TEST=$(marsh_resolve_tag_metadata "document.project-version" "DOCUMENT_" "DOCUMENT_Title"$'\n'"DOCUMENT_Project_Version")
+            EXPECTED="TAG_VAR=DOCUMENT_Project_Version"$'\n'"TAG_TYPE=string"
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_resolve_tag_metadata:3)
+            TEST_NAME+=":known"
             TEST=$(marsh_resolve_tag_metadata "document.authors" "SUBDOCUMENT_")
             EXPECTED="TAG_VAR=SUBDOCUMENT_Authors_"$'\n'"TAG_TYPE=array"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
             ;;
-        marsh_resolve_tag_metadata:2)
-            TEST_NAME+=":unknown_tag"
-            TEST=$(marsh_resolve_tag_metadata "document.subtitle" "DOCUMENT_" 2>/dev/null)
+        marsh_resolve_tag_metadata:4)
+            TEST_NAME+=":custom"
+            TEST=$(marsh_resolve_tag_metadata "document.custom-thing" "DOCUMENT_" "DOCUMENT_Custom_Thing")
+            EXPECTED="TAG_VAR=DOCUMENT_Custom_Thing"$'\n'"TAG_TYPE=string"
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_resolve_tag_metadata:5)
+            TEST_NAME+=":nonexistent"
+            TEST=$(marsh_resolve_tag_metadata "document.foo" "DOCUMENT_" 2>/dev/null)
+            TEST=$?
+            EXPECTED=1
+            if [[ "${TEST}" -eq "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_resolve_tag_metadata:6)
+            TEST_NAME+=":ambiguous"
+            TEST=$(marsh_resolve_tag_metadata "document.foo-bar" "DOCUMENT_" "DOCUMENT_Foo_Bar"$'\n'"DOCUMENT_FOO_BAR" 2>/dev/null)
             TEST=$?
             EXPECTED=1
             if [[ "${TEST}" -eq "${EXPECTED}" ]]; then

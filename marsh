@@ -57,7 +57,7 @@ function marsh_parse_yaml {  # marsh_parse_yaml yaml_string_or_file variables_pr
     fi
     PREFIX="${2:-}"
     INDENT="${3:-}"
-    if [[ ! "${INDENT}" =~ '^[0-9]+$' ]] || [[ ! "${INDENT}" -eq 0 ]]; then
+    if [[ ! "${INDENT}" =~ ^[0-9]+$ ]] || [[ "${INDENT}" -eq 0 ]]; then
         INDENT=2
     fi
     S='[[:space:]]*'
@@ -71,7 +71,7 @@ function marsh_parse_yaml {  # marsh_parse_yaml yaml_string_or_file variables_pr
         -e "s|^\(\(${S}\)\(-\) \)\{1\}\(${S}\)\([^:].*\)${S}\$|\3${FS}\2  \4${FS}${FS}\5|p" \
         -e "s|^\(${S}\)\(${W}\)${S}:${S}\(\".*\"\)${S}\$|${FS}\1${FS}\2${FS}\3|p" \
         -e "s|^\(${S}\)\(${W}\)${S}:${S}\(.*\)${S}\$|${FS}\1${FS}\2${FS}\3|p" |
-    awk -F"${FS}" \
+    awk -F"${FS}" -v prefix="${PREFIX}" -v indent="${INDENT}" -v field_sep="${FS}" \
         '#
         # parse_csv, public domain, http://lorance.freeshell.org/csv/
         #**************************************************************************
@@ -199,7 +199,7 @@ function marsh_parse_yaml {  # marsh_parse_yaml yaml_string_or_file variables_pr
             }
             return fields;
         }
-        BEGIN { prefix = "'"${PREFIX}"'"; indent = '"${INDENT}"'; prev_level = 0; }
+        BEGIN { prev_level = 0; }
         {
             type  = $1;
             level = length($2)/indent;
@@ -233,7 +233,7 @@ function marsh_parse_yaml {  # marsh_parse_yaml yaml_string_or_file variables_pr
                 }
             } else {
                 if (substr(val,1,1) == "\"" && substr(val,length(val),1) == "\"") {
-                    num_vals = parse_csv(val, vals, "'"${FS}"'", "\"", "\"", "\\n", 0);
+                    num_vals = parse_csv(val, vals, field_sep, "\"", "\"", "\\n", 0);
                     if (num_vals < 0) {
                         # Error parsing
                         exit 1;
@@ -561,7 +561,7 @@ function marsh_text_filter {  # marsh_text_filter filter [filter...]
         excerpt:*)
             MAX_CHARS="${OPTIONS[0]:-999999}"
             MAX_PARAS="${OPTIONS[1]:-999999}"
-            marsh_text_filter headings:remove plaintext newlines:trim items:trim newlines:reduce:2 | awk -v RS='' 'NR<='${MAX_PARAS}' { print $0 }' | marsh_text_filter newlines:tospaces | cut -c1-"${MAX_CHARS}"
+            marsh_text_filter headings:remove plaintext newlines:trim items:trim newlines:reduce:2 | awk -v RS='' -v MAX_PARAS="${MAX_PARAS}" 'NR<=MAX_PARAS { print $0 }' | marsh_text_filter newlines:tospaces | cut -c1-"${MAX_CHARS}"
             ;;
         excerpt)
             marsh_text_filter excerpt:300:2
@@ -682,9 +682,9 @@ function marsh_text_filter {  # marsh_text_filter filter [filter...]
             START="${OPTIONS[1]:-0}"
             END="${OPTIONS[2]:-0}"
             if [[ "${END}" -gt 0 ]]; then
-                awk -v RS='\n' 'NR>='"${START}"' && NR<='"${END}"' { print }'
+                awk -v RS='\n' -v SLICE_START="${START}" -v SLICE_END="${END}" 'NR>=SLICE_START && NR<=SLICE_END { print }'
             else
-                awk -v RS='\n' 'NR>='"${START}"' { print }'
+                awk -v RS='\n' -v SLICE_START="${START}" 'NR>=SLICE_START { print }'
             fi
             ;;
         items:sort)
@@ -2496,7 +2496,7 @@ function marsh_build_document {  # marsh_build_document dest_dir target_dir docu
         sed -E \
         -e 's|<p><figure>|<figure>|' \
         -e 's|</figure></p>|</figure>|' |
-        awk '
+        awk -v document_dir_prefix="${TARGET_PATH}/${DOCUMENT_DIR}/" '
         {
             if ($0 ~ " src=\"[^\"]+\"")
             {
@@ -2509,10 +2509,10 @@ function marsh_build_document {  # marsh_build_document dest_dir target_dir docu
                         gsub(/"$/, "", f);
                         f1=f " 1x"; f2=f;
                         gsub(/\.[^\.]+$/, "@2x&", f2);
-                        f2abs="'${TARGET_PATH}/${DOCUMENT_DIR}/'" f2;
+                        f2abs=document_dir_prefix f2;
                         f3=f;
                         gsub(/\.[^\.]+$/, "@3x&", f3);
-                        f3abs="'${TARGET_PATH}/${DOCUMENT_DIR}/'" f3;
+                        f3abs=document_dir_prefix f3;
                         if (getline temp < f2abs > 0)
                         {
                             f2=", " f2 " 2x";

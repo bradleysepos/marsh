@@ -214,6 +214,22 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
+        marsh_parse_yaml:6)
+            TEST_NAME+=":quoted"
+            TEST=$(marsh_parse_yaml "FOO: \"foo bar\"" "PREFIX")
+            EXPECTED="PREFIX_FOO=\"foo bar\""
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_parse_yaml:7)
+            TEST_NAME+=":indent"
+            TEST=$(marsh_parse_yaml "FOO:"$'\n'"    BAR: baz" "PREFIX" 4)
+            EXPECTED="PREFIX_FOO=\"\""$'\n'"PREFIX_FOO_BAR=\"baz\""
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
         marsh_resolve_tag_metadata:0)
             TEST_NAME+=":generated"
             TEST=$(marsh_resolve_tag_metadata "document.uri" "DOCUMENT_")

@@ -181,6 +181,24 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
+        marsh_is_markdown_extension:0)
+            TEST_NAME+=":true"
+            $(marsh_is_markdown_extension "MD" "markdown,md")
+            TEST=$?
+            EXPECTED=0
+            if [[ "${TEST}" -eq "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_is_markdown_extension:1)
+            TEST_NAME+=":false"
+            $(marsh_is_markdown_extension "txt" "markdown,md")
+            TEST=$?
+            EXPECTED=1
+            if [[ "${TEST}" -eq "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
         marsh_parse_yaml:0)
             TEST_NAME+=":map"
             TEST=$(marsh_parse_yaml "FOO: foo" "PREFIX")
@@ -993,6 +1011,7 @@ KNOWN_FUNCTIONS=(
     marsh_get_variables
     marsh_has_frontmatter
     marsh_in_array
+    marsh_is_markdown_extension
     marsh_parse_yaml
     marsh_resolve_tag_metadata
     marsh_text_filter

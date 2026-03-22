@@ -174,6 +174,82 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
+        marsh_clean_target:0)
+            TEST_NAME+=":matching"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            MARSH_OUID="${MARSH_UID:-}"
+            MARSH_UID="cleantest"
+            mkdir -p "${TARGET_DIR}"
+            : > "${TARGET_DIR}/post.${MARSH_UID}.markdown"
+            : > "${TARGET_DIR}/note.${MARSH_UID}.md"
+            : > "${TARGET_DIR}/image.${MARSH_UID}.jpg"
+            : > "${TARGET_DIR}/keep.markdown"
+            : > "${TARGET_DIR}/keep.jpg"
+            marsh_clean_target "${TARGET_DIR}" "markdown,md"
+            TEST="$([[ ! -e "${TARGET_DIR}/post.${MARSH_UID}.markdown" ]] && [[ ! -e "${TARGET_DIR}/note.${MARSH_UID}.md" ]] && [[ ! -e "${TARGET_DIR}/image.${MARSH_UID}.jpg" ]] && [[ ! -e "${TARGET_DIR}/keep.markdown" ]] && [[ -e "${TARGET_DIR}/keep.jpg" ]]; printf '%s' "$?")"
+            EXPECTED="0"
+            rm -rf "${TARGET_DIR}"
+            MARSH_UID="${MARSH_OUID}"
+            [[ "${MARSH_UID}" == "" ]] && unset MARSH_UID
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_clean_target:1)
+            TEST_NAME+=":nested"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            MARSH_OUID="${MARSH_UID:-}"
+            MARSH_UID="cleantest"
+            mkdir -p "${TARGET_DIR}/nested/deeper"
+            : > "${TARGET_DIR}/nested/article.markdown"
+            : > "${TARGET_DIR}/nested/deeper/nav.${MARSH_UID}.advanced-nav.html"
+            : > "${TARGET_DIR}/nested/deeper/keep.png"
+            marsh_clean_target "${TARGET_DIR}" "markdown,md"
+            TEST="$([[ ! -e "${TARGET_DIR}/nested/article.markdown" ]] && [[ ! -e "${TARGET_DIR}/nested/deeper/nav.${MARSH_UID}.advanced-nav.html" ]] && [[ -e "${TARGET_DIR}/nested/deeper/keep.png" ]]; printf '%s' "$?")"
+            EXPECTED="0"
+            rm -rf "${TARGET_DIR}"
+            MARSH_UID="${MARSH_OUID}"
+            [[ "${MARSH_UID}" == "" ]] && unset MARSH_UID
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_clean_target:2)
+            TEST_NAME+=":case_insensitive"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            mkdir -p "${TARGET_DIR}"
+            : > "${TARGET_DIR}/UPPER.MD"
+            : > "${TARGET_DIR}/Mixed.MarkDown"
+            : > "${TARGET_DIR}/keep.txt"
+            marsh_clean_target "${TARGET_DIR}" "markdown,md"
+            TEST="$([[ ! -e "${TARGET_DIR}/UPPER.MD" ]] && [[ ! -e "${TARGET_DIR}/Mixed.MarkDown" ]] && [[ -e "${TARGET_DIR}/keep.txt" ]]; printf '%s' "$?")"
+            EXPECTED="0"
+            rm -rf "${TARGET_DIR}"
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_clean_target:3)
+            TEST_NAME+=":missing_target"
+            $(marsh_clean_target "" "markdown,md" 2>/dev/null)
+            TEST=$?
+            EXPECTED=1
+            if [[ "${TEST}" -eq "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_clean_target:4)
+            TEST_NAME+=":missing_extensions"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            mkdir -p "${TARGET_DIR}"
+            $(marsh_clean_target "${TARGET_DIR}" "" 2>/dev/null)
+            TEST=$?
+            EXPECTED=1
+            rm -rf "${TARGET_DIR}"
+            if [[ "${TEST}" -eq "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
         marsh_extract_frontmatter:0)
             TEST_NAME+=":success"
             SOURCE_FILE="${TEST_TEMP_PREFIX}.source.markdown"
@@ -1454,6 +1530,7 @@ function marsh_test {
 source "${MARSH}"
 KNOWN_FUNCTIONS=(
     marsh_check_dependencies
+    marsh_clean_target
     marsh_extract_frontmatter
     marsh_find_advanced_nav
     marsh_flat_to_array

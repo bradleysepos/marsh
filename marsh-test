@@ -115,6 +115,13 @@ function marsh_test_cleanup {
 }
 trap marsh_test_cleanup EXIT
 
+function marsh_test_markdown_command {
+    if [[ "$#" -gt 0 ]]; then
+        printf '%s\n' "$@"
+    fi
+    cat
+}
+
 function marsh_test_group {
     local FUNCTION_NAME="${1}" ERRORS TEST_ID RES
     ERRORS=0
@@ -585,6 +592,22 @@ function marsh_test {
             TEST_NAME+=":indent"
             TEST=$(marsh_parse_yaml "FOO:"$'\n'"    BAR: baz" "PREFIX" 4)
             EXPECTED="PREFIX_FOO=\"\""$'\n'"PREFIX_FOO_BAR=\"baz\""
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_process_markdown:0)
+            TEST_NAME+=":options"
+            TEST=$(printf '%s\n' 'Some text' | marsh_process_markdown marsh_test_markdown_command "toc,tables" "input.md")
+            EXPECTED='-ftoc'$'\n''-ftables'$'\n''input.md'$'\n''Some text'
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_process_markdown:1)
+            TEST_NAME+=":rel_footnote"
+            TEST=$(printf '%s\n' '<a href="#fn:note" rel="footnote">note</a>' | marsh_process_markdown marsh_test_markdown_command "")
+            EXPECTED='<a href="#fn:note">note</a>'
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
@@ -1271,6 +1294,7 @@ KNOWN_FUNCTIONS=(
     marsh_in_array
     marsh_is_markdown_extension
     marsh_parse_yaml
+    marsh_process_markdown
     marsh_resolve_tag_metadata
     marsh_text_filter
 )

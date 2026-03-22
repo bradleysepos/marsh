@@ -1923,13 +1923,13 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
         TAG_NAME_VALUE="${TAG_PARTS[0]:-}"
         [[ "${TAG_NAME_VALUE}" == "" ]] && return 1
 
-        TAG_NAME="${TAG_NAME_VALUE}"
-        TAG_FILTERS=()
+        printf 'TAG_NAME=%q\n' "${TAG_NAME_VALUE}"
+        echo "TAG_FILTERS=()"
         for TAG_INDEX in "${!TAG_PARTS[@]}"; do
             [[ "${TAG_INDEX}" -eq 0 ]] && continue
             TAG_PART="${TAG_PARTS[$TAG_INDEX]}"
             [[ "${TAG_PART}" == "" ]] && continue
-            TAG_FILTERS+=("${TAG_PART}")
+            printf 'TAG_FILTERS+=(%q)\n' "${TAG_PART}"
         done
         return 0
     }
@@ -1941,7 +1941,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
     function replace_tags {  # replace_tags document prefix metadata_vars[@]
         local DOCUMENT PREFIX METADATA_VARS
         local TAG_FRAGMENT_UNQUOTED TAG_FRAGMENT_DOUBLE TAG_FRAGMENT_SINGLE TAG_FRAGMENT TAG_REGEX
-        local TAGS UNIQUE_TAGS REPLACEMENTS TAG_ESC TAG_NAME TAG_FILTERS TAG_VAR TAG_TYPE TAG_VALUE TAG_VALUES
+        local TAGS UNIQUE_TAGS REPLACEMENTS TAG_ESC TAG_NAME TAG_FILTERS TAG_VAR TAG_TYPE TAG_VALUE TAG_VALUES TAG_PARSE
 
         # init
         DOCUMENT="${1:-}"
@@ -1970,10 +1970,11 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
             fi
             UNIQUE_TAGS+=("${TAGS[$I]}")
             TAG_ESC=$(printf '%s' "${TAGS[$I]}" | sed -e 's/[\\]/\\\\/g' -e 's/[][/.|$(){}?+*^]/\\&/g')
-            parse_template_tag "${TAGS[$I]}" || {
+            TAG_PARSE=$(parse_template_tag "${TAGS[$I]}") || {
                 rm -f "${REPLACEMENTS}"
                 return 1
             }
+            eval "${TAG_PARSE}"
             TAG_VAR=""
             TAG_TYPE=""
             eval "$(marsh_resolve_tag_metadata "${TAG_NAME}" "${PREFIX}" "${METADATA_VARS}" 2>/dev/null)" || true

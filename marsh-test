@@ -1260,8 +1260,8 @@ source "${MARSH}"
 KNOWN_FUNCTIONS=(
     marsh_check_dependencies
     marsh_extract_frontmatter
-    marsh_flat_to_array
     marsh_find_advanced_nav
+    marsh_flat_to_array
     marsh_get_archive_metadata
     marsh_get_files
     marsh_get_subdocuments

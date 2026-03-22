@@ -331,6 +331,58 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
+        marsh_get_files:0)
+            TEST_NAME+=":file"
+            SOURCE_FILE="${TEST_TEMP_PREFIX}.source.txt"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            printf '%s\n' 'hello world' > "${SOURCE_FILE}"
+            mkdir -p "${TARGET_DIR}"
+            marsh_get_files "${SOURCE_FILE}" "${TARGET_DIR}"
+            TEST="$?"
+            EXPECTED="0"
+            if [[ "${TEST}" -eq "${EXPECTED}" ]]; then
+                TEST="$(<"${TARGET_DIR}/$(basename "${SOURCE_FILE}")")"
+                EXPECTED="hello world"
+            fi
+            rm -rf "${SOURCE_FILE}" "${TARGET_DIR}"
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_get_files:1)
+            TEST_NAME+=":directory"
+            SOURCE_FILE="${TEST_TEMP_PREFIX}.source-dir"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            mkdir -p "${SOURCE_FILE}"
+            printf '%s\n' 'alpha' > "${SOURCE_FILE}/one.txt"
+            printf '%s\n' 'beta' > "${SOURCE_FILE}/two.txt"
+            marsh_get_files "${SOURCE_FILE}" "${TARGET_DIR}"
+            TEST="$?"
+            EXPECTED="0"
+            if [[ "${TEST}" -eq "${EXPECTED}" ]]; then
+                TEST="$(<"${TARGET_DIR}/$(basename "${SOURCE_FILE}")/one.txt")"$'\n'"$(<"${TARGET_DIR}/$(basename "${SOURCE_FILE}")/two.txt")"
+                EXPECTED="alpha"$'\n'"beta"
+            fi
+            rm -rf "${SOURCE_FILE}" "${TARGET_DIR}"
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_get_files:2)
+            TEST_NAME+=":exists"
+            SOURCE_FILE="${TEST_TEMP_PREFIX}.source.txt"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            printf '%s\n' 'hello world' > "${SOURCE_FILE}"
+            mkdir -p "${TARGET_DIR}"
+            printf '%s\n' 'existing' > "${TARGET_DIR}/$(basename "${SOURCE_FILE}")"
+            marsh_get_files "${SOURCE_FILE}" "${TARGET_DIR}" 2>/dev/null
+            TEST="$?"
+            EXPECTED="1"
+            rm -rf "${SOURCE_FILE}" "${TARGET_DIR}"
+            if [[ "${TEST}" -eq "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
         marsh_get_subdocuments:0)
             TEST_NAME+=":ordered"
             DOCUMENT_FILE="${TEST_TEMP_PREFIX}.document"
@@ -1211,6 +1263,7 @@ KNOWN_FUNCTIONS=(
     marsh_flat_to_array
     marsh_find_advanced_nav
     marsh_get_archive_metadata
+    marsh_get_files
     marsh_get_subdocuments
     marsh_get_target_metadata
     marsh_get_variables

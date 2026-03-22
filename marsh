@@ -1942,6 +1942,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
         local DOCUMENT PREFIX METADATA_VARS
         local TAG_FRAGMENT_UNQUOTED TAG_FRAGMENT_DOUBLE TAG_FRAGMENT_SINGLE TAG_FRAGMENT TAG_REGEX
         local TAGS UNIQUE_TAGS REPLACEMENTS TAG_ESC TAG_NAME TAG_FILTERS TAG_VAR TAG_TYPE TAG_VALUE TAG_VALUES TAG_PARSE
+        local OIFS I RES
 
         # init
         DOCUMENT="${1:-}"

@@ -2723,9 +2723,12 @@ function marsh_clean_target {  # marsh_clean_target target markdown_fileext_csv
     [[ "${MARKDOWN_FILEEXT_CSV}" == "" ]] && return 1
     CLEAN_FILTERS=()
     for EXT in ${MARKDOWN_FILEEXT_CSV//,/ }; do
-        CLEAN_FILTERS+=("-or" "-iname" "*.${EXT}")
+        if [[ "${#CLEAN_FILTERS[@]}" -gt 0 ]]; then
+            CLEAN_FILTERS+=("-or")
+        fi
+        CLEAN_FILTERS+=("-iname" "*.${EXT}")
     done
-    find "${TARGET}" \( -name '*.'"${MARSH_UID}"'.*' "${CLEAN_FILTERS[@]}" \) -delete
+    find "${TARGET}" \( -name '*.'"${MARSH_UID}"'.*' -or \( "${CLEAN_FILTERS[@]}" \) \) -delete
 }
 
 # main function, entry point for command line interface

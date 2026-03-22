@@ -132,7 +132,7 @@ function marsh_test_group {
 
 function marsh_test {
     local TEST_NAME="${1}" EXISTS TEST EXPECTED RES
-    local TEST_TEMP_PREFIX SOURCE_FILE META_FILE CONTENT_FILE
+    local TEST_TEMP_PREFIX SOURCE_FILE META_FILE CONTENT_FILE DOCUMENT_FILE MARSH_OUID
     EXISTS=true
     TEST=""
     EXPECTED=""
@@ -334,6 +334,35 @@ function marsh_test {
             EXPECTED="1"
             rm -f "${SOURCE_FILE}" "${META_FILE}" "${CONTENT_FILE}"
             if [[ "${TEST}" -eq "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_get_subdocuments:0)
+            TEST_NAME+=":ordered"
+            DOCUMENT_FILE="${TEST_TEMP_PREFIX}.document"
+            MARSH_OUID="${MARSH_UID:-}"
+            MARSH_UID="testuid"
+            : > "${DOCUMENT_FILE}.${MARSH_UID}.subdocuments.0.document"
+            : > "${DOCUMENT_FILE}.${MARSH_UID}.subdocuments.1.document"
+            TEST=$(marsh_get_subdocuments "${DOCUMENT_FILE}")
+            EXPECTED="${DOCUMENT_FILE}.${MARSH_UID}.subdocuments.0.document"$'\n'"${DOCUMENT_FILE}.${MARSH_UID}.subdocuments.1.document"
+            rm -f "${DOCUMENT_FILE}.${MARSH_UID}.subdocuments.0.document" "${DOCUMENT_FILE}.${MARSH_UID}.subdocuments.1.document"
+            MARSH_UID="${MARSH_OUID}"
+            [[ "${MARSH_UID}" == "" ]] && unset MARSH_UID
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_get_subdocuments:1)
+            TEST_NAME+=":empty"
+            DOCUMENT_FILE="${TEST_TEMP_PREFIX}.document"
+            MARSH_OUID="${MARSH_UID:-}"
+            MARSH_UID="testuid"
+            TEST=$(marsh_get_subdocuments "${DOCUMENT_FILE}")
+            EXPECTED=""
+            MARSH_UID="${MARSH_OUID}"
+            [[ "${MARSH_UID}" == "" ]] && unset MARSH_UID
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
             ;;
@@ -1008,6 +1037,7 @@ source "${MARSH}"
 KNOWN_FUNCTIONS=(
     marsh_extract_frontmatter
     marsh_flat_to_array
+    marsh_get_subdocuments
     marsh_get_variables
     marsh_has_frontmatter
     marsh_in_array

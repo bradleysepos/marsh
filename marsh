@@ -1418,7 +1418,10 @@ function marsh_get_template_metadata {  # marsh_get_template_metadata prefix tem
 
     # create cache directory and key
     CACHE_DIR="${MARSH_TEMP}/template-metadata-cache"
-    mkdir -p "${CACHE_DIR}" >/dev/null 2>&1 || return 1
+    mkdir -p "${CACHE_DIR}" >/dev/null 2>&1 || {
+        echo "Unable to create template metadata cache directory: ${CACHE_DIR}" >&2
+        return 1
+    }
     CACHE_KEY=$(printf '%s\034' "${PREFIX}" "${TEMPLATE_DIR}" "${TEMPLATE_OVERRIDES[@]}" | marsh_text_filter hash:md5)
     CACHE_FILE="${CACHE_DIR}/${CACHE_KEY}.meta"
     if [[ -f "${CACHE_FILE}" ]] && [[ -r "${CACHE_FILE}" ]]; then
@@ -1429,8 +1432,12 @@ function marsh_get_template_metadata {  # marsh_get_template_metadata prefix tem
     # parse and cache template metadata
     TEMPLATE_META=$(marsh_parse_template_metadata "${PREFIX}" "${TEMPLATE_DIR}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}")
     [[ $? -ne 0 ]] && return 1
-    CACHE_TEMP=$(mktemp "${CACHE_DIR}/metadata-XXXXXX") || return 1
+    CACHE_TEMP=$(mktemp "${CACHE_DIR}/metadata-XXXXXX") || {
+        echo "Unable to create template metadata cache file: ${CACHE_DIR}/metadata-XXXXXX" >&2
+        return 1
+    }
     printf '%s\n' "${TEMPLATE_META}" > "${CACHE_TEMP}" || {
+        echo "Unable to write template metadata cache file: ${CACHE_TEMP}" >&2
         rm -f "${CACHE_TEMP}"
         return 1
     }
@@ -1625,10 +1632,16 @@ function marsh_build_archive {  # marsh_build_archive encoding target_dir dest_f
     done
 
     # create directory
-    mkdir -p "${DEST%/*}" >/dev/null 2>&1 || return 1
+    mkdir -p "${DEST%/*}" >/dev/null 2>&1 || {
+        echo "Unable to create archive output directory: ${DEST%/*}" >&2
+        return 1
+    }
 
     # write yaml header
-    echo "---" > "${DEST}" 2>/dev/null || return 1
+    echo "---" > "${DEST}" 2>/dev/null || {
+        echo "Unable to write archive file: ${DEST}" >&2
+        return 1
+    }
     if [[ "${ENCODING}" == "html" ]]; then
         echo "Type: archive" >> "${DEST}"
     else
@@ -1737,7 +1750,10 @@ function marsh_build_advanced_nav {  # marsh_build_advanced_nav target_dir navig
         NAV_TARGET="${TARGET_DIR}/${NAV_TARGET}"
         NAV_DEST="${NAV_TARGET}.${MARSH_UID}.advanced-nav.html"
         if marsh_has_frontmatter "${NAV_TARGET}"; then
-            marsh_extract_frontmatter "${NAV_TARGET}" "${NAV_DEST}.meta.yaml" "${NAV_DEST}.temp" || return 1
+            marsh_extract_frontmatter "${NAV_TARGET}" "${NAV_DEST}.meta.yaml" "${NAV_DEST}.temp" || {
+                echo "Unable to extract navigation frontmatter: ${NAV_TARGET}" >&2
+                return 1
+            }
         else
             cp "${NAV_TARGET}" "${NAV_DEST}.temp"
         fi
@@ -2081,7 +2097,10 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
 
     # document
     DOCUMENT_CONTENT="${DOCUMENT}.${MARSH_UID}.document"
-    [[ -e "${DOCUMENT_CONTENT}" ]] || return 1
+    [[ -e "${DOCUMENT_CONTENT}" ]] || {
+        echo "Document content not found: ${DOCUMENT_CONTENT}" >&2
+        return 1
+    }
 
     # document metadata
     if [[ -f "${DOCUMENT}.${MARSH_UID}.meta.yaml" ]] && [[ -r "${DOCUMENT}.${MARSH_UID}.meta.yaml" ]]; then
@@ -2292,7 +2311,10 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
         -e "/\{\{[ ]*navigation[ ]*\}\}/s//${TEMPLATE_ADVNAV_ESC:-}/g" \
         -e 's/\{\{[ ]*navigation[ ]*\}\}//g' \
         -e '/\{\{[ ]*template(\.[a-z]+)?[ ]*\}\}/s///g')
-        printf '%s\n' "${TEMPLATE_RENDER}" > "${DEST}" || return 1
+        printf '%s\n' "${TEMPLATE_RENDER}" > "${DEST}" || {
+            echo "Unable to write template output: ${DEST}" >&2
+            return 1
+        }
 
         # template tags
         replace_tags "${DEST}" "DOCUMENT_" "${DOCUMENT_META_VARS:-}"
@@ -2304,7 +2326,10 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
         NUM_SUBDOCUMENTS="${#SUBDOCUMENTS[@]}"
         IFS="${OIFS}"
         if [[ "${NUM_SUBDOCUMENTS}" -gt 0 ]]; then
-            : > "${DOCUMENT}.${MARSH_UID}.subdocuments" || return 1
+            : > "${DOCUMENT}.${MARSH_UID}.subdocuments" || {
+                echo "Unable to create subdocuments file: ${DOCUMENT}.${MARSH_UID}.subdocuments" >&2
+                return 1
+            }
             for J in ${!SUBDOCUMENTS[@]}; do
                 # full path
                 SUBDOCUMENT="${SUBDOCUMENTS[$J]}"
@@ -2320,14 +2345,20 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                 eval $(marsh_flat_to_array "SUBDOCUMENT_State" "SUBDOCUMENT_State_")
                 SUBDOCUMENT_TEMPLATE=$(<"${SUBDOCUMENT}")
                 if [[ "${DOCUMENT_Type}" == "archive-atom" ]]; then
-                    cp "${SUBDOCUMENT}" "${SUBDOCUMENT}.document" || return 1
+                    cp "${SUBDOCUMENT}" "${SUBDOCUMENT}.document" || {
+                        echo "Unable to copy archive subdocument: ${SUBDOCUMENT}" >&2
+                        return 1
+                    }
                     SUBDOCUMENT_CONTENT="${SUBDOCUMENT}.document"
                     # document template
                     if [[ "${TEMPLATE_Template_Partials_Archive_Atom_Document:-}" != "" ]]; then
                         SUBDOCUMENT_TEMPLATE=$(<"${TEMPLATE_Template_Partials_Archive_Atom_Document}")
                     fi
                 elif [[ "${DOCUMENT_Type}" == "archive-json" ]]; then
-                    cp "${SUBDOCUMENT}" "${SUBDOCUMENT}.document" || return 1
+                    cp "${SUBDOCUMENT}" "${SUBDOCUMENT}.document" || {
+                        echo "Unable to copy archive subdocument: ${SUBDOCUMENT}" >&2
+                        return 1
+                    }
                     SUBDOCUMENT_CONTENT="${SUBDOCUMENT}.document"
                     # document template
                     if [[ "${TEMPLATE_Template_Partials_Archive_JSON_Document:-}" != "" ]]; then
@@ -2339,7 +2370,10 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                     if [[ "${MARKDOWN_REWRITE_LINKS}" == true ]]; then
                         TEXT_FILTER="links:replace-ext:${MARKDOWN_FILEEXT_CSV}:html"
                     fi
-                    <"${SUBDOCUMENT}" marsh_text_filter ${TEXT_FILTER} | marsh_process_markdown "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" > "${SUBDOCUMENT}.document" || return 1
+                    <"${SUBDOCUMENT}" marsh_text_filter ${TEXT_FILTER} | marsh_process_markdown "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" > "${SUBDOCUMENT}.document" || {
+                        echo "Unable to process subdocument markdown: ${SUBDOCUMENT}" >&2
+                        return 1
+                    }
                     SUBDOCUMENT_CONTENT="${SUBDOCUMENT}.document"
                     # document template
                     if [[ "${DOCUMENT_Type}" == "archive" ]]; then
@@ -2356,8 +2390,14 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                 if [[ "${DOCUMENT_Type}" == "archive-json" ]] && [[ "${J}" -eq $((NUM_SUBDOCUMENTS - 1)) ]]; then
                     SUBDOCUMENT_RENDER=$(printf '%s' "${SUBDOCUMENT_RENDER}" | sed -E -e 's/\{\{[ ]*util.json-separator[ ]*\}\}//g')
                 fi
-                printf '%s\n' "${SUBDOCUMENT_RENDER}" > "${SUBDOCUMENT}" || return 1
-                replace_tags "${SUBDOCUMENT}" "SUBDOCUMENT_" "${SUBDOCUMENT_META_VARS:-}" || return 1
+                printf '%s\n' "${SUBDOCUMENT_RENDER}" > "${SUBDOCUMENT}" || {
+                    echo "Unable to write rendered subdocument: ${SUBDOCUMENT}" >&2
+                    return 1
+                }
+                replace_tags "${SUBDOCUMENT}" "SUBDOCUMENT_" "${SUBDOCUMENT_META_VARS:-}" || {
+                    echo "Unable to replace tags in subdocument: ${SUBDOCUMENT}" >&2
+                    return 1
+                }
                 # combine with previous subdocuments
                 cat "${SUBDOCUMENT}" >> "${DOCUMENT}.${MARSH_UID}.subdocuments"
                 # unset temporary global variables
@@ -2476,7 +2516,10 @@ function marsh_build_document {  # marsh_build_document dest_dir target_dir docu
 
     # extract frontmatter metadata and document content
     if marsh_has_frontmatter "${DOCUMENT_PATH}"; then
-        marsh_extract_frontmatter "${DOCUMENT_PATH}" "${DOCUMENT_META}" "${DOCUMENT_CONTENT}" || return 1
+        marsh_extract_frontmatter "${DOCUMENT_PATH}" "${DOCUMENT_META}" "${DOCUMENT_CONTENT}" || {
+            echo "Unable to extract document frontmatter: ${DOCUMENT_PATH}" >&2
+            return 1
+        }
     fi
 
     if [[ "${DOCUMENT_EXT}" == "markdown" ]]; then
@@ -2542,9 +2585,13 @@ function marsh_build_document {  # marsh_build_document dest_dir target_dir docu
 
     # build archive metadata from the document metadata
     if [[ -f "${DOCUMENT_META}" ]] && [[ -r "${DOCUMENT_META}" ]]; then
-        ARCHIVE_META_TEMP=$(mktemp "${MARSH_TEMP}/archive-meta-XXXXXX") || return 1
+        ARCHIVE_META_TEMP=$(mktemp "${MARSH_TEMP}/archive-meta-XXXXXX") || {
+            echo "Unable to create archive metadata file: ${MARSH_TEMP}/archive-meta-XXXXXX" >&2
+            return 1
+        }
         marsh_get_archive_metadata "${TARGET_PATH}" "${DOCUMENT}.${MARSH_UID}.document" > "${ARCHIVE_META_TEMP}" \
             && mv "${ARCHIVE_META_TEMP}" "${ARCHIVE_META}" || {
+                echo "Unable to build archive metadata: ${DOCUMENT_PATH}" >&2
                 rm -f "${ARCHIVE_META_TEMP}"
                 return 1
             }
@@ -2596,7 +2643,10 @@ function marsh_build_target {  # marsh_build_target dest_dir target jobs advance
     if [[ "${TEMPLATES_DIR}" != "" ]] && [[ "${TEMPLATE}" != "" ]]; then
         TEMPLATE_PREFIX="TEMPLATE_"
         TEMPLATE_META=$(marsh_get_template_metadata "${TEMPLATE_PREFIX}" "${TEMPLATES_DIR}/${TEMPLATE}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}")
-        [[ $? -ne 0 ]] && return 1
+        if [[ $? -ne 0 ]]; then
+            echo "Unable to load template metadata: ${TEMPLATES_DIR}/${TEMPLATE}" >&2
+            return 1
+        fi
         TEMPLATE_META_VARS=$(echo "${TEMPLATE_META}" | marsh_get_variables)
         eval "${TEMPLATE_META}"
         for ASSET in ${TEMPLATE_ASSETS_FONTS[@]} ${TEMPLATE_ASSETS_STYLES[@]} ${TEMPLATE_ASSETS_SCRIPTS[@]} ${TEMPLATE_ASSETS_IMAGES[@]} ${TEMPLATE_ASSETS_AUDIO[@]} ${TEMPLATE_ASSETS_VIDEO[@]} ${TEMPLATE_ASSETS_DOCUMENTS[@]} ${TEMPLATE_ASSETS_BINARIES[@]} ${TEMPLATE_ASSETS_OTHER[@]}; do

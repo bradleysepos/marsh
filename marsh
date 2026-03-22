@@ -1234,7 +1234,7 @@ function marsh_check_dependencies {  # marsh_check_dependencies $DEP1 $DEP2 ...
         fi
     done
     if [[ "${#ERRORS[@]}" -ne 0 ]]; then
-        echo "dependencies: ${DEPS[@]}"
+        echo "dependencies: ${DEPS[@]}" >&2
         echo "unable to find command(s): ${ERRORS[*]}" >&2
         return 1
     fi
@@ -2634,13 +2634,13 @@ function marsh_build_target {  # marsh_build_target dest_dir target jobs advance
         # in parallel
         export -f marsh_build_document
         if ! "${PARALLEL}" --halt now,fail=1 --quote --no-notice --env marsh_text_filter --env marsh_process_markdown --env marsh_build_document --jobs="${JOBS:-1}" "${SELF_DIR}/${SELF_NAME}" build-document --markdown="${PARALLEL_MARKDOWN}" --markdown-options="${MARKDOWN_OPTIONS_CSV}" --markdown-file-extensions="${MARKDOWN_FILEEXT_CSV}" --markdown-rewrite-links="${MARKDOWN_REWRITE_LINKS}" --marsh-uid="${MARSH_UID}" --marsh-temp="${MARSH_TEMP}" --marsh-config-file="${MARSH_CONFIG_FILE}" --marsh-config-file-dir="${MARSH_CONFIG_FILE_DIR}" --marsh-config-path="${MARSH_CONFIG_PATH}" --marsh-config-url="${MARSH_CONFIG_URL}" "${DEST_DIR}" "${TARGET_DIR}" {} ::: "${DOCUMENTS[@]}"; then
-            echo "Unable to build one or more documents in target: ${TARGET}"
+            echo "Unable to build one or more documents in target: ${TARGET}" >&2
             return 1
         fi
         if [[ "${TEMPLATES_DIR}" != "" ]] && [[ "${TEMPLATE}" != "" ]]; then
             export -f marsh_build_template
             if ! "${PARALLEL}" --halt now,fail=1 --quote --no-notice --env marsh_text_filter --env marsh_process_markdown --env marsh_build_template --jobs="${JOBS:-1}" "${SELF_DIR}/${SELF_NAME}" build-template --markdown="${PARALLEL_MARKDOWN}" --markdown-options="${MARKDOWN_OPTIONS_CSV}" --markdown-file-extensions="${MARKDOWN_FILEEXT_CSV}" --markdown-rewrite-links="${MARKDOWN_REWRITE_LINKS}" --marsh-uid="${MARSH_UID}" --marsh-temp="${MARSH_TEMP}" --marsh-config-file="${MARSH_CONFIG_FILE}" --marsh-config-file-dir="${MARSH_CONFIG_FILE_DIR}" --marsh-config-path="${MARSH_CONFIG_PATH}" --marsh-config-url="${MARSH_CONFIG_URL}" "${DEST_DIR}" "${TARGET_DIR}" {} "${ADVANCED_NAV}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" ::: "${DOCUMENTS[@]}"; then
-                echo "Unable to build template: ${TEMPLATE}"
+                echo "Unable to build template: ${TEMPLATE}" >&2
                 return 1
             fi
         fi
@@ -2652,12 +2652,12 @@ function marsh_build_target {  # marsh_build_target dest_dir target jobs advance
         IFS="${OIFS}"
         for DOCUMENT in "${DOCUMENTS[@]}"; do
             if ! marsh_build_document "${DEST_DIR}" "${TARGET_DIR}" "${DOCUMENT}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_FILEEXT_CSV}" "${MARKDOWN_REWRITE_LINKS}"; then
-                echo "Unable to build document: ${DOCUMENT}"
+                echo "Unable to build document: ${DOCUMENT}" >&2
                 return 1
             fi
             if [[ "${TEMPLATES_DIR}" != "" ]] && [[ "${TEMPLATE}" != "" ]]; then
                 if ! marsh_build_template "${DEST_DIR}" "${TARGET_DIR}" "${DOCUMENT}" "${ADVANCED_NAV}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_FILEEXT_CSV}" "${MARKDOWN_REWRITE_LINKS}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}"; then
-                    echo "Unable to build template: ${TEMPLATE}"
+                    echo "Unable to build template: ${TEMPLATE}" >&2
                     return 1
                 fi
             fi

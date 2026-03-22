@@ -140,7 +140,7 @@ function marsh_test_group {
 function marsh_test {
     local TEST_NAME="${1}" EXISTS TEST EXPECTED RES
     local TEST_TEMP_PREFIX SOURCE_FILE META_FILE CONTENT_FILE DOCUMENT_FILE MARSH_OUID TARGET_DIR HASH SEP
-    local INDEX_FILE MARSH_OCONFIG_PATH MARSH_OCONFIG_URL TEMPLATE_DIR MARSH_OTEMP
+    local INDEX_FILE MARSH_OCONFIG_PATH MARSH_OCONFIG_URL TEMPLATE_DIR TEMPLATE_OVERRIDE_FILE MARSH_OTEMP
     EXISTS=true
     TEST=""
     EXPECTED=""
@@ -568,6 +568,71 @@ function marsh_test {
             $(marsh_is_markdown_extension "txt" "markdown,md")
             TEST=$?
             EXPECTED=1
+            if [[ "${TEST}" -eq "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_parse_template_metadata:0)
+            TEST_NAME+=":normal"
+            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.template"
+            mkdir -p "${TEMPLATE_DIR}"
+            printf '%s\n' \
+                '---' \
+                'Template:' \
+                '  Partials:' \
+                '    Base: partials/base.html' \
+                '  Assets:' \
+                '    Styles:' \
+                '      - css/site.css' \
+                '      - css/site.tmp.css' \
+                '...' > "${TEMPLATE_DIR}/template.yaml"
+            TEST=$(marsh_parse_template_metadata "TEMPLATE_" "${TEMPLATE_DIR}")
+            EXPECTED="TEMPLATE_Template_Partials_Base=\"${TEMPLATE_DIR}/partials/base.html\""$'\n'"TEMPLATE_ASSETS_FONTS=()"$'\n'"TEMPLATE_ASSETS_STYLES=()"$'\n'"TEMPLATE_ASSETS_STYLES+=(\"css/site.css\")"$'\n'"TEMPLATE_ASSETS_STYLES+=(\"css/site.tmp.css\")"$'\n'"TEMPLATE_ASSETS_SCRIPTS=()"$'\n'"TEMPLATE_ASSETS_IMAGES=()"$'\n'"TEMPLATE_ASSETS_AUDIO=()"$'\n'"TEMPLATE_ASSETS_VIDEO=()"$'\n'"TEMPLATE_ASSETS_DOCUMENTS=()"$'\n'"TEMPLATE_ASSETS_BINARIES=()"$'\n'"TEMPLATE_ASSETS_OTHER=()"
+            rm -rf "${TEMPLATE_DIR}" "${TEMPLATE_OVERRIDE_FILE}"
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_parse_template_metadata:1)
+            TEST_NAME+=":override"
+            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.template"
+            TEMPLATE_OVERRIDE_FILE="${TEST_TEMP_PREFIX}.override.yaml"
+            mkdir -p "${TEMPLATE_DIR}"
+            printf '%s\n' \
+                '---' \
+                'Template:' \
+                '  Partials:' \
+                '    Base: partials/base.html' \
+                '  Assets:' \
+                '    Styles:' \
+                '      - css/site.css' \
+                '      - css/site.tmp.css' \
+                '...' > "${TEMPLATE_DIR}/template.yaml"
+            printf '%s\n' \
+                '---' \
+                'Template:' \
+                '  Partials:' \
+                '    Base: partials/override.html' \
+                '  Filters:' \
+                '    - Regex: /\.tmp\.css/d' \
+                '      Assets:' \
+                '        - Styles' \
+                '...' > "${TEMPLATE_OVERRIDE_FILE}"
+            TEST=$(marsh_parse_template_metadata "TEMPLATE_" "${TEMPLATE_DIR}" 1 "${TEMPLATE_OVERRIDE_FILE}")
+            EXPECTED="TEMPLATE_Template_Partials_Base=\"${TEMPLATE_DIR}/partials/override.html\""$'\n'"TEMPLATE_ASSETS_FONTS=()"$'\n'"TEMPLATE_ASSETS_STYLES=()"$'\n'"TEMPLATE_ASSETS_STYLES+=(\"css/site.css\")"$'\n'"TEMPLATE_ASSETS_SCRIPTS=()"$'\n'"TEMPLATE_ASSETS_IMAGES=()"$'\n'"TEMPLATE_ASSETS_AUDIO=()"$'\n'"TEMPLATE_ASSETS_VIDEO=()"$'\n'"TEMPLATE_ASSETS_DOCUMENTS=()"$'\n'"TEMPLATE_ASSETS_BINARIES=()"$'\n'"TEMPLATE_ASSETS_OTHER=()"
+            rm -rf "${TEMPLATE_DIR}" "${TEMPLATE_OVERRIDE_FILE}"
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_parse_template_metadata:2)
+            TEST_NAME+=":missing"
+            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.template"
+            mkdir -p "${TEMPLATE_DIR}"
+            TEST=$(marsh_parse_template_metadata "TEMPLATE_" "${TEMPLATE_DIR}" 2>/dev/null)
+            TEST=$?
+            EXPECTED=1
+            rm -rf "${TEMPLATE_DIR}"
             if [[ "${TEST}" -eq "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
@@ -1334,6 +1399,7 @@ KNOWN_FUNCTIONS=(
     marsh_has_frontmatter
     marsh_in_array
     marsh_is_markdown_extension
+    marsh_parse_template_metadata
     marsh_parse_yaml
     marsh_process_markdown
     marsh_resolve_tag_metadata

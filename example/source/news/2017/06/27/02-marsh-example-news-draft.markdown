@@ -1,6 +1,6 @@
 ---
 Type:            news
-State:           draft
+State:           [ draft ]
 Date:            2017-06-27
 Title:           Marsh Example News Extravaganza!
 Project:         Marsh

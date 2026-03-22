@@ -420,6 +420,16 @@ function marsh_test {
             fi
             ;;
         marsh_get_target_metadata:0)
+            TEST_NAME+=":minimal"
+            MARSH_TEST_TARGET_MIN_Path="/site/minimal"
+            TEST=$(marsh_get_target_metadata "MARSH_TEST_TARGET_MIN_" "TARGET_")
+            EXPECTED="TARGET_PATH=\"/site/minimal\""$'\n'"TARGET_TEMPLATE_OVERRIDES=()"$'\n'"TARGET_ARCHIVES=()"$'\n'"TARGET_ARCHIVES_ENCODING=()"$'\n'"TARGET_ARCHIVES_NAME=()"$'\n'"TARGET_ARCHIVES_LANGUAGE=()"$'\n'"TARGET_ARCHIVES_LANGUAGE_CODE=()"$'\n'"TARGET_ARCHIVES_COUNT=()"$'\n'"TARGET_ARCHIVES_CONTENT=()"$'\n'"TARGET_ARCHIVES_TYPES=()"$'\n'"TARGET_ARCHIVES_EXCLUDED_STATES=()"
+            unset MARSH_TEST_TARGET_MIN_Path
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_get_target_metadata:1)
             TEST_NAME+=":template_archive"
             SEP=$(printf '\034')
             MARSH_TEST_TARGET_Path="/site/output"
@@ -453,6 +463,15 @@ function marsh_test {
             unset MARSH_TEST_TARGET_Archives_0_Types_0 MARSH_TEST_TARGET_Archives_0_Types_1
             unset MARSH_TEST_TARGET_Archives_0_Exclude_States_0
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_get_target_metadata:2)
+            TEST_NAME+=":missing"
+            TEST=$(marsh_get_target_metadata "MARSH_TEST_TARGET_MISSING_" "TARGET_" 2>/dev/null)
+            TEST=$?
+            EXPECTED=1
+            if [[ "${TEST}" -eq "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
             ;;

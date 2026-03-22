@@ -32,6 +32,7 @@ Build:
       Archives:
         - Name:     Marsh Example News
           Path:     index.markdown
+          #Encoding: html
           #Count:    10
           Types:    [ news ]
           Exclude:  [ draft ]

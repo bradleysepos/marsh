@@ -1624,15 +1624,19 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
         FILE="${1:-}";       [[ "${FILE}" == "" ]] && return 1
         TAG="${2:-}";        [[ "${TAG}" == "" ]]  && return 1
         shift 2
-        [[ "${#@}" -eq 0 ]] && return 1
         LIST_SEP=$(printf '\034')
         LIST_RAW=$(printf "%s${LIST_SEP}" "$@")
         LIST_RAW="${LIST_RAW%${LIST_SEP}}"
         FILE_TEMP=$(mktemp "${MARSH_TEMP}/conditional-XXXXXX")
-        awk -v tag="${TAG}" -v list_raw="${LIST_RAW}" -v list_sep="${LIST_SEP}" '
+        awk -v tag="${TAG}" -v list_raw="${LIST_RAW}" -v list_sep="${LIST_SEP}" -v list_count_input="${#@}" '
             BEGIN {
-                if (list_raw != "") {
-                    list_count = split(list_raw, allowed_items, list_sep);
+                list_count = list_count_input + 0;
+                if (list_count > 0) {
+                    if (list_count == 1 && list_raw == "") {
+                        allowed_items[1] = "";
+                    } else {
+                        split(list_raw, allowed_items, list_sep);
+                    }
                     for (i = 1; i <= list_count; i++) {
                         allowed[allowed_items[i]] = 1;
                     }
@@ -1976,6 +1980,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
     local SUBDOCUMENT SUBDOCUMENT_CONTENT SUBDOCUMENT_CONTENT_ESC SUBDOCUMENT_META SUBDOCUMENT_META_VARS
     local SUBDOCUMENT_RENDER SUBDOCUMENT_TEMPLATE
     local TEXT_FILTER UTIL_JSON_SEPARATOR OIFS I J VAR
+    local CONDITIONAL_TAG CONDITIONAL_VALUES
     local DOCUMENT_State
     local PARTIAL_CONDITIONAL_TAGS
     local NAV NAV_DIR NAV_NAME NAV_RELPATH
@@ -2084,9 +2089,18 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                 cp "${PARTIALS[$J]}" "${TEMPLATE_TEMP}"
                 PARTIALS[$J]="${TEMPLATE_TEMP}"
                 # process known tags
-                if marsh_in_array "document.state" "${PARTIAL_CONDITIONAL_TAGS[@]}"; then
-                    process_conditionals "${PARTIALS[$J]}" "document.state" "${DOCUMENT_State[@]}"
-                fi
+                for CONDITIONAL_TAG in "${PARTIAL_CONDITIONAL_TAGS[@]}"; do
+                    TAG_VAR=""
+                    TAG_TYPE=""
+                    resolve_tag_metadata "${CONDITIONAL_TAG}" "DOCUMENT_" 2>/dev/null || continue
+                    if [[ "${TAG_TYPE}" == "array" ]]; then
+                        CONDITIONAL_VALUES=()
+                        eval $(marsh_flat_to_array "CONDITIONAL_VALUES" "${TAG_VAR}")
+                        process_conditionals "${PARTIALS[$J]}" "${CONDITIONAL_TAG}" "${CONDITIONAL_VALUES[@]}" || return 1
+                    elif [[ "${TAG_TYPE}" == "string" ]]; then
+                        process_conditionals "${PARTIALS[$J]}" "${CONDITIONAL_TAG}" "${!TAG_VAR:-}" || return 1
+                    fi
+                done
                 # remove remaining conditionals
                 clean_conditionals "${PARTIALS[$J]}"
             fi

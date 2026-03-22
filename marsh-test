@@ -214,6 +214,31 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
+        marsh_resolve_tag_metadata:0)
+            TEST_NAME+=":string_tag"
+            TEST=$(marsh_resolve_tag_metadata "document.project-version" "DOCUMENT_")
+            EXPECTED="TAG_VAR=DOCUMENT_Project_Version"$'\n'"TAG_TYPE=string"
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_resolve_tag_metadata:1)
+            TEST_NAME+=":array_tag"
+            TEST=$(marsh_resolve_tag_metadata "document.authors" "SUBDOCUMENT_")
+            EXPECTED="TAG_VAR=SUBDOCUMENT_Authors_"$'\n'"TAG_TYPE=array"
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_resolve_tag_metadata:2)
+            TEST_NAME+=":unknown_tag"
+            TEST=$(marsh_resolve_tag_metadata "document.subtitle" "DOCUMENT_" 2>/dev/null)
+            TEST=$?
+            EXPECTED=1
+            if [[ "${TEST}" -eq "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
         marsh_text_filter:0)
             TEST_NAME+=":append"
             TEST=$(echo "Some text"$'\n'"More text" | marsh_text_filter append:after)
@@ -829,6 +854,7 @@ KNOWN_FUNCTIONS=(
     marsh_get_variables
     marsh_in_array
     marsh_parse_yaml
+    marsh_resolve_tag_metadata
     marsh_text_filter
 )
 FUNCTIONS=("${@}")

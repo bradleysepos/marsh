@@ -126,8 +126,7 @@ function marsh_test {
     case "${TEST_NAME}" in
         marsh_get_variables:0)
             TEST_NAME+=":single"
-            TEST=($(echo "FOO=foo" | marsh_get_variables))
-            TEST="${TEST[*]}"
+            TEST=$(echo "FOO=foo" | marsh_get_variables)
             EXPECTED="FOO"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -135,18 +134,16 @@ function marsh_test {
             ;;
         marsh_get_variables:1)
             TEST_NAME+=":multiple"
-            TEST=($(echo "FOO=foo"$'\n'"BAR=bar" | marsh_get_variables))
-            TEST="${TEST[*]}"
-            EXPECTED="BAR FOO"
+            TEST=$(echo "FOO=foo"$'\n'"BAR=bar" | marsh_get_variables)
+            EXPECTED="BAR"$'\n'"FOO"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
             ;;
         marsh_flat_to_array:0)
             TEST_NAME+=":nested"
-            TEST=($(FOOBAR_0="foo" FOOBAR_1="bar" FOOBAR_X="x" marsh_flat_to_array "ARRAY" "FOOBAR_"))
-            TEST="${TEST[*]}"
-            EXPECTED="ARRAY=() ARRAY+=(\"foo\") ARRAY+=(\"bar\")"
+            TEST=$(FOOBAR_0="foo" FOOBAR_1="bar" FOOBAR_X="x" marsh_flat_to_array "ARRAY" "FOOBAR_")
+            EXPECTED="ARRAY=()"$'\n'"ARRAY+=(\"foo\")"$'\n'"ARRAY+=(\"bar\")"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
@@ -171,8 +168,7 @@ function marsh_test {
             ;;
         marsh_parse_yaml:0)
             TEST_NAME+=":map"
-            TEST=($(marsh_parse_yaml "FOO: foo" "PREFIX"))
-            TEST="${TEST[*]}"
+            TEST=$(marsh_parse_yaml "FOO: foo" "PREFIX")
             EXPECTED="PREFIX_FOO=\"foo\""
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -180,17 +176,15 @@ function marsh_test {
             ;;
         marsh_parse_yaml:1)
             TEST_NAME+=":map"
-            TEST=($(marsh_parse_yaml "FOO: foo"$'\n'"BAR: bar" "PREFIX"))
-            TEST="${TEST[*]}"
-            EXPECTED="PREFIX_FOO=\"foo\" PREFIX_BAR=\"bar\""
+            TEST=$(marsh_parse_yaml "FOO: foo"$'\n'"BAR: bar" "PREFIX")
+            EXPECTED="PREFIX_FOO=\"foo\""$'\n'"PREFIX_BAR=\"bar\""
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
             ;;
         marsh_parse_yaml:2)
             TEST_NAME+=":map_sequence"
-            TEST=($(marsh_parse_yaml "EMPTY: []" "PREFIX"))
-            TEST="${TEST[*]}"
+            TEST=$(marsh_parse_yaml "EMPTY: []" "PREFIX")
             EXPECTED=""
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -198,27 +192,24 @@ function marsh_test {
             ;;
         marsh_parse_yaml:3)
             TEST_NAME+=":map_sequence"
-            TEST=($(marsh_parse_yaml "FOOBAR: [foo, bar]" "PREFIX"))
-            TEST="${TEST[*]}"
-            EXPECTED="PREFIX_FOOBAR_0=\"foo\" PREFIX_FOOBAR_1=\"bar\""
+            TEST=$(marsh_parse_yaml "FOOBAR: [foo, bar]" "PREFIX")
+            EXPECTED="PREFIX_FOOBAR_0=\"foo\""$'\n'"PREFIX_FOOBAR_1=\"bar\""
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
             ;;
         marsh_parse_yaml:4)
             TEST_NAME+=":map_sequence"
-            TEST=($(marsh_parse_yaml "FOOBAR:"$'\n'"  - foo"$'\n'"  - bar" "PREFIX"))
-            TEST="${TEST[*]}"
-            EXPECTED="PREFIX_FOOBAR=\"\" PREFIX_FOOBAR_0=\"foo\" PREFIX_FOOBAR_1=\"bar\""
+            TEST=$(marsh_parse_yaml "FOOBAR:"$'\n'"  - foo"$'\n'"  - bar" "PREFIX")
+            EXPECTED="PREFIX_FOOBAR=\"\""$'\n'"PREFIX_FOOBAR_0=\"foo\""$'\n'"PREFIX_FOOBAR_1=\"bar\""
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
             ;;
         marsh_parse_yaml:5)
             TEST_NAME+=":map_sequence"
-            TEST=($(marsh_parse_yaml "FOOBAR:"$'\n'"  - foo"$'\n'"  - bar: [baz]" "PREFIX"))
-            TEST="${TEST[*]}"
-            EXPECTED="PREFIX_FOOBAR=\"\" PREFIX_FOOBAR_0=\"foo\" PREFIX_FOOBAR_1_bar_0=\"baz\""
+            TEST=$(marsh_parse_yaml "FOOBAR:"$'\n'"  - foo"$'\n'"  - bar: [baz]" "PREFIX")
+            EXPECTED="PREFIX_FOOBAR=\"\""$'\n'"PREFIX_FOOBAR_0=\"foo\""$'\n'"PREFIX_FOOBAR_1_bar_0=\"baz\""
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi

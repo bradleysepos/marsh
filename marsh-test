@@ -1383,6 +1383,54 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
+        marsh_text_filter_headings:0)
+            TEST_NAME+=":push_html_attrs"
+            TEST=$(echo '<h1 class="title">Heading 1</h1><h6 id="foot">Heading 6</h6><p>Paragraph</p>' | marsh_text_filter_headings push)
+            EXPECTED='<h2 class="title">Heading 1</h2><strong id="foot">Heading 6</strong><p>Paragraph</p>'
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_text_filter_headings:1)
+            TEST_NAME+=":shift_html_attrs"
+            TEST=$(printf '%s\n' '<h1 class="title">Heading 1</h1>' '' '<h3 id="sub">Heading 3</h3>' '' '<p>Paragraph</p>' | marsh_text_filter_headings shift)
+            EXPECTED=$'\n''<h2 id="sub">Heading 3</h2>'$'\n\n''<p>Paragraph</p>'
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_text_filter_headings:2)
+            TEST_NAME+=":remove_html_attrs"
+            TEST=$(printf '%s\n' '<h2 class="title">Heading 2</h2>' '' '<h6 id="foot">Heading 6</h6>' '' '<p>Paragraph</p>' | marsh_text_filter_headings remove)
+            EXPECTED=$'\n\n''<p>Paragraph</p>'
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_text_filter_headings:3)
+            TEST_NAME+=":push_markdown"
+            TEST=$(printf '%s\n' 'Heading 1' '=========' '' '###### Heading 6' '' 'Paragraph' | marsh_text_filter_headings push)
+            EXPECTED='## Heading 1'$'\n\n''**Heading 6**'$'\n\n''Paragraph'
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_text_filter_headings:4)
+            TEST_NAME+=":shift_markdown"
+            TEST=$(printf '%s\n' 'Heading 1' '=========' '' '### Heading 3' '' 'Paragraph' | marsh_text_filter_headings shift)
+            EXPECTED=$'\n''## Heading 3'$'\n\n''Paragraph'
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_text_filter_headings:5)
+            TEST_NAME+=":remove_markdown"
+            TEST=$(printf '%s\n' 'Heading 2' '---------' '' '###### Heading 6' '' 'Paragraph' | marsh_text_filter_headings remove)
+            EXPECTED=$'\n\n''Paragraph'
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
         *)
             EXISTS=false
             ;;
@@ -1423,6 +1471,7 @@ KNOWN_FUNCTIONS=(
     marsh_process_markdown
     marsh_resolve_tag_metadata
     marsh_text_filter
+    marsh_text_filter_headings
 )
 FUNCTIONS=("${@}")
 if [[ "${FUNCTIONS[*]}" == "" ]]; then

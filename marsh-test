@@ -132,7 +132,7 @@ function marsh_test_group {
 
 function marsh_test {
     local TEST_NAME="${1}" EXISTS TEST EXPECTED RES
-    local TEST_TEMP_PREFIX SOURCE_FILE META_FILE CONTENT_FILE DOCUMENT_FILE MARSH_OUID
+    local TEST_TEMP_PREFIX SOURCE_FILE META_FILE CONTENT_FILE DOCUMENT_FILE MARSH_OUID TARGET_DIR
     EXISTS=true
     TEST=""
     EXPECTED=""
@@ -333,6 +333,54 @@ function marsh_test {
             TEST="$?"
             EXPECTED="1"
             rm -f "${SOURCE_FILE}" "${META_FILE}" "${CONTENT_FILE}"
+            if [[ "${TEST}" -eq "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_find_advanced_nav:0)
+            TEST_NAME+=":same_dir"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            MARSH_OUID="${MARSH_UID:-}"
+            MARSH_UID="navtest"
+            mkdir -p "${TARGET_DIR}/news"
+            : > "${TARGET_DIR}/news/nav.html.${MARSH_UID}.advanced-nav.html"
+            TEST=$(marsh_find_advanced_nav "${TARGET_DIR}" "news/article.markdown" "nav.html")
+            EXPECTED="news/nav.html.${MARSH_UID}.advanced-nav.html"
+            rm -rf "${TARGET_DIR}"
+            MARSH_UID="${MARSH_OUID}"
+            [[ "${MARSH_UID}" == "" ]] && unset MARSH_UID
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_find_advanced_nav:1)
+            TEST_NAME+=":parent_dir"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            MARSH_OUID="${MARSH_UID:-}"
+            MARSH_UID="navtest"
+            mkdir -p "${TARGET_DIR}/news/world"
+            : > "${TARGET_DIR}/nav.html.${MARSH_UID}.advanced-nav.html"
+            TEST=$(marsh_find_advanced_nav "${TARGET_DIR}" "news/world/article.markdown" "nav.html")
+            EXPECTED="nav.html.${MARSH_UID}.advanced-nav.html"
+            rm -rf "${TARGET_DIR}"
+            MARSH_UID="${MARSH_OUID}"
+            [[ "${MARSH_UID}" == "" ]] && unset MARSH_UID
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_find_advanced_nav:2)
+            TEST_NAME+=":missing"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            MARSH_OUID="${MARSH_UID:-}"
+            MARSH_UID="navtest"
+            mkdir -p "${TARGET_DIR}/news"
+            TEST=$(marsh_find_advanced_nav "${TARGET_DIR}" "news/article.markdown" "nav.html" 2>/dev/null)
+            TEST=$?
+            EXPECTED=1
+            rm -rf "${TARGET_DIR}"
+            MARSH_UID="${MARSH_OUID}"
+            [[ "${MARSH_UID}" == "" ]] && unset MARSH_UID
             if [[ "${TEST}" -eq "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
@@ -1037,6 +1085,7 @@ source "${MARSH}"
 KNOWN_FUNCTIONS=(
     marsh_extract_frontmatter
     marsh_flat_to_array
+    marsh_find_advanced_nav
     marsh_get_subdocuments
     marsh_get_variables
     marsh_has_frontmatter

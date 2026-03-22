@@ -35,17 +35,17 @@ Build:
           #Encoding: html
           #Count:    10
           Types:    [ news ]
-          Exclude:  [ draft ]
+          Exclude_States: [ draft ]
         - Name:     Marsh Example News
           Path:     feed.xml
           Encoding: atom
           #Count:    10
           Types:    [ news ]
-          Exclude:  [ draft ]
+          Exclude_States: [ draft ]
         - Name:     Marsh Example News
           Path:     feed.json
           Encoding: json
           #Count:    10
           Types:    [ news ]
-          Exclude:  [ draft ]
+          Exclude_States: [ draft ]
 ...

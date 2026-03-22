@@ -969,7 +969,7 @@ function marsh_extract_frontmatter {  # marsh_extract_frontmatter source meta_de
 function marsh_get_archive_metadata {  # marsh_get_archive_metadata target_dir document
     local TARGET_DIR DOCUMENT
     local INDEX META DOCUMENT_SOURCE META_PREFIX META_ASSIGNMENTS META_VARS
-    local TYPE_VAR TITLE_VAR DATE_VAR TYPE TITLE DATE URI DOCUMENT_SOURCE_EXT ABSPATH STATE VALUE_ESC
+    local TYPE_VAR TITLE_VAR DATE_VAR TYPE TITLE DATE URI ABSPATH STATE VALUE_ESC
 
     # init
     TARGET_DIR="${1:-}"

@@ -369,7 +369,7 @@ function marsh_test {
             mkdir -p "${TARGET_DIR}/news"
             printf '%s\n' '---' 'Type: post' 'Title: Hello World' 'Date: 2024-01-02' 'State:' '  - published' '  - featured' '...' > "${META_FILE}"
             TEST=$(marsh_get_archive_metadata "${TARGET_DIR}" "news/article.markdown.${MARSH_UID}.document")
-            EXPECTED="TYPE=post"$'\n'"TITLE=Hello\ World"$'\n'"DATE=2024-01-02"$'\n'"URI=https://example.test/$(basename "${TARGET_DIR}")/news/article.html"$'\n'"ABSPATH=https://example.test/$(basename "${TARGET_DIR}")/news"$'\n'"STATE=()"$'\n'"STATE+=(published)"$'\n'"STATE+=(featured)"
+            EXPECTED="TYPE=post"$'\n'"URI=https://example.test/$(basename "${TARGET_DIR}")/news/article.html"$'\n'"ABSPATH=https://example.test/$(basename "${TARGET_DIR}")/news"$'\n'"STATE=()"$'\n'"STATE+=(published)"$'\n'"STATE+=(featured)"
             rm -rf "${TARGET_DIR}"
             MARSH_UID="${MARSH_OUID}"
             [[ "${MARSH_UID}" == "" ]] && unset MARSH_UID

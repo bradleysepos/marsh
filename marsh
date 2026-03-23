@@ -520,6 +520,11 @@ function marsh_text_filter {  # marsh_text_filter filter [filter...]
     case "${FILTER}" in
         append:*)
             APPEND="${OPTIONS[0]:-}"
+            APPEND=$(printf '%s' "${APPEND}" | marsh_escape_substitution)
+            sed -e '$ s/$/'"${APPEND}"'/'
+            ;;
+        append-type:block:*)
+            APPEND="${OPTIONS[1]:-}"
             APPEND="${APPEND//\\/\\\\}"
             awk -v APPEND="${APPEND}" '{ print } END { print APPEND }'
             ;;
@@ -563,7 +568,7 @@ function marsh_text_filter {  # marsh_text_filter filter [filter...]
             MAX_CHARS="${OPTIONS[0]:-300}"
             MAX_PARAS="${OPTIONS[1]:-2}"
             MAX_CHARS=$((MAX_CHARS - 1))
-            marsh_text_filter headings:remove plaintext newlines:trim items:trim newlines:reduce:2 | awk -v RS='' -v MAX_PARAS="${MAX_PARAS}" 'NR<=MAX_PARAS { print $0 }' | marsh_text_filter newlines:tospaces | cut -c1-"${MAX_CHARS}" | sed -E -e 's/[[:punct:]]*[ ]*$//' | marsh_text_filter items:append:…
+            marsh_text_filter headings:remove plaintext newlines:trim items:trim newlines:reduce:2 | awk -v RS='' -v MAX_PARAS="${MAX_PARAS}" 'NR<=MAX_PARAS { print $0 }' | marsh_text_filter newlines:tospaces | cut -c1-"${MAX_CHARS}" | sed -E -e 's/[[:punct:]]*[ ]*$//' | marsh_text_filter append:…
             ;;
         excerpt-type:html|excerpt-type:html:*)
             MAX_CHARS="${OPTIONS[1]:-300}"
@@ -988,6 +993,11 @@ function marsh_text_filter {  # marsh_text_filter filter [filter...]
             ;;
         prepend:*)
             PREPEND="${OPTIONS[0]:-}"
+            PREPEND=$(printf '%s' "${PREPEND}" | marsh_escape_substitution)
+            sed -e '1 s/^/'"${PREPEND}"'/'
+            ;;
+        prepend-type:block:*)
+            PREPEND="${OPTIONS[1]:-}"
             PREPEND="${PREPEND//\\/\\\\}"
             awk -v PREPEND="${PREPEND}" 'NR==1 { print PREPEND } { print }'
             ;;
@@ -1000,6 +1010,17 @@ function marsh_text_filter {  # marsh_text_filter filter [filter...]
         wrap:*)
             WRAP_START="${OPTIONS[0]:-}"
             WRAP_END="${OPTIONS[1]:-${WRAP_START}}"
+            WRAP_START=$(printf '%s' "${WRAP_START}" | marsh_escape_substitution)
+            WRAP_END=$(printf '%s' "${WRAP_END}" | marsh_escape_substitution)
+            if [[ "${WRAP_START}" != "" ]]; then
+                sed -e '1 s/^/'"${WRAP_START}"'/' -e '$ s/$/'"${WRAP_END}"'/'
+            else
+                cat
+            fi
+            ;;
+        wrap-type:block:*)
+            WRAP_START="${OPTIONS[1]:-}"
+            WRAP_END="${OPTIONS[2]:-${WRAP_START}}"
             WRAP_START="${WRAP_START//\\/\\\\}"
             WRAP_END="${WRAP_END//\\/\\\\}"
             if [[ "${WRAP_START}" != "" ]]; then

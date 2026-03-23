@@ -300,14 +300,6 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_flat_to_array:0)
-            TEST_NAME+=":nested"
-            TEST=$(FOOBAR_0="foo" FOOBAR_1="bar" FOOBAR_X="x" marsh_flat_to_array "ARRAY" "FOOBAR_")
-            EXPECTED="ARRAY=()"$'\n'"ARRAY+=(\"foo\")"$'\n'"ARRAY+=(\"bar\")"
-            if [[ "${TEST}" == "${EXPECTED}" ]]; then
-                RES="[PASS]"
-            fi
-            ;;
         marsh_find_advanced_nav:0)
             TEST_NAME+=":same_dir"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
@@ -353,6 +345,14 @@ function marsh_test {
             MARSH_UID="${MARSH_OUID}"
             [[ "${MARSH_UID}" == "" ]] && unset MARSH_UID
             if [[ "${TEST}" -eq "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_flat_to_array:0)
+            TEST_NAME+=":nested"
+            TEST=$(FOOBAR_0="foo" FOOBAR_1="bar" FOOBAR_X="x" marsh_flat_to_array "ARRAY" "FOOBAR_")
+            EXPECTED="ARRAY=()"$'\n'"ARRAY+=(\"foo\")"$'\n'"ARRAY+=(\"bar\")"
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
             ;;

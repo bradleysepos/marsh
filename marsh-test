@@ -624,6 +624,14 @@ function marsh_test {
             fi
             ;;
         marsh_get_variables:1)
+            TEST_NAME+=":single_no_trailing_newline"
+            TEST=$(printf 'FOO=foo' | marsh_get_variables)
+            EXPECTED="FOO"
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_get_variables:2)
             TEST_NAME+=":multiple"
             TEST=$(echo "FOO=foo"$'\n'"BAR=bar" | marsh_get_variables)
             EXPECTED="BAR"$'\n'"FOO"

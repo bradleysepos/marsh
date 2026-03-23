@@ -1028,9 +1028,7 @@ export -f marsh_text_filter
 
 # prints a list of variables given their assignment commands, one per line, e.g. FOO="bar" prints FOO
 function marsh_get_variables {  # marsh_get_variables assignments_string
-    local STRING
-    STRING=$(</dev/stdin)
-    echo "${STRING}" | sed -E -e 's/^([^=]+[^+])[+]?=.*/\1/' | sort -u
+    sed -E -e 's/^([^=]+[^+])[+]?=.*/\1/' | sort -u
 }
 
 # prints local declarations for the given list of variable names, one per line

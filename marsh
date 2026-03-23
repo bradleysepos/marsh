@@ -464,7 +464,7 @@ function marsh_text_filter_headings {  # marsh_text_filter_headings action
 
 # transforms a string
 function marsh_text_filter {  # marsh_text_filter filter [filter...]
-    local FILTER PIPE_STATUS
+    local FILTER OIFS PIPE_STATUS STATUS
     FILTER="${1:-}"
     OIFS="${IFS}"
     IFS=$'\n'
@@ -515,7 +515,8 @@ function marsh_text_filter {  # marsh_text_filter filter [filter...]
         OPTIONS+=("${OPTION_CURRENT}")
     fi
     IFS="${OIFS}"
-    local MAX_CHARS MAX_PARAS MD_EXT_REGEX PROTOCOL_SEP WRAP_START WRAP_END
+    local APPEND MAX_CHARS MAX_PARAS MD_EXT_REGEX PROTOCOL_SEP WRAP_START WRAP_END
+    local COUNT DELIM1 DELIM2 DELIM3 END I ITEM_KEY PREPEND REPLACE_EXT START XML_TAG XML_TAG_CLOSE XML_TAG_OPEN
     case "${FILTER}" in
         append:*)
             APPEND="${OPTIONS[0]:-}"
@@ -1438,7 +1439,8 @@ function marsh_parse_template_metadata {  # marsh_parse_template_metadata prefix
     local PREFIX TEMPLATE_DIR NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDE TEMPLATE_OVERRIDES
     local TEMPLATE_META TEMPLATE_META_VARS
     local TEMPLATE_ASSETS_FONTS TEMPLATE_ASSETS_STYLES TEMPLATE_ASSETS_SCRIPTS TEMPLATE_ASSETS_IMAGES TEMPLATE_ASSETS_AUDIO TEMPLATE_ASSETS_VIDEO TEMPLATE_ASSETS_DOCUMENTS TEMPLATE_ASSETS_OTHER
-    local INDEX ASSET_TYPES ASSET_TYPE_UPPER ASSET FILTER_INDEX REGEX EXTENDED MATCH REPLACE EXTRA ASSETS_INDEX ASSETS ASSETS_TEMP
+    local INDEX ASSET_TYPES ASSET_TYPE ASSET_TYPE_UPPER ASSET FILTER_INDEX REGEX EXTENDED MATCH REPLACE EXTRA
+    local ASSETS_INDEX ASSETS_TYPE ASSETS ASSETS_TEMP OIFS VAR
 
     # init
     PREFIX="${1:-}"
@@ -1649,9 +1651,10 @@ function marsh_get_template_metadata {  # marsh_get_template_metadata prefix tem
 # loads target metadata into convenience variables
 function marsh_get_target_metadata {  # marsh_get_target_metadata source_prefix prefix
     local SOURCE_PREFIX PREFIX
-    local TARGET_PATH TARGET_NAME TARGET_TYPE TARGET_FORCE TARGET_NAV
+    local TARGET_PATH TARGET_NAME TARGET_SOURCE TARGET_TYPE TARGET_FORCE TARGET_NAV
     local II TEMPLATE_SOURCE TEMPLATE_OVERRIDE TEMPLATE_OVERRIDES
-    local ARCHIVE ARCHIVE_NAME ARCHIVE_ENCODING ARCHIVE_COUNT ARCHIVE_CONTENT ARCHIVE_TYPES ARCHIVE_EXCLUDED_STATES
+    local ARCHIVE ARCHIVE_NAME ARCHIVE_ENCODING ARCHIVE_LANGUAGE ARCHIVE_LANGUAGE_CODE
+    local ARCHIVE_COUNT ARCHIVE_CONTENT ARCHIVE_TYPES ARCHIVE_EXCLUDED_STATES OIFS
 
     # init
     SOURCE_PREFIX="${1:-}"
@@ -1728,7 +1731,7 @@ function marsh_get_target_metadata {  # marsh_get_target_metadata source_prefix 
 # copies files from local sources
 function marsh_get_files {  # marsh_get_files source dest force
     local SOURCE DEST FORCE
-    local SOURCE_DIR FILES_LIST FILES
+    local SOURCE_DIR FILES_LIST FILES FILE
     SOURCE="${1:-}"
     DEST="${2:-}"
     if [[ "${SOURCE}" == "" ]]; then
@@ -1921,7 +1924,7 @@ function marsh_build_archive {  # marsh_build_archive encoding target_dir dest_f
 # builds advanced navigation
 function marsh_build_advanced_nav {  # marsh_build_advanced_nav target_dir navigation_file markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links
     local TARGET_DIR NAV_FILE MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_REWRITE_LINKS
-    local NAV_TARGETS_LIST NAV_TARGETS NAV_DEST TEXT_FILTER
+    local NAV_TARGETS_LIST NAV_TARGETS NAV_TARGET NAV_DEST TEXT_FILTER
 
     # init
     TARGET_DIR="${1:-}"
@@ -2221,7 +2224,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
     local TEMPLATE_PREFIX TEMPLATE_META TEMPLATE_META_VARS PARTIALS TEMPLATE_BASE TEMPLATE_TEMP
     local TEMPLATE_RENDER
     local TEMPLATE_BODY TEMPLATE_DOCUMENT_TEMPLATE TEMPLATE_HEADER_TEMPLATE TEMPLATE_FOOTER_TEMPLATE
-    local TEMPLATE_STYLES TEMPLATE_SCRIPTS TEMPLATE_NAV_TEMPLATE TEMPLATE_NOTICE_TEMPLATE TEMPLATE_ADVNAV
+    local TEMPLATE_STYLES STYLE TEMPLATE_SCRIPTS SCRIPT TEMPLATE_NAV_TEMPLATE TEMPLATE_NOTICE_TEMPLATE TEMPLATE_ADVNAV
     local TEMPLATE_BODY_ESC TEMPLATE_DOCUMENT_ESC TEMPLATE_HEADER_ESC TEMPLATE_FOOTER_ESC
     local TEMPLATE_NAV_ESC TEMPLATE_NOTICE_ESC TEMPLATE_SCRIPTS_ESC TEMPLATE_STYLES_ESC TEMPLATE_ADVNAV_ESC
     local DOCUMENT_META DOCUMENT_META_VARS DOCUMENT_CONTENT

@@ -280,20 +280,20 @@ function marsh_in_array {  # marsh_in_array needle haystack[@]
 # eval $(marsh_flat_to_array "TEST" "TEST_")  # loops over TEST_{0..2}
 # echo "${TEST[*]}"                           # foo bar baz
 function marsh_flat_to_array {  # marsh_flat_to_array array_name variable_prefix
-    local ARRAY_NAME PREFIX INDEX ITEM
+    local ARRAY_NAME PREFIX INDEX ITEM_NAME ITEM_VALUE
     ARRAY_NAME="${1:-}"
     [[ "${ARRAY_NAME}" == "" ]] && return 1
     PREFIX="${2:-}"
     [[ "${PREFIX}" == "" ]] && return 1
     echo "${ARRAY_NAME}=()"
     INDEX=0
-    ITEM="${PREFIX}${INDEX}"
-    ITEM="${!ITEM:-}"
-    while [[ "${ITEM}" != "" ]]; do
-        echo "${ARRAY_NAME}+=(\"${ITEM//\"/\\\"}\")"
+    ITEM_NAME="${PREFIX}${INDEX}"
+    ITEM_VALUE="${!ITEM_NAME:-}"
+    while [[ "${ITEM_VALUE}" != "" ]]; do
+        echo "${ARRAY_NAME}+=(\"${ITEM_VALUE//\"/\\\"}\")"
         INDEX=$((INDEX + 1))
-        ITEM="${PREFIX}${INDEX}"
-        ITEM="${!ITEM:-}"
+        ITEM_NAME="${PREFIX}${INDEX}"
+        ITEM_VALUE="${!ITEM_NAME:-}"
     done
     return 0
 }

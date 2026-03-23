@@ -278,7 +278,7 @@ function marsh_in_array {  # marsh_in_array needle haystack[@]
 # creates an array from the contents of flat variables
 # TEST_0="foo"; TEST_1="bar"; TEST_2="baz"
 # eval $(marsh_flat_to_array "TEST" "TEST_")  # loops over TEST_{0..2}
-# echo "${TEST[*]}"                     # foo bar baz
+# echo "${TEST[*]}"                           # foo bar baz
 function marsh_flat_to_array {  # marsh_flat_to_array array_name variable_prefix
     local ARRAY_NAME PREFIX INDEX ITEM
     ARRAY_NAME="${1:-}"

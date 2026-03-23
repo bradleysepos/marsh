@@ -288,12 +288,11 @@ function marsh_flat_to_array {  # marsh_flat_to_array array_name variable_prefix
     echo "${ARRAY_NAME}=()"
     INDEX=0
     ITEM_NAME="${PREFIX}${INDEX}"
-    ITEM_VALUE="${!ITEM_NAME:-}"
-    while [[ "${ITEM_VALUE}" != "" ]]; do
+    while [[ -n "${!ITEM_NAME+isset}" ]]; do
+        ITEM_VALUE="${!ITEM_NAME}"
         echo "${ARRAY_NAME}+=(\"${ITEM_VALUE//\"/\\\"}\")"
         INDEX=$((INDEX + 1))
         ITEM_NAME="${PREFIX}${INDEX}"
-        ITEM_VALUE="${!ITEM_NAME:-}"
     done
     return 0
 }

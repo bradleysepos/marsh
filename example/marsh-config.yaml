@@ -10,25 +10,25 @@ Build:
       Force:  true
       Source: source/*
       Template:
-        Source: ../templates/default
+        Source: ../templates/example
         #Overrides:
-        #  - ../templates/default/template-overrides.yaml
+        #  - ../templates/example/template-overrides.yaml
     - Name:   About Marsh Example
       Path:   about
       Force:  true
       Source: source/about
       Template:
-        Source: ../templates/default
+        Source: ../templates/example
         #Overrides:
-        #  - ../templates/default/template-overrides.yaml
+        #  - ../templates/example/template-overrides.yaml
     - Name:   Marsh Example News
       Path:   news
       Force:  true
       Source: source/news
       Template:
-        Source: ../templates/default
+        Source: ../templates/example
         #Overrides:
-        #  - ../templates/default/template-overrides.yaml
+        #  - ../templates/example/template-overrides.yaml
       Archives:
         - Name:     Marsh Example News
           Path:     index.markdown

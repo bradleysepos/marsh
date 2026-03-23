@@ -1300,7 +1300,7 @@ function marsh_parse_template_metadata {  # marsh_parse_template_metadata prefix
 
     # assets
     ASSET_TYPES=('Fonts' 'Styles' 'Scripts' 'Images' 'Audio' 'Video' 'Documents' 'Binaries' 'Other')
-    for ASSET_TYPE in ${ASSET_TYPES[@]}; do
+    for ASSET_TYPE in "${ASSET_TYPES[@]}"; do
         eval "TEMPLATE_ASSETS_${ASSET_TYPE}=()"
         INDEX=0
         ASSET="MARSH_TEMPLATE_Template_Assets_${ASSET_TYPE}_${INDEX}"
@@ -1346,10 +1346,13 @@ function marsh_parse_template_metadata {  # marsh_parse_template_metadata prefix
         # loop over assets types for filter
         while [[ "${ASSETS_TYPE}" != "" ]]; do
             ASSETS="TEMPLATE_ASSETS_${ASSETS_TYPE}[@]"
+            OIFS="${IFS}"
+            IFS=$'\n'
             ASSETS=(${!ASSETS})
+            IFS="${OIFS}"
             ASSETS_TEMP=()
             # loop over all individual assets of this type
-            for ASSET in ${ASSETS[@]}; do
+            for ASSET in "${ASSETS[@]}"; do
                 # do regex
                 if [[ "${EXTENDED}" == true ]]; then
                     ASSET=$(echo "${ASSET}" | sed -E "${REGEX}" 2>/dev/null)
@@ -1381,12 +1384,15 @@ function marsh_parse_template_metadata {  # marsh_parse_template_metadata prefix
     done
 
     # print assets
-    for ASSET_TYPE in ${ASSET_TYPES[@]}; do
+    for ASSET_TYPE in "${ASSET_TYPES[@]}"; do
         ASSET_TYPE_UPPER=$(echo "${ASSET_TYPE}" | awk '{ print toupper($0) }')
         ASSETS="TEMPLATE_ASSETS_${ASSET_TYPE}[@]"
+        OIFS="${IFS}"
+        IFS=$'\n'
         ASSETS=(${!ASSETS})
+        IFS="${OIFS}"
         echo "${PREFIX}ASSETS_${ASSET_TYPE_UPPER}=()"
-        for ASSET in ${ASSETS[@]}; do
+        for ASSET in "${ASSETS[@]}"; do
             [[ "${ASSET:-}" != "" ]] && echo "${PREFIX}ASSETS_${ASSET_TYPE_UPPER}+=(\"${ASSET//\"/\\\"}\")"
         done
     done
@@ -1553,7 +1559,7 @@ function marsh_get_files {  # marsh_get_files source dest force
         IFS="${OIFS}"
     fi
     # loop over files
-    for FILE in ${FILES[@]}; do
+    for FILE in "${FILES[@]}"; do
         # sanity
         if [[ "${SOURCE_DIR}/${FILE}" == "${DEST%/}/${FILE}" ]]; then
             # same source and destination
@@ -1743,8 +1749,11 @@ function marsh_build_advanced_nav {  # marsh_build_advanced_nav target_dir navig
     [[ "${MARKDOWN_FILEEXT_CSV}" == "" ]] && return 1
     [[ "${MARKDOWN_REWRITE_LINKS}" == "" ]] && return 1
 
-    NAV_TARGETS=$(cd "${TARGET_DIR}" && find . -name "${NAV_FILE#\./}")
-    for NAV_TARGET in ${NAV_TARGETS[@]}; do
+    OIFS="${IFS}"
+    IFS=$'\n'
+    NAV_TARGETS=($(cd "${TARGET_DIR}" && find . -name "${NAV_FILE#\./}"))
+    IFS="${OIFS}"
+    for NAV_TARGET in "${NAV_TARGETS[@]}"; do
         NAV_TARGET="${TARGET_DIR}/${NAV_TARGET}"
         NAV_DEST="${NAV_TARGET}.${MARSH_UID}.advanced-nav.html"
         if marsh_has_frontmatter "${NAV_TARGET}"; then
@@ -2252,11 +2261,11 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
 
         # scripts and styles
         TEMPLATE_SCRIPTS=""
-        for SCRIPT in ${TEMPLATE_ASSETS_SCRIPTS[@]}; do
+        for SCRIPT in "${TEMPLATE_ASSETS_SCRIPTS[@]}"; do
             TEMPLATE_SCRIPTS="${TEMPLATE_SCRIPTS}<script src=\"${DOCUMENT_RELPATH}${SCRIPT}\"></script>"
         done
         TEMPLATE_STYLES=""
-        for STYLE in ${TEMPLATE_ASSETS_STYLES[@]}; do
+        for STYLE in "${TEMPLATE_ASSETS_STYLES[@]}"; do
             TEMPLATE_STYLES="${TEMPLATE_STYLES}<link rel=\"stylesheet\" href=\"${DOCUMENT_RELPATH}${STYLE}\" />"
         done
 
@@ -2330,7 +2339,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                 echo "Unable to create subdocuments file: ${DOCUMENT}.${MARSH_UID}.subdocuments" >&2
                 return 1
             }
-            for J in ${!SUBDOCUMENTS[@]}; do
+            for J in "${!SUBDOCUMENTS[@]}"; do
                 # full path
                 SUBDOCUMENT="${SUBDOCUMENTS[$J]}"
                 # document metadata
@@ -2606,7 +2615,7 @@ function marsh_build_target {  # marsh_build_target dest_dir target jobs advance
     local DEST_DIR TARGET JOBS ADVANCED_NAV TEMPLATES_DIR TEMPLATE
     local MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_FILEEXT_REGEX MARKDOWN_REWRITE_LINKS
     local NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDES
-    local TEMPLATE_META TEMPLATE_META_VARS
+    local TEMPLATE_META TEMPLATE_META_VARS TEMPLATE_ASSETS_ALL
     local TARGET_DIR TEMPLATE_PREFIX DOCUMENTS PARALLEL PARALLEL_MARKDOWN ASSET VAR
 
     # init
@@ -2649,7 +2658,17 @@ function marsh_build_target {  # marsh_build_target dest_dir target jobs advance
         fi
         TEMPLATE_META_VARS=$(echo "${TEMPLATE_META}" | marsh_get_variables)
         eval "${TEMPLATE_META}"
-        for ASSET in ${TEMPLATE_ASSETS_FONTS[@]} ${TEMPLATE_ASSETS_STYLES[@]} ${TEMPLATE_ASSETS_SCRIPTS[@]} ${TEMPLATE_ASSETS_IMAGES[@]} ${TEMPLATE_ASSETS_AUDIO[@]} ${TEMPLATE_ASSETS_VIDEO[@]} ${TEMPLATE_ASSETS_DOCUMENTS[@]} ${TEMPLATE_ASSETS_BINARIES[@]} ${TEMPLATE_ASSETS_OTHER[@]}; do
+        TEMPLATE_ASSETS_ALL=()
+        TEMPLATE_ASSETS_ALL+=("${TEMPLATE_ASSETS_FONTS[@]}")
+        TEMPLATE_ASSETS_ALL+=("${TEMPLATE_ASSETS_STYLES[@]}")
+        TEMPLATE_ASSETS_ALL+=("${TEMPLATE_ASSETS_SCRIPTS[@]}")
+        TEMPLATE_ASSETS_ALL+=("${TEMPLATE_ASSETS_IMAGES[@]}")
+        TEMPLATE_ASSETS_ALL+=("${TEMPLATE_ASSETS_AUDIO[@]}")
+        TEMPLATE_ASSETS_ALL+=("${TEMPLATE_ASSETS_VIDEO[@]}")
+        TEMPLATE_ASSETS_ALL+=("${TEMPLATE_ASSETS_DOCUMENTS[@]}")
+        TEMPLATE_ASSETS_ALL+=("${TEMPLATE_ASSETS_BINARIES[@]}")
+        TEMPLATE_ASSETS_ALL+=("${TEMPLATE_ASSETS_OTHER[@]}")
+        for ASSET in "${TEMPLATE_ASSETS_ALL[@]}"; do
             ASSET="${ASSET%\?*}"
             if [[ -d "${TEMPLATES_DIR}/${TEMPLATE}/${ASSET}" ]]; then
                 mkdir -p "${DEST_DIR}/${TARGET_DIR}/${ASSET}"
@@ -2661,7 +2680,9 @@ function marsh_build_target {  # marsh_build_target dest_dir target jobs advance
             fi
         done
         # unset temporary global variables
-        for VAR in ${TEMPLATE_META_VARS[@]}; do unset "${VAR}"; done
+        while IFS= read -r VAR; do
+            [[ "${VAR}" != "" ]] && unset "${VAR}"
+        done <<< "${TEMPLATE_META_VARS}"
     fi
 
     # build target documents

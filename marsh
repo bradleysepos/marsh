@@ -2628,7 +2628,8 @@ function marsh_build_target {  # marsh_build_target dest_dir target jobs advance
     local MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_FILEEXT_REGEX MARKDOWN_REWRITE_LINKS
     local NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDES
     local TEMPLATE_META TEMPLATE_META_VARS TEMPLATE_ASSETS_ALL
-    local TARGET_DIR TEMPLATE_PREFIX DOCUMENTS PARALLEL PARALLEL_MARKDOWN ASSET VAR
+    local TARGET_DIR TEMPLATE_PREFIX DOCUMENTS DOCUMENTS_DIR DOCUMENTS_FIND_ARGS FILTERED_DOCUMENTS DOCUMENT
+    local PARALLEL PARALLEL_MARKDOWN ASSET VAR
 
     # init
     DEST_DIR="${1:-.}"
@@ -2698,18 +2699,33 @@ function marsh_build_target {  # marsh_build_target dest_dir target jobs advance
     fi
 
     # build target documents
+    DOCUMENTS=()
+    DOCUMENTS_DIR="${DEST_DIR}/${TARGET_DIR}"
+    DOCUMENTS_FIND_ARGS=()
     if [[ "${TARGET}" == '*' ]]; then
-        DOCUMENTS=$(cd "${DEST_DIR}/${TARGET_DIR}" && find *)
+        DOCUMENTS_FIND_ARGS=(*)
     elif [[ -d "${DEST_DIR}/${TARGET}" ]]; then
         if [[ "${TARGET}" == "." ]]; then
-            DOCUMENTS=$(cd "${DEST_DIR}" && find . -maxdepth 1)
+            DOCUMENTS_DIR="${DEST_DIR}"
+            DOCUMENTS_FIND_ARGS=(. -maxdepth 1)
         else
-            DOCUMENTS=$(cd "${DEST_DIR}/${TARGET}" && find .)
+            DOCUMENTS_DIR="${DEST_DIR}/${TARGET}"
+            DOCUMENTS_FIND_ARGS=(.)
         fi
     else
-        DOCUMENTS=$(cd "${DEST_DIR}/${TARGET_DIR}" && find "${TARGET##*/}")
+        DOCUMENTS_FIND_ARGS=("${TARGET##*/}")
     fi
-    DOCUMENTS=$(echo "${DOCUMENTS}" | grep -Ei "\.(${MARKDOWN_FILEEXT_REGEX}|xml|json)$" | sed 's/^\.\///')
+    OIFS="${IFS}"
+    IFS=$'\n'
+    DOCUMENTS=($(cd "${DOCUMENTS_DIR}" && find "${DOCUMENTS_FIND_ARGS[@]}"))
+    IFS="${OIFS}"
+    FILTERED_DOCUMENTS=()
+    for DOCUMENT in "${DOCUMENTS[@]}"; do
+        DOCUMENT="${DOCUMENT#./}"
+        [[ "${DOCUMENT}" =~ \.(${MARKDOWN_FILEEXT_REGEX}|xml|json)$ ]] || continue
+        FILTERED_DOCUMENTS+=("${DOCUMENT}")
+    done
+    DOCUMENTS=("${FILTERED_DOCUMENTS[@]}")
     PARALLEL=$(command -v parallel 2>/dev/null)
     PARALLEL_MARKDOWN=""
     [[ "${MARKDOWN_COMMAND}" != "markdown" ]] && PARALLEL_MARKDOWN="${MARKDOWN_COMMAND}"
@@ -2729,10 +2745,6 @@ function marsh_build_target {  # marsh_build_target dest_dir target jobs advance
         fi
     else
         # serially
-        OIFS="${IFS}"
-        IFS=$'\n'
-        DOCUMENTS=($(echo "${DOCUMENTS[@]}"))
-        IFS="${OIFS}"
         for DOCUMENT in "${DOCUMENTS[@]}"; do
             if ! marsh_build_document "${DEST_DIR}" "${TARGET_DIR}" "${DOCUMENT}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_FILEEXT_CSV}" "${MARKDOWN_REWRITE_LINKS}"; then
                 echo "Unable to build document: ${DOCUMENT}" >&2

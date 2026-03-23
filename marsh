@@ -1711,25 +1711,10 @@ function marsh_build_archive {  # marsh_build_archive encoding target_dir dest_f
         # valid subdocument
         VALID=$((VALID + 1))
         DEST_SUB="${DEST_SUB_PREFIX}.$((VALID-1))"
-        # add subdocument title
-        if [[ "${ENCODING}" == "html" ]]; then
-            echo "## [${TITLE}](${URI})" >> "${DEST_SUB}.document"
-            echo "" >> "${DEST_SUB}.document"
-        fi
-        # process text
-        if [[ "${CONTENT}" == "none" ]]; then
-            # no content
-            # title already added
-            touch "${DEST_SUB}.document"
-        elif [[ "${CONTENT%%:}" == "excerpt" ]]; then
-            # excerpt
-            # filters strip duplicate title
-            <"${TARGET_DIR:-.}/${DOCUMENT}" marsh_text_filter headings:push "${CONTENT}" "wrap-type:special-comment:div.$(echo ${CONTENT} | sed -e 's/:[^ ]//g' -e 's/ /./g')" >> "${DEST_SUB}.document"
-        else
-            # full
-            # filters strip duplicate title
-            <"${TARGET_DIR:-.}/${DOCUMENT}" marsh_text_filter headings:shift headings:push headings:push >> "${DEST_SUB}.document"
-        fi
+        cp "${TARGET_DIR}/${DOCUMENT}" "${DEST_SUB}.document" >/dev/null 2>&1 || {
+            echo "Unable to copy document file: ${TARGET_DIR}/${DOCUMENT} -> ${DEST_SUB}.document" >&2
+            return 1
+        }
         # copy metadata
         cp "${TARGET_DIR}/${DOCUMENT%.document}.meta.yaml" "${DEST_SUB}.meta.yaml.temp" >/dev/null 2>&1
         # store paths (cannot calculate original path later)

@@ -1215,10 +1215,10 @@ function marsh_check_dependencies {  # marsh_check_dependencies $DEP1 $DEP2 ...
     local DEPS ERRORS DEPS_EACH DEPS_MULTI FOUND DEP
     DEPS=("${@}");
     ERRORS=()
-    for DEPS_EACH in ${DEPS[@]}; do
+    for DEPS_EACH in "${DEPS[@]}"; do
         DEPS_MULTI=(${DEPS_EACH//|/ })
         FOUND=false
-        for DEP in ${DEPS_MULTI[@]}; do
+        for DEP in "${DEPS_MULTI[@]}"; do
             if [[ "${DEP}" == */* ]]; then
                 if [[ -x "${DEP}" ]]; then
                     FOUND=true

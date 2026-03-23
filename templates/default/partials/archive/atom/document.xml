@@ -8,6 +8,6 @@
         {{ document.authors | email:remove-angle-addr | decode:entities | items:xml-wrap:name:author }}
         <summary>{{ document | excerpt:100:1 | decode:entities }}</summary>
         <content type="html">
-            {{ document | escape:html }}
+            {{ document | headings:shift | escape:html }}
         </content>
     </entry>

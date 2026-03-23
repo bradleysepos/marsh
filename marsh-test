@@ -971,15 +971,15 @@ function marsh_test {
         marsh_text_filter:12)
             TEST_NAME+=":excerpt"
             TEST=$(echo "Lorem ipsum dolor sit amet, consectetur adipiscing elit."$'\n\n'"The quick brown fox jumps over the lazy dog." | marsh_text_filter excerpt:300:1)
-            EXPECTED="Lorem ipsum dolor sit amet, consectetur adipiscing elit."
+            EXPECTED="Lorem ipsum dolor sit amet, consectetur adipiscing elit…"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
             ;;
         marsh_text_filter:13)
             TEST_NAME+=":excerpt"
-            TEST=$(echo "Lorem ipsum dolor sit amet, consectetur adipiscing elit."$'\n\n'"The quick brown fox jumps over the lazy dog." | marsh_text_filter excerpt:76:2)
-            EXPECTED="Lorem ipsum dolor sit amet, consectetur adipiscing elit. The quick brown fox"
+            TEST=$(echo "Lorem ipsum dolor sit amet, consectetur adipiscing elit."$'\n\n'"The quick brown fox jumps over the lazy dog." | marsh_text_filter excerpt:77:2)
+            EXPECTED="Lorem ipsum dolor sit amet, consectetur adipiscing elit. The quick brown fox…"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi

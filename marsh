@@ -561,7 +561,8 @@ function marsh_text_filter {  # marsh_text_filter filter [filter...]
         excerpt|excerpt:*)
             MAX_CHARS="${OPTIONS[0]:-300}"
             MAX_PARAS="${OPTIONS[1]:-2}"
-            marsh_text_filter headings:remove plaintext newlines:trim items:trim newlines:reduce:2 | awk -v RS='' -v MAX_PARAS="${MAX_PARAS}" 'NR<=MAX_PARAS { print $0 }' | marsh_text_filter newlines:tospaces | cut -c1-"${MAX_CHARS}"
+            MAX_CHARS=$((MAX_CHARS - 1))
+            marsh_text_filter headings:remove plaintext newlines:trim items:trim newlines:reduce:2 | awk -v RS='' -v MAX_PARAS="${MAX_PARAS}" 'NR<=MAX_PARAS { print $0 }' | marsh_text_filter newlines:tospaces | cut -c1-"${MAX_CHARS}" | sed -E -e 's/[[:punct:]]*[ ]*$//' | marsh_text_filter items:append:…
             ;;
         hash:md5)
             if [[ "${SYS_NAME}" =~ bsd|darwin ]]; then

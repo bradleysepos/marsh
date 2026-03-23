@@ -1058,8 +1058,8 @@ function marsh_test {
             ;;
         marsh_text_filter:16)
             TEST_NAME+=":excerpt_type_html_truncate"
-            TEST=$(printf '%s' '<p><strong class="x">Hello <em id="y">world</em> and more text</strong></p>' | marsh_text_filter excerpt-type:html:15:1)
-            EXPECTED='<p><strong>Hel…</strong></p>'
+            TEST=$(printf '%s' '<p><strong class="x">Hello <em id="y">world</em>, and more text</strong></p>' | marsh_text_filter excerpt-type:html:33:1)
+            EXPECTED='<p><strong>Hello <em>world</em>…</strong></p>'
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi

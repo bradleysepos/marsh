@@ -515,8 +515,9 @@ function marsh_text_filter {  # marsh_text_filter filter [filter...]
         OPTIONS+=("${OPTION_CURRENT}")
     fi
     IFS="${OIFS}"
-    local APPEND MAX_CHARS MAX_PARAS MD_EXT_REGEX PROTOCOL_SEP WRAP_START WRAP_END
+    local TRAILING_PUNCTUATION APPEND MAX_CHARS MAX_PARAS MD_EXT_REGEX PROTOCOL_SEP WRAP_START WRAP_END
     local COUNT DELIM1 DELIM2 DELIM3 END I ITEM_KEY PREPEND REPLACE_EXT START XML_TAG XML_TAG_CLOSE XML_TAG_OPEN
+    TRAILING_PUNCTUATION=',.:;?!'
     case "${FILTER}" in
         append:*)
             APPEND="${OPTIONS[0]:-}"
@@ -574,7 +575,7 @@ function marsh_text_filter {  # marsh_text_filter filter [filter...]
             MAX_CHARS="${OPTIONS[1]:-300}"
             MAX_PARAS="${OPTIONS[2]:-2}"
             MAX_CHARS=$((MAX_CHARS - 1))
-            awk -v MAX_CHARS="${MAX_CHARS}" -v MAX_PARAS="${MAX_PARAS}" '
+            awk -v MAX_CHARS="${MAX_CHARS}" -v MAX_PARAS="${MAX_PARAS}" -v TRAILING_PUNCTUATION="${TRAILING_PUNCTUATION}" '
             function is_void_tag(tag_name) {
                 return (tag_name == "area" || tag_name == "base" || tag_name == "br" || tag_name == "col" || tag_name == "embed" || tag_name == "hr" || tag_name == "img" || tag_name == "input" || tag_name == "link" || tag_name == "meta" || tag_name == "param" || tag_name == "source" || tag_name == "track" || tag_name == "wbr")
             }
@@ -664,7 +665,7 @@ function marsh_text_filter {  # marsh_text_filter filter [filter...]
                     append_output(raw_text)
                 }
             }
-            function truncate_html(html, limit, truncated, repaired, pos, next_tag, raw_tag, tag_end, inner, closing, self_closing, parts, tag_name, i) {
+            function truncate_html(html, limit, truncated, repaired, pos, next_tag, raw_tag, tag_end, inner, closing, self_closing, parts, tag_name, trailing_close_tags, i) {
                 truncated = substr(html, 1, limit)
                 repaired = ""
                 pos = 1
@@ -716,7 +717,15 @@ function marsh_text_filter {  # marsh_text_filter filter [filter...]
                         truncate_stack[++truncate_stack_len] = tag_name
                     }
                 }
-                repaired = repaired "…"
+                sub(/<[^>]*$/, "", repaired)  # discard incomplete trailing tag fragment cut by truncation
+                sub("[[:space:]" TRAILING_PUNCTUATION "]+$", "", repaired)
+                trailing_close_tags = ""
+                while (match(repaired, /<\/[A-Za-z][^>]*>$/)) {
+                    trailing_close_tags = substr(repaired, RSTART, RLENGTH) trailing_close_tags
+                    repaired = substr(repaired, 1, RSTART - 1)
+                }
+                sub("[[:space:]" TRAILING_PUNCTUATION "]+$", "", repaired)
+                repaired = repaired trailing_close_tags "…"
                 for (i = truncate_stack_len; i >= 1; i--) {
                     repaired = repaired "</" truncate_stack[i] ">"
                 }

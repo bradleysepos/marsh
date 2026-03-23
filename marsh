@@ -793,6 +793,9 @@ function marsh_text_filter {  # marsh_text_filter filter [filter...]
         slug)
             head -n 1 | sed -E -e 's/[ _]+/-/g' -e 's/[^-a-zA-Z0-9.]//g' -e 's/(^-+)|(-+$)//' | awk '{ print tolower($0) }'
             ;;
+        trim)
+            sed -e ':a' -e '$!{N' -e 'ba' -e '}' -e 's/^[ '$'\t'']*//' -e 's/[ '$'\t'']*$//'
+            ;;
         wrap:*)
             WRAP_START="${OPTIONS[0]:-}"
             WRAP_END="${OPTIONS[1]:-${WRAP_START}}"

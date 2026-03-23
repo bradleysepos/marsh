@@ -1428,6 +1428,23 @@ function marsh_test {
             fi
             ;;
         marsh_text_filter:69)
+            TEST_NAME+=":trim"
+            TEST=$(printf '%s' ' '$'\t''  Some text with spaces'$'\t''  ' | marsh_text_filter trim)
+            EXPECTED="Some text with spaces"
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_text_filter:70)
+            TEST_NAME+=":trim_multiline"
+            TEST=$(printf '%s' ' '$'\t''First line'$'\n''  indented second line'$'\t\n''Third line'$'\t''  ' | marsh_text_filter trim; printf '\001')
+            TEST="${TEST%$'\001'}"
+            EXPECTED='First line'$'\n''  indented second line'$'\t\n''Third line'
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_text_filter:71)
             TEST_NAME+=":wrap"
             TEST=$(echo "Some text"$'\n\n'"More text" | marsh_text_filter wrap:before:after)
             EXPECTED="before"$'\n\n'"Some text"$'\n\n'"More text"$'\n\n'"after"
@@ -1435,7 +1452,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_filter:70)
+        marsh_text_filter:72)
             TEST_NAME+=":wrap_type_special_comment"
             TEST=$(echo "Some text"$'\n\n'"<p>Some HTML</p>" | marsh_text_filter wrap-type:special-comment:div.wrapper)
             EXPECTED="<!-- div.wrapper -->"$'\n\n'"Some text"$'\n\n'"<p>Some HTML</p>"$'\n\n'"<!-- /div.wrapper -->"
@@ -1443,7 +1460,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_filter:71)
+        marsh_text_filter:73)
             TEST_NAME+=":multiple"
             TEST=$(echo $'\n\n\n\n'"Some text"$'\n'"&#9829;" | marsh_text_filter newlines:trim newlines:tospaces decode:entities items:wrap:\")
             EXPECTED="\"Some text ♥\""
@@ -1451,7 +1468,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_filter:72)
+        marsh_text_filter:74)
             TEST_NAME+=":multiple"
             TEST=$(echo "First item"$'\n'"Second item"$'\n'"Third item" | marsh_text_filter items:slice:1 escape:nbsp items:wrap:\" items:join-type:oxford)
             EXPECTED="\"First&nbsp;item\", \"Second&nbsp;item\", and \"Third&nbsp;item\""

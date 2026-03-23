@@ -3120,7 +3120,7 @@ function marsh_cli {
             echo -n " '${UNKNOWN}'" >&2
         done
         echo ""
-        exit
+        return 1
     fi
     export -f marsh_process_markdown
 

@@ -1,4 +1,4 @@
 <article class="{{ document.type }}" lang="{{ document.language-code }}">
 <h2><a href="{{ document.uri }}">{{ document.title }}</a></h2>
-{{ document | headings:shift }}
+{{ document | headings:shift | excerpt-type:html:600:3 }}
 </article><!-- end article.{{ document.type }} -->

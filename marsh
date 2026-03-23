@@ -3150,7 +3150,7 @@ function marsh_cli {
         echo "Killing all processes and cleaning up (ETA ~3 seconds)..." >&2
         #trap - INT && kill -2 -- -$$  # should not be needed with `parallel --halt now,fail=1 ...`
         sleep 2
-        rm -rf "${MARSH_TEMP}" || "Temporary files may still remain at: ${MARSH_TEMP}" >&2
+        rm -rf "${MARSH_TEMP}" || echo "Temporary files may still remain at: ${MARSH_TEMP}" >&2
         sleep 1
         trap - TERM && kill -- -$$
     }

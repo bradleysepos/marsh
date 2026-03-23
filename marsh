@@ -1036,6 +1036,11 @@ function marsh_get_local_declarations {  # marsh_get_local_declarations variable
     sed -n -E -e '/^$/d' -e 's/^/local /p'
 }
 
+# escapes text for safe sed replacement, trimming trailing newlines to match shell command substitution behavior
+function marsh_escape_substitution {  # marsh_escape_substitution
+    sed -e ':a' -e '$!{N' -e 'ba' -e '}' -e 's/\n*$//' -e 's/[&/\]/\\&/g' -e 's/\n/\\&/g'
+}
+
 # lists archive subdocuments in numeric order
 function marsh_get_subdocuments {  # marsh_get_subdocuments document
     local DOCUMENT INDEX
@@ -2131,10 +2136,6 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
         return 0
     }
 
-    function escape_substitution {
-        printf '%s' "$(</dev/stdin)" | sed -e ':a' -e '$!{N' -e 'ba' -e '}' -e 's/[&/\]/\\&/g' -e 's/\n/\\&/g'
-    }
-
     function replace_tags {  # replace_tags document prefix metadata_vars[@]
         local DOCUMENT PREFIX METADATA_VARS
         local TAG_FRAGMENT_UNQUOTED TAG_FRAGMENT_DOUBLE TAG_FRAGMENT_SINGLE TAG_FRAGMENT TAG_REGEX
@@ -2193,7 +2194,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                     rm -f "${REPLACEMENTS}"
                     return 1
                 fi
-                TAG_VALUE=$(printf '%s' "${TAG_VALUE}" | marsh_text_filter "${TAG_FILTERS[@]}" | escape_substitution)
+                TAG_VALUE=$(printf '%s' "${TAG_VALUE}" | marsh_text_filter "${TAG_FILTERS[@]}" | marsh_escape_substitution)
                 printf '/%s/s//%s/g\n' "${TAG_ESC}" "${TAG_VALUE:-}" >> "${REPLACEMENTS}" || {
                     rm -f "${REPLACEMENTS}"
                     return 1
@@ -2490,15 +2491,15 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
             fi
         fi
 
-        TEMPLATE_BODY_ESC=$(printf '%s' "${TEMPLATE_BODY}" | escape_substitution)
-        TEMPLATE_DOCUMENT_ESC=$(printf '%s' "${TEMPLATE_DOCUMENT_TEMPLATE}" | escape_substitution)
-        TEMPLATE_HEADER_ESC=$(printf '%s' "${TEMPLATE_HEADER_TEMPLATE}" | escape_substitution)
-        TEMPLATE_FOOTER_ESC=$(printf '%s' "${TEMPLATE_FOOTER_TEMPLATE}" | escape_substitution)
-        TEMPLATE_NAV_ESC=$(printf '%s' "${TEMPLATE_NAV_TEMPLATE}" | escape_substitution)
-        TEMPLATE_NOTICE_ESC=$(printf '%s' "${TEMPLATE_NOTICE_TEMPLATE}" | escape_substitution)
-        TEMPLATE_SCRIPTS_ESC=$(printf '%s' "${TEMPLATE_SCRIPTS}" | escape_substitution)
-        TEMPLATE_STYLES_ESC=$(printf '%s' "${TEMPLATE_STYLES}" | escape_substitution)
-        TEMPLATE_ADVNAV_ESC=$(printf '%s' "${TEMPLATE_ADVNAV}" | escape_substitution)
+        TEMPLATE_BODY_ESC=$(printf '%s' "${TEMPLATE_BODY}" | marsh_escape_substitution)
+        TEMPLATE_DOCUMENT_ESC=$(printf '%s' "${TEMPLATE_DOCUMENT_TEMPLATE}" | marsh_escape_substitution)
+        TEMPLATE_HEADER_ESC=$(printf '%s' "${TEMPLATE_HEADER_TEMPLATE}" | marsh_escape_substitution)
+        TEMPLATE_FOOTER_ESC=$(printf '%s' "${TEMPLATE_FOOTER_TEMPLATE}" | marsh_escape_substitution)
+        TEMPLATE_NAV_ESC=$(printf '%s' "${TEMPLATE_NAV_TEMPLATE}" | marsh_escape_substitution)
+        TEMPLATE_NOTICE_ESC=$(printf '%s' "${TEMPLATE_NOTICE_TEMPLATE}" | marsh_escape_substitution)
+        TEMPLATE_SCRIPTS_ESC=$(printf '%s' "${TEMPLATE_SCRIPTS}" | marsh_escape_substitution)
+        TEMPLATE_STYLES_ESC=$(printf '%s' "${TEMPLATE_STYLES}" | marsh_escape_substitution)
+        TEMPLATE_ADVNAV_ESC=$(printf '%s' "${TEMPLATE_ADVNAV}" | marsh_escape_substitution)
 
         TEMPLATE_RENDER=$(printf '%s' "${TEMPLATE_RENDER}" | sed -E \
         -e "/\{\{[ ]*template\.body[ ]*\}\}/s//${TEMPLATE_BODY_ESC:-}/g" \
@@ -2586,7 +2587,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                         SUBDOCUMENT_TEMPLATE=$(<"${TEMPLATE_Template_Partials_Document}")
                     fi
                 fi
-                SUBDOCUMENT_CONTENT_ESC=$(<"${SUBDOCUMENT_CONTENT}" escape_substitution)
+                SUBDOCUMENT_CONTENT_ESC=$(<"${SUBDOCUMENT_CONTENT}" marsh_escape_substitution)
                 SUBDOCUMENT_RENDER=$(printf '%s' "${SUBDOCUMENT_TEMPLATE}" | sed -E \
                     -e "/\{\{[ ]*document[ ]*\}\}/s//${SUBDOCUMENT_CONTENT_ESC}/g" \
                     -e 's/\{\{[ ]*subdocuments[ ]*\}\}//g')

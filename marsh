@@ -1033,6 +1033,11 @@ function marsh_get_variables {  # marsh_get_variables assignments_string
     echo "${STRING}" | sed -E -e 's/^([^=]+[^+])[+]?=.*/\1/' | sort -u
 }
 
+# prints local declarations for the given list of variable names, one per line
+function marsh_get_local_declarations {  # marsh_get_local_declarations variables_string
+    sed -n -E -e '/^$/d' -e 's/^/local /p'
+}
+
 # lists archive subdocuments in numeric order
 function marsh_get_subdocuments {  # marsh_get_subdocuments document
     local DOCUMENT INDEX
@@ -1330,6 +1335,7 @@ function marsh_get_archive_metadata {  # marsh_get_archive_metadata target_dir d
     META_ASSIGNMENTS=$(marsh_parse_yaml "${META}" "${META_PREFIX}")
     [[ $? -ne 0 ]] && return 1
     META_VARS=$(echo "${META_ASSIGNMENTS}" | marsh_get_variables)
+    eval "$(printf '%s\n' "${META_VARS}" | marsh_get_local_declarations)"
     eval "${META_ASSIGNMENTS}"
 
     # keep only the metadata that archive generation actually needs
@@ -1355,9 +1361,6 @@ function marsh_get_archive_metadata {  # marsh_get_archive_metadata target_dir d
         printf 'STATE+=(%q)\n' "${VALUE_ESC}"
     done
 
-    while IFS= read -r VAR; do
-        [[ "${VAR}" != "" ]] && unset "${VAR}"
-    done <<< "${META_VARS}"
     return 0
 }
 
@@ -1440,7 +1443,7 @@ function marsh_parse_template_metadata {  # marsh_parse_template_metadata prefix
     local TEMPLATE_META TEMPLATE_META_VARS
     local TEMPLATE_ASSETS_FONTS TEMPLATE_ASSETS_STYLES TEMPLATE_ASSETS_SCRIPTS TEMPLATE_ASSETS_IMAGES TEMPLATE_ASSETS_AUDIO TEMPLATE_ASSETS_VIDEO TEMPLATE_ASSETS_DOCUMENTS TEMPLATE_ASSETS_OTHER
     local INDEX ASSET_TYPES ASSET_TYPE ASSET_TYPE_UPPER ASSET FILTER_INDEX REGEX EXTENDED MATCH REPLACE EXTRA
-    local ASSETS_INDEX ASSETS_TYPE ASSETS ASSETS_TEMP OIFS VAR
+    local ASSETS_INDEX ASSETS_TYPE ASSETS ASSETS_TEMP OIFS
 
     # init
     PREFIX="${1:-}"
@@ -1461,6 +1464,7 @@ function marsh_parse_template_metadata {  # marsh_parse_template_metadata prefix
         TEMPLATE_META=$(marsh_parse_yaml "${TEMPLATE_DIR}/template.yaml" "MARSH_TEMPLATE_")
         [[ $? -ne 0 ]] && echo "Unable to parse yaml file: ${TEMPLATE_DIR}/template.yaml" >&2 && return 1
         TEMPLATE_META_VARS=$(echo "${TEMPLATE_META}" | marsh_get_variables)
+        eval "$(printf '%s\n' "${TEMPLATE_META_VARS}" | marsh_get_local_declarations)"
         eval "${TEMPLATE_META}"
     else
         echo "Template configuration file not found: ${TEMPLATE_DIR}/template.yaml" >&2
@@ -1472,6 +1476,7 @@ function marsh_parse_template_metadata {  # marsh_parse_template_metadata prefix
             TEMPLATE_META=$(marsh_parse_yaml "${TEMPLATE_OVERRIDE}" "MARSH_TEMPLATE_")
             [[ $? -ne 0 ]] && echo "Unable to parse yaml file: ${TEMPLATE_OVERRIDE}" >&2 && return 1
             TEMPLATE_META_VARS=$(echo "${TEMPLATE_META_VARS}"$'\n'"${TEMPLATE_META}" | marsh_get_variables)
+            eval "$(printf '%s\n' "${TEMPLATE_META_VARS}" | marsh_get_local_declarations)"
             eval "${TEMPLATE_META}"
         else
             echo "Template configuration override file not found: ${TEMPLATE_OVERRIDE}" >&2
@@ -1593,11 +1598,6 @@ function marsh_parse_template_metadata {  # marsh_parse_template_metadata prefix
             [[ "${ASSET:-}" != "" ]] && echo "${PREFIX}ASSETS_${ASSET_TYPE_UPPER}+=(\"${ASSET//\"/\\\"}\")"
         done
     done
-
-    # unset temporary global variables
-    while IFS= read -r VAR; do
-        [[ "${VAR}" != "" ]] && unset "${VAR}"
-    done <<< "${TEMPLATE_META_VARS}"
 }
 
 # loads cached template metadata assignments where available
@@ -2231,7 +2231,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
     local SUBDOCUMENTS_LIST SUBDOCUMENTS NUM_SUBDOCUMENTS
     local SUBDOCUMENT SUBDOCUMENT_CONTENT SUBDOCUMENT_CONTENT_ESC SUBDOCUMENT_META SUBDOCUMENT_META_VARS
     local SUBDOCUMENT_RENDER SUBDOCUMENT_TEMPLATE
-    local TEXT_FILTER UTIL_JSON_SEPARATOR I J VAR
+    local TEXT_FILTER UTIL_JSON_SEPARATOR I J
     local CONDITIONAL_TAG CONDITIONAL_VALUES
     local DOCUMENT_State
     local PARTIAL_CONDITIONAL_TAGS
@@ -2309,6 +2309,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
         DOCUMENT_META=$(marsh_parse_yaml "${DOCUMENT}.${MARSH_UID}.meta.yaml" "DOCUMENT_")
         [[ $? -ne 0 ]] && echo "Unable to parse yaml file: ${DOCUMENT}.${MARSH_UID}.meta.yaml" >&2 && return 1
         DOCUMENT_META_VARS=$(echo "${DOCUMENT_META}" | sed -E -e 's/^([^=]+)=.*/\1/')
+        eval "$(printf '%s\n' "${DOCUMENT_META_VARS}" | marsh_get_local_declarations)"
         eval "${DOCUMENT_META}"
     fi
 
@@ -2321,6 +2322,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
         TEMPLATE_META=$(marsh_get_template_metadata "${TEMPLATE_PREFIX}" "${TEMPLATE_DIR}/${TEMPLATE}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}")
         [[ $? -ne 0 ]] && return 1
         TEMPLATE_META_VARS=$(echo "${TEMPLATE_META}" | marsh_get_variables)
+        eval "$(printf '%s\n' "${TEMPLATE_META_VARS}" | marsh_get_local_declarations)"
         eval "${TEMPLATE_META}"
 
         # partials
@@ -2542,6 +2544,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                     SUBDOCUMENT_META=$(marsh_parse_yaml "${SUBDOCUMENT%.document}.meta.yaml" "SUBDOCUMENT_")
                     [[ $? -ne 0 ]] && echo "Unable to parse yaml file: ${SUBDOCUMENT%.document}.meta.yaml" >&2 && return 1
                     SUBDOCUMENT_META_VARS=$(echo "${SUBDOCUMENT_META}" | sed -E -e 's/^([^=]+)=.*/\1/')
+                    eval "$(printf '%s\n' "${SUBDOCUMENT_META_VARS}" | marsh_get_local_declarations)"
                     eval "${SUBDOCUMENT_META}"
                 fi
                 # state
@@ -2603,10 +2606,6 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                 }
                 # combine with previous subdocuments
                 cat "${SUBDOCUMENT}" >> "${DOCUMENT}.${MARSH_UID}.subdocuments"
-                # unset temporary global variables
-                while IFS= read -r VAR; do
-                    [[ "${VAR}" != "" ]] && unset "${VAR}"
-                done <<< "${SUBDOCUMENT_META_VARS}"
             done
             awk -v subdocuments_file="${DOCUMENT}.${MARSH_UID}.subdocuments" '
             function emit_subdocuments(prefix, suffix, line, first, previous) {
@@ -2638,11 +2637,6 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
             }' "${DEST}" > "${DEST}.${MARSH_UID}.temp" || return 1
             mv "${DEST}.${MARSH_UID}.temp" "${DEST}" || return 1
         fi
-
-        # unset temporary global variables
-        while IFS= read -r VAR; do
-            [[ "${VAR}" != "" ]] && unset "${VAR}"
-        done <<< "${TEMPLATE_META_VARS}"
     else
         cp "${DOCUMENT_CONTENT}" "${DEST}"
     fi  # TEMPLATE_DIR != "" else
@@ -2678,11 +2672,6 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
     -e 's|<p><figure>|<figure>|' \
     -e 's|</figure></p>|</figure>|' \
     -i".${MARSH_UID}.backup" "${DEST}" && rm -f "${DEST}.${MARSH_UID}.backup"
-
-    # unset temporary global variables
-    while IFS= read -r VAR; do
-        [[ "${VAR}" != "" ]] && unset "${VAR}"
-    done <<< "${DOCUMENT_META_VARS}"
 }
 
 # builds a document from a single file
@@ -2806,10 +2795,6 @@ function marsh_build_document {  # marsh_build_document dest_dir target_dir docu
             }
     fi
 
-    # unset temporary global variables
-    while IFS= read -r VAR; do
-        [[ "${VAR}" != "" ]] && unset "${VAR}"
-    done <<< "${DOCUMENT_META_VARS}"
 }
 
 # builds a target, parallel if possible
@@ -2819,7 +2804,7 @@ function marsh_build_target {  # marsh_build_target dest_dir target jobs advance
     local NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDES
     local TEMPLATE_META TEMPLATE_META_VARS TEMPLATE_ASSETS_ALL
     local TARGET_DIR TEMPLATE_PREFIX DOCUMENTS_LIST DOCUMENTS DOCUMENTS_DIR DOCUMENTS_FIND_ARGS FILTERED_DOCUMENTS DOCUMENT
-    local PARALLEL PARALLEL_MARKDOWN ASSET VAR
+    local PARALLEL PARALLEL_MARKDOWN ASSET
 
     # init
     DEST_DIR="${1:-.}"
@@ -2860,6 +2845,7 @@ function marsh_build_target {  # marsh_build_target dest_dir target jobs advance
             return 1
         fi
         TEMPLATE_META_VARS=$(echo "${TEMPLATE_META}" | marsh_get_variables)
+        eval "$(printf '%s\n' "${TEMPLATE_META_VARS}" | marsh_get_local_declarations)"
         eval "${TEMPLATE_META}"
         TEMPLATE_ASSETS_ALL=()
         TEMPLATE_ASSETS_ALL+=("${TEMPLATE_ASSETS_FONTS[@]}")
@@ -2882,10 +2868,6 @@ function marsh_build_target {  # marsh_build_target dest_dir target jobs advance
                 cp -R "${TEMPLATES_DIR}/${TEMPLATE}/${ASSET}" "${DEST_DIR}/${TARGET_DIR}/${ASSET}"
             fi
         done
-        # unset temporary global variables
-        while IFS= read -r VAR; do
-            [[ "${VAR}" != "" ]] && unset "${VAR}"
-        done <<< "${TEMPLATE_META_VARS}"
     fi
 
     # build target documents
@@ -2976,7 +2958,7 @@ function marsh_cli {
     local DEPS MARKDOWN_UNKNOWN UNKNOWN TEMP_DIR TEMPLATES_DIR FORCE JOBS
     local MARKDOWN_COMMAND MARKDOWN_OPTIONS MARKDOWN_FILEEXT MARKDOWN_REWRITE_LINKS
     local MARKDOWN_OPTIONS_CSV MARKDOWN_OPTIONS_CLIARGS MARKDOWN_FILEEXT_CSV
-    local INDEX PREFIX META META_VARS OIFS I VAR
+    local INDEX PREFIX META META_VARS CONFIG_VARS OIFS I
     local TARGET_ARCHIVE_TYPES TARGET_ARCHIVE_EXCLUDED_STATES
     local BUILD_DEST_DIR BUILD_TARGET_DIR BUILD_DOCUMENT BUILD_ADVANCED_NAV
     local BUILD_TEMPLATES_DIR BUILD_TEMPLATE BUILD_NUM_TEMPLATE_OVERRIDES BUILD_TEMPLATE_OVERRIDES
@@ -3308,6 +3290,8 @@ function marsh_cli {
         if [[ -f "${MARSH_CONFIG_FILE}" ]] && [[ -r "${MARSH_CONFIG_FILE}" ]]; then
             MARSH_CONFIG=$(marsh_parse_yaml "${MARSH_CONFIG_FILE}" "CONFIG_")
             [[ $? -ne 0 ]] && echo "Unable to parse yaml file: ${MARSH_CONFIG_FILE}" >&2 && return 1
+            CONFIG_VARS=$(printf '%s\n' "${MARSH_CONFIG}" | marsh_get_variables)
+            eval "$(printf '%s\n' "${CONFIG_VARS}" | marsh_get_local_declarations)"
             eval "${MARSH_CONFIG}"
         else
             echo "Configuration file not found: ${MARSH_CONFIG_FILE#$SELF_DIR/}" >&2
@@ -3408,8 +3392,9 @@ function marsh_cli {
         INDEX=0
         PREFIX="CONFIG_Build_Targets_${INDEX}_"
         while META=$(marsh_get_target_metadata "${PREFIX}" "TARGET_"); do
-            eval "${META}"
             META_VARS=$(echo "${META}" | marsh_get_variables)
+            eval "$(printf '%s\n' "${META_VARS}" | marsh_get_local_declarations)"
+            eval "${META}"
 
             # get template
             if [[ "${TARGET_TEMPLATE_SOURCE:-}" != "" ]]; then
@@ -3503,18 +3488,11 @@ function marsh_cli {
                     then
                         die_gracefully
                     fi
-                    unset TARGET_ARCHIVE_TYPES TARGET_ARCHIVE_EXCLUDED_STATES
                 fi
             done
 
             # clean build files
             marsh_clean_target "${MARSH_CONFIG_PATH}/${TARGET_PATH}" "${MARKDOWN_FILEEXT_CSV}"
-
-            # unset temporary global variables
-            while IFS= read -r VAR; do
-                [[ "${VAR}" != "" ]] && unset "${VAR}"
-            done <<< "${META_VARS}"
-
             INDEX=$((INDEX+1))
             PREFIX="CONFIG_Build_Targets_${INDEX}_"
         done

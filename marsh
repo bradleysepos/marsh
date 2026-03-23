@@ -1535,7 +1535,7 @@ function marsh_get_target_metadata {  # marsh_get_target_metadata source_prefix 
 # copies files from local sources
 function marsh_get_files {  # marsh_get_files source dest force
     local SOURCE DEST FORCE
-    local SOURCE_DIR FILES
+    local SOURCE_DIR FILES_LIST FILES
     SOURCE="${1:-}"
     DEST="${2:-}"
     if [[ "${SOURCE}" == "" ]]; then
@@ -1556,11 +1556,16 @@ function marsh_get_files {  # marsh_get_files source dest force
         FILES=("${FILES}")
     else
         # directory contents
-        OIFS="${IFS}"
-        IFS=$'\n'
-        FILES=($(cd "${SOURCE_DIR}" >/dev/null 2>&1 && find . -maxdepth 1 -name "${SOURCE##*/}" | sed -e 's/^\.\///' -e 's/^\.$//'))
-        [[ $? -ne 0 ]] && IFS="${OIFS}" && echo "Unable to change into directory: ${SOURCE_DIR}" >&2 && return 1
-        IFS="${OIFS}"
+        FILES_LIST=$(cd "${SOURCE_DIR}" >/dev/null 2>&1 && find . -maxdepth 1 -name "${SOURCE##*/}" | sed -e 's/^\.\///' -e 's/^\.$//')
+        if [[ $? -ne 0 ]]; then
+            echo "Unable to change into directory: ${SOURCE_DIR}" >&2
+            return 1
+        fi
+        FILES=()
+        while IFS= read -r FILE; do
+            [[ "${FILE}" == "" ]] && continue
+            FILES+=("${FILE}")
+        done <<< "${FILES_LIST}"
     fi
     # loop over files
     for FILE in "${FILES[@]}"; do
@@ -1599,7 +1604,7 @@ function marsh_get_files {  # marsh_get_files source dest force
 function marsh_build_archive {  # marsh_build_archive encoding target_dir dest_file dest_title language langcode content_length count #types[@] types[@] #excluded_states[@] excluded_states[@]
     local ENCODING TARGET_DIR DEST DEST_SUB_PREFIX DEST_TITLE LANGUAGE LANGCODE CONTENT CONTENT_VALID
     local COUNT NUM_TYPES TYPES NUM_EXCLUDED_STATES EXCLUDED_STATES
-    local VALID OIFS DOCUMENTS DOCUMENT TYPE TITLE DATE URI ABSPATH STATE ARCHIVE_META E DEST_SUB
+    local VALID DOCUMENTS_LIST DOCUMENTS DOCUMENT TYPE TITLE DATE URI ABSPATH STATE ARCHIVE_META E DEST_SUB
 
     # init
     ENCODING="${1:-html}"
@@ -1668,10 +1673,12 @@ function marsh_build_archive {  # marsh_build_archive encoding target_dir dest_f
 
     # loop over documents
     VALID=0
-    OIFS="${IFS}"
-    IFS=$'\n'
-    DOCUMENTS=($(cd "${TARGET_DIR}" && find . -name '*.'"${MARSH_UID}"'.document' | sed 's/^\.\///' | sort -nr -t/))
-    IFS="${OIFS}"
+    DOCUMENTS_LIST=$(cd "${TARGET_DIR}" && find . -name '*.'"${MARSH_UID}"'.document' | sed 's/^\.\///' | sort -nr -t/)
+    DOCUMENTS=()
+    while IFS= read -r DOCUMENT; do
+        [[ "${DOCUMENT}" == "" ]] && continue
+        DOCUMENTS+=("${DOCUMENT}")
+    done <<< "${DOCUMENTS_LIST}"
     for DOCUMENT in "${DOCUMENTS[@]}"; do
         if [[ "${COUNT}" != "" ]] && [[ "${VALID}" -ge "${COUNT}" ]]; then
             break
@@ -1738,7 +1745,7 @@ function marsh_build_archive {  # marsh_build_archive encoding target_dir dest_f
 # builds advanced navigation
 function marsh_build_advanced_nav {  # marsh_build_advanced_nav target_dir navigation_file markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links
     local TARGET_DIR NAV_FILE MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_REWRITE_LINKS
-    local NAV_TARGETS NAV_DEST TEXT_FILTER
+    local NAV_TARGETS_LIST NAV_TARGETS NAV_DEST TEXT_FILTER
 
     # init
     TARGET_DIR="${1:-}"
@@ -1753,10 +1760,12 @@ function marsh_build_advanced_nav {  # marsh_build_advanced_nav target_dir navig
     [[ "${MARKDOWN_FILEEXT_CSV}" == "" ]] && return 1
     [[ "${MARKDOWN_REWRITE_LINKS}" == "" ]] && return 1
 
-    OIFS="${IFS}"
-    IFS=$'\n'
-    NAV_TARGETS=($(cd "${TARGET_DIR}" && find . -name "${NAV_FILE#\./}"))
-    IFS="${OIFS}"
+    NAV_TARGETS_LIST=$(cd "${TARGET_DIR}" && find . -name "${NAV_FILE#\./}")
+    NAV_TARGETS=()
+    while IFS= read -r NAV_TARGET; do
+        [[ "${NAV_TARGET}" == "" ]] && continue
+        NAV_TARGETS+=("${NAV_TARGET}")
+    done <<< "${NAV_TARGETS_LIST}"
     for NAV_TARGET in "${NAV_TARGETS[@]}"; do
         NAV_TARGET="${TARGET_DIR}/${NAV_TARGET}"
         NAV_DEST="${NAV_TARGET}.${MARSH_UID}.advanced-nav.html"
@@ -1967,10 +1976,10 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
         TAG_REGEX="\\{\\{[ ]*[a-z][a-z0-9.-]*([ ]*\\|[ ]*${TAG_FRAGMENT})*[ ]*\\}\\}"
 
         # find template tags
-        OIFS="${IFS}"
-        IFS=$'\n'
-        TAGS=($(<"${DOCUMENT}" grep -Eo "${TAG_REGEX}"))
-        IFS="${OIFS}"
+        TAGS=()
+        while IFS= read -r TAG; do
+            TAGS+=("${TAG}")
+        done < <(<"${DOCUMENT}" grep -Eo "${TAG_REGEX}")
         [[ "${#TAGS[@]}" -eq 0 ]] && return 0
         UNIQUE_TAGS=()
         REPLACEMENTS=$(mktemp "${MARSH_TEMP}/template-tags-XXXXXX") || return 1
@@ -2040,7 +2049,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
     local TEMPLATE_BODY_ESC TEMPLATE_DOCUMENT_ESC TEMPLATE_HEADER_ESC TEMPLATE_FOOTER_ESC
     local TEMPLATE_NAV_ESC TEMPLATE_NOTICE_ESC TEMPLATE_SCRIPTS_ESC TEMPLATE_STYLES_ESC TEMPLATE_ADVNAV_ESC
     local DOCUMENT_META DOCUMENT_META_VARS DOCUMENT_CONTENT
-    local SUBDOCUMENTS NUM_SUBDOCUMENTS
+    local SUBDOCUMENTS_LIST SUBDOCUMENTS NUM_SUBDOCUMENTS
     local SUBDOCUMENT SUBDOCUMENT_CONTENT SUBDOCUMENT_CONTENT_ESC SUBDOCUMENT_META SUBDOCUMENT_META_VARS
     local SUBDOCUMENT_RENDER SUBDOCUMENT_TEMPLATE
     local TEXT_FILTER UTIL_JSON_SEPARATOR OIFS I J VAR
@@ -2141,15 +2150,15 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
         for J in "${!PARTIALS[@]}"; do
             [[ "${PARTIALS[$J]}" == "" ]] && continue
             # first search for conditionals to avoid unnecessary processing
-            OIFS="${IFS}"
-            IFS=$'\n'
-            PARTIAL_CONDITIONAL_TAGS=($(awk '$0 ~ /^[ ]*\{%[ ]*if[ ]+[^ ]+.*%\}[ ]*$/ {
+            PARTIAL_CONDITIONAL_TAGS=()
+            while IFS= read -r PARTIAL_CONDITIONAL_TAG; do
+                PARTIAL_CONDITIONAL_TAGS+=("${PARTIAL_CONDITIONAL_TAG}")
+            done < <(awk '$0 ~ /^[ ]*\{%[ ]*if[ ]+[^ ]+.*%\}[ ]*$/ {
                 line = $0
                 sub(/^[ ]*\{%[ ]*if[ ]+/, "", line)
                 sub(/[ ].*$/, "", line)
                 print line
-            }' "${PARTIALS[$J]}" | sort -u))
-            IFS="${OIFS}"
+            }' "${PARTIALS[$J]}" | sort -u)
             if [[ "${#PARTIAL_CONDITIONAL_TAGS[@]}" -gt 0 ]]; then
                 # template contains conditionals, operate using a copy
                 TEMPLATE_TEMP=$(mktemp "${MARSH_TEMP}/template-XXXXXX")
@@ -2333,11 +2342,13 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
         replace_tags "${DEST}" "DOCUMENT_" "${DOCUMENT_META_VARS:-}"
 
         # subdocuments
-        OIFS="${IFS}"
-        IFS=$'\n'
-        SUBDOCUMENTS=($(marsh_get_subdocuments "${DOCUMENT}"))
+        SUBDOCUMENTS_LIST=$(marsh_get_subdocuments "${DOCUMENT}")
+        SUBDOCUMENTS=()
+        while IFS= read -r SUBDOCUMENT; do
+            [[ "${SUBDOCUMENT}" == "" ]] && continue
+            SUBDOCUMENTS+=("${SUBDOCUMENT}")
+        done <<< "${SUBDOCUMENTS_LIST}"
         NUM_SUBDOCUMENTS="${#SUBDOCUMENTS[@]}"
-        IFS="${OIFS}"
         if [[ "${NUM_SUBDOCUMENTS}" -gt 0 ]]; then
             : > "${DOCUMENT}.${MARSH_UID}.subdocuments" || {
                 echo "Unable to create subdocuments file: ${DOCUMENT}.${MARSH_UID}.subdocuments" >&2
@@ -2628,7 +2639,7 @@ function marsh_build_target {  # marsh_build_target dest_dir target jobs advance
     local MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_FILEEXT_REGEX MARKDOWN_REWRITE_LINKS
     local NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDES
     local TEMPLATE_META TEMPLATE_META_VARS TEMPLATE_ASSETS_ALL
-    local TARGET_DIR TEMPLATE_PREFIX DOCUMENTS DOCUMENTS_DIR DOCUMENTS_FIND_ARGS FILTERED_DOCUMENTS DOCUMENT
+    local TARGET_DIR TEMPLATE_PREFIX DOCUMENTS_LIST DOCUMENTS DOCUMENTS_DIR DOCUMENTS_FIND_ARGS FILTERED_DOCUMENTS DOCUMENT
     local PARALLEL PARALLEL_MARKDOWN ASSET VAR
 
     # init
@@ -2715,10 +2726,12 @@ function marsh_build_target {  # marsh_build_target dest_dir target jobs advance
     else
         DOCUMENTS_FIND_ARGS=("${TARGET##*/}")
     fi
-    OIFS="${IFS}"
-    IFS=$'\n'
-    DOCUMENTS=($(cd "${DOCUMENTS_DIR}" && find "${DOCUMENTS_FIND_ARGS[@]}"))
-    IFS="${OIFS}"
+    DOCUMENTS_LIST=$(cd "${DOCUMENTS_DIR}" && find "${DOCUMENTS_FIND_ARGS[@]}")
+    DOCUMENTS=()
+    while IFS= read -r DOCUMENT; do
+        [[ "${DOCUMENT}" == "" ]] && continue
+        DOCUMENTS+=("${DOCUMENT}")
+    done <<< "${DOCUMENTS_LIST}"
     FILTERED_DOCUMENTS=()
     for DOCUMENT in "${DOCUMENTS[@]}"; do
         DOCUMENT="${DOCUMENT#./}"

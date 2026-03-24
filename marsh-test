@@ -662,7 +662,7 @@ function marsh_test {
             ;;
         marsh_get_variables:0)
             TEST_NAME+=":single"
-            TEST=$(echo "FOO=foo" | marsh_get_variables)
+            TEST=$(printf '%s' "FOO=foo" | marsh_get_variables)
             EXPECTED="FOO"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -678,7 +678,7 @@ function marsh_test {
             ;;
         marsh_get_variables:2)
             TEST_NAME+=":multiple"
-            TEST=$(echo "FOO=foo"$'\n'"BAR=bar" | marsh_get_variables)
+            TEST=$(printf '%s' "FOO=foo"$'\n'"BAR=bar" | marsh_get_variables)
             EXPECTED="BAR"$'\n'"FOO"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -949,7 +949,7 @@ function marsh_test {
             ;;
         marsh_text_filter:0)
             TEST_NAME+=":append"
-            TEST=$(echo "Some text"$'\n'"More text" | marsh_text_filter append:after)
+            TEST=$(printf '%s' "Some text"$'\n'"More text" | marsh_text_filter append:after)
             EXPECTED="Some text"$'\n'"More textafter"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -957,7 +957,7 @@ function marsh_test {
             ;;
         marsh_text_filter:1)
             TEST_NAME+=":append_type_block"
-            TEST=$(echo "Some text"$'\n'"More text" | marsh_text_filter append-type:block:after)
+            TEST=$(printf '%s' "Some text"$'\n'"More text" | marsh_text_filter append-type:block:after)
             EXPECTED="Some text"$'\n'"More text"$'\n'"after"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -965,7 +965,7 @@ function marsh_test {
             ;;
         marsh_text_filter:2)
             TEST_NAME+=":date_rfc2822"
-            TEST=$(echo "2022-02-22" | marsh_text_filter date:rfc2822)
+            TEST=$(printf '%s' "2022-02-22" | marsh_text_filter date:rfc2822)
             EXPECTED="Tue, 22 Feb 2022 00:00:00 +0000"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -973,7 +973,7 @@ function marsh_test {
             ;;
         marsh_text_filter:3)
             TEST_NAME+=":date_rfc2822"
-            TEST=$(echo "2022-02-22 02:02:02" | marsh_text_filter date:rfc2822)
+            TEST=$(printf '%s' "2022-02-22 02:02:02" | marsh_text_filter date:rfc2822)
             EXPECTED="Tue, 22 Feb 2022 02:02:02 +0000"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -981,7 +981,7 @@ function marsh_test {
             ;;
         marsh_text_filter:4)
             TEST_NAME+=":date_rfc3339"
-            TEST=$(echo "2022-02-22" | marsh_text_filter date:rfc3339)
+            TEST=$(printf '%s' "2022-02-22" | marsh_text_filter date:rfc3339)
             EXPECTED="2022-02-22T00:00:00+00:00"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -989,7 +989,7 @@ function marsh_test {
             ;;
         marsh_text_filter:5)
             TEST_NAME+=":date_rfc3339"
-            TEST=$(echo "2022-02-22 02:02:02" | marsh_text_filter date:rfc3339)
+            TEST=$(printf '%s' "2022-02-22 02:02:02" | marsh_text_filter date:rfc3339)
             EXPECTED="2022-02-22T02:02:02+00:00"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -997,7 +997,7 @@ function marsh_test {
             ;;
         marsh_text_filter:6)
             TEST_NAME+=":date"
-            TEST=$(echo "2022-02-22" | marsh_text_filter date)
+            TEST=$(printf '%s' "2022-02-22" | marsh_text_filter date)
             EXPECTED="2022-02-22"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1005,7 +1005,7 @@ function marsh_test {
             ;;
         marsh_text_filter:7)
             TEST_NAME+=":date"
-            TEST=$(echo "2022-02-22 02:02:02" | marsh_text_filter date)
+            TEST=$(printf '%s' "2022-02-22 02:02:02" | marsh_text_filter date)
             EXPECTED="2022-02-22"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1013,7 +1013,7 @@ function marsh_test {
             ;;
         marsh_text_filter:8)
             TEST_NAME+=":decode_entities"
-            TEST=$(echo "Some entities to decode: &lt; &gt; &amp; &#34; &#165; &#9829;" | marsh_text_filter decode:entities)
+            TEST=$(printf '%s' "Some entities to decode: &lt; &gt; &amp; &#34; &#165; &#9829;" | marsh_text_filter decode:entities)
             EXPECTED="Some entities to decode: < > & \" ¥ ♥"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1021,7 +1021,10 @@ function marsh_test {
             ;;
         marsh_text_filter:9)
             TEST_NAME+=":email_remove_angle_addr"
-            TEST=$(echo "John Doe <john.doe@example.com> (jdoe42)"$'\n\n'"<john.doe@example.com>"$'\n\n'"<p>Some HTML <span>content</span></p>" | marsh_text_filter email:remove-angle-addr)
+            TEST=$(printf '%s\n\n%s\n\n%s' \
+                'John Doe <john.doe@example.com> (jdoe42)' \
+                '<john.doe@example.com>' \
+                '<p>Some HTML <span>content</span></p>' | marsh_text_filter email:remove-angle-addr)
             # According to RFC 2822, angle-addr seems to be valid only as part of name-addr
             # and invalid as a standalone addr-spec wrapped in angle brackets
             EXPECTED="John Doe (jdoe42)"$'\n\n'"<john.doe@example.com>"$'\n\n'"<p>Some HTML <span>content</span></p>"
@@ -1031,7 +1034,7 @@ function marsh_test {
             ;;
         marsh_text_filter:10)
             TEST_NAME+=":escape_html"
-            TEST=$(echo "<div><p>Some HTML content<br><br /></p></div>" | marsh_text_filter escape:html)
+            TEST=$(printf '%s' "<div><p>Some HTML content<br><br /></p></div>" | marsh_text_filter escape:html)
             EXPECTED="&lt;div&gt;&lt;p&gt;Some HTML content&lt;br&gt;&lt;br /&gt;&lt;/p&gt;&lt;/div&gt;"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1039,7 +1042,7 @@ function marsh_test {
             ;;
         marsh_text_filter:11)
             TEST_NAME+=":escape_json_val"
-            TEST=$(echo "{ \"key\": \"value\" }" | marsh_text_filter escape:json-val)
+            TEST=$(printf '%s' "{ \"key\": \"value\" }" | marsh_text_filter escape:json-val)
             EXPECTED="{ \\\"key\\\": \\\"value\\\" }"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1047,7 +1050,7 @@ function marsh_test {
             ;;
         marsh_text_filter:12)
             TEST_NAME+=":escape_nbsp"
-            TEST=$(echo "Some text with spaces" | marsh_text_filter escape:nbsp)
+            TEST=$(printf '%s' "Some text with spaces" | marsh_text_filter escape:nbsp)
             EXPECTED="Some&nbsp;text&nbsp;with&nbsp;spaces"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1055,7 +1058,9 @@ function marsh_test {
             ;;
         marsh_text_filter:13)
             TEST_NAME+=":excerpt"
-            TEST=$(echo "Lorem ipsum dolor sit amet, consectetur adipiscing elit."$'\n\n'"The quick brown fox jumps over the lazy dog." | marsh_text_filter excerpt:300:1)
+            TEST=$(printf '%s\n\n%s' \
+                'Lorem ipsum dolor sit amet, consectetur adipiscing elit.' \
+                'The quick brown fox jumps over the lazy dog.' | marsh_text_filter excerpt:300:1)
             EXPECTED="Lorem ipsum dolor sit amet, consectetur adipiscing elit…"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1063,7 +1068,9 @@ function marsh_test {
             ;;
         marsh_text_filter:14)
             TEST_NAME+=":excerpt"
-            TEST=$(echo "Lorem ipsum dolor sit amet, consectetur adipiscing elit."$'\n\n'"The quick brown fox jumps over the lazy dog." | marsh_text_filter excerpt:77:2)
+            TEST=$(printf '%s\n\n%s' \
+                'Lorem ipsum dolor sit amet, consectetur adipiscing elit.' \
+                'The quick brown fox jumps over the lazy dog.' | marsh_text_filter excerpt:77:2)
             EXPECTED="Lorem ipsum dolor sit amet, consectetur adipiscing elit. The quick brown fox…"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1087,7 +1094,7 @@ function marsh_test {
             ;;
         marsh_text_filter:17)
             TEST_NAME+=":hash_md5"
-            TEST=$(echo -n "foobar" | marsh_text_filter hash:md5)
+            TEST=$(printf '%s' "foobar" | marsh_text_filter hash:md5)
             EXPECTED="3858f62230ac3c915f300c664312c63f"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1095,7 +1102,14 @@ function marsh_test {
             ;;
         marsh_text_filter:18)
             TEST_NAME+=":headings_push"
-            TEST=$(echo "Heading 1"$'\n'"========="$'\n\n'"Heading 2"$'\n'"---------"$'\n\n'"Paragraph" | marsh_text_filter headings:push)
+            TEST=$(printf '%s\n' \
+                'Heading 1' \
+                '=========' \
+                '' \
+                'Heading 2' \
+                '---------' \
+                '' \
+                'Paragraph' | marsh_text_filter headings:push)
             EXPECTED="## Heading 1"$'\n\n'"### Heading 2"$'\n\n'"Paragraph"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1103,7 +1117,20 @@ function marsh_test {
             ;;
         marsh_text_filter:19)
             TEST_NAME+=":headings_push"
-            TEST=$(echo "# Heading 1"$'\n\n'"## Heading 2"$'\n\n'"### Heading 3"$'\n\n'"#### Heading 4"$'\n\n'"##### Heading 5"$'\n\n'"###### Heading 6"$'\n\n'"Paragraph" | marsh_text_filter headings:push)
+            TEST=$(printf '%s\n' \
+                '# Heading 1' \
+                '' \
+                '## Heading 2' \
+                '' \
+                '### Heading 3' \
+                '' \
+                '#### Heading 4' \
+                '' \
+                '##### Heading 5' \
+                '' \
+                '###### Heading 6' \
+                '' \
+                'Paragraph' | marsh_text_filter headings:push)
             EXPECTED="## Heading 1"$'\n\n'"### Heading 2"$'\n\n'"#### Heading 3"$'\n\n'"##### Heading 4"$'\n\n'"###### Heading 5"$'\n\n'"**Heading 6**"$'\n\n'"Paragraph"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1111,7 +1138,7 @@ function marsh_test {
             ;;
         marsh_text_filter:20)
             TEST_NAME+=":headings_push"
-            TEST=$(echo "<h1>Heading 1</h1><h2>Heading 2</h2><h3>Heading 3</h3><h4>Heading 4</h4><h5>Heading 5</h5><h6>Heading 6</h6><p>Paragraph</p>" | marsh_text_filter headings:push)
+            TEST=$(printf '%s' "<h1>Heading 1</h1><h2>Heading 2</h2><h3>Heading 3</h3><h4>Heading 4</h4><h5>Heading 5</h5><h6>Heading 6</h6><p>Paragraph</p>" | marsh_text_filter headings:push)
             EXPECTED="<h2>Heading 1</h2><h3>Heading 2</h3><h4>Heading 3</h4><h5>Heading 4</h5><h6>Heading 5</h6><strong>Heading 6</strong><p>Paragraph</p>"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1119,7 +1146,14 @@ function marsh_test {
             ;;
         marsh_text_filter:21)
             TEST_NAME+=":headings_shift"
-            TEST=$(echo "Heading 1"$'\n'"========="$'\n\n'"Heading 2"$'\n'"---------"$'\n\n'"Paragraph" | marsh_text_filter headings:shift)
+            TEST=$(printf '%s\n' \
+                'Heading 1' \
+                '=========' \
+                '' \
+                'Heading 2' \
+                '---------' \
+                '' \
+                'Paragraph' | marsh_text_filter headings:shift)
             EXPECTED="# Heading 2"$'\n\n'"Paragraph"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1127,7 +1161,20 @@ function marsh_test {
             ;;
         marsh_text_filter:22)
             TEST_NAME+=":headings_shift"
-            TEST=$(echo "# Heading 1"$'\n\n'"## Heading 2"$'\n\n'"### Heading 3"$'\n\n'"#### Heading 4"$'\n\n'"##### Heading 5"$'\n\n'"###### Heading 6"$'\n\n'"Paragraph" | marsh_text_filter headings:shift)
+            TEST=$(printf '%s\n' \
+                '# Heading 1' \
+                '' \
+                '## Heading 2' \
+                '' \
+                '### Heading 3' \
+                '' \
+                '#### Heading 4' \
+                '' \
+                '##### Heading 5' \
+                '' \
+                '###### Heading 6' \
+                '' \
+                'Paragraph' | marsh_text_filter headings:shift)
             EXPECTED="# Heading 2"$'\n\n'"## Heading 3"$'\n\n'"### Heading 4"$'\n\n'"#### Heading 5"$'\n\n'"##### Heading 6"$'\n\n'"Paragraph"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1135,7 +1182,7 @@ function marsh_test {
             ;;
         marsh_text_filter:23)
             TEST_NAME+=":headings_shift"
-            TEST=$(echo "<h1>Heading 1</h1><h2>Heading 2</h2><h3>Heading 3</h3><h4>Heading 4</h4><h5>Heading 5</h5><h6>Heading 6</h6><p>Paragraph</p>" | marsh_text_filter headings:shift)
+            TEST=$(printf '%s' "<h1>Heading 1</h1><h2>Heading 2</h2><h3>Heading 3</h3><h4>Heading 4</h4><h5>Heading 5</h5><h6>Heading 6</h6><p>Paragraph</p>" | marsh_text_filter headings:shift)
             EXPECTED="<h1>Heading 2</h1><h2>Heading 3</h2><h3>Heading 4</h3><h4>Heading 5</h4><h5>Heading 6</h5><p>Paragraph</p>"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1143,7 +1190,14 @@ function marsh_test {
             ;;
         marsh_text_filter:24)
             TEST_NAME+=":headings_remove"
-            TEST=$(echo "Heading 1"$'\n'"========="$'\n\n'"Heading 2"$'\n'"---------"$'\n\n'"Paragraph" | marsh_text_filter headings:remove)
+            TEST=$(printf '%s\n' \
+                'Heading 1' \
+                '=========' \
+                '' \
+                'Heading 2' \
+                '---------' \
+                '' \
+                'Paragraph' | marsh_text_filter headings:remove)
             EXPECTED="Paragraph"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1151,7 +1205,20 @@ function marsh_test {
             ;;
         marsh_text_filter:25)
             TEST_NAME+=":headings_remove"
-            TEST=$(echo "# Heading 1"$'\n\n'"## Heading 2"$'\n\n'"### Heading 3"$'\n\n'"#### Heading 4"$'\n\n'"##### Heading 5"$'\n\n'"###### Heading 6"$'\n\n'"Paragraph" | marsh_text_filter headings:remove)
+            TEST=$(printf '%s\n' \
+                '# Heading 1' \
+                '' \
+                '## Heading 2' \
+                '' \
+                '### Heading 3' \
+                '' \
+                '#### Heading 4' \
+                '' \
+                '##### Heading 5' \
+                '' \
+                '###### Heading 6' \
+                '' \
+                'Paragraph' | marsh_text_filter headings:remove)
             EXPECTED="Paragraph"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1159,7 +1226,7 @@ function marsh_test {
             ;;
         marsh_text_filter:26)
             TEST_NAME+=":headings_remove"
-            TEST=$(echo "<h1>Heading 1</h1><h2>Heading 2</h2><h3>Heading 3</h3><h4>Heading 4</h4><h5>Heading 5</h5><h6>Heading 6</h6><p>Paragraph</p>" | marsh_text_filter headings:remove)
+            TEST=$(printf '%s' "<h1>Heading 1</h1><h2>Heading 2</h2><h3>Heading 3</h3><h4>Heading 4</h4><h5>Heading 5</h5><h6>Heading 6</h6><p>Paragraph</p>" | marsh_text_filter headings:remove)
             EXPECTED="<p>Paragraph</p>"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1167,7 +1234,7 @@ function marsh_test {
             ;;
         marsh_text_filter:27)
             TEST_NAME+=":items_append"
-            TEST=$(echo "Some text"$'\n'"More text" | marsh_text_filter items:append:\!)
+            TEST=$(printf '%s' "Some text"$'\n'"More text" | marsh_text_filter items:append:\!)
             EXPECTED="Some text!"$'\n'"More text!"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1175,7 +1242,7 @@ function marsh_test {
             ;;
         marsh_text_filter:28)
             TEST_NAME+=":items_append"
-            TEST=$(echo "Some text"$'\n'"More text" | marsh_text_filter 'items:append:\\\:')
+            TEST=$(printf '%s' "Some text"$'\n'"More text" | marsh_text_filter 'items:append:\\\:')
             EXPECTED='Some text\:'$'\n'"More text\:"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1183,7 +1250,7 @@ function marsh_test {
             ;;
         marsh_text_filter:29)
             TEST_NAME+=":items_count"
-            TEST=$(echo "foo"$'\n'"bar"$'\n'"baz" | marsh_text_filter items:count)
+            TEST=$(printf '%s' "foo"$'\n'"bar"$'\n'"baz" | marsh_text_filter items:count)
             EXPECTED="3"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1191,7 +1258,7 @@ function marsh_test {
             ;;
         marsh_text_filter:30)
             TEST_NAME+=":items_first"
-            TEST=$(echo "foo"$'\n'"bar"$'\n'"baz" | marsh_text_filter items:first)
+            TEST=$(printf '%s' "foo"$'\n'"bar"$'\n'"baz" | marsh_text_filter items:first)
             EXPECTED="foo"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1199,7 +1266,7 @@ function marsh_test {
             ;;
         marsh_text_filter:31)
             TEST_NAME+=":items_join"
-            TEST=$(echo "I am foo"$'\n'"I am bar"$'\n'"I am baz" | marsh_text_filter items:join)
+            TEST=$(printf '%s' "I am foo"$'\n'"I am bar"$'\n'"I am baz" | marsh_text_filter items:join)
             EXPECTED="I am fooI am barI am baz"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1207,7 +1274,7 @@ function marsh_test {
             ;;
         marsh_text_filter:32)
             TEST_NAME+=":items_join"
-            TEST=$(echo "I am foo"$'\n'"I am bar"$'\n'"I am baz" | marsh_text_filter items:join:,)
+            TEST=$(printf '%s' "I am foo"$'\n'"I am bar"$'\n'"I am baz" | marsh_text_filter items:join:,)
             EXPECTED="I am foo,I am bar,I am baz"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1215,7 +1282,7 @@ function marsh_test {
             ;;
         marsh_text_filter:33)
             TEST_NAME+=":items_join"
-            TEST=$(echo "I am foo"$'\n'"I am bar"$'\n'"I am baz" | marsh_text_filter 'items:join:, : and :, and ')
+            TEST=$(printf '%s' "I am foo"$'\n'"I am bar"$'\n'"I am baz" | marsh_text_filter 'items:join:, : and :, and ')
             EXPECTED="I am foo, I am bar, and I am baz"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1223,7 +1290,7 @@ function marsh_test {
             ;;
         marsh_text_filter:34)
             TEST_NAME+=":items_join"
-            TEST=$(echo "I am foo"$'\n'"I am bar" | marsh_text_filter 'items:join:, : and :, and ')
+            TEST=$(printf '%s' "I am foo"$'\n'"I am bar" | marsh_text_filter 'items:join:, : and :, and ')
             EXPECTED="I am foo and I am bar"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1231,7 +1298,7 @@ function marsh_test {
             ;;
         marsh_text_filter:35)
             TEST_NAME+=":items_join"
-            TEST=$(echo "I am foo"$'\n'"I am bar"$'\n'"I am baz" | marsh_text_filter 'items:join:\:')
+            TEST=$(printf '%s' "I am foo"$'\n'"I am bar"$'\n'"I am baz" | marsh_text_filter 'items:join:\:')
             EXPECTED="I am foo:I am bar:I am baz"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1239,7 +1306,7 @@ function marsh_test {
             ;;
         marsh_text_filter:36)
             TEST_NAME+=":items_join"
-            TEST=$(echo "I am foo"$'\n'"I am bar" | marsh_text_filter 'items:join:\\\:')
+            TEST=$(printf '%s' "I am foo"$'\n'"I am bar" | marsh_text_filter 'items:join:\\\:')
             EXPECTED='I am foo\:I am bar'
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1247,7 +1314,7 @@ function marsh_test {
             ;;
         marsh_text_filter:37)
             TEST_NAME+=":items_join_type_oxford"
-            TEST=$(echo "I am foo"$'\n'"I am bar" | marsh_text_filter items:join-type:oxford)
+            TEST=$(printf '%s' "I am foo"$'\n'"I am bar" | marsh_text_filter items:join-type:oxford)
             EXPECTED="I am foo and I am bar"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1255,7 +1322,7 @@ function marsh_test {
             ;;
         marsh_text_filter:38)
             TEST_NAME+=":items_join_type_oxford"
-            TEST=$(echo "I am foo"$'\n'"I am bar"$'\n'"I am baz" | marsh_text_filter items:join-type:oxford)
+            TEST=$(printf '%s' "I am foo"$'\n'"I am bar"$'\n'"I am baz" | marsh_text_filter items:join-type:oxford)
             EXPECTED="I am foo, I am bar, and I am baz"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1263,7 +1330,7 @@ function marsh_test {
             ;;
         marsh_text_filter:39)
             TEST_NAME+=":items_json_array"
-            TEST=$(echo "John Doe"$'\n'"Jane Doe" | marsh_text_filter items:json-array)
+            TEST=$(printf '%s' "John Doe"$'\n'"Jane Doe" | marsh_text_filter items:json-array)
             EXPECTED='"John Doe","Jane Doe"'
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1271,7 +1338,7 @@ function marsh_test {
             ;;
         marsh_text_filter:40)
             TEST_NAME+=":items_json_array"
-            TEST=$(echo "John Doe"$'\n'"Jane Doe" | marsh_text_filter items:json-array:name)
+            TEST=$(printf '%s' "John Doe"$'\n'"Jane Doe" | marsh_text_filter items:json-array:name)
             EXPECTED='{"name":"John Doe"},{"name":"Jane Doe"}'
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1279,7 +1346,7 @@ function marsh_test {
             ;;
         marsh_text_filter:41)
             TEST_NAME+=":items_json_array"
-            TEST=$(echo "John Doe"$'\n\n'"Jane Doe" | marsh_text_filter items:json-array)
+            TEST=$(printf '%s' "John Doe"$'\n\n'"Jane Doe" | marsh_text_filter items:json-array)
             EXPECTED='"John Doe","Jane Doe"'
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1295,7 +1362,7 @@ function marsh_test {
             ;;
         marsh_text_filter:43)
             TEST_NAME+=":items_json_array"
-            TEST=$(echo "John Doe" | marsh_text_filter 'items:json-array:we"ird\key')
+            TEST=$(printf '%s' "John Doe" | marsh_text_filter 'items:json-array:we"ird\key')
             EXPECTED='{"we\"ird\\key":"John Doe"}'
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1303,7 +1370,7 @@ function marsh_test {
             ;;
         marsh_text_filter:44)
             TEST_NAME+=":items_last"
-            TEST=$(echo "foo"$'\n'"bar"$'\n'"baz" | marsh_text_filter items:last)
+            TEST=$(printf '%s' "foo"$'\n'"bar"$'\n'"baz" | marsh_text_filter items:last)
             EXPECTED="baz"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1311,7 +1378,7 @@ function marsh_test {
             ;;
         marsh_text_filter:45)
             TEST_NAME+=":items_prepend"
-            TEST=$(echo "Some text"$'\n'"More text" | marsh_text_filter items:prepend:\!)
+            TEST=$(printf '%s' "Some text"$'\n'"More text" | marsh_text_filter items:prepend:\!)
             EXPECTED="!Some text"$'\n'"!More text"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1319,7 +1386,7 @@ function marsh_test {
             ;;
         marsh_text_filter:46)
             TEST_NAME+=":items_prepend"
-            TEST=$(echo "Some text"$'\n'"More text" | marsh_text_filter 'items:prepend:\\\:')
+            TEST=$(printf '%s' "Some text"$'\n'"More text" | marsh_text_filter 'items:prepend:\\\:')
             EXPECTED='\:Some text'$'\n'"\:More text"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1327,7 +1394,7 @@ function marsh_test {
             ;;
         marsh_text_filter:47)
             TEST_NAME+=":items_slice"
-            TEST=$(echo "foo"$'\n'"bar"$'\n'"baz"$'\n'"qux" | marsh_text_filter items:slice:2:3)
+            TEST=$(printf '%s' "foo"$'\n'"bar"$'\n'"baz"$'\n'"qux" | marsh_text_filter items:slice:2:3)
             EXPECTED="bar"$'\n'"baz"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1335,7 +1402,7 @@ function marsh_test {
             ;;
         marsh_text_filter:48)
             TEST_NAME+=":items_slice"
-            TEST=$(echo "foo"$'\n'"bar"$'\n'"baz"$'\n'"qux" | marsh_text_filter items:slice:3)
+            TEST=$(printf '%s' "foo"$'\n'"bar"$'\n'"baz"$'\n'"qux" | marsh_text_filter items:slice:3)
             EXPECTED="baz"$'\n'"qux"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1343,7 +1410,7 @@ function marsh_test {
             ;;
         marsh_text_filter:49)
             TEST_NAME+=":items_sort"
-            TEST=$(echo "charlie"$'\n'"alpha"$'\n'"bravo" | marsh_text_filter items:sort)
+            TEST=$(printf '%s' "charlie"$'\n'"alpha"$'\n'"bravo" | marsh_text_filter items:sort)
             EXPECTED="alpha"$'\n'"bravo"$'\n'"charlie"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1362,7 +1429,7 @@ function marsh_test {
             ;;
         marsh_text_filter:51)
             TEST_NAME+=":items_unique"
-            TEST=$(echo "foo"$'\n'"bar"$'\n'"foo"$'\n'"baz"$'\n'"bar" | marsh_text_filter items:unique)
+            TEST=$(printf '%s' "foo"$'\n'"bar"$'\n'"foo"$'\n'"baz"$'\n'"bar" | marsh_text_filter items:unique)
             EXPECTED="foo"$'\n'"bar"$'\n'"baz"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1370,7 +1437,7 @@ function marsh_test {
             ;;
         marsh_text_filter:52)
             TEST_NAME+=":items_wrap"
-            TEST=$(echo "Some text"$'\n'"More text" | marsh_text_filter items:wrap:\")
+            TEST=$(printf '%s' "Some text"$'\n'"More text" | marsh_text_filter items:wrap:\")
             EXPECTED="\"Some text\""$'\n'"\"More text\""
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1378,7 +1445,7 @@ function marsh_test {
             ;;
         marsh_text_filter:53)
             TEST_NAME+=":items_wrap"
-            TEST=$(echo "Some text"$'\n'"More text" | marsh_text_filter items:wrap:\":\!\")
+            TEST=$(printf '%s' "Some text"$'\n'"More text" | marsh_text_filter items:wrap:\":\!\")
             EXPECTED="\"Some text!\""$'\n'"\"More text!\""
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1386,7 +1453,7 @@ function marsh_test {
             ;;
         marsh_text_filter:54)
             TEST_NAME+=":items_wrap"
-            TEST=$(echo "Some text"$'\n'"More text" | marsh_text_filter 'items:wrap:\:')
+            TEST=$(printf '%s' "Some text"$'\n'"More text" | marsh_text_filter 'items:wrap:\:')
             EXPECTED=":Some text:"$'\n'":More text:"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1394,7 +1461,7 @@ function marsh_test {
             ;;
         marsh_text_filter:55)
             TEST_NAME+=":items_wrap"
-            TEST=$(echo "Some text"$'\n'"More text" | marsh_text_filter 'items:wrap:\\\:')
+            TEST=$(printf '%s' "Some text"$'\n'"More text" | marsh_text_filter 'items:wrap:\\\:')
             EXPECTED='\:Some text\:'$'\n'"\:More text\:"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1402,7 +1469,7 @@ function marsh_test {
             ;;
         marsh_text_filter:56)
             TEST_NAME+=":items_xml_wrap"
-            TEST=$(echo $'\n\n\n'"John Doe"$'\n\n\n' | marsh_text_filter items:xml-wrap:name)
+            TEST=$(printf '%s' $'\n\n\n'"John Doe"$'\n\n\n' | marsh_text_filter items:xml-wrap:name)
             EXPECTED='<name>John Doe</name>'
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1410,7 +1477,7 @@ function marsh_test {
             ;;
         marsh_text_filter:57)
             TEST_NAME+=":items_xml_wrap"
-            TEST=$(echo "John Doe"$'\n'"Jane Doe" | marsh_text_filter items:xml-wrap:name)
+            TEST=$(printf '%s' "John Doe"$'\n'"Jane Doe" | marsh_text_filter items:xml-wrap:name)
             EXPECTED='<name>John Doe</name><name>Jane Doe</name>'
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1418,7 +1485,7 @@ function marsh_test {
             ;;
         marsh_text_filter:58)
             TEST_NAME+=":items_xml_wrap"
-            TEST=$(echo "John Doe"$'\n\n\n'"Jane Doe" | marsh_text_filter items:xml-wrap:name)
+            TEST=$(printf '%s' "John Doe"$'\n\n\n'"Jane Doe" | marsh_text_filter items:xml-wrap:name)
             EXPECTED='<name>John Doe</name><name>Jane Doe</name>'
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1426,7 +1493,7 @@ function marsh_test {
             ;;
         marsh_text_filter:59)
             TEST_NAME+=":items_xml_wrap"
-            TEST=$(echo "Jack & Jill <friends>" | marsh_text_filter items:xml-wrap:person)
+            TEST=$(printf '%s' "Jack & Jill <friends>" | marsh_text_filter items:xml-wrap:person)
             EXPECTED='<person>Jack &amp; Jill &lt;friends&gt;</person>'
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1434,7 +1501,7 @@ function marsh_test {
             ;;
         marsh_text_filter:60)
             TEST_NAME+=":items_xml_wrap"
-            TEST=$(echo "John Doe"$'\n'"Jane Doe" | marsh_text_filter items:xml-wrap:name:author)
+            TEST=$(printf '%s' "John Doe"$'\n'"Jane Doe" | marsh_text_filter items:xml-wrap:name:author)
             EXPECTED='<author><name>John Doe</name></author><author><name>Jane Doe</name></author>'
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1442,7 +1509,7 @@ function marsh_test {
             ;;
         marsh_text_filter:61)
             TEST_NAME+=":items_xml_wrap"
-            TEST=$(echo "John Doe"$'\n'"Jane Doe" | marsh_text_filter items:xml-wrap:name:author:people)
+            TEST=$(printf '%s' "John Doe"$'\n'"Jane Doe" | marsh_text_filter items:xml-wrap:name:author:people)
             EXPECTED='<people><author><name>John Doe</name></author></people><people><author><name>Jane Doe</name></author></people>'
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1450,7 +1517,14 @@ function marsh_test {
             ;;
         marsh_text_filter:62)
             TEST_NAME+=":links_replace_ext"
-            TEST=$(echo "[foo](foo.markdown) [foo](foo.md) [foo](foo.text) [foo](foo.md \"title\") [![image](image.jpg)](imagepage.md) [![image](image.jpg) \"title\"](imagepage.md) [![image](image.jpg)](imagepage.md \"title\") [![image](image.jpg) \"title\"](imagepage.md \"title\")"$'\n\n'"[1]: reference1.md"$'\n'"[2]: reference2.md \"title\""$'\n'"[3]: reference3.md#anchor \"title\""$'\n'"[4label]: reference4.md?qs=qs&qs2=qs2#anchor 'title'"$'\n'"[label5]: <reference5.md?qs=qs&qs2=qs2#anchor> (title)" | marsh_text_filter links:replace-ext:md,markdown:html)
+            TEST=$(printf '%s\n' \
+                '[foo](foo.markdown) [foo](foo.md) [foo](foo.text) [foo](foo.md "title") [![image](image.jpg)](imagepage.md) [![image](image.jpg) "title"](imagepage.md) [![image](image.jpg)](imagepage.md "title") [![image](image.jpg) "title"](imagepage.md "title")' \
+                '' \
+                '[1]: reference1.md' \
+                '[2]: reference2.md "title"' \
+                '[3]: reference3.md#anchor "title"' \
+                "[4label]: reference4.md?qs=qs&qs2=qs2#anchor 'title'" \
+                '[label5]: <reference5.md?qs=qs&qs2=qs2#anchor> (title)' | marsh_text_filter links:replace-ext:md,markdown:html)
             EXPECTED="[foo](foo.html) [foo](foo.html) [foo](foo.text) [foo](foo.html \"title\") [![image](image.jpg)](imagepage.html) [![image](image.jpg) \"title\"](imagepage.html) [![image](image.jpg)](imagepage.html \"title\") [![image](image.jpg) \"title\"](imagepage.html \"title\")"$'\n\n'"[1]: reference1.html"$'\n'"[2]: reference2.html \"title\""$'\n'"[3]: reference3.html#anchor \"title\""$'\n'"[4label]: reference4.html?qs=qs&qs2=qs2#anchor 'title'"$'\n'"[label5]: <reference5.html?qs=qs&qs2=qs2#anchor> (title)"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1458,7 +1532,7 @@ function marsh_test {
             ;;
         marsh_text_filter:63)
             TEST_NAME+=":links_replace_ext"
-            TEST=$(echo "[foo](foo.markdown) [foo](foo.md) [foo](foo.text)" | marsh_text_filter links:replace-ext:md,markdown)
+            TEST=$(printf '%s' "[foo](foo.markdown) [foo](foo.md) [foo](foo.text)" | marsh_text_filter links:replace-ext:md,markdown)
             EXPECTED="[foo](foo) [foo](foo) [foo](foo.text)"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1474,7 +1548,7 @@ function marsh_test {
             ;;
         marsh_text_filter:65)
             TEST_NAME+=":newlines_reduce"
-            TEST=$(echo "# Heading 1"$'\n\n\n\n\n\n'"Paragraph" | marsh_text_filter newlines:reduce:3)
+            TEST=$(printf '%s' "# Heading 1"$'\n\n\n\n\n\n'"Paragraph" | marsh_text_filter newlines:reduce:3)
             EXPECTED="# Heading 1"$'\n\n\n'"Paragraph"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1482,7 +1556,7 @@ function marsh_test {
             ;;
         marsh_text_filter:66)
             TEST_NAME+=":newlines_remove"
-            TEST=$(echo "# Heading 1"$'\n\n\n\n'"Paragraph" | marsh_text_filter newlines:remove)
+            TEST=$(printf '%s' "# Heading 1"$'\n\n\n\n'"Paragraph" | marsh_text_filter newlines:remove)
             EXPECTED="# Heading 1Paragraph"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1490,7 +1564,7 @@ function marsh_test {
             ;;
         marsh_text_filter:67)
             TEST_NAME+=":newlines_tospaces"
-            TEST=$(echo "# Heading 1"$'\n\n\n\n'"Paragraph" | marsh_text_filter newlines:tospaces)
+            TEST=$(printf '%s' "# Heading 1"$'\n\n\n\n'"Paragraph" | marsh_text_filter newlines:tospaces)
             EXPECTED="# Heading 1    Paragraph"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1498,7 +1572,7 @@ function marsh_test {
             ;;
         marsh_text_filter:68)
             TEST_NAME+=":newlines_trim"
-            TEST=$(echo $'\n\n\n\n'"# Heading 1"$'\n\n\n\n'"Paragraph"$'\n\n\n\n' | marsh_text_filter newlines:trim)
+            TEST=$(printf '%s' $'\n\n\n\n'"# Heading 1"$'\n\n\n\n'"Paragraph"$'\n\n\n\n' | marsh_text_filter newlines:trim)
             EXPECTED="# Heading 1"$'\n\n\n\n'"Paragraph"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1506,7 +1580,7 @@ function marsh_test {
             ;;
         marsh_text_filter:69)
             TEST_NAME+=":plaintext"
-            TEST=$(echo "<div><p>Some HTML content and entities to decode: &lt; &gt; &amp; &#34; &#165; &#9829;<br><br /></p></div>" | marsh_text_filter plaintext)
+            TEST=$(printf '%s' "<div><p>Some HTML content and entities to decode: &lt; &gt; &amp; &#34; &#165; &#9829;<br><br /></p></div>" | marsh_text_filter plaintext)
             EXPECTED="Some HTML content and entities to decode: < > & \" ¥ ♥"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1514,7 +1588,7 @@ function marsh_test {
             ;;
         marsh_text_filter:70)
             TEST_NAME+=":plaintext"
-            TEST=$(echo "Raw < character should work on BSD sed" | marsh_text_filter plaintext)
+            TEST=$(printf '%s' "Raw < character should work on BSD sed" | marsh_text_filter plaintext)
             EXPECTED="Raw < character should work on BSD sed"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1522,7 +1596,7 @@ function marsh_test {
             ;;
         marsh_text_filter:71)
             TEST_NAME+=":prepend"
-            TEST=$(echo "Some text"$'\n'"More text" | marsh_text_filter prepend:before)
+            TEST=$(printf '%s' "Some text"$'\n'"More text" | marsh_text_filter prepend:before)
             EXPECTED="beforeSome text"$'\n'"More text"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1530,7 +1604,7 @@ function marsh_test {
             ;;
         marsh_text_filter:72)
             TEST_NAME+=":prepend_type_block"
-            TEST=$(echo "Some text"$'\n'"More text" | marsh_text_filter prepend-type:block:before)
+            TEST=$(printf '%s' "Some text"$'\n'"More text" | marsh_text_filter prepend-type:block:before)
             EXPECTED="before"$'\n'"Some text"$'\n'"More text"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1538,7 +1612,7 @@ function marsh_test {
             ;;
         marsh_text_filter:73)
             TEST_NAME+=":slug"
-            TEST=$(echo "Title of something" | marsh_text_filter slug)
+            TEST=$(printf '%s' "Title of something" | marsh_text_filter slug)
             EXPECTED="title-of-something"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1563,7 +1637,7 @@ function marsh_test {
             ;;
         marsh_text_filter:76)
             TEST_NAME+=":wrap"
-            TEST=$(echo "Some text"$'\n\n'"More text" | marsh_text_filter wrap:before:after)
+            TEST=$(printf '%s' "Some text"$'\n\n'"More text" | marsh_text_filter wrap:before:after)
             EXPECTED="beforeSome text"$'\n\n'"More textafter"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1571,7 +1645,7 @@ function marsh_test {
             ;;
         marsh_text_filter:77)
             TEST_NAME+=":wrap_type_block"
-            TEST=$(echo "Some text"$'\n\n'"More text" | marsh_text_filter wrap-type:block:before:after)
+            TEST=$(printf '%s' "Some text"$'\n\n'"More text" | marsh_text_filter wrap-type:block:before:after)
             EXPECTED="before"$'\n\n'"Some text"$'\n\n'"More text"$'\n\n'"after"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1579,7 +1653,7 @@ function marsh_test {
             ;;
         marsh_text_filter:78)
             TEST_NAME+=":wrap_type_special_comment"
-            TEST=$(echo "Some text"$'\n\n'"<p>Some HTML</p>" | marsh_text_filter wrap-type:special-comment:div.wrapper)
+            TEST=$(printf '%s' "Some text"$'\n\n'"<p>Some HTML</p>" | marsh_text_filter wrap-type:special-comment:div.wrapper)
             EXPECTED="<!-- div.wrapper -->"$'\n\n'"Some text"$'\n\n'"<p>Some HTML</p>"$'\n\n'"<!-- /div.wrapper -->"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1587,7 +1661,7 @@ function marsh_test {
             ;;
         marsh_text_filter:79)
             TEST_NAME+=":multiple"
-            TEST=$(echo $'\n\n\n\n'"Some text"$'\n'"&#9829;" | marsh_text_filter newlines:trim newlines:tospaces decode:entities items:wrap:\")
+            TEST=$(printf '%s' $'\n\n\n\n'"Some text"$'\n'"&#9829;" | marsh_text_filter newlines:trim newlines:tospaces decode:entities items:wrap:\")
             EXPECTED="\"Some text ♥\""
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1595,7 +1669,7 @@ function marsh_test {
             ;;
         marsh_text_filter:80)
             TEST_NAME+=":multiple"
-            TEST=$(echo "First item"$'\n'"Second item"$'\n'"Third item" | marsh_text_filter items:slice:1 escape:nbsp items:wrap:\" items:join-type:oxford)
+            TEST=$(printf '%s' "First item"$'\n'"Second item"$'\n'"Third item" | marsh_text_filter items:slice:1 escape:nbsp items:wrap:\" items:join-type:oxford)
             EXPECTED="\"First&nbsp;item\", \"Second&nbsp;item\", and \"Third&nbsp;item\""
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1603,7 +1677,7 @@ function marsh_test {
             ;;
         marsh_text_filter_headings:0)
             TEST_NAME+=":push_html_attrs"
-            TEST=$(echo '<h1 class="title">Heading 1</h1><h6 id="foot">Heading 6</h6><p>Paragraph</p>' | marsh_text_filter_headings push)
+            TEST=$(printf '%s' '<h1 class="title">Heading 1</h1><h6 id="foot">Heading 6</h6><p>Paragraph</p>' | marsh_text_filter_headings push)
             EXPECTED='<h2 class="title">Heading 1</h2><strong id="foot">Heading 6</strong><p>Paragraph</p>'
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"

@@ -1258,12 +1258,22 @@ function marsh_process_markdown {  # marsh_process_markdown markdown_command mar
         done
     fi
 
-    # re[lv]="footnote" is not valid html5; remove it
-    if [[ "${#MARKDOWN_OPTIONS_CLIARGS[@]}" -gt 0 ]]; then
-        "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CLIARGS[@]}" "$@" | sed -E -e '/<a href="#[a-z]+:[^"]+" re[lv]="footnote">/s/ re[lv]="footnote"//g'
-    else
-        "${MARKDOWN_COMMAND}" "$@" | sed -E -e '/<a href="#[a-z]+:[^"]+" re[lv]="footnote">/s/ re[lv]="footnote"//g'
-    fi
+    # normalize known output quirks of discount markdown
+    # remove invalid re[lv]="footnote" attributes
+    # fix rendering of backslash-escaped literal angle brackets
+    {
+        if [[ "${#MARKDOWN_OPTIONS_CLIARGS[@]}" -gt 0 ]]; then
+            "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CLIARGS[@]}" "$@"
+        else
+            "${MARKDOWN_COMMAND}" "$@"
+        fi
+    } | sed -E \
+        -e '/<a href="#[a-z]+:[^"]+" re[lv]="footnote">/s/ re[lv]="footnote"//g' \
+        -e 's/\\&lt;/\&lt;/g' \
+        -e 's/\\&gt;/\&gt;/g' \
+        -e 's/\\</\&lt;/g' \
+        -e 's/\\>/\&gt;/g' \
+        -e 's/(&lt;[^<>]+)>/\1\&gt;/g'
 }
 
 # returns success when file begins with yaml frontmatter

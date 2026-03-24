@@ -60,7 +60,7 @@ If you have GNU parallel installed, `marsh` will build multiple documents simult
 marsh build -j 4
 ```
 
-You can specify the location for the (Discount) `markdown` application using the `--markdown` parameter, useful if the installation location is not in your `PATH`.
+You can specify the location for the Discount `markdown` application using the `--markdown` parameter, useful if the installation location is not in your `PATH`.
 
 ```
 marsh build --markdown="/path/to/markdown"

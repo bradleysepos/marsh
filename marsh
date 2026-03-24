@@ -1699,7 +1699,7 @@ function marsh_get_target_metadata {  # marsh_get_target_metadata source_prefix 
     local TARGET_PATH TARGET_NAME TARGET_SOURCE TARGET_TYPE TARGET_FORCE TARGET_NAV
     local II TEMPLATE_SOURCE TEMPLATE_OVERRIDE TEMPLATE_OVERRIDES
     local ARCHIVE ARCHIVE_NAME ARCHIVE_ENCODING ARCHIVE_LANGUAGE ARCHIVE_LANGUAGE_CODE
-    local ARCHIVE_COUNT ARCHIVE_CONTENT ARCHIVE_TYPES ARCHIVE_EXCLUDED_STATES OIFS
+    local ARCHIVE_COUNT ARCHIVE_PAGE_SIZE ARCHIVE_CONTENT ARCHIVE_TYPES ARCHIVE_EXCLUDED_STATES OIFS
 
     # init
     SOURCE_PREFIX="${1:-}"
@@ -1737,6 +1737,7 @@ function marsh_get_target_metadata {  # marsh_get_target_metadata source_prefix 
     echo "${PREFIX}ARCHIVES_LANGUAGE=()"
     echo "${PREFIX}ARCHIVES_LANGUAGE_CODE=()"
     echo "${PREFIX}ARCHIVES_COUNT=()"
+    echo "${PREFIX}ARCHIVES_PAGE_SIZE=()"
     echo "${PREFIX}ARCHIVES_CONTENT=()"
     echo "${PREFIX}ARCHIVES_TYPES=()"
     echo "${PREFIX}ARCHIVES_EXCLUDED_STATES=()"
@@ -1747,6 +1748,7 @@ function marsh_get_target_metadata {  # marsh_get_target_metadata source_prefix 
     ARCHIVE_LANGUAGE="${SOURCE_PREFIX}Archives_${II}_Language"
     ARCHIVE_LANGUAGE_CODE="${SOURCE_PREFIX}Archives_${II}_Language_Code"
     ARCHIVE_COUNT="${SOURCE_PREFIX}Archives_${II}_Count"
+    ARCHIVE_PAGE_SIZE="${SOURCE_PREFIX}Archives_${II}_Page_Size"
     ARCHIVE_CONTENT="${SOURCE_PREFIX}Archives_${II}_Content"
     while [[ "${!ARCHIVE:-}" != "" ]]; do
         echo "${PREFIX}ARCHIVES+=(\"${!ARCHIVE//\"/\\\"}\")"
@@ -1755,6 +1757,7 @@ function marsh_get_target_metadata {  # marsh_get_target_metadata source_prefix 
         echo "${PREFIX}ARCHIVES_LANGUAGE+=(\"${!ARCHIVE_LANGUAGE//\"/\\\"}\")"
         echo "${PREFIX}ARCHIVES_LANGUAGE_CODE+=(\"${!ARCHIVE_LANGUAGE_CODE//\"/\\\"}\")"
         echo "${PREFIX}ARCHIVES_COUNT+=(\"${!ARCHIVE_COUNT//\"/\\\"}\")"
+        echo "${PREFIX}ARCHIVES_PAGE_SIZE+=(\"${!ARCHIVE_PAGE_SIZE//\"/\\\"}\")"
         echo "${PREFIX}ARCHIVES_CONTENT+=(\"${!ARCHIVE_CONTENT//\"/\\\"}\")"
         eval $(marsh_flat_to_array "ARCHIVE_TYPES" "${SOURCE_PREFIX}Archives_${II}_Types_")
         OIFS="${IFS}"; IFS=$(echo @|tr @ '\034'); echo "${PREFIX}ARCHIVES_TYPES+=(\"${ARCHIVE_TYPES[*]//\"/\\\"}\")"; IFS="${OIFS}"
@@ -1767,6 +1770,7 @@ function marsh_get_target_metadata {  # marsh_get_target_metadata source_prefix 
         ARCHIVE_LANGUAGE="${SOURCE_PREFIX}Archives_${II}_Language"
         ARCHIVE_LANGUAGE_CODE="${SOURCE_PREFIX}Archives_${II}_Language_Code"
         ARCHIVE_COUNT="${SOURCE_PREFIX}Archives_${II}_Count"
+        ARCHIVE_PAGE_SIZE="${SOURCE_PREFIX}Archives_${II}_Page_Size"
         ARCHIVE_CONTENT="${SOURCE_PREFIX}Archives_${II}_Content"
     done
 
@@ -1841,11 +1845,182 @@ function marsh_get_files {  # marsh_get_files source dest force
     return 0
 }
 
+# returns paginated archive root for an archive source path
+function marsh_get_archive_page_root {  # marsh_get_archive_page_root archive_source
+    local ARCHIVE_SOURCE ARCHIVE_DIR ARCHIVE_NAME PAGE_ROOT
+
+    ARCHIVE_SOURCE="${1:-}"
+    [[ "${ARCHIVE_SOURCE}" == "" ]] && return 1
+    if [[ "${ARCHIVE_SOURCE}" == */* ]]; then
+        ARCHIVE_DIR="${ARCHIVE_SOURCE%/*}"
+    else
+        ARCHIVE_DIR='.'
+    fi
+    ARCHIVE_NAME="${ARCHIVE_SOURCE##*/}"
+    if [[ "${ARCHIVE_NAME%.*}" == "index" ]]; then
+        PAGE_ROOT="${ARCHIVE_DIR}/page"
+    else
+        PAGE_ROOT="${ARCHIVE_SOURCE%.*}/page"
+    fi
+    printf '%s\n' "${PAGE_ROOT#./}"
+}
+
+# returns numbered paginated archive source path for a page
+function marsh_get_archive_page_source {  # marsh_get_archive_page_source archive_source page_num
+    local ARCHIVE_SOURCE PAGE_NUM PAGE_ROOT ARCHIVE_EXT
+
+    ARCHIVE_SOURCE="${1:-}"
+    PAGE_NUM="${2:-}"
+    [[ "${ARCHIVE_SOURCE}" == "" ]] && return 1
+    [[ "${PAGE_NUM}" == "" ]] && return 1
+    PAGE_ROOT=$(marsh_get_archive_page_root "${ARCHIVE_SOURCE}") || return 1
+    ARCHIVE_EXT="${ARCHIVE_SOURCE##*.}"
+    printf '%s\n' "${PAGE_ROOT}/${PAGE_NUM}/index.${ARCHIVE_EXT}"
+}
+
+# returns output uri for an archive source path
+function marsh_get_archive_page_uri {  # marsh_get_archive_page_uri target_dir archive_source
+    local TARGET_DIR ARCHIVE_SOURCE URI
+
+    TARGET_DIR="${1:-}"
+    ARCHIVE_SOURCE="${2:-}"
+    [[ "${TARGET_DIR}" == "" ]] && return 1
+    [[ "${ARCHIVE_SOURCE}" == "" ]] && return 1
+    URI="${TARGET_DIR#$MARSH_CONFIG_PATH}"
+    URI="${MARSH_CONFIG_URL%/}/${URI#/}/${ARCHIVE_SOURCE}"
+    printf '%s\n' "${URI%.*}.html"
+}
+
+# writes a single archive source page and its page-local subdocuments
+function marsh_write_archive_page {  # marsh_write_archive_page encoding target_dir archive_source title language langcode paginated page page_total page_size page_subdocuments_total archive_subdocuments_total current_uri canonical_uri first_uri prev_uri next_uri last_uri #documents[@] documents[@]
+    local ENCODING TARGET_DIR DEST DEST_SUB_PREFIX DEST_TITLE LANGUAGE LANGCODE PAGINATED
+    local PAGE PAGE_TOTAL PAGE_SIZE PAGE_SUBDOCUMENTS_TOTAL ARCHIVE_SUBDOCUMENTS_TOTAL
+    local PAGE_URI PAGE_CANONICAL_URI PAGE_FIRST_URI PAGE_PREV_URI PAGE_NEXT_URI PAGE_LAST_URI
+    local NUM_DOCUMENTS DOCUMENTS DOCUMENT INDEX ARCHIVE_META URI ABSPATH DEST_SUB
+    local PAGE_IS_FIRST PAGE_IS_LAST PAGE_HAS_PREV PAGE_HAS_NEXT PAGE_HAS_SUBDOCUMENTS
+
+    ENCODING="${1:-}"
+    TARGET_DIR="${2:-}"
+    DEST="${3:-}"
+    [[ "${TARGET_DIR}" == "" ]] && return 1
+    [[ "${DEST}" == "" ]] && return 1
+    shift 3
+    DEST_TITLE="${1:-}"
+    LANGUAGE="${2:-}"
+    LANGCODE="${3:-}"
+    PAGINATED="${4:-false}"
+    PAGE="${5:-1}"
+    PAGE_TOTAL="${6:-1}"
+    PAGE_SIZE="${7:-}"
+    PAGE_SUBDOCUMENTS_TOTAL="${8:-0}"
+    ARCHIVE_SUBDOCUMENTS_TOTAL="${9:-0}"
+    PAGE_URI="${10:-}"
+    PAGE_CANONICAL_URI="${11:-}"
+    PAGE_FIRST_URI="${12:-}"
+    PAGE_PREV_URI="${13:-}"
+    PAGE_NEXT_URI="${14:-}"
+    PAGE_LAST_URI="${15:-}"
+    shift 15
+    NUM_DOCUMENTS="${1:-0}"
+    shift 1
+    DOCUMENTS=()
+    while [[ "${NUM_DOCUMENTS}" -gt 0 ]] && [[ "${#@}" -gt 0 ]]; do
+        DOCUMENTS+=("${1}")
+        NUM_DOCUMENTS=$((NUM_DOCUMENTS - 1))
+        shift 1
+    done
+
+    # page metadata
+    DEST="${TARGET_DIR}/${DEST}"
+    DEST_SUB_PREFIX="${DEST}.${MARSH_UID}.subdocuments"
+    PAGE_IS_FIRST=false
+    PAGE_IS_LAST=false
+    PAGE_HAS_PREV=false
+    PAGE_HAS_NEXT=false
+    PAGE_HAS_SUBDOCUMENTS=false
+    [[ "${PAGE}" -eq 1 ]] && PAGE_IS_FIRST=true
+    [[ "${PAGE}" -eq "${PAGE_TOTAL}" ]] && PAGE_IS_LAST=true
+    [[ "${PAGE_PREV_URI}" != "" ]] && PAGE_HAS_PREV=true
+    [[ "${PAGE_NEXT_URI}" != "" ]] && PAGE_HAS_NEXT=true
+    [[ "${PAGE_SUBDOCUMENTS_TOTAL}" -gt 0 ]] && PAGE_HAS_SUBDOCUMENTS=true
+
+    # create output directory and remove old page-local subdocuments
+    mkdir -p "${DEST%/*}" >/dev/null 2>&1 || {
+        echo "Unable to create archive output directory: ${DEST%/*}" >&2
+        return 1
+    }
+    rm -f "${DEST}.${MARSH_UID}.subdocuments"* >/dev/null 2>&1
+
+    # write the generated archive source with page metadata
+    echo "---" > "${DEST}" 2>/dev/null || {
+        echo "Unable to write archive file: ${DEST}" >&2
+        return 1
+    }
+    if [[ "${ENCODING}" == "html" ]]; then
+        echo "Type: archive" >> "${DEST}"
+    else
+        echo "Type: archive-${ENCODING}" >> "${DEST}"
+    fi
+    echo "Date: $(date -u '+%Y-%m-%d %H:%M:%S')" >> "${DEST}"
+    echo "Title: ${DEST_TITLE}" >> "${DEST}"
+    echo "Language: ${LANGUAGE}" >> "${DEST}"
+    echo "Language_Code: ${LANGCODE}" >> "${DEST}"
+    if [[ "${ENCODING}" == "html" ]]; then
+        echo "Paginated: ${PAGINATED}" >> "${DEST}"
+        echo "Page: ${PAGE}" >> "${DEST}"
+        echo "Page_Total: ${PAGE_TOTAL}" >> "${DEST}"
+        echo "Page_Size: ${PAGE_SIZE}" >> "${DEST}"
+        echo "Page_Subdocuments_Total: ${PAGE_SUBDOCUMENTS_TOTAL}" >> "${DEST}"
+        echo "Archive_Subdocuments_Total: ${ARCHIVE_SUBDOCUMENTS_TOTAL}" >> "${DEST}"
+        echo "Page_Is_First: ${PAGE_IS_FIRST}" >> "${DEST}"
+        echo "Page_Is_Last: ${PAGE_IS_LAST}" >> "${DEST}"
+        echo "Page_Has_Prev: ${PAGE_HAS_PREV}" >> "${DEST}"
+        echo "Page_Has_Next: ${PAGE_HAS_NEXT}" >> "${DEST}"
+        echo "Page_Has_Subdocuments: ${PAGE_HAS_SUBDOCUMENTS}" >> "${DEST}"
+        echo "Page_URI: ${PAGE_URI}" >> "${DEST}"
+        echo "Page_Canonical_URI: ${PAGE_CANONICAL_URI}" >> "${DEST}"
+        echo "Page_First_URI: ${PAGE_FIRST_URI}" >> "${DEST}"
+        echo "Page_Prev_URI: ${PAGE_PREV_URI}" >> "${DEST}"
+        echo "Page_Next_URI: ${PAGE_NEXT_URI}" >> "${DEST}"
+        echo "Page_Last_URI: ${PAGE_LAST_URI}" >> "${DEST}"
+    fi
+    echo "---" >> "${DEST}"
+
+    # copy only the documents assigned to this page into a page-local subdocument set
+    INDEX=0
+    for DOCUMENT in "${DOCUMENTS[@]}"; do
+        URI=""
+        ABSPATH=""
+        ARCHIVE_META=$(marsh_get_archive_metadata "${TARGET_DIR}" "${DOCUMENT}")
+        [[ $? -ne 0 ]] && echo "Unable to load archive metadata: ${TARGET_DIR}/${DOCUMENT%.document}.meta.yaml" >&2 && return 1
+        eval "${ARCHIVE_META}"
+        DEST_SUB="${DEST_SUB_PREFIX}.${INDEX}"
+        cp "${TARGET_DIR}/${DOCUMENT}" "${DEST_SUB}.document" >/dev/null 2>&1 || {
+            echo "Unable to copy document file: ${TARGET_DIR}/${DOCUMENT} -> ${DEST_SUB}.document" >&2
+            return 1
+        }
+        cp "${TARGET_DIR}/${DOCUMENT%.document}.meta.yaml" "${DEST_SUB}.meta.yaml.temp" >/dev/null 2>&1
+        <"${DEST_SUB}.meta.yaml.temp" sed -e '/^\.\.\.$/d' > "${DEST_SUB}.meta.yaml"
+        echo "---" >> "${DEST_SUB}.meta.yaml"
+        echo "ABSPATH: ${ABSPATH}" >> "${DEST_SUB}.meta.yaml"
+        echo "URI: ${URI}" >> "${DEST_SUB}.meta.yaml"
+        echo "..." >> "${DEST_SUB}.meta.yaml"
+        INDEX=$((INDEX + 1))
+    done
+
+    return 0
+}
+
 # builds an archive of directory contents, sorted by descending date
-function marsh_build_archive {  # marsh_build_archive encoding target_dir dest_file dest_title language langcode content_length count #types[@] types[@] #excluded_states[@] excluded_states[@]
-    local ENCODING TARGET_DIR DEST DEST_SUB_PREFIX DEST_TITLE LANGUAGE LANGCODE CONTENT CONTENT_VALID
-    local COUNT NUM_TYPES TYPES NUM_EXCLUDED_STATES EXCLUDED_STATES
-    local VALID DOCUMENTS_LIST DOCUMENTS DOCUMENT TYPE URI ABSPATH STATE ARCHIVE_META E DEST_SUB
+function marsh_build_archive {  # marsh_build_archive encoding target_dir dest_file dest_title language langcode count page_size #types[@] types[@] #excluded_states[@] excluded_states[@]
+    local ENCODING TARGET_DIR DEST DEST_TITLE LANGUAGE LANGCODE
+    local COUNT PAGE_SIZE NUM_TYPES TYPES NUM_EXCLUDED_STATES EXCLUDED_STATES
+    local VALID DOCUMENTS_LIST DOCUMENTS DOCUMENT TYPE STATE ARCHIVE_META E
+    local VALID_DOCUMENTS PAGINATED PAGE_TOTAL PAGE PAGE_START PAGE_END PAGE_INDEX
+    local PAGE_DOCUMENTS PAGE_SUBDOCUMENTS_TOTAL ARCHIVE_SUBDOCUMENTS_TOTAL
+    local ARCHIVE_PAGES PAGE_DEST PAGE_ALIAS_DEST PAGE_ROOT
+    local PAGE_URI PAGE_CANONICAL_URI PAGE_FIRST_URI PAGE_PREV_URI PAGE_NEXT_URI PAGE_LAST_URI
+    local PAGE_PREV_DEST PAGE_NEXT_DEST PAGE_LAST_DEST
 
     # init
     ENCODING="${1:-html}"
@@ -1853,21 +2028,14 @@ function marsh_build_archive {  # marsh_build_archive encoding target_dir dest_f
     DEST="${3:-}"
     [[ "${TARGET_DIR}" == "" ]] && return 1
     [[ "${DEST}" == "" ]] && return 1
-    DEST="${TARGET_DIR}/${DEST}"
-    DEST_SUB_PREFIX="${DEST}.${MARSH_UID}.subdocuments"
     shift 3
     DEST_TITLE="${1:-}"
     LANGUAGE="${2:-}"
     LANGCODE="${3:-}"
-    CONTENT="${4:-}"
-    CONTENT_VALID=('excerpt' 'none' '')
-    if ! marsh_in_array "${CONTENT%%:*}" "${CONTENT_VALID[@]}"; then
-        echo "Invalid archive content type: ${CONTENT%%:*}" >&2
-        return 1
-    fi
-    shift 4
+    shift 3
     COUNT="${1:-}"
-    shift 1
+    PAGE_SIZE="${2:-}"
+    shift 2
     NUM_TYPES="${1:-0}"
     shift 1
     TYPES=()
@@ -1885,37 +2053,30 @@ function marsh_build_archive {  # marsh_build_archive encoding target_dir dest_f
         shift
     done
 
-    # create directory
-    mkdir -p "${DEST%/*}" >/dev/null 2>&1 || {
-        echo "Unable to create archive output directory: ${DEST%/*}" >&2
+    # sanity check archive count
+    if [[ "${COUNT}" != "" ]] && [[ ! "${COUNT}" =~ ^[0-9]+$ ]]; then
+        echo "Invalid archive count: ${COUNT}" >&2
         return 1
-    }
+    fi
 
-    # write yaml header
-    echo "---" > "${DEST}" 2>/dev/null || {
-        echo "Unable to write archive file: ${DEST}" >&2
-        return 1
-    }
-    if [[ "${ENCODING}" == "html" ]]; then
-        echo "Type: archive" >> "${DEST}"
+    # sanity check; only html archives may be paginated
+    PAGINATED=false
+    if [[ "${ENCODING}" == "html" ]] && [[ "${PAGE_SIZE}" =~ ^[0-9]+$ ]] && [[ "${PAGE_SIZE}" -gt 0 ]]; then
+        PAGINATED=true
+        PAGE_ROOT=$(marsh_get_archive_page_root "${DEST}") || return 1
+        rm -rf "${TARGET_DIR}/${PAGE_ROOT}" >/dev/null 2>&1 || {
+            echo "Unable to clean paginated archive path: ${TARGET_DIR}/${PAGE_ROOT}" >&2
+            return 1
+        }
     else
-        echo "Type: archive-${ENCODING}" >> "${DEST}"
-    fi
-    echo "Date: $(date -u '+%Y-%m-%d %H:%M:%S')" >> "${DEST}"
-    echo "Title: ${DEST_TITLE}" >> "${DEST}"
-    echo "Language: ${LANGUAGE}" >> "${DEST}"
-    echo "Language_Code: ${LANGCODE}" >> "${DEST}"
-    echo "---" >> "${DEST}"
-    echo "" >> "${DEST}"
-    if [[ "${ENCODING}" == "html" ]]; then
-        echo "# ${DEST_TITLE}" >> "${DEST}"
-        echo "" >> "${DEST}"
+        PAGE_SIZE=""
     fi
 
-    # loop over documents
+    # complete document set before pagination
     VALID=0
     DOCUMENTS_LIST=$(cd "${TARGET_DIR}" && find . -name '*.'"${MARSH_UID}"'.document' | sed 's/^\.\///' | sort -nr -t/)
     DOCUMENTS=()
+    VALID_DOCUMENTS=()
     while IFS= read -r DOCUMENT; do
         [[ "${DOCUMENT}" == "" ]] && continue
         DOCUMENTS+=("${DOCUMENT}")
@@ -1925,44 +2086,132 @@ function marsh_build_archive {  # marsh_build_archive encoding target_dir dest_f
             break
         fi
         TYPE=""
-        URI=""
-        ABSPATH=""
         STATE=()
         ARCHIVE_META=$(marsh_get_archive_metadata "${TARGET_DIR}" "${DOCUMENT}")
         [[ $? -ne 0 ]] && echo "Unable to load archive metadata: ${TARGET_DIR}/${DOCUMENT%.document}.meta.yaml" >&2 && return 1
         eval "${ARCHIVE_META}"
         if [[ "${TYPE%%-*}" == "archive" ]]; then
-            # archives are skipped by default
             continue
         fi
         if [[ "${#TYPES[@]}" -gt 0 ]] && ! marsh_in_array "${TYPE}" "${TYPES[@]}"; then
-            # skip type if not in list
             continue
         fi
         if [[ "${#EXCLUDED_STATES[@]}" -gt 0 ]]; then
             for E in "${EXCLUDED_STATES[@]}"; do
                 if marsh_in_array "${E}" "${STATE[@]}"; then
-                    # skip excluded state
                     continue 2
                 fi
             done
         fi
-        # valid subdocument
         VALID=$((VALID + 1))
-        DEST_SUB="${DEST_SUB_PREFIX}.$((VALID-1))"
-        cp "${TARGET_DIR}/${DOCUMENT}" "${DEST_SUB}.document" >/dev/null 2>&1 || {
-            echo "Unable to copy document file: ${TARGET_DIR}/${DOCUMENT} -> ${DEST_SUB}.document" >&2
-            return 1
-        }
-        # copy metadata
-        cp "${TARGET_DIR}/${DOCUMENT%.document}.meta.yaml" "${DEST_SUB}.meta.yaml.temp" >/dev/null 2>&1
-        # store paths (cannot calculate original path later)
-        <"${DEST_SUB}.meta.yaml.temp" sed -e '/^\.\.\.$/d' > "${DEST_SUB}.meta.yaml"
-        echo "---" >> "${DEST_SUB}.meta.yaml"
-        echo "ABSPATH: ${ABSPATH}" >> "${DEST_SUB}.meta.yaml"
-        echo "URI: ${URI}" >> "${DEST_SUB}.meta.yaml"
-        echo "..." >> "${DEST_SUB}.meta.yaml"
+        VALID_DOCUMENTS+=("${DOCUMENT}")
     done
+
+    # create page set for paginated html archives
+    # create at least one page even where there are no subdocuments
+    ARCHIVE_PAGES=()
+    ARCHIVE_SUBDOCUMENTS_TOTAL="${#VALID_DOCUMENTS[@]}"
+    PAGE_TOTAL=1
+    if [[ "${PAGINATED}" == true ]]; then
+        PAGE_TOTAL=$(( (ARCHIVE_SUBDOCUMENTS_TOTAL + PAGE_SIZE - 1) / PAGE_SIZE ))
+        [[ "${PAGE_TOTAL}" -lt 1 ]] && PAGE_TOTAL=1
+    fi
+    PAGE_CANONICAL_URI=$(marsh_get_archive_page_uri "${TARGET_DIR}" "${DEST}") || return 1
+    PAGE_FIRST_URI="${PAGE_CANONICAL_URI}"
+    if [[ "${PAGINATED}" == true ]] && [[ "${PAGE_TOTAL}" -gt 1 ]]; then
+        PAGE_LAST_DEST=$(marsh_get_archive_page_source "${DEST}" "${PAGE_TOTAL}") || return 1
+        PAGE_LAST_URI=$(marsh_get_archive_page_uri "${TARGET_DIR}" "${PAGE_LAST_DEST}") || return 1
+    else
+        PAGE_LAST_URI="${PAGE_CANONICAL_URI}"
+    fi
+    for ((PAGE=1; PAGE<=PAGE_TOTAL; PAGE++)); do
+        PAGE_DOCUMENTS=()
+        if [[ "${PAGINATED}" == true ]]; then
+            PAGE_START=$(( (PAGE - 1) * PAGE_SIZE ))
+            PAGE_END=$(( PAGE_START + PAGE_SIZE - 1 ))
+        else
+            PAGE_START=0
+            PAGE_END=$(( ARCHIVE_SUBDOCUMENTS_TOTAL - 1 ))
+        fi
+        for ((PAGE_INDEX=PAGE_START; PAGE_INDEX<=PAGE_END; PAGE_INDEX++)); do
+            if [[ "${PAGE_INDEX}" -lt 0 ]] || [[ "${PAGE_INDEX}" -ge "${ARCHIVE_SUBDOCUMENTS_TOTAL}" ]]; then
+                continue
+            fi
+            PAGE_DOCUMENTS+=("${VALID_DOCUMENTS[$PAGE_INDEX]}")
+        done
+        PAGE_SUBDOCUMENTS_TOTAL="${#PAGE_DOCUMENTS[@]}"
+
+        if [[ "${PAGINATED}" == true ]] && [[ "${PAGE}" -gt 1 ]]; then
+            PAGE_DEST=$(marsh_get_archive_page_source "${DEST}" "${PAGE}") || return 1
+        else
+            PAGE_DEST="${DEST}"
+        fi
+        PAGE_URI=$(marsh_get_archive_page_uri "${TARGET_DIR}" "${PAGE_DEST}") || return 1
+        PAGE_PREV_URI=""
+        PAGE_NEXT_URI=""
+        if [[ "${PAGE}" -gt 1 ]]; then
+            if [[ "${PAGE}" -eq 2 ]]; then
+                PAGE_PREV_DEST="${DEST}"
+            else
+                PAGE_PREV_DEST=$(marsh_get_archive_page_source "${DEST}" "$((PAGE - 1))") || return 1
+            fi
+            PAGE_PREV_URI=$(marsh_get_archive_page_uri "${TARGET_DIR}" "${PAGE_PREV_DEST}") || return 1
+        fi
+        if [[ "${PAGE}" -lt "${PAGE_TOTAL}" ]]; then
+            PAGE_NEXT_DEST=$(marsh_get_archive_page_source "${DEST}" "$((PAGE + 1))") || return 1
+            PAGE_NEXT_URI=$(marsh_get_archive_page_uri "${TARGET_DIR}" "${PAGE_NEXT_DEST}") || return 1
+        fi
+
+        marsh_write_archive_page "${ENCODING}" \
+                "${TARGET_DIR}" \
+                "${PAGE_DEST}" \
+                "${DEST_TITLE}" \
+                "${LANGUAGE}" \
+                "${LANGCODE}" \
+                "${PAGINATED}" \
+                "${PAGE}" \
+                "${PAGE_TOTAL}" \
+                "${PAGE_SIZE}" \
+                "${PAGE_SUBDOCUMENTS_TOTAL}" \
+                "${ARCHIVE_SUBDOCUMENTS_TOTAL}" \
+                "${PAGE_URI}" \
+                "${PAGE_CANONICAL_URI}" \
+                "${PAGE_FIRST_URI}" \
+                "${PAGE_PREV_URI}" \
+                "${PAGE_NEXT_URI}" \
+                "${PAGE_LAST_URI}" \
+                "${#PAGE_DOCUMENTS[@]}" \
+                "${PAGE_DOCUMENTS[@]}" || return 1
+        ARCHIVE_PAGES+=("${PAGE_DEST}")
+
+        if [[ "${PAGINATED}" == true ]] && [[ "${PAGE}" -eq 1 ]]; then
+            PAGE_ALIAS_DEST=$(marsh_get_archive_page_source "${DEST}" '1') || return 1
+            PAGE_URI=$(marsh_get_archive_page_uri "${TARGET_DIR}" "${PAGE_ALIAS_DEST}") || return 1
+            marsh_write_archive_page "${ENCODING}" \
+                    "${TARGET_DIR}" \
+                    "${PAGE_ALIAS_DEST}" \
+                    "${DEST_TITLE}" \
+                    "${LANGUAGE}" \
+                    "${LANGCODE}" \
+                    "${PAGINATED}" \
+                    '1' \
+                    "${PAGE_TOTAL}" \
+                    "${PAGE_SIZE}" \
+                    "${PAGE_SUBDOCUMENTS_TOTAL}" \
+                    "${ARCHIVE_SUBDOCUMENTS_TOTAL}" \
+                    "${PAGE_URI}" \
+                    "${PAGE_CANONICAL_URI}" \
+                    "${PAGE_FIRST_URI}" \
+                    '' \
+                    "${PAGE_NEXT_URI}" \
+                    "${PAGE_LAST_URI}" \
+                    "${#PAGE_DOCUMENTS[@]}" \
+                    "${PAGE_DOCUMENTS[@]}" || return 1
+            ARCHIVE_PAGES+=("${PAGE_ALIAS_DEST}")
+        fi
+    done
+
+    printf '%s\n' "${ARCHIVE_PAGES[@]}"
     return 0
 }
 
@@ -2677,6 +2926,8 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                 }
             }' "${DEST}" > "${DEST}.${MARSH_UID}.temp" || return 1
             mv "${DEST}.${MARSH_UID}.temp" "${DEST}" || return 1
+        else
+            sed -E -e 's/\{\{[ ]*subdocuments[ ]*\}\}//g' -i".${MARSH_UID}.backup" "${DEST}" && rm -f "${DEST}.${MARSH_UID}.backup"
         fi
     else
         cp "${DOCUMENT_CONTENT}" "${DEST}"
@@ -3497,38 +3748,48 @@ function marsh_cli {
             # archives
             for I in "${!TARGET_ARCHIVES[@]}"; do
                 if [[ "${TARGET_ARCHIVES[$I]}" != "" ]]; then
+                    ARCHIVE_PAGES=()
                     OIFS="${IFS}"
                     IFS=$(echo @|tr @ '\034')
                     TARGET_ARCHIVE_TYPES=(${TARGET_ARCHIVES_TYPES[$I]:-})
                     TARGET_ARCHIVE_EXCLUDED_STATES=(${TARGET_ARCHIVES_EXCLUDED_STATES[$I]:-})
                     IFS="${OIFS}"
-                    if ! marsh_build_archive "${TARGET_ARCHIVES_ENCODING[$I]}" \
+                    GENERATED_ARCHIVES_LIST=$(marsh_build_archive "${TARGET_ARCHIVES_ENCODING[$I]}" \
                                     "${MARSH_CONFIG_PATH}/${TARGET_PATH}" \
                                     "${TARGET_ARCHIVES[$I]}" \
                                     "${TARGET_ARCHIVES_NAME[$I]:-$TARGET_NAME}" \
                                     "${TARGET_ARCHIVES_LANGUAGE[$I]:-}" \
                                     "${TARGET_ARCHIVES_LANGUAGE_CODE[$I]:-}" \
-                                    "${TARGET_ARCHIVES_CONTENT[$I]}" \
                                     "${TARGET_ARCHIVES_COUNT[$I]}" \
+                                    "${TARGET_ARCHIVES_PAGE_SIZE[$I]}" \
                                     "${#TARGET_ARCHIVE_TYPES[@]}" \
                                     "${TARGET_ARCHIVE_TYPES[@]}" \
                                     "${#TARGET_ARCHIVE_EXCLUDED_STATES[@]}" \
-                                    "${TARGET_ARCHIVE_EXCLUDED_STATES[@]}" \
-                    || ! marsh_build_target "${MARSH_CONFIG_PATH}" \
-                                    "${TARGET_PATH}/${TARGET_ARCHIVES[$I]}" \
-                                    "${JOBS}" \
-                                    "" \
-                                    "${TEMPLATES_DIR}" \
-                                    "${TARGET_TEMPLATE:-}" \
-                                    "${MARKDOWN_COMMAND}" \
-                                    "${MARKDOWN_OPTIONS_CSV}" \
-                                    "${MARKDOWN_FILEEXT_CSV}" \
-                                    "${MARKDOWN_REWRITE_LINKS}" \
-                                    "${#TARGET_TEMPLATE_OVERRIDES[@]}" \
-                                    "${TARGET_TEMPLATE_OVERRIDES[@]}"
-                    then
+                                    "${TARGET_ARCHIVE_EXCLUDED_STATES[@]}")
+                    if [[ "$?" -ne 0 ]]; then
                         die_gracefully
                     fi
+                    while IFS= read -r GENERATED_ARCHIVE; do
+                        [[ "${GENERATED_ARCHIVE}" == "" ]] && continue
+                        ARCHIVE_PAGES+=("${GENERATED_ARCHIVE}")
+                    done <<< "${GENERATED_ARCHIVES_LIST}"
+                    for GENERATED_ARCHIVE in "${ARCHIVE_PAGES[@]}"; do
+                        if ! marsh_build_target "${MARSH_CONFIG_PATH}" \
+                                        "${TARGET_PATH}/${GENERATED_ARCHIVE}" \
+                                        "${JOBS}" \
+                                        "" \
+                                        "${TEMPLATES_DIR}" \
+                                        "${TARGET_TEMPLATE:-}" \
+                                        "${MARKDOWN_COMMAND}" \
+                                        "${MARKDOWN_OPTIONS_CSV}" \
+                                        "${MARKDOWN_FILEEXT_CSV}" \
+                                        "${MARKDOWN_REWRITE_LINKS}" \
+                                        "${#TARGET_TEMPLATE_OVERRIDES[@]}" \
+                                        "${TARGET_TEMPLATE_OVERRIDES[@]}"
+                        then
+                            die_gracefully
+                        fi
+                    done
                 fi
             done
 

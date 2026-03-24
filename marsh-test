@@ -122,6 +122,40 @@ function marsh_test_markdown_command {
     cat
 }
 
+function marsh_test_create_archive_document {
+    local TARGET_DIR DOCUMENT RUN_UID TYPE TITLE DATE_VALUE STATE_VALUE
+
+    TARGET_DIR="${1:-}"
+    DOCUMENT="${2:-}"
+    RUN_UID="${3:-}"
+    TYPE="${4:-}"
+    TITLE="${5:-}"
+    DATE_VALUE="${6:-}"
+    STATE_VALUE="${7:-}"
+    [[ "${TARGET_DIR}" == "" ]] && return 1
+    [[ "${DOCUMENT}" == "" ]] && return 1
+    [[ "${RUN_UID}" == "" ]] && return 1
+    mkdir -p "${TARGET_DIR}/${DOCUMENT%/*}" || return 1
+    printf '%s\n' "# ${TITLE}" > "${TARGET_DIR}/${DOCUMENT}.${RUN_UID}.document" || return 1
+    if [[ "${STATE_VALUE}" != "" ]]; then
+        printf '%s\n' \
+            '---' \
+            "Type: ${TYPE}" \
+            "Title: ${TITLE}" \
+            "Date: ${DATE_VALUE}" \
+            'State:' \
+            "  - ${STATE_VALUE}" \
+            '...' > "${TARGET_DIR}/${DOCUMENT}.${RUN_UID}.meta.yaml" || return 1
+    else
+        printf '%s\n' \
+            '---' \
+            "Type: ${TYPE}" \
+            "Title: ${TITLE}" \
+            "Date: ${DATE_VALUE}" \
+            '...' > "${TARGET_DIR}/${DOCUMENT}.${RUN_UID}.meta.yaml" || return 1
+    fi
+}
+
 function marsh_test_group {
     local FUNCTION_NAME="${1}" ERRORS TEST_ID RES
     ERRORS=0
@@ -141,6 +175,7 @@ function marsh_test {
     local TEST_NAME="${1}" EXISTS TEST EXPECTED RES
     local TEST_TEMP_PREFIX SOURCE_FILE META_FILE CONTENT_FILE DOCUMENT_FILE MARSH_OUID TARGET_DIR HASH SEP
     local INDEX_FILE MARSH_OCONFIG_PATH MARSH_OCONFIG_URL TEMPLATE_DIR TEMPLATE_OVERRIDE_FILE MARSH_OTEMP
+    local ARCHIVE_PAGES BASE_URI CANONICAL_META ALIAS_META PAGE_META TARGET_DIR_TWO
     EXISTS=true
     TEST=""
     EXPECTED=""
@@ -459,6 +494,173 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
+        marsh_build_archive:0)
+            TEST_NAME+=":html_pagination"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            MARSH_OUID="${MARSH_UID:-}"
+            MARSH_OCONFIG_PATH="${MARSH_CONFIG_PATH:-}"
+            MARSH_OCONFIG_URL="${MARSH_CONFIG_URL:-}"
+            MARSH_UID="archiveuid"
+            MARSH_CONFIG_PATH="${MARSH_TEST_TEMP}"
+            MARSH_CONFIG_URL="https://example.test"
+            marsh_test_create_archive_document "${TARGET_DIR}" "news/2026/01/03/03-third.markdown" "${MARSH_UID}" "post" "Third" "2026-01-03"
+            marsh_test_create_archive_document "${TARGET_DIR}" "news/2026/01/02/02-second.markdown" "${MARSH_UID}" "post" "Second" "2026-01-02"
+            marsh_test_create_archive_document "${TARGET_DIR}" "news/2026/01/01/01-first.markdown" "${MARSH_UID}" "post" "First" "2026-01-01"
+            ARCHIVE_PAGES=$(marsh_build_archive "html" "${TARGET_DIR}" "index.markdown" "Archive" "English" "en" "" "2" "1" "post" "0")
+            BASE_URI="https://example.test/$(basename "${TARGET_DIR}")"
+            CANONICAL_META=$(sed -n -e '/^Page:/p' -e '/^Page_Total:/p' -e '/^Page_Size:/p' -e '/^Page_Subdocuments_Total:/p' -e '/^Archive_Subdocuments_Total:/p' -e '/^Page_URI:/p' -e '/^Page_Canonical_URI:/p' -e '/^Page_Next_URI:/p' -e '/^Page_Last_URI:/p' "${TARGET_DIR}/index.markdown")
+            ALIAS_META=$(sed -n -e '/^Page:/p' -e '/^Page_URI:/p' -e '/^Page_Canonical_URI:/p' -e '/^Page_Next_URI:/p' "${TARGET_DIR}/page/1/index.markdown")
+            PAGE_META=$(sed -n -e '/^Page:/p' -e '/^Page_Total:/p' -e '/^Page_Subdocuments_Total:/p' -e '/^Archive_Subdocuments_Total:/p' -e '/^Page_Prev_URI:/p' -e '/^Page_Last_URI:/p' "${TARGET_DIR}/page/2/index.markdown")
+            TEST="$([[ "${ARCHIVE_PAGES}" == "index.markdown"$'\n'"page/1/index.markdown"$'\n'"page/2/index.markdown" ]] && [[ "${CANONICAL_META}" == "Page: 1"$'\n'"Page_Total: 2"$'\n'"Page_Size: 2"$'\n'"Page_Subdocuments_Total: 2"$'\n'"Archive_Subdocuments_Total: 3"$'\n'"Page_URI: ${BASE_URI}/index.html"$'\n'"Page_Canonical_URI: ${BASE_URI}/index.html"$'\n'"Page_Next_URI: ${BASE_URI}/page/2/index.html"$'\n'"Page_Last_URI: ${BASE_URI}/page/2/index.html" ]] && [[ "${ALIAS_META}" == "Page: 1"$'\n'"Page_URI: ${BASE_URI}/page/1/index.html"$'\n'"Page_Canonical_URI: ${BASE_URI}/index.html"$'\n'"Page_Next_URI: ${BASE_URI}/page/2/index.html" ]] && [[ "${PAGE_META}" == "Page: 2"$'\n'"Page_Total: 2"$'\n'"Page_Subdocuments_Total: 1"$'\n'"Archive_Subdocuments_Total: 3"$'\n'"Page_Prev_URI: ${BASE_URI}/index.html"$'\n'"Page_Last_URI: ${BASE_URI}/page/2/index.html" ]] && [[ -e "${TARGET_DIR}/index.markdown.${MARSH_UID}.subdocuments.0.document" ]] && [[ -e "${TARGET_DIR}/index.markdown.${MARSH_UID}.subdocuments.1.document" ]] && [[ -e "${TARGET_DIR}/page/1/index.markdown.${MARSH_UID}.subdocuments.0.document" ]] && [[ -e "${TARGET_DIR}/page/1/index.markdown.${MARSH_UID}.subdocuments.1.document" ]] && [[ -e "${TARGET_DIR}/page/2/index.markdown.${MARSH_UID}.subdocuments.0.document" ]] && [[ ! -e "${TARGET_DIR}/page/2/index.markdown.${MARSH_UID}.subdocuments.1.document" ]]; printf '%s' "$?")"
+            EXPECTED="0"
+            rm -rf "${TARGET_DIR}"
+            MARSH_UID="${MARSH_OUID}"
+            [[ "${MARSH_UID}" == "" ]] && unset MARSH_UID
+            MARSH_CONFIG_PATH="${MARSH_OCONFIG_PATH}"
+            [[ "${MARSH_CONFIG_PATH}" == "" ]] && unset MARSH_CONFIG_PATH
+            MARSH_CONFIG_URL="${MARSH_OCONFIG_URL}"
+            [[ "${MARSH_CONFIG_URL}" == "" ]] && unset MARSH_CONFIG_URL
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_build_archive:1)
+            TEST_NAME+=":html_pagination_count_first"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            MARSH_OUID="${MARSH_UID:-}"
+            MARSH_OCONFIG_PATH="${MARSH_CONFIG_PATH:-}"
+            MARSH_OCONFIG_URL="${MARSH_CONFIG_URL:-}"
+            MARSH_UID="archiveuid"
+            MARSH_CONFIG_PATH="${MARSH_TEST_TEMP}"
+            MARSH_CONFIG_URL="https://example.test"
+            marsh_test_create_archive_document "${TARGET_DIR}" "news/2026/01/04/04-fourth.markdown" "${MARSH_UID}" "post" "Fourth" "2026-01-04"
+            marsh_test_create_archive_document "${TARGET_DIR}" "news/2026/01/03/03-third.markdown" "${MARSH_UID}" "post" "Third" "2026-01-03"
+            marsh_test_create_archive_document "${TARGET_DIR}" "news/2026/01/02/02-second.markdown" "${MARSH_UID}" "post" "Second" "2026-01-02"
+            marsh_test_create_archive_document "${TARGET_DIR}" "news/2026/01/01/01-first.markdown" "${MARSH_UID}" "post" "First" "2026-01-01"
+            ARCHIVE_PAGES=$(marsh_build_archive "html" "${TARGET_DIR}" "index.markdown" "Archive" "English" "en" "3" "2" "1" "post" "0")
+            PAGE_META=$(sed -n -e '/^Page:/p' -e '/^Page_Total:/p' -e '/^Page_Subdocuments_Total:/p' -e '/^Archive_Subdocuments_Total:/p' "${TARGET_DIR}/page/2/index.markdown")
+            TEST="$([[ "${ARCHIVE_PAGES}" == "index.markdown"$'\n'"page/1/index.markdown"$'\n'"page/2/index.markdown" ]] && [[ "${PAGE_META}" == "Page: 2"$'\n'"Page_Total: 2"$'\n'"Page_Subdocuments_Total: 1"$'\n'"Archive_Subdocuments_Total: 3" ]] && [[ ! -e "${TARGET_DIR}/page/3/index.markdown" ]]; printf '%s' "$?")"
+            EXPECTED="0"
+            rm -rf "${TARGET_DIR}"
+            MARSH_UID="${MARSH_OUID}"
+            [[ "${MARSH_UID}" == "" ]] && unset MARSH_UID
+            MARSH_CONFIG_PATH="${MARSH_OCONFIG_PATH}"
+            [[ "${MARSH_CONFIG_PATH}" == "" ]] && unset MARSH_CONFIG_PATH
+            MARSH_CONFIG_URL="${MARSH_OCONFIG_URL}"
+            [[ "${MARSH_CONFIG_URL}" == "" ]] && unset MARSH_CONFIG_URL
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_build_archive:2)
+            TEST_NAME+=":html_zero_subdocuments"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            MARSH_OUID="${MARSH_UID:-}"
+            MARSH_OCONFIG_PATH="${MARSH_CONFIG_PATH:-}"
+            MARSH_OCONFIG_URL="${MARSH_CONFIG_URL:-}"
+            MARSH_UID="archiveuid"
+            MARSH_CONFIG_PATH="${MARSH_TEST_TEMP}"
+            MARSH_CONFIG_URL="https://example.test"
+            marsh_test_create_archive_document "${TARGET_DIR}" "news/2026/01/01/01-draft.markdown" "${MARSH_UID}" "post" "Draft" "2026-01-01" "draft"
+            ARCHIVE_PAGES=$(marsh_build_archive "html" "${TARGET_DIR}" "index.markdown" "Archive" "English" "en" "" "2" "1" "post" "1" "draft")
+            CANONICAL_META=$(sed -n -e '/^Page:/p' -e '/^Page_Total:/p' -e '/^Page_Subdocuments_Total:/p' -e '/^Archive_Subdocuments_Total:/p' -e '/^Page_Has_Subdocuments:/p' "${TARGET_DIR}/index.markdown")
+            TEST="$([[ "${ARCHIVE_PAGES}" == "index.markdown"$'\n'"page/1/index.markdown" ]] && [[ "${CANONICAL_META}" == "Page: 1"$'\n'"Page_Total: 1"$'\n'"Page_Subdocuments_Total: 0"$'\n'"Archive_Subdocuments_Total: 0"$'\n'"Page_Has_Subdocuments: false" ]] && [[ -e "${TARGET_DIR}/page/1/index.markdown" ]] && [[ ! -e "${TARGET_DIR}/index.markdown.${MARSH_UID}.subdocuments.0.document" ]]; printf '%s' "$?")"
+            EXPECTED="0"
+            rm -rf "${TARGET_DIR}"
+            MARSH_UID="${MARSH_OUID}"
+            [[ "${MARSH_UID}" == "" ]] && unset MARSH_UID
+            MARSH_CONFIG_PATH="${MARSH_OCONFIG_PATH}"
+            [[ "${MARSH_CONFIG_PATH}" == "" ]] && unset MARSH_CONFIG_PATH
+            MARSH_CONFIG_URL="${MARSH_OCONFIG_URL}"
+            [[ "${MARSH_CONFIG_URL}" == "" ]] && unset MARSH_CONFIG_URL
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_build_archive:4)
+            TEST_NAME+=":html_pagination_named_canonical"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            MARSH_OUID="${MARSH_UID:-}"
+            MARSH_OCONFIG_PATH="${MARSH_CONFIG_PATH:-}"
+            MARSH_OCONFIG_URL="${MARSH_CONFIG_URL:-}"
+            MARSH_UID="archiveuid"
+            MARSH_CONFIG_PATH="${MARSH_TEST_TEMP}"
+            MARSH_CONFIG_URL="https://example.test"
+            marsh_test_create_archive_document "${TARGET_DIR}" "news/2026/01/03/03-third.markdown" "${MARSH_UID}" "post" "Third" "2026-01-03"
+            marsh_test_create_archive_document "${TARGET_DIR}" "news/2026/01/02/02-second.markdown" "${MARSH_UID}" "post" "Second" "2026-01-02"
+            marsh_test_create_archive_document "${TARGET_DIR}" "news/2026/01/01/01-first.markdown" "${MARSH_UID}" "post" "First" "2026-01-01"
+            ARCHIVE_PAGES=$(marsh_build_archive "html" "${TARGET_DIR}" "blog.markdown" "Archive" "English" "en" "" "2" "1" "post" "0")
+            BASE_URI="https://example.test/$(basename "${TARGET_DIR}")"
+            ALIAS_META=$(sed -n -e '/^Page_URI:/p' -e '/^Page_Canonical_URI:/p' "${TARGET_DIR}/blog/page/1/index.markdown")
+            TEST="$([[ "${ARCHIVE_PAGES}" == "blog.markdown"$'\n'"blog/page/1/index.markdown"$'\n'"blog/page/2/index.markdown" ]] && [[ "${ALIAS_META}" == "Page_URI: ${BASE_URI}/blog/page/1/index.html"$'\n'"Page_Canonical_URI: ${BASE_URI}/blog.html" ]] && [[ -e "${TARGET_DIR}/blog.markdown" ]] && [[ -e "${TARGET_DIR}/blog/page/1/index.markdown" ]] && [[ -e "${TARGET_DIR}/blog/page/2/index.markdown" ]]; printf '%s' "$?")"
+            EXPECTED="0"
+            rm -rf "${TARGET_DIR}"
+            MARSH_UID="${MARSH_OUID}"
+            [[ "${MARSH_UID}" == "" ]] && unset MARSH_UID
+            MARSH_CONFIG_PATH="${MARSH_OCONFIG_PATH}"
+            [[ "${MARSH_CONFIG_PATH}" == "" ]] && unset MARSH_CONFIG_PATH
+            MARSH_CONFIG_URL="${MARSH_OCONFIG_URL}"
+            [[ "${MARSH_CONFIG_URL}" == "" ]] && unset MARSH_CONFIG_URL
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_build_archive:5)
+            TEST_NAME+=":html_pagination_cleanup"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            MARSH_OUID="${MARSH_UID:-}"
+            MARSH_OCONFIG_PATH="${MARSH_CONFIG_PATH:-}"
+            MARSH_OCONFIG_URL="${MARSH_CONFIG_URL:-}"
+            MARSH_UID="archiveuid"
+            MARSH_CONFIG_PATH="${MARSH_TEST_TEMP}"
+            MARSH_CONFIG_URL="https://example.test"
+            marsh_test_create_archive_document "${TARGET_DIR}" "news/2026/01/03/03-third.markdown" "${MARSH_UID}" "post" "Third" "2026-01-03"
+            marsh_test_create_archive_document "${TARGET_DIR}" "news/2026/01/02/02-second.markdown" "${MARSH_UID}" "post" "Second" "2026-01-02"
+            marsh_test_create_archive_document "${TARGET_DIR}" "news/2026/01/01/01-first.markdown" "${MARSH_UID}" "post" "First" "2026-01-01"
+            mkdir -p "${TARGET_DIR}/page/9"
+            printf '%s\n' 'stale' > "${TARGET_DIR}/page/9/index.markdown"
+            printf '%s\n' 'keep' > "${TARGET_DIR}/all.markdown"
+            ARCHIVE_PAGES=$(marsh_build_archive "html" "${TARGET_DIR}" "index.markdown" "Archive" "English" "en" "" "2" "1" "post" "0")
+            TEST="$([[ "${ARCHIVE_PAGES}" == "index.markdown"$'\n'"page/1/index.markdown"$'\n'"page/2/index.markdown" ]] && [[ ! -e "${TARGET_DIR}/page/9/index.markdown" ]] && [[ -e "${TARGET_DIR}/all.markdown" ]] && [[ -e "${TARGET_DIR}/page/1/index.markdown" ]] && [[ -e "${TARGET_DIR}/page/2/index.markdown" ]]; printf '%s' "$?")"
+            EXPECTED="0"
+            rm -rf "${TARGET_DIR}"
+            MARSH_UID="${MARSH_OUID}"
+            [[ "${MARSH_UID}" == "" ]] && unset MARSH_UID
+            MARSH_CONFIG_PATH="${MARSH_OCONFIG_PATH}"
+            [[ "${MARSH_CONFIG_PATH}" == "" ]] && unset MARSH_CONFIG_PATH
+            MARSH_CONFIG_URL="${MARSH_OCONFIG_URL}"
+            [[ "${MARSH_CONFIG_URL}" == "" ]] && unset MARSH_CONFIG_URL
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_build_archive:6)
+            TEST_NAME+=":non_html_ignore_pagination"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            MARSH_OUID="${MARSH_UID:-}"
+            MARSH_OCONFIG_PATH="${MARSH_CONFIG_PATH:-}"
+            MARSH_OCONFIG_URL="${MARSH_CONFIG_URL:-}"
+            MARSH_UID="archiveuid"
+            MARSH_CONFIG_PATH="${MARSH_TEST_TEMP}"
+            MARSH_CONFIG_URL="https://example.test"
+            marsh_test_create_archive_document "${TARGET_DIR}" "news/2026/01/03/03-third.markdown" "${MARSH_UID}" "post" "Third" "2026-01-03"
+            marsh_test_create_archive_document "${TARGET_DIR}" "news/2026/01/02/02-second.markdown" "${MARSH_UID}" "post" "Second" "2026-01-02"
+            marsh_test_create_archive_document "${TARGET_DIR}" "news/2026/01/01/01-first.markdown" "${MARSH_UID}" "post" "First" "2026-01-01"
+            ARCHIVE_PAGES=$(marsh_build_archive "atom" "${TARGET_DIR}" "feed.xml" "Archive" "English" "en" "" "2" "1" "post" "0" 2>/dev/null)
+            CANONICAL_META=$(sed -n -e '/^Type:/p' -e '/^Paginated:/p' "${TARGET_DIR}/feed.xml")
+            TEST="$([[ "${ARCHIVE_PAGES}" == "feed.xml" ]] && [[ "${CANONICAL_META}" == "Type: archive-atom" ]] && [[ -e "${TARGET_DIR}/feed.xml" ]] && [[ ! -e "${TARGET_DIR}/page/1/index.xml" ]] && [[ ! -d "${TARGET_DIR}/page" ]]; printf '%s' "$?")"
+            EXPECTED="0"
+            rm -rf "${TARGET_DIR}"
+            MARSH_UID="${MARSH_OUID}"
+            [[ "${MARSH_UID}" == "" ]] && unset MARSH_UID
+            MARSH_CONFIG_PATH="${MARSH_OCONFIG_PATH}"
+            [[ "${MARSH_CONFIG_PATH}" == "" ]] && unset MARSH_CONFIG_PATH
+            MARSH_CONFIG_URL="${MARSH_OCONFIG_URL}"
+            [[ "${MARSH_CONFIG_URL}" == "" ]] && unset MARSH_CONFIG_URL
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
         marsh_get_files:0)
             TEST_NAME+=":file"
             SOURCE_FILE="${TEST_TEMP_PREFIX}.source.txt"
@@ -568,7 +770,7 @@ function marsh_test {
             TEST_NAME+=":minimal"
             MARSH_TEST_TARGET_MIN_Path="/site/minimal"
             TEST=$(marsh_get_target_metadata "MARSH_TEST_TARGET_MIN_" "TARGET_")
-            EXPECTED="TARGET_PATH=\"/site/minimal\""$'\n'"TARGET_TEMPLATE_OVERRIDES=()"$'\n'"TARGET_ARCHIVES=()"$'\n'"TARGET_ARCHIVES_ENCODING=()"$'\n'"TARGET_ARCHIVES_NAME=()"$'\n'"TARGET_ARCHIVES_LANGUAGE=()"$'\n'"TARGET_ARCHIVES_LANGUAGE_CODE=()"$'\n'"TARGET_ARCHIVES_COUNT=()"$'\n'"TARGET_ARCHIVES_CONTENT=()"$'\n'"TARGET_ARCHIVES_TYPES=()"$'\n'"TARGET_ARCHIVES_EXCLUDED_STATES=()"
+            EXPECTED="TARGET_PATH=\"/site/minimal\""$'\n'"TARGET_TEMPLATE_OVERRIDES=()"$'\n'"TARGET_ARCHIVES=()"$'\n'"TARGET_ARCHIVES_ENCODING=()"$'\n'"TARGET_ARCHIVES_NAME=()"$'\n'"TARGET_ARCHIVES_LANGUAGE=()"$'\n'"TARGET_ARCHIVES_LANGUAGE_CODE=()"$'\n'"TARGET_ARCHIVES_COUNT=()"$'\n'"TARGET_ARCHIVES_PAGE_SIZE=()"$'\n'"TARGET_ARCHIVES_CONTENT=()"$'\n'"TARGET_ARCHIVES_TYPES=()"$'\n'"TARGET_ARCHIVES_EXCLUDED_STATES=()"
             unset MARSH_TEST_TARGET_MIN_Path
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -598,7 +800,7 @@ function marsh_test {
             MARSH_TEST_TARGET_Archives_0_Exclude_States_0="draft"
             HASH=$(printf 'templates/default' | marsh_text_filter hash:md5)
             TEST=$(marsh_get_target_metadata "MARSH_TEST_TARGET_" "TARGET_")
-            EXPECTED="TARGET_PATH=\"/site/output\""$'\n'"TARGET_NAME=\"Main Site\""$'\n'"TARGET_SOURCE=\"source\""$'\n'"TARGET_TYPE=\"page\""$'\n'"TARGET_NAV=\"nav.markdown\""$'\n'"TARGET_FORCE=\"true\""$'\n'"TARGET_TEMPLATE_SOURCE=\"templates/default\""$'\n'"TARGET_TEMPLATE_OVERRIDES=()"$'\n'"TARGET_TEMPLATE_OVERRIDES+=(\"foo=foo\")"$'\n'"TARGET_TEMPLATE_OVERRIDES+=(\"bar=bar\")"$'\n'"TARGET_TEMPLATE=\"default-${HASH}\""$'\n'"TARGET_ARCHIVES=()"$'\n'"TARGET_ARCHIVES_ENCODING=()"$'\n'"TARGET_ARCHIVES_NAME=()"$'\n'"TARGET_ARCHIVES_LANGUAGE=()"$'\n'"TARGET_ARCHIVES_LANGUAGE_CODE=()"$'\n'"TARGET_ARCHIVES_COUNT=()"$'\n'"TARGET_ARCHIVES_CONTENT=()"$'\n'"TARGET_ARCHIVES_TYPES=()"$'\n'"TARGET_ARCHIVES_EXCLUDED_STATES=()"$'\n'"TARGET_ARCHIVES+=(\"feed.xml\")"$'\n'"TARGET_ARCHIVES_ENCODING+=(\"atom\")"$'\n'"TARGET_ARCHIVES_NAME+=(\"Feed\")"$'\n'"TARGET_ARCHIVES_LANGUAGE+=(\"English\")"$'\n'"TARGET_ARCHIVES_LANGUAGE_CODE+=(\"en\")"$'\n'"TARGET_ARCHIVES_COUNT+=(\"42\")"$'\n'"TARGET_ARCHIVES_CONTENT+=(\"excerpt:200:2\")"$'\n'"TARGET_ARCHIVES_TYPES+=(\"post${SEP}note\")"$'\n'"TARGET_ARCHIVES_EXCLUDED_STATES+=(\"draft\")"
+            EXPECTED="TARGET_PATH=\"/site/output\""$'\n'"TARGET_NAME=\"Main Site\""$'\n'"TARGET_SOURCE=\"source\""$'\n'"TARGET_TYPE=\"page\""$'\n'"TARGET_NAV=\"nav.markdown\""$'\n'"TARGET_FORCE=\"true\""$'\n'"TARGET_TEMPLATE_SOURCE=\"templates/default\""$'\n'"TARGET_TEMPLATE_OVERRIDES=()"$'\n'"TARGET_TEMPLATE_OVERRIDES+=(\"foo=foo\")"$'\n'"TARGET_TEMPLATE_OVERRIDES+=(\"bar=bar\")"$'\n'"TARGET_TEMPLATE=\"default-${HASH}\""$'\n'"TARGET_ARCHIVES=()"$'\n'"TARGET_ARCHIVES_ENCODING=()"$'\n'"TARGET_ARCHIVES_NAME=()"$'\n'"TARGET_ARCHIVES_LANGUAGE=()"$'\n'"TARGET_ARCHIVES_LANGUAGE_CODE=()"$'\n'"TARGET_ARCHIVES_COUNT=()"$'\n'"TARGET_ARCHIVES_PAGE_SIZE=()"$'\n'"TARGET_ARCHIVES_CONTENT=()"$'\n'"TARGET_ARCHIVES_TYPES=()"$'\n'"TARGET_ARCHIVES_EXCLUDED_STATES=()"$'\n'"TARGET_ARCHIVES+=(\"feed.xml\")"$'\n'"TARGET_ARCHIVES_ENCODING+=(\"atom\")"$'\n'"TARGET_ARCHIVES_NAME+=(\"Feed\")"$'\n'"TARGET_ARCHIVES_LANGUAGE+=(\"English\")"$'\n'"TARGET_ARCHIVES_LANGUAGE_CODE+=(\"en\")"$'\n'"TARGET_ARCHIVES_COUNT+=(\"42\")"$'\n'"TARGET_ARCHIVES_PAGE_SIZE+=(\"\")"$'\n'"TARGET_ARCHIVES_CONTENT+=(\"excerpt:200:2\")"$'\n'"TARGET_ARCHIVES_TYPES+=(\"post${SEP}note\")"$'\n'"TARGET_ARCHIVES_EXCLUDED_STATES+=(\"draft\")"
             unset MARSH_TEST_TARGET_Path MARSH_TEST_TARGET_Name MARSH_TEST_TARGET_Source MARSH_TEST_TARGET_Type
             unset MARSH_TEST_TARGET_Force MARSH_TEST_TARGET_Navigation MARSH_TEST_TARGET_Template_Source
             unset MARSH_TEST_TARGET_Template_Overrides_0 MARSH_TEST_TARGET_Template_Overrides_1
@@ -1773,6 +1975,7 @@ function marsh_test {
 
 source "${MARSH}"
 KNOWN_FUNCTIONS=(
+    marsh_build_archive
     marsh_check_dependencies
     marsh_clean_target
     marsh_escape_substitution

@@ -1444,6 +1444,14 @@ function marsh_test {
             fi
             ;;
         marsh_text_filter:64)
+            TEST_NAME+=":links_replace_ext_special"
+            TEST=$(printf '%s' '[foo](foo.md)'$'\n''[1]: reference1.md' | marsh_text_filter 'links:replace-ext:md:h&tm\\l')
+            EXPECTED='[foo](foo.h&tm\l)'$'\n''[1]: reference1.h&tm\l'
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_text_filter:65)
             TEST_NAME+=":newlines_reduce"
             TEST=$(echo "# Heading 1"$'\n\n\n\n\n\n'"Paragraph" | marsh_text_filter newlines:reduce:3)
             EXPECTED="# Heading 1"$'\n\n\n'"Paragraph"
@@ -1451,7 +1459,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_filter:65)
+        marsh_text_filter:66)
             TEST_NAME+=":newlines_remove"
             TEST=$(echo "# Heading 1"$'\n\n\n\n'"Paragraph" | marsh_text_filter newlines:remove)
             EXPECTED="# Heading 1Paragraph"
@@ -1459,7 +1467,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_filter:66)
+        marsh_text_filter:67)
             TEST_NAME+=":newlines_tospaces"
             TEST=$(echo "# Heading 1"$'\n\n\n\n'"Paragraph" | marsh_text_filter newlines:tospaces)
             EXPECTED="# Heading 1    Paragraph"
@@ -1467,7 +1475,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_filter:67)
+        marsh_text_filter:68)
             TEST_NAME+=":newlines_trim"
             TEST=$(echo $'\n\n\n\n'"# Heading 1"$'\n\n\n\n'"Paragraph"$'\n\n\n\n' | marsh_text_filter newlines:trim)
             EXPECTED="# Heading 1"$'\n\n\n\n'"Paragraph"
@@ -1475,7 +1483,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_filter:68)
+        marsh_text_filter:69)
             TEST_NAME+=":plaintext"
             TEST=$(echo "<div><p>Some HTML content and entities to decode: &lt; &gt; &amp; &#34; &#165; &#9829;<br><br /></p></div>" | marsh_text_filter plaintext)
             EXPECTED="Some HTML content and entities to decode: < > & \" ¥ ♥"
@@ -1483,7 +1491,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_filter:69)
+        marsh_text_filter:70)
             TEST_NAME+=":plaintext"
             TEST=$(echo "Raw < character should work on BSD sed" | marsh_text_filter plaintext)
             EXPECTED="Raw < character should work on BSD sed"
@@ -1491,7 +1499,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_filter:70)
+        marsh_text_filter:71)
             TEST_NAME+=":prepend"
             TEST=$(echo "Some text"$'\n'"More text" | marsh_text_filter prepend:before)
             EXPECTED="beforeSome text"$'\n'"More text"
@@ -1499,7 +1507,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_filter:71)
+        marsh_text_filter:72)
             TEST_NAME+=":prepend_type_block"
             TEST=$(echo "Some text"$'\n'"More text" | marsh_text_filter prepend-type:block:before)
             EXPECTED="before"$'\n'"Some text"$'\n'"More text"
@@ -1507,7 +1515,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_filter:72)
+        marsh_text_filter:73)
             TEST_NAME+=":slug"
             TEST=$(echo "Title of something" | marsh_text_filter slug)
             EXPECTED="title-of-something"
@@ -1515,7 +1523,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_filter:73)
+        marsh_text_filter:74)
             TEST_NAME+=":trim"
             TEST=$(printf '%s' ' '$'\t''  Some text with spaces'$'\t''  ' | marsh_text_filter trim)
             EXPECTED="Some text with spaces"
@@ -1523,7 +1531,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_filter:74)
+        marsh_text_filter:75)
             TEST_NAME+=":trim_multiline"
             TEST=$(printf '%s' ' '$'\t''First line'$'\n''  indented second line'$'\t\n''Third line'$'\t''  ' | marsh_text_filter trim; printf '\001')
             TEST="${TEST%$'\001'}"
@@ -1532,7 +1540,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_filter:75)
+        marsh_text_filter:76)
             TEST_NAME+=":wrap"
             TEST=$(echo "Some text"$'\n\n'"More text" | marsh_text_filter wrap:before:after)
             EXPECTED="beforeSome text"$'\n\n'"More textafter"
@@ -1540,7 +1548,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_filter:76)
+        marsh_text_filter:77)
             TEST_NAME+=":wrap_type_block"
             TEST=$(echo "Some text"$'\n\n'"More text" | marsh_text_filter wrap-type:block:before:after)
             EXPECTED="before"$'\n\n'"Some text"$'\n\n'"More text"$'\n\n'"after"
@@ -1548,7 +1556,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_filter:77)
+        marsh_text_filter:78)
             TEST_NAME+=":wrap_type_special_comment"
             TEST=$(echo "Some text"$'\n\n'"<p>Some HTML</p>" | marsh_text_filter wrap-type:special-comment:div.wrapper)
             EXPECTED="<!-- div.wrapper -->"$'\n\n'"Some text"$'\n\n'"<p>Some HTML</p>"$'\n\n'"<!-- /div.wrapper -->"
@@ -1556,7 +1564,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_filter:78)
+        marsh_text_filter:79)
             TEST_NAME+=":multiple"
             TEST=$(echo $'\n\n\n\n'"Some text"$'\n'"&#9829;" | marsh_text_filter newlines:trim newlines:tospaces decode:entities items:wrap:\")
             EXPECTED="\"Some text ♥\""
@@ -1564,7 +1572,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_filter:79)
+        marsh_text_filter:80)
             TEST_NAME+=":multiple"
             TEST=$(echo "First item"$'\n'"Second item"$'\n'"Third item" | marsh_text_filter items:slice:1 escape:nbsp items:wrap:\" items:join-type:oxford)
             EXPECTED="\"First&nbsp;item\", \"Second&nbsp;item\", and \"Third&nbsp;item\""

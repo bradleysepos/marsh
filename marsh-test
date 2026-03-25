@@ -179,6 +179,27 @@ function marsh_test_create_minimal_template {
     printf '%s\n' 'body { color: black; }' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/css/site.css" || return 1
 }
 
+function marsh_test_create_archive_template {
+    local TEMPLATES_DIR TEMPLATE_NAME
+
+    TEMPLATES_DIR="${1:-}"
+    TEMPLATE_NAME="${2:-}"
+    [[ "${TEMPLATES_DIR}" == "" ]] && return 1
+    [[ "${TEMPLATE_NAME}" == "" ]] && return 1
+    mkdir -p "${TEMPLATES_DIR}/${TEMPLATE_NAME}/partials" || return 1
+    printf '%s\n' \
+        '---' \
+        'Template:' \
+        '  Partials:' \
+        '    Base: partials/base.html' \
+        '    Archive_HTML_Body: partials/archive-body.html' \
+        '    Archive_HTML_Document: partials/archive-document.html' \
+        '...' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/template.yaml" || return 1
+    printf '%s\n' '<!DOCTYPE html>' '<html><body>{{ template.body }}</body></html>' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/partials/base.html" || return 1
+    printf '%s\n' '{{ subdocuments }}' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/partials/archive-body.html" || return 1
+    printf '%s\n' '{{ document }}' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/partials/archive-document.html" || return 1
+}
+
 function marsh_test_group {
     local FUNCTION_NAME="${1}" ERRORS TEST_ID RES
     ERRORS=0
@@ -603,7 +624,7 @@ function marsh_test {
             CANONICAL_META=$(sed -n -e '/^Page:/p' -e '/^Page_Total:/p' -e '/^Page_Size:/p' -e '/^Page_Subdocuments_Total:/p' -e '/^Archive_Subdocuments_Total:/p' -e '/^Page_URI:/p' -e '/^Page_Canonical_URI:/p' -e '/^Page_Next_URI:/p' -e '/^Page_Last_URI:/p' "${TARGET_DIR}/index.markdown")
             ALIAS_META=$(sed -n -e '/^Page:/p' -e '/^Page_URI:/p' -e '/^Page_Canonical_URI:/p' -e '/^Page_Next_URI:/p' "${TARGET_DIR}/page/1/index.markdown")
             PAGE_META=$(sed -n -e '/^Page:/p' -e '/^Page_Total:/p' -e '/^Page_Subdocuments_Total:/p' -e '/^Archive_Subdocuments_Total:/p' -e '/^Page_Prev_URI:/p' -e '/^Page_Last_URI:/p' "${TARGET_DIR}/page/2/index.markdown")
-            TEST="$([[ "${ARCHIVE_PAGES}" == "index.markdown"$'\n'"page/1/index.markdown"$'\n'"page/2/index.markdown" ]] && [[ "${CANONICAL_META}" == "Page: 1"$'\n'"Page_Total: 2"$'\n'"Page_Size: 2"$'\n'"Page_Subdocuments_Total: 2"$'\n'"Archive_Subdocuments_Total: 3"$'\n'"Page_URI: ${BASE_URI}/index.html"$'\n'"Page_Canonical_URI: ${BASE_URI}/index.html"$'\n'"Page_Next_URI: ${BASE_URI}/page/2/index.html"$'\n'"Page_Last_URI: ${BASE_URI}/page/2/index.html" ]] && [[ "${ALIAS_META}" == "Page: 1"$'\n'"Page_URI: ${BASE_URI}/page/1/index.html"$'\n'"Page_Canonical_URI: ${BASE_URI}/index.html"$'\n'"Page_Next_URI: ${BASE_URI}/page/2/index.html" ]] && [[ "${PAGE_META}" == "Page: 2"$'\n'"Page_Total: 2"$'\n'"Page_Subdocuments_Total: 1"$'\n'"Archive_Subdocuments_Total: 3"$'\n'"Page_Prev_URI: ${BASE_URI}/index.html"$'\n'"Page_Last_URI: ${BASE_URI}/page/2/index.html" ]] && [[ -e "${TARGET_DIR}/index.markdown.${MARSH_UID}.subdocuments.0.document" ]] && [[ -e "${TARGET_DIR}/index.markdown.${MARSH_UID}.subdocuments.1.document" ]] && [[ -e "${TARGET_DIR}/page/1/index.markdown.${MARSH_UID}.subdocuments.0.document" ]] && [[ -e "${TARGET_DIR}/page/1/index.markdown.${MARSH_UID}.subdocuments.1.document" ]] && [[ -e "${TARGET_DIR}/page/2/index.markdown.${MARSH_UID}.subdocuments.0.document" ]] && [[ ! -e "${TARGET_DIR}/page/2/index.markdown.${MARSH_UID}.subdocuments.1.document" ]]; printf '%s' "$?")"
+            TEST="$([[ "${ARCHIVE_PAGES}" == "index.markdown"$'\n'"page/1/index.markdown"$'\n'"page/2/index.markdown" ]] && [[ "${CANONICAL_META}" == "Page: 1"$'\n'"Page_Total: 2"$'\n'"Page_Size: 2"$'\n'"Page_Subdocuments_Total: 2"$'\n'"Archive_Subdocuments_Total: 3"$'\n'"Page_URI: ${BASE_URI}/index.html"$'\n'"Page_Canonical_URI: ${BASE_URI}/index.html"$'\n'"Page_Next_URI: ${BASE_URI}/page/2/index.html"$'\n'"Page_Last_URI: ${BASE_URI}/page/2/index.html" ]] && [[ "${ALIAS_META}" == "Page: 1"$'\n'"Page_URI: ${BASE_URI}/page/1/index.html"$'\n'"Page_Canonical_URI: ${BASE_URI}/index.html"$'\n'"Page_Next_URI: ${BASE_URI}/page/2/index.html" ]] && [[ "${PAGE_META}" == "Page: 2"$'\n'"Page_Total: 2"$'\n'"Page_Subdocuments_Total: 1"$'\n'"Archive_Subdocuments_Total: 3"$'\n'"Page_Prev_URI: ${BASE_URI}/index.html"$'\n'"Page_Last_URI: ${BASE_URI}/page/2/index.html" ]] && [[ -e "${TARGET_DIR}/index.markdown.${MARSH_UID}.subdocuments.manifest" ]] && [[ -e "${TARGET_DIR}/page/1/index.markdown.${MARSH_UID}.subdocuments.manifest" ]] && [[ -e "${TARGET_DIR}/page/2/index.markdown.${MARSH_UID}.subdocuments.manifest" ]] && [[ ! -e "${TARGET_DIR}/index.markdown.${MARSH_UID}.subdocuments.0.document" ]] && [[ ! -e "${TARGET_DIR}/page/2/index.markdown.${MARSH_UID}.subdocuments.0.document" ]]; printf '%s' "$?")"
             EXPECTED="0"
             rm -rf "${TARGET_DIR}"
             MARSH_UID="${MARSH_OUID}"
@@ -664,7 +685,7 @@ function marsh_test {
             marsh_test_create_archive_document "${TARGET_DIR}" "news/2026/01/01/01-draft.markdown" "${MARSH_UID}" "post" "Draft" "2026-01-01" "draft"
             ARCHIVE_PAGES=$(marsh_build_archive "html" "${TARGET_DIR}" "index.markdown" "Archive" "English" "en" "" "2" "1" "post" "1" "draft")
             CANONICAL_META=$(sed -n -e '/^Page:/p' -e '/^Page_Total:/p' -e '/^Page_Subdocuments_Total:/p' -e '/^Archive_Subdocuments_Total:/p' -e '/^Page_Has_Subdocuments:/p' "${TARGET_DIR}/index.markdown")
-            TEST="$([[ "${ARCHIVE_PAGES}" == "index.markdown"$'\n'"page/1/index.markdown" ]] && [[ "${CANONICAL_META}" == "Page: 1"$'\n'"Page_Total: 1"$'\n'"Page_Subdocuments_Total: 0"$'\n'"Archive_Subdocuments_Total: 0"$'\n'"Page_Has_Subdocuments: false" ]] && [[ -e "${TARGET_DIR}/page/1/index.markdown" ]] && [[ ! -e "${TARGET_DIR}/index.markdown.${MARSH_UID}.subdocuments.0.document" ]]; printf '%s' "$?")"
+            TEST="$([[ "${ARCHIVE_PAGES}" == "index.markdown"$'\n'"page/1/index.markdown" ]] && [[ "${CANONICAL_META}" == "Page: 1"$'\n'"Page_Total: 1"$'\n'"Page_Subdocuments_Total: 0"$'\n'"Archive_Subdocuments_Total: 0"$'\n'"Page_Has_Subdocuments: false" ]] && [[ -e "${TARGET_DIR}/page/1/index.markdown" ]] && [[ ! -e "${TARGET_DIR}/index.markdown.${MARSH_UID}.subdocuments.manifest" ]] && [[ ! -e "${TARGET_DIR}/index.markdown.${MARSH_UID}.subdocuments.0.document" ]]; printf '%s' "$?")"
             EXPECTED="0"
             rm -rf "${TARGET_DIR}"
             MARSH_UID="${MARSH_OUID}"
@@ -867,6 +888,55 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
+        marsh_build_template:0)
+            TEST_NAME+=":archive_subdocument_tags_from_manifest"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            MARSH_OUID="${MARSH_UID:-}"
+            MARSH_UID="archiveuid"
+            MARSH_OTEMP="${MARSH_TEMP:-}"
+            MARSH_TEMP="${MARSH_TEST_TEMP}"
+            MARSH_OCONFIG_PATH="${MARSH_CONFIG_PATH:-}"
+            MARSH_CONFIG_PATH="${MARSH_TEST_TEMP}"
+            MARSH_OCONFIG_URL="${MARSH_CONFIG_URL:-}"
+            MARSH_CONFIG_URL="https://example.test"
+            mkdir -p "${TARGET_DIR}/news"
+            marsh_test_create_archive_template "${TEMPLATE_DIR}" "sample"
+            printf '%s\n' '{{ document.title }}' '{{ document.uri }}' '{{ document.abspath }}' > "${TARGET_DIR}/news/item.markdown.${MARSH_UID}.document"
+            printf '%s\n' \
+                '---' \
+                'Type: post' \
+                'Title: Tagged Item' \
+                'Date: 2026-01-01' \
+                '...' > "${TARGET_DIR}/news/item.markdown.${MARSH_UID}.meta.yaml"
+            ARCHIVE_PAGES=$(marsh_build_archive "html" "${TARGET_DIR}" "index.markdown" "Archive" "English" "en" "" "2" "1" "post" "0")
+            TEST=""
+            if [[ "${ARCHIVE_PAGES}" == "index.markdown"$'\n'"page/1/index.markdown" ]] \
+                && marsh_build_document "${TARGET_DIR}" "." "index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" >/dev/null 2>&1 \
+                && marsh_build_template "${TARGET_DIR}" "." "index.markdown" "" "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1; then
+                TEST=$(<"${TARGET_DIR}/index.html")
+            fi
+            EXPECTED="0"
+            if [[ "${TEST}" == *"Tagged Item"* ]] \
+                && [[ "${TEST}" == *"https://example.test/$(basename "${TARGET_DIR}")/news/item.html"* ]] \
+                && [[ "${TEST}" == *"https://example.test/$(basename "${TARGET_DIR}")/news"* ]]; then
+                TEST="0"
+            else
+                TEST="1"
+            fi
+            rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}"
+            MARSH_UID="${MARSH_OUID}"
+            [[ "${MARSH_UID}" == "" ]] && unset MARSH_UID
+            MARSH_TEMP="${MARSH_OTEMP}"
+            [[ "${MARSH_TEMP}" == "" ]] && unset MARSH_TEMP
+            MARSH_CONFIG_PATH="${MARSH_OCONFIG_PATH}"
+            [[ "${MARSH_CONFIG_PATH}" == "" ]] && unset MARSH_CONFIG_PATH
+            MARSH_CONFIG_URL="${MARSH_OCONFIG_URL}"
+            [[ "${MARSH_CONFIG_URL}" == "" ]] && unset MARSH_CONFIG_URL
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
         marsh_get_files:0)
             TEST_NAME+=":file"
             SOURCE_FILE="${TEST_TEMP_PREFIX}.source.txt"
@@ -966,6 +1036,22 @@ function marsh_test {
             MARSH_UID="testuid"
             TEST=$(marsh_get_subdocuments "${DOCUMENT_FILE}")
             EXPECTED=""
+            MARSH_UID="${MARSH_OUID}"
+            [[ "${MARSH_UID}" == "" ]] && unset MARSH_UID
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_get_subdocuments:2)
+            TEST_NAME+=":manifest"
+            DOCUMENT_FILE="${TEST_TEMP_PREFIX}.document"
+            MARSH_OUID="${MARSH_UID:-}"
+            MARSH_UID="testuid"
+            printf '%q\t%q\t%q\n' '/tmp/source-1.document' 'https://example.test/one' 'https://example.test' > "${DOCUMENT_FILE}.${MARSH_UID}.subdocuments.manifest"
+            printf '%q\t%q\t%q\n' '/tmp/source-2.document' 'https://example.test/two' 'https://example.test' >> "${DOCUMENT_FILE}.${MARSH_UID}.subdocuments.manifest"
+            TEST=$(marsh_get_subdocuments "${DOCUMENT_FILE}")
+            EXPECTED="/tmp/source-1.document"$'\n'"/tmp/source-2.document"
+            rm -f "${DOCUMENT_FILE}.${MARSH_UID}.subdocuments.manifest"
             MARSH_UID="${MARSH_OUID}"
             [[ "${MARSH_UID}" == "" ]] && unset MARSH_UID
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
@@ -2184,6 +2270,7 @@ KNOWN_FUNCTIONS=(
     marsh_build_archive
     marsh_build_archive_manifest
     marsh_build_target
+    marsh_build_template
     marsh_check_dependencies
     marsh_clean_target
     marsh_escape_substitution

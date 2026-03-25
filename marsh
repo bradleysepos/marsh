@@ -1075,10 +1075,21 @@ function marsh_escape_substitution {  # marsh_escape_substitution
 
 # lists archive subdocuments in numeric order
 function marsh_get_subdocuments {  # marsh_get_subdocuments document
-    local DOCUMENT INDEX
+    local DOCUMENT INDEX MANIFEST DOCUMENT_ESC URI_ESC ABSPATH_ESC MANIFEST_DOCUMENT
 
     DOCUMENT="${1:-}"
     [[ "${DOCUMENT}" == "" ]] && return 1
+
+    MANIFEST="${DOCUMENT}.${MARSH_UID}.subdocuments.manifest"
+    if [[ -f "${MANIFEST}" ]] && [[ -r "${MANIFEST}" ]]; then
+        while IFS=$'\t' read -r DOCUMENT_ESC URI_ESC ABSPATH_ESC; do
+            [[ "${DOCUMENT_ESC}" == "" ]] && continue
+            MANIFEST_DOCUMENT=""
+            eval "MANIFEST_DOCUMENT=${DOCUMENT_ESC}"
+            printf '%s\n' "${MANIFEST_DOCUMENT}"
+        done < "${MANIFEST}"
+        return 0
+    fi
 
     INDEX=0
     while [[ -f "${DOCUMENT}.${MARSH_UID}.subdocuments.${INDEX}.document" ]]; do
@@ -1956,7 +1967,7 @@ function marsh_write_archive_page {  # marsh_write_archive_page encoding target_
     local ENCODING TARGET_DIR DEST DEST_SUB_PREFIX DEST_TITLE LANGUAGE LANGCODE PAGINATED
     local PAGE PAGE_TOTAL PAGE_SIZE PAGE_SUBDOCUMENTS_TOTAL ARCHIVE_SUBDOCUMENTS_TOTAL
     local PAGE_URI PAGE_CANONICAL_URI PAGE_FIRST_URI PAGE_PREV_URI PAGE_NEXT_URI PAGE_LAST_URI
-    local NUM_DOCUMENTS DOCUMENTS DOCUMENT_URIS DOCUMENT_ABSPATHS DOCUMENT INDEX URI ABSPATH DEST_SUB
+    local NUM_DOCUMENTS DOCUMENTS DOCUMENT_URIS DOCUMENT_ABSPATHS DOCUMENT INDEX URI ABSPATH DEST_SUB MANIFEST_FILE
     local PAGE_IS_FIRST PAGE_IS_LAST PAGE_HAS_PREV PAGE_HAS_NEXT PAGE_HAS_SUBDOCUMENTS
 
     ENCODING="${1:-}"
@@ -2060,24 +2071,25 @@ function marsh_write_archive_page {  # marsh_write_archive_page encoding target_
     fi
     echo "---" >> "${DEST}"
 
-    # copy only the documents assigned to this page into a page-local subdocument set
-    INDEX=0
-    for DOCUMENT in "${DOCUMENTS[@]}"; do
-        URI="${DOCUMENT_URIS[$INDEX]:-}"
-        ABSPATH="${DOCUMENT_ABSPATHS[$INDEX]:-}"
-        DEST_SUB="${DEST_SUB_PREFIX}.${INDEX}"
-        cp "${TARGET_DIR}/${DOCUMENT}" "${DEST_SUB}.document" >/dev/null 2>&1 || {
-            echo "Unable to copy document file: ${TARGET_DIR}/${DOCUMENT} -> ${DEST_SUB}.document" >&2
+    # create manifest of the subdocuments for this page
+    if [[ "${#DOCUMENTS[@]}" -gt 0 ]]; then
+        MANIFEST_FILE="${DEST_SUB_PREFIX}.manifest"
+        {
+            INDEX=0
+            for DOCUMENT in "${DOCUMENTS[@]}"; do
+                URI="${DOCUMENT_URIS[$INDEX]:-}"
+                ABSPATH="${DOCUMENT_ABSPATHS[$INDEX]:-}"
+                printf '%q\t%q\t%q\n' "${TARGET_DIR}/${DOCUMENT}" "${URI}" "${ABSPATH}" || {
+                    echo "Unable to write archive subdocument manifest: ${MANIFEST_FILE}" >&2
+                    return 1
+                }
+                INDEX=$((INDEX + 1))
+            done
+        } > "${MANIFEST_FILE}" || {
+            echo "Unable to create archive subdocument manifest: ${MANIFEST_FILE}" >&2
             return 1
         }
-        cp "${TARGET_DIR}/${DOCUMENT%.document}.meta.yaml" "${DEST_SUB}.meta.yaml.temp" >/dev/null 2>&1
-        <"${DEST_SUB}.meta.yaml.temp" sed -e '/^\.\.\.$/d' > "${DEST_SUB}.meta.yaml"
-        echo "---" >> "${DEST_SUB}.meta.yaml"
-        echo "ABSPATH: ${ABSPATH}" >> "${DEST_SUB}.meta.yaml"
-        echo "URI: ${URI}" >> "${DEST_SUB}.meta.yaml"
-        echo "..." >> "${DEST_SUB}.meta.yaml"
-        INDEX=$((INDEX + 1))
-    done
+    fi
 
     return 0
 }
@@ -2615,9 +2627,10 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
     local TEMPLATE_BODY_ESC TEMPLATE_DOCUMENT_ESC TEMPLATE_HEADER_ESC TEMPLATE_FOOTER_ESC
     local TEMPLATE_NAV_ESC TEMPLATE_NOTICE_ESC TEMPLATE_SCRIPTS_ESC TEMPLATE_STYLES_ESC TEMPLATE_ADVNAV_ESC
     local DOCUMENT_META DOCUMENT_META_VARS DOCUMENT_CONTENT
-    local SUBDOCUMENTS_LIST SUBDOCUMENTS NUM_SUBDOCUMENTS
-    local SUBDOCUMENT SUBDOCUMENT_CONTENT SUBDOCUMENT_CONTENT_ESC SUBDOCUMENT_META SUBDOCUMENT_META_VARS
-    local SUBDOCUMENT_RENDER SUBDOCUMENT_TEMPLATE
+    local SUBDOCUMENTS_LIST SUBDOCUMENTS SUBDOCUMENT_URIS SUBDOCUMENT_ABSPATHS NUM_SUBDOCUMENTS
+    local SUBDOCUMENT SUBDOCUMENT_SOURCE SUBDOCUMENT_CONTENT SUBDOCUMENT_CONTENT_ESC SUBDOCUMENT_META SUBDOCUMENT_META_VARS
+    local SUBDOCUMENT_RENDER SUBDOCUMENT_TEMPLATE SUBDOCUMENT_RENDER_FILE SUBDOCUMENT_URI SUBDOCUMENT_ABSPATH
+    local SUBDOCUMENT_URI_FROM_MANIFEST SUBDOCUMENT_ABSPATH_FROM_MANIFEST SUBDOCUMENT_DOCUMENT_ESC SUBDOCUMENT_URI_ESC SUBDOCUMENT_ABSPATH_ESC SUBDOCUMENTS_MANIFEST
     local TEXT_FILTER UTIL_JSON_SEPARATOR I J
     local CONDITIONAL_TAG CONDITIONAL_VALUES
     local DOCUMENT_State
@@ -2910,12 +2923,33 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
         replace_tags "${DEST}" "DOCUMENT_" "${DOCUMENT_META_VARS:-}"
 
         # subdocuments
-        SUBDOCUMENTS_LIST=$(marsh_get_subdocuments "${DOCUMENT}")
         SUBDOCUMENTS=()
-        while IFS= read -r SUBDOCUMENT; do
-            [[ "${SUBDOCUMENT}" == "" ]] && continue
-            SUBDOCUMENTS+=("${SUBDOCUMENT}")
-        done <<< "${SUBDOCUMENTS_LIST}"
+        SUBDOCUMENT_URIS=()
+        SUBDOCUMENT_ABSPATHS=()
+        SUBDOCUMENTS_MANIFEST="${DOCUMENT}.${MARSH_UID}.subdocuments.manifest"
+        if [[ -f "${SUBDOCUMENTS_MANIFEST}" ]] && [[ -r "${SUBDOCUMENTS_MANIFEST}" ]]; then
+            SUBDOCUMENTS_LIST=$(<"${SUBDOCUMENTS_MANIFEST}")
+            while IFS=$'\t' read -r SUBDOCUMENT_DOCUMENT_ESC SUBDOCUMENT_URI_ESC SUBDOCUMENT_ABSPATH_ESC; do
+                [[ "${SUBDOCUMENT_DOCUMENT_ESC}" == "" ]] && continue
+                SUBDOCUMENT=""
+                SUBDOCUMENT_URI_FROM_MANIFEST=""
+                SUBDOCUMENT_ABSPATH_FROM_MANIFEST=""
+                eval "SUBDOCUMENT=${SUBDOCUMENT_DOCUMENT_ESC}"
+                eval "SUBDOCUMENT_URI_FROM_MANIFEST=${SUBDOCUMENT_URI_ESC}"
+                eval "SUBDOCUMENT_ABSPATH_FROM_MANIFEST=${SUBDOCUMENT_ABSPATH_ESC}"
+                SUBDOCUMENTS+=("${SUBDOCUMENT}")
+                SUBDOCUMENT_URIS+=("${SUBDOCUMENT_URI_FROM_MANIFEST}")
+                SUBDOCUMENT_ABSPATHS+=("${SUBDOCUMENT_ABSPATH_FROM_MANIFEST}")
+            done <<< "${SUBDOCUMENTS_LIST}"
+        else
+            SUBDOCUMENTS_LIST=$(marsh_get_subdocuments "${DOCUMENT}")
+            while IFS= read -r SUBDOCUMENT; do
+                [[ "${SUBDOCUMENT}" == "" ]] && continue
+                SUBDOCUMENTS+=("${SUBDOCUMENT}")
+                SUBDOCUMENT_URIS+=("")
+                SUBDOCUMENT_ABSPATHS+=("")
+            done <<< "${SUBDOCUMENTS_LIST}"
+        fi
         NUM_SUBDOCUMENTS="${#SUBDOCUMENTS[@]}"
         if [[ "${NUM_SUBDOCUMENTS}" -gt 0 ]]; then
             : > "${DOCUMENT}.${MARSH_UID}.subdocuments" || {
@@ -2924,35 +2958,35 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
             }
             for J in "${!SUBDOCUMENTS[@]}"; do
                 # full path
-                SUBDOCUMENT="${SUBDOCUMENTS[$J]}"
+                SUBDOCUMENT_SOURCE="${SUBDOCUMENTS[$J]}"
+                SUBDOCUMENT_URI=""
+                SUBDOCUMENT_ABSPATH=""
+                SUBDOCUMENT_URI_FROM_MANIFEST="${SUBDOCUMENT_URIS[$J]:-}"
+                SUBDOCUMENT_ABSPATH_FROM_MANIFEST="${SUBDOCUMENT_ABSPATHS[$J]:-}"
+                SUBDOCUMENT_META=""
+                SUBDOCUMENT_META_VARS=""
                 # document metadata
-                if [[ -f "${SUBDOCUMENT%.document}.meta.yaml" ]] && [[ -r "${SUBDOCUMENT%.document}.meta.yaml" ]]; then
+                if [[ -f "${SUBDOCUMENT_SOURCE%.document}.meta.yaml" ]] && [[ -r "${SUBDOCUMENT_SOURCE%.document}.meta.yaml" ]]; then
                     # parse metadata
-                    SUBDOCUMENT_META=$(marsh_parse_yaml "${SUBDOCUMENT%.document}.meta.yaml" "SUBDOCUMENT_")
-                    [[ $? -ne 0 ]] && echo "Unable to parse yaml file: ${SUBDOCUMENT%.document}.meta.yaml" >&2 && return 1
+                    SUBDOCUMENT_META=$(marsh_parse_yaml "${SUBDOCUMENT_SOURCE%.document}.meta.yaml" "SUBDOCUMENT_")
+                    [[ $? -ne 0 ]] && echo "Unable to parse yaml file: ${SUBDOCUMENT_SOURCE%.document}.meta.yaml" >&2 && return 1
                     SUBDOCUMENT_META_VARS=$(echo "${SUBDOCUMENT_META}" | sed -E -e 's/^([^=]+)=.*/\1/')
                     eval "$(printf '%s\n' "${SUBDOCUMENT_META_VARS}" | marsh_get_local_declarations)"
                     eval "${SUBDOCUMENT_META}"
                 fi
+                [[ "${SUBDOCUMENT_URI_FROM_MANIFEST:-}" != "" ]] && SUBDOCUMENT_URI="${SUBDOCUMENT_URI_FROM_MANIFEST}"
+                [[ "${SUBDOCUMENT_ABSPATH_FROM_MANIFEST:-}" != "" ]] && SUBDOCUMENT_ABSPATH="${SUBDOCUMENT_ABSPATH_FROM_MANIFEST}"
                 # state
                 eval $(marsh_flat_to_array "SUBDOCUMENT_State" "SUBDOCUMENT_State_")
-                SUBDOCUMENT_TEMPLATE=$(<"${SUBDOCUMENT}")
+                SUBDOCUMENT_TEMPLATE=$(<"${SUBDOCUMENT_SOURCE}")
                 if [[ "${DOCUMENT_Type}" == "archive-atom" ]]; then
-                    cp "${SUBDOCUMENT}" "${SUBDOCUMENT}.document" || {
-                        echo "Unable to copy archive subdocument: ${SUBDOCUMENT}" >&2
-                        return 1
-                    }
-                    SUBDOCUMENT_CONTENT="${SUBDOCUMENT}.document"
+                    SUBDOCUMENT_CONTENT="${SUBDOCUMENT_SOURCE}"
                     # document template
                     if [[ "${TEMPLATE_Template_Partials_Archive_Atom_Document:-}" != "" ]]; then
                         SUBDOCUMENT_TEMPLATE=$(<"${TEMPLATE_Template_Partials_Archive_Atom_Document}")
                     fi
                 elif [[ "${DOCUMENT_Type}" == "archive-json" ]]; then
-                    cp "${SUBDOCUMENT}" "${SUBDOCUMENT}.document" || {
-                        echo "Unable to copy archive subdocument: ${SUBDOCUMENT}" >&2
-                        return 1
-                    }
-                    SUBDOCUMENT_CONTENT="${SUBDOCUMENT}.document"
+                    SUBDOCUMENT_CONTENT="${SUBDOCUMENT_SOURCE}"
                     # document template
                     if [[ "${TEMPLATE_Template_Partials_Archive_JSON_Document:-}" != "" ]]; then
                         SUBDOCUMENT_TEMPLATE=$(<"${TEMPLATE_Template_Partials_Archive_JSON_Document}")
@@ -2963,11 +2997,15 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                     if [[ "${MARKDOWN_REWRITE_LINKS}" == true ]]; then
                         TEXT_FILTER="links:replace-ext:${MARKDOWN_FILEEXT_CSV}:html"
                     fi
-                    <"${SUBDOCUMENT}" marsh_text_filter ${TEXT_FILTER} | marsh_process_markdown "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" > "${SUBDOCUMENT}.document" || {
-                        echo "Unable to process subdocument markdown: ${SUBDOCUMENT}" >&2
+                    SUBDOCUMENT_CONTENT=$(mktemp "${MARSH_TEMP}/subdocument-content-XXXXXX") || {
+                        echo "Unable to create subdocument render file: ${MARSH_TEMP}/subdocument-content-XXXXXX" >&2
                         return 1
                     }
-                    SUBDOCUMENT_CONTENT="${SUBDOCUMENT}.document"
+                    <"${SUBDOCUMENT_SOURCE}" marsh_text_filter ${TEXT_FILTER} | marsh_process_markdown "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" > "${SUBDOCUMENT_CONTENT}" || {
+                        echo "Unable to process subdocument markdown: ${SUBDOCUMENT_SOURCE}" >&2
+                        rm -f "${SUBDOCUMENT_CONTENT}"
+                        return 1
+                    }
                     # document template
                     if [[ "${DOCUMENT_Type}" == "archive" ]]; then
                         SUBDOCUMENT_TEMPLATE=$(<"${TEMPLATE_Template_Partials_Archive_HTML_Document}")
@@ -2983,16 +3021,27 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                 if [[ "${DOCUMENT_Type}" == "archive-json" ]] && [[ "${J}" -eq $((NUM_SUBDOCUMENTS - 1)) ]]; then
                     SUBDOCUMENT_RENDER=$(printf '%s' "${SUBDOCUMENT_RENDER}" | sed -E -e 's/\{\{[ ]*util.json-separator[ ]*\}\}//g')
                 fi
-                printf '%s\n' "${SUBDOCUMENT_RENDER}" > "${SUBDOCUMENT}" || {
-                    echo "Unable to write rendered subdocument: ${SUBDOCUMENT}" >&2
+                SUBDOCUMENT_RENDER_FILE=$(mktemp "${MARSH_TEMP}/subdocument-render-XXXXXX") || {
+                    [[ "${DOCUMENT_Type}" != "archive-atom" ]] && [[ "${DOCUMENT_Type}" != "archive-json" ]] && rm -f "${SUBDOCUMENT_CONTENT}"
+                    echo "Unable to create rendered subdocument file: ${MARSH_TEMP}/subdocument-render-XXXXXX" >&2
                     return 1
                 }
-                replace_tags "${SUBDOCUMENT}" "SUBDOCUMENT_" "${SUBDOCUMENT_META_VARS:-}" || {
-                    echo "Unable to replace tags in subdocument: ${SUBDOCUMENT}" >&2
+                printf '%s\n' "${SUBDOCUMENT_RENDER}" > "${SUBDOCUMENT_RENDER_FILE}" || {
+                    [[ "${DOCUMENT_Type}" != "archive-atom" ]] && [[ "${DOCUMENT_Type}" != "archive-json" ]] && rm -f "${SUBDOCUMENT_CONTENT}"
+                    rm -f "${SUBDOCUMENT_RENDER_FILE}"
+                    echo "Unable to write rendered subdocument: ${SUBDOCUMENT_SOURCE}" >&2
+                    return 1
+                }
+                replace_tags "${SUBDOCUMENT_RENDER_FILE}" "SUBDOCUMENT_" "${SUBDOCUMENT_META_VARS:-}" || {
+                    [[ "${DOCUMENT_Type}" != "archive-atom" ]] && [[ "${DOCUMENT_Type}" != "archive-json" ]] && rm -f "${SUBDOCUMENT_CONTENT}"
+                    rm -f "${SUBDOCUMENT_RENDER_FILE}"
+                    echo "Unable to replace tags in subdocument: ${SUBDOCUMENT_SOURCE}" >&2
                     return 1
                 }
                 # combine with previous subdocuments
-                cat "${SUBDOCUMENT}" >> "${DOCUMENT}.${MARSH_UID}.subdocuments"
+                cat "${SUBDOCUMENT_RENDER_FILE}" >> "${DOCUMENT}.${MARSH_UID}.subdocuments"
+                [[ "${DOCUMENT_Type}" != "archive-atom" ]] && [[ "${DOCUMENT_Type}" != "archive-json" ]] && rm -f "${SUBDOCUMENT_CONTENT}"
+                rm -f "${SUBDOCUMENT_RENDER_FILE}"
             done
             awk -v subdocuments_file="${DOCUMENT}.${MARSH_UID}.subdocuments" '
             function emit_subdocuments(prefix, suffix, line, first, previous) {

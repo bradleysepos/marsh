@@ -1892,11 +1892,11 @@ function marsh_get_archive_page_uri {  # marsh_get_archive_page_uri target_dir a
 }
 
 # writes a single archive source page and its page-local subdocuments
-function marsh_write_archive_page {  # marsh_write_archive_page encoding target_dir archive_source title language langcode paginated page page_total page_size page_subdocuments_total archive_subdocuments_total current_uri canonical_uri first_uri prev_uri next_uri last_uri #documents[@] documents[@]
+function marsh_write_archive_page {  # marsh_write_archive_page encoding target_dir archive_source title language langcode paginated page page_total page_size page_subdocuments_total archive_subdocuments_total current_uri canonical_uri first_uri prev_uri next_uri last_uri #documents[@] documents[@] document_uris[@] document_abspaths[@]
     local ENCODING TARGET_DIR DEST DEST_SUB_PREFIX DEST_TITLE LANGUAGE LANGCODE PAGINATED
     local PAGE PAGE_TOTAL PAGE_SIZE PAGE_SUBDOCUMENTS_TOTAL ARCHIVE_SUBDOCUMENTS_TOTAL
     local PAGE_URI PAGE_CANONICAL_URI PAGE_FIRST_URI PAGE_PREV_URI PAGE_NEXT_URI PAGE_LAST_URI
-    local NUM_DOCUMENTS DOCUMENTS DOCUMENT INDEX ARCHIVE_META URI ABSPATH DEST_SUB
+    local NUM_DOCUMENTS DOCUMENTS DOCUMENT_URIS DOCUMENT_ABSPATHS DOCUMENT INDEX URI ABSPATH DEST_SUB
     local PAGE_IS_FIRST PAGE_IS_LAST PAGE_HAS_PREV PAGE_HAS_NEXT PAGE_HAS_SUBDOCUMENTS
 
     ENCODING="${1:-}"
@@ -1927,6 +1927,20 @@ function marsh_write_archive_page {  # marsh_write_archive_page encoding target_
     while [[ "${NUM_DOCUMENTS}" -gt 0 ]] && [[ "${#@}" -gt 0 ]]; do
         DOCUMENTS+=("${1}")
         NUM_DOCUMENTS=$((NUM_DOCUMENTS - 1))
+        shift 1
+    done
+    DOCUMENT_URIS=()
+    INDEX=0
+    while [[ "${INDEX}" -lt "${#DOCUMENTS[@]}" ]] && [[ "${#@}" -gt 0 ]]; do
+        DOCUMENT_URIS+=("${1}")
+        INDEX=$((INDEX + 1))
+        shift 1
+    done
+    DOCUMENT_ABSPATHS=()
+    INDEX=0
+    while [[ "${INDEX}" -lt "${#DOCUMENTS[@]}" ]] && [[ "${#@}" -gt 0 ]]; do
+        DOCUMENT_ABSPATHS+=("${1}")
+        INDEX=$((INDEX + 1))
         shift 1
     done
 
@@ -1989,11 +2003,8 @@ function marsh_write_archive_page {  # marsh_write_archive_page encoding target_
     # copy only the documents assigned to this page into a page-local subdocument set
     INDEX=0
     for DOCUMENT in "${DOCUMENTS[@]}"; do
-        URI=""
-        ABSPATH=""
-        ARCHIVE_META=$(marsh_get_archive_metadata "${TARGET_DIR}" "${DOCUMENT}")
-        [[ $? -ne 0 ]] && echo "Unable to load archive metadata: ${TARGET_DIR}/${DOCUMENT%.document}.meta.yaml" >&2 && return 1
-        eval "${ARCHIVE_META}"
+        URI="${DOCUMENT_URIS[$INDEX]:-}"
+        ABSPATH="${DOCUMENT_ABSPATHS[$INDEX]:-}"
         DEST_SUB="${DEST_SUB_PREFIX}.${INDEX}"
         cp "${TARGET_DIR}/${DOCUMENT}" "${DEST_SUB}.document" >/dev/null 2>&1 || {
             echo "Unable to copy document file: ${TARGET_DIR}/${DOCUMENT} -> ${DEST_SUB}.document" >&2
@@ -2016,9 +2027,11 @@ function marsh_build_archive {  # marsh_build_archive encoding target_dir dest_f
     local ENCODING TARGET_DIR DEST DEST_TITLE LANGUAGE LANGCODE
     local COUNT PAGE_SIZE NUM_TYPES TYPES NUM_EXCLUDED_STATES EXCLUDED_STATES
     local VALID DOCUMENTS_LIST DOCUMENTS DOCUMENT TYPE STATE ARCHIVE_META E
-    local VALID_DOCUMENTS PAGINATED PAGE_TOTAL PAGE PAGE_START PAGE_END PAGE_INDEX
-    local PAGE_DOCUMENTS PAGE_SUBDOCUMENTS_TOTAL ARCHIVE_SUBDOCUMENTS_TOTAL
-    local ARCHIVE_PAGES PAGE_DEST PAGE_ALIAS_DEST PAGE_ROOT
+    local URI ABSPATH VALID_DOCUMENTS VALID_DOCUMENT_URIS VALID_DOCUMENT_ABSPATHS
+    local PAGINATED PAGE_TOTAL PAGE PAGE_START PAGE_END PAGE_INDEX PAGE_DOCUMENTS
+    local PAGE_DOCUMENT_URIS PAGE_DOCUMENT_ABSPATHS PAGE_SUBDOCUMENTS_TOTAL
+    local ARCHIVE_PAGES ARCHIVE_SUBDOCUMENTS_TOTAL
+    local PAGE_DEST PAGE_ALIAS_DEST PAGE_ROOT
     local PAGE_URI PAGE_CANONICAL_URI PAGE_FIRST_URI PAGE_PREV_URI PAGE_NEXT_URI PAGE_LAST_URI
     local PAGE_PREV_DEST PAGE_NEXT_DEST PAGE_LAST_DEST
 
@@ -2077,6 +2090,8 @@ function marsh_build_archive {  # marsh_build_archive encoding target_dir dest_f
     DOCUMENTS_LIST=$(cd "${TARGET_DIR}" && find . -name '*.'"${MARSH_UID}"'.document' | sed 's/^\.\///' | sort -nr -t/)
     DOCUMENTS=()
     VALID_DOCUMENTS=()
+    VALID_DOCUMENT_URIS=()
+    VALID_DOCUMENT_ABSPATHS=()
     while IFS= read -r DOCUMENT; do
         [[ "${DOCUMENT}" == "" ]] && continue
         DOCUMENTS+=("${DOCUMENT}")
@@ -2105,6 +2120,8 @@ function marsh_build_archive {  # marsh_build_archive encoding target_dir dest_f
         fi
         VALID=$((VALID + 1))
         VALID_DOCUMENTS+=("${DOCUMENT}")
+        VALID_DOCUMENT_URIS+=("${URI:-}")
+        VALID_DOCUMENT_ABSPATHS+=("${ABSPATH:-}")
     done
 
     # create page set for paginated html archives
@@ -2126,6 +2143,8 @@ function marsh_build_archive {  # marsh_build_archive encoding target_dir dest_f
     fi
     for ((PAGE=1; PAGE<=PAGE_TOTAL; PAGE++)); do
         PAGE_DOCUMENTS=()
+        PAGE_DOCUMENT_URIS=()
+        PAGE_DOCUMENT_ABSPATHS=()
         if [[ "${PAGINATED}" == true ]]; then
             PAGE_START=$(( (PAGE - 1) * PAGE_SIZE ))
             PAGE_END=$(( PAGE_START + PAGE_SIZE - 1 ))
@@ -2138,6 +2157,8 @@ function marsh_build_archive {  # marsh_build_archive encoding target_dir dest_f
                 continue
             fi
             PAGE_DOCUMENTS+=("${VALID_DOCUMENTS[$PAGE_INDEX]}")
+            PAGE_DOCUMENT_URIS+=("${VALID_DOCUMENT_URIS[$PAGE_INDEX]}")
+            PAGE_DOCUMENT_ABSPATHS+=("${VALID_DOCUMENT_ABSPATHS[$PAGE_INDEX]}")
         done
         PAGE_SUBDOCUMENTS_TOTAL="${#PAGE_DOCUMENTS[@]}"
 
@@ -2181,7 +2202,9 @@ function marsh_build_archive {  # marsh_build_archive encoding target_dir dest_f
                 "${PAGE_NEXT_URI}" \
                 "${PAGE_LAST_URI}" \
                 "${#PAGE_DOCUMENTS[@]}" \
-                "${PAGE_DOCUMENTS[@]}" || return 1
+                "${PAGE_DOCUMENTS[@]}" \
+                "${PAGE_DOCUMENT_URIS[@]}" \
+                "${PAGE_DOCUMENT_ABSPATHS[@]}" || return 1
         ARCHIVE_PAGES+=("${PAGE_DEST}")
 
         if [[ "${PAGINATED}" == true ]] && [[ "${PAGE}" -eq 1 ]]; then
@@ -2206,7 +2229,9 @@ function marsh_build_archive {  # marsh_build_archive encoding target_dir dest_f
                     "${PAGE_NEXT_URI}" \
                     "${PAGE_LAST_URI}" \
                     "${#PAGE_DOCUMENTS[@]}" \
-                    "${PAGE_DOCUMENTS[@]}" || return 1
+                    "${PAGE_DOCUMENTS[@]}" \
+                    "${PAGE_DOCUMENT_URIS[@]}" \
+                    "${PAGE_DOCUMENT_ABSPATHS[@]}" || return 1
             ARCHIVE_PAGES+=("${PAGE_ALIAS_DEST}")
         fi
     done

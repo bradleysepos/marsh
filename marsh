@@ -1409,6 +1409,66 @@ function marsh_get_archive_metadata {  # marsh_get_archive_metadata target_dir d
     return 0
 }
 
+# builds a sorted archive manifest from cached archive metadata
+function marsh_build_archive_manifest {  # marsh_build_archive_manifest target_dir
+    local TARGET_DIR DOCUMENTS_LIST DOCUMENT TYPE URI ABSPATH STATE
+    local ARCHIVE_META STATE_JOINED OIFS
+
+    TARGET_DIR="${1:-}"
+    [[ "${TARGET_DIR}" == "" ]] && return 1
+
+    DOCUMENTS_LIST=$(cd "${TARGET_DIR}" && find . -name '*.'"${MARSH_UID}"'.document' | sed 's/^\.\///' | sort -nr -t/)
+    while IFS= read -r DOCUMENT; do
+        [[ "${DOCUMENT}" == "" ]] && continue
+        TYPE=""
+        URI=""
+        ABSPATH=""
+        STATE=()
+        ARCHIVE_META=$(marsh_get_archive_metadata "${TARGET_DIR}" "${DOCUMENT}")
+        [[ $? -ne 0 ]] && echo "Unable to load archive metadata: ${TARGET_DIR}/${DOCUMENT%.document}.meta.yaml" >&2 && return 1
+        eval "${ARCHIVE_META}"
+        OIFS="${IFS}"
+        IFS=$(printf '\034')
+        STATE_JOINED="${STATE[*]}"
+        IFS="${OIFS}"
+        printf '%q\t%q\t%q\t%q\t%q\n' "${DOCUMENT}" "${TYPE}" "${URI}" "${ABSPATH}" "${STATE_JOINED}"
+    done <<< "${DOCUMENTS_LIST}"
+
+    return 0
+}
+
+# returns the path to a cached archive manifest, building it where needed
+function marsh_get_archive_manifest {  # marsh_get_archive_manifest target_dir
+    local TARGET_DIR CACHE_DIR CACHE_KEY CACHE_FILE CACHE_TEMP
+
+    TARGET_DIR="${1:-}"
+    [[ "${TARGET_DIR}" == "" ]] && return 1
+
+    CACHE_DIR="${MARSH_TEMP}/archive-manifest-cache"
+    mkdir -p "${CACHE_DIR}" >/dev/null 2>&1 || {
+        echo "Unable to create archive manifest cache directory: ${CACHE_DIR}" >&2
+        return 1
+    }
+    CACHE_KEY=$(printf '%s\034%s\n' "${TARGET_DIR}" "${MARSH_UID}" | marsh_text_filter hash:md5)
+    CACHE_FILE="${CACHE_DIR}/${CACHE_KEY}.manifest"
+    if [[ -f "${CACHE_FILE}" ]] && [[ -r "${CACHE_FILE}" ]]; then
+        printf '%s\n' "${CACHE_FILE}"
+        return 0
+    fi
+
+    CACHE_TEMP=$(mktemp "${CACHE_DIR}/manifest-XXXXXX") || {
+        echo "Unable to create archive manifest cache file: ${CACHE_DIR}/manifest-XXXXXX" >&2
+        return 1
+    }
+    marsh_build_archive_manifest "${TARGET_DIR}" > "${CACHE_TEMP}" && mv "${CACHE_TEMP}" "${CACHE_FILE}" 2>/dev/null || {
+        echo "Unable to build archive manifest: ${TARGET_DIR}" >&2
+        rm -f "${CACHE_TEMP}"
+        return 1
+    }
+    printf '%s\n' "${CACHE_FILE}"
+    return 0
+}
+
 # finds the closest generated advanced navigation file for a document
 function marsh_find_advanced_nav {  # marsh_find_advanced_nav target_dir document navigation_file
     local TARGET_DIR DOCUMENT NAV_FILE DOCUMENT_DIR SEARCH_DIR NAV_PATH
@@ -2023,10 +2083,11 @@ function marsh_write_archive_page {  # marsh_write_archive_page encoding target_
 }
 
 # builds an archive of directory contents, sorted by descending date
-function marsh_build_archive {  # marsh_build_archive encoding target_dir dest_file dest_title language langcode count page_size #types[@] types[@] #excluded_states[@] excluded_states[@]
+function marsh_build_archive {  # marsh_build_archive encoding target_dir dest_file dest_title language langcode count page_size #types[@] types[@] #excluded_states[@] excluded_states[@] archive_manifest
     local ENCODING TARGET_DIR DEST DEST_TITLE LANGUAGE LANGCODE
     local COUNT PAGE_SIZE NUM_TYPES TYPES NUM_EXCLUDED_STATES EXCLUDED_STATES
-    local VALID DOCUMENTS_LIST DOCUMENTS DOCUMENT TYPE STATE ARCHIVE_META E
+    local VALID DOCUMENT TYPE STATE STATE_JOINED OIFS E
+    local ARCHIVE_MANIFEST MANIFEST_DOCUMENT_ESC MANIFEST_TYPE_ESC MANIFEST_URI_ESC MANIFEST_ABSPATH_ESC MANIFEST_STATE_ESC
     local URI ABSPATH VALID_DOCUMENTS VALID_DOCUMENT_URIS VALID_DOCUMENT_ABSPATHS
     local PAGINATED PAGE_TOTAL PAGE PAGE_START PAGE_END PAGE_INDEX PAGE_DOCUMENTS
     local PAGE_DOCUMENT_URIS PAGE_DOCUMENT_ABSPATHS PAGE_SUBDOCUMENTS_TOTAL
@@ -2065,6 +2126,7 @@ function marsh_build_archive {  # marsh_build_archive encoding target_dir dest_f
         NUM_EXCLUDED_STATES=$((NUM_EXCLUDED_STATES - 1 ))
         shift
     done
+    ARCHIVE_MANIFEST="${1:-}"
 
     # sanity check archive count
     if [[ "${COUNT}" != "" ]] && [[ ! "${COUNT}" =~ ^[0-9]+$ ]]; then
@@ -2087,24 +2149,34 @@ function marsh_build_archive {  # marsh_build_archive encoding target_dir dest_f
 
     # complete document set before pagination
     VALID=0
-    DOCUMENTS_LIST=$(cd "${TARGET_DIR}" && find . -name '*.'"${MARSH_UID}"'.document' | sed 's/^\.\///' | sort -nr -t/)
-    DOCUMENTS=()
     VALID_DOCUMENTS=()
     VALID_DOCUMENT_URIS=()
     VALID_DOCUMENT_ABSPATHS=()
-    while IFS= read -r DOCUMENT; do
-        [[ "${DOCUMENT}" == "" ]] && continue
-        DOCUMENTS+=("${DOCUMENT}")
-    done <<< "${DOCUMENTS_LIST}"
-    for DOCUMENT in "${DOCUMENTS[@]}"; do
+    if [[ "${ARCHIVE_MANIFEST}" == "" ]]; then
+        ARCHIVE_MANIFEST=$(marsh_get_archive_manifest "${TARGET_DIR}") || return 1
+    fi
+    while IFS=$'\t' read -r MANIFEST_DOCUMENT_ESC MANIFEST_TYPE_ESC MANIFEST_URI_ESC MANIFEST_ABSPATH_ESC MANIFEST_STATE_ESC; do
+        [[ "${MANIFEST_DOCUMENT_ESC}" == "" ]] && continue
+        DOCUMENT=""
+        TYPE=""
+        URI=""
+        ABSPATH=""
+        STATE_JOINED=""
+        STATE=()
+        eval "DOCUMENT=${MANIFEST_DOCUMENT_ESC}"
+        eval "TYPE=${MANIFEST_TYPE_ESC}"
+        eval "URI=${MANIFEST_URI_ESC}"
+        eval "ABSPATH=${MANIFEST_ABSPATH_ESC}"
+        eval "STATE_JOINED=${MANIFEST_STATE_ESC}"
+        if [[ "${STATE_JOINED}" != "" ]]; then
+            OIFS="${IFS}"
+            IFS=$(printf '\034')
+            STATE=(${STATE_JOINED})
+            IFS="${OIFS}"
+        fi
         if [[ "${COUNT}" != "" ]] && [[ "${VALID}" -ge "${COUNT}" ]]; then
             break
         fi
-        TYPE=""
-        STATE=()
-        ARCHIVE_META=$(marsh_get_archive_metadata "${TARGET_DIR}" "${DOCUMENT}")
-        [[ $? -ne 0 ]] && echo "Unable to load archive metadata: ${TARGET_DIR}/${DOCUMENT%.document}.meta.yaml" >&2 && return 1
-        eval "${ARCHIVE_META}"
         if [[ "${TYPE%%-*}" == "archive" ]]; then
             continue
         fi
@@ -2122,7 +2194,7 @@ function marsh_build_archive {  # marsh_build_archive encoding target_dir dest_f
         VALID_DOCUMENTS+=("${DOCUMENT}")
         VALID_DOCUMENT_URIS+=("${URI:-}")
         VALID_DOCUMENT_ABSPATHS+=("${ABSPATH:-}")
-    done
+    done < "${ARCHIVE_MANIFEST}"
 
     # create page set for paginated html archives
     # create at least one page even where there are no subdocuments
@@ -3277,7 +3349,7 @@ function marsh_cli {
     local MARKDOWN_COMMAND MARKDOWN_OPTIONS MARKDOWN_FILEEXT MARKDOWN_REWRITE_LINKS
     local MARKDOWN_OPTIONS_CSV MARKDOWN_OPTIONS_CLIARGS MARKDOWN_FILEEXT_CSV
     local INDEX PREFIX META META_VARS CONFIG_VARS OIFS I
-    local TARGET_ARCHIVE_TYPES TARGET_ARCHIVE_EXCLUDED_STATES
+    local TARGET_ARCHIVE_TYPES TARGET_ARCHIVE_EXCLUDED_STATES TARGET_ARCHIVE_MANIFEST
     local BUILD_DEST_DIR BUILD_TARGET_DIR BUILD_DOCUMENT BUILD_ADVANCED_NAV
     local BUILD_TEMPLATES_DIR BUILD_TEMPLATE BUILD_NUM_TEMPLATE_OVERRIDES BUILD_TEMPLATE_OVERRIDES
 
@@ -3772,6 +3844,10 @@ function marsh_cli {
                         "${TARGET_TEMPLATE_OVERRIDES[@]}" || die_gracefully
 
             # archives
+            TARGET_ARCHIVE_MANIFEST=""
+            if [[ "${#TARGET_ARCHIVES[@]}" -gt 0 ]]; then
+                TARGET_ARCHIVE_MANIFEST=$(marsh_get_archive_manifest "${MARSH_CONFIG_PATH}/${TARGET_PATH}") || die_gracefully
+            fi
             for I in "${!TARGET_ARCHIVES[@]}"; do
                 if [[ "${TARGET_ARCHIVES[$I]}" != "" ]]; then
                     ARCHIVE_PAGES=()
@@ -3791,7 +3867,8 @@ function marsh_cli {
                                     "${#TARGET_ARCHIVE_TYPES[@]}" \
                                     "${TARGET_ARCHIVE_TYPES[@]}" \
                                     "${#TARGET_ARCHIVE_EXCLUDED_STATES[@]}" \
-                                    "${TARGET_ARCHIVE_EXCLUDED_STATES[@]}")
+                                    "${TARGET_ARCHIVE_EXCLUDED_STATES[@]}" \
+                                    "${TARGET_ARCHIVE_MANIFEST}")
                     if [[ "$?" -ne 0 ]]; then
                         die_gracefully
                     fi

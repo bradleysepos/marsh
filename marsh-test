@@ -444,6 +444,73 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
+        marsh_get_archive_manifest:0)
+            TEST_NAME+=":built"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            MARSH_OUID="${MARSH_UID:-}"
+            MARSH_UID="archiveuid"
+            MARSH_OTEMP="${MARSH_TEMP:-}"
+            MARSH_TEMP="${MARSH_TEST_TEMP}"
+            MARSH_OCONFIG_PATH="${MARSH_CONFIG_PATH:-}"
+            MARSH_CONFIG_PATH="${MARSH_TEST_TEMP}"
+            MARSH_OCONFIG_URL="${MARSH_CONFIG_URL:-}"
+            MARSH_CONFIG_URL="https://example.test"
+            marsh_test_create_archive_document "${TARGET_DIR}" "news/2026/01/02/02-second.markdown" "${MARSH_UID}" "post" "Second" "2026-01-02" "published"
+            TEST=$(marsh_get_archive_manifest "${TARGET_DIR}")
+            EXPECTED="${MARSH_TEST_TEMP}/archive-manifest-cache/$(printf '%s\034%s\n' "${TARGET_DIR}" "${MARSH_UID}" | marsh_text_filter hash:md5).manifest"
+            if [[ "${TEST}" == "${EXPECTED}" ]] && [[ -f "${TEST}" ]]; then
+                TEST="0"
+            else
+                TEST="1"
+            fi
+            rm -rf "${TARGET_DIR}"
+            MARSH_UID="${MARSH_OUID}"
+            [[ "${MARSH_UID}" == "" ]] && unset MARSH_UID
+            MARSH_TEMP="${MARSH_OTEMP}"
+            [[ "${MARSH_TEMP}" == "" ]] && unset MARSH_TEMP
+            MARSH_CONFIG_PATH="${MARSH_OCONFIG_PATH}"
+            [[ "${MARSH_CONFIG_PATH}" == "" ]] && unset MARSH_CONFIG_PATH
+            MARSH_CONFIG_URL="${MARSH_OCONFIG_URL}"
+            [[ "${MARSH_CONFIG_URL}" == "" ]] && unset MARSH_CONFIG_URL
+            EXPECTED="0"
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_get_archive_manifest:1)
+            TEST_NAME+=":cached"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            MARSH_OUID="${MARSH_UID:-}"
+            MARSH_UID="archiveuid"
+            MARSH_OTEMP="${MARSH_TEMP:-}"
+            MARSH_TEMP="${MARSH_TEST_TEMP}"
+            MARSH_OCONFIG_PATH="${MARSH_CONFIG_PATH:-}"
+            MARSH_CONFIG_PATH="${MARSH_TEST_TEMP}"
+            MARSH_OCONFIG_URL="${MARSH_CONFIG_URL:-}"
+            MARSH_CONFIG_URL="https://example.test"
+            marsh_test_create_archive_document "${TARGET_DIR}" "news/2026/01/02/02-second.markdown" "${MARSH_UID}" "post" "Second" "2026-01-02" "published"
+            INDEX_FILE=$(marsh_get_archive_manifest "${TARGET_DIR}")
+            printf '%s\n' 'sentinel' > "${INDEX_FILE}"
+            TEST=$(marsh_get_archive_manifest "${TARGET_DIR}")
+            if [[ "${TEST}" == "${INDEX_FILE}" ]] && [[ "$(<"${TEST}")" == 'sentinel' ]]; then
+                TEST="0"
+            else
+                TEST="1"
+            fi
+            rm -rf "${TARGET_DIR}"
+            MARSH_UID="${MARSH_OUID}"
+            [[ "${MARSH_UID}" == "" ]] && unset MARSH_UID
+            MARSH_TEMP="${MARSH_OTEMP}"
+            [[ "${MARSH_TEMP}" == "" ]] && unset MARSH_TEMP
+            MARSH_CONFIG_PATH="${MARSH_OCONFIG_PATH}"
+            [[ "${MARSH_CONFIG_PATH}" == "" ]] && unset MARSH_CONFIG_PATH
+            MARSH_CONFIG_URL="${MARSH_OCONFIG_URL}"
+            [[ "${MARSH_CONFIG_URL}" == "" ]] && unset MARSH_CONFIG_URL
+            EXPECTED="0"
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
         marsh_get_archive_metadata:0)
             TEST_NAME+=":parsed"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
@@ -521,10 +588,12 @@ function marsh_test {
             TEST_NAME+=":html_pagination"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
             MARSH_OUID="${MARSH_UID:-}"
-            MARSH_OCONFIG_PATH="${MARSH_CONFIG_PATH:-}"
-            MARSH_OCONFIG_URL="${MARSH_CONFIG_URL:-}"
             MARSH_UID="archiveuid"
+            MARSH_OTEMP="${MARSH_TEMP:-}"
+            MARSH_TEMP="${MARSH_TEST_TEMP}"
+            MARSH_OCONFIG_PATH="${MARSH_CONFIG_PATH:-}"
             MARSH_CONFIG_PATH="${MARSH_TEST_TEMP}"
+            MARSH_OCONFIG_URL="${MARSH_CONFIG_URL:-}"
             MARSH_CONFIG_URL="https://example.test"
             marsh_test_create_archive_document "${TARGET_DIR}" "news/2026/01/03/03-third.markdown" "${MARSH_UID}" "post" "Third" "2026-01-03"
             marsh_test_create_archive_document "${TARGET_DIR}" "news/2026/01/02/02-second.markdown" "${MARSH_UID}" "post" "Second" "2026-01-02"
@@ -539,6 +608,8 @@ function marsh_test {
             rm -rf "${TARGET_DIR}"
             MARSH_UID="${MARSH_OUID}"
             [[ "${MARSH_UID}" == "" ]] && unset MARSH_UID
+            MARSH_TEMP="${MARSH_OTEMP}"
+            [[ "${MARSH_TEMP}" == "" ]] && unset MARSH_TEMP
             MARSH_CONFIG_PATH="${MARSH_OCONFIG_PATH}"
             [[ "${MARSH_CONFIG_PATH}" == "" ]] && unset MARSH_CONFIG_PATH
             MARSH_CONFIG_URL="${MARSH_OCONFIG_URL}"
@@ -551,10 +622,12 @@ function marsh_test {
             TEST_NAME+=":html_pagination_count_first"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
             MARSH_OUID="${MARSH_UID:-}"
-            MARSH_OCONFIG_PATH="${MARSH_CONFIG_PATH:-}"
-            MARSH_OCONFIG_URL="${MARSH_CONFIG_URL:-}"
             MARSH_UID="archiveuid"
+            MARSH_OTEMP="${MARSH_TEMP:-}"
+            MARSH_TEMP="${MARSH_TEST_TEMP}"
+            MARSH_OCONFIG_PATH="${MARSH_CONFIG_PATH:-}"
             MARSH_CONFIG_PATH="${MARSH_TEST_TEMP}"
+            MARSH_OCONFIG_URL="${MARSH_CONFIG_URL:-}"
             MARSH_CONFIG_URL="https://example.test"
             marsh_test_create_archive_document "${TARGET_DIR}" "news/2026/01/04/04-fourth.markdown" "${MARSH_UID}" "post" "Fourth" "2026-01-04"
             marsh_test_create_archive_document "${TARGET_DIR}" "news/2026/01/03/03-third.markdown" "${MARSH_UID}" "post" "Third" "2026-01-03"
@@ -567,6 +640,8 @@ function marsh_test {
             rm -rf "${TARGET_DIR}"
             MARSH_UID="${MARSH_OUID}"
             [[ "${MARSH_UID}" == "" ]] && unset MARSH_UID
+            MARSH_TEMP="${MARSH_OTEMP}"
+            [[ "${MARSH_TEMP}" == "" ]] && unset MARSH_TEMP
             MARSH_CONFIG_PATH="${MARSH_OCONFIG_PATH}"
             [[ "${MARSH_CONFIG_PATH}" == "" ]] && unset MARSH_CONFIG_PATH
             MARSH_CONFIG_URL="${MARSH_OCONFIG_URL}"
@@ -579,10 +654,12 @@ function marsh_test {
             TEST_NAME+=":html_zero_subdocuments"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
             MARSH_OUID="${MARSH_UID:-}"
-            MARSH_OCONFIG_PATH="${MARSH_CONFIG_PATH:-}"
-            MARSH_OCONFIG_URL="${MARSH_CONFIG_URL:-}"
             MARSH_UID="archiveuid"
+            MARSH_OTEMP="${MARSH_TEMP:-}"
+            MARSH_TEMP="${MARSH_TEST_TEMP}"
+            MARSH_OCONFIG_PATH="${MARSH_CONFIG_PATH:-}"
             MARSH_CONFIG_PATH="${MARSH_TEST_TEMP}"
+            MARSH_OCONFIG_URL="${MARSH_CONFIG_URL:-}"
             MARSH_CONFIG_URL="https://example.test"
             marsh_test_create_archive_document "${TARGET_DIR}" "news/2026/01/01/01-draft.markdown" "${MARSH_UID}" "post" "Draft" "2026-01-01" "draft"
             ARCHIVE_PAGES=$(marsh_build_archive "html" "${TARGET_DIR}" "index.markdown" "Archive" "English" "en" "" "2" "1" "post" "1" "draft")
@@ -592,6 +669,8 @@ function marsh_test {
             rm -rf "${TARGET_DIR}"
             MARSH_UID="${MARSH_OUID}"
             [[ "${MARSH_UID}" == "" ]] && unset MARSH_UID
+            MARSH_TEMP="${MARSH_OTEMP}"
+            [[ "${MARSH_TEMP}" == "" ]] && unset MARSH_TEMP
             MARSH_CONFIG_PATH="${MARSH_OCONFIG_PATH}"
             [[ "${MARSH_CONFIG_PATH}" == "" ]] && unset MARSH_CONFIG_PATH
             MARSH_CONFIG_URL="${MARSH_OCONFIG_URL}"
@@ -600,14 +679,16 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_build_archive:4)
+        marsh_build_archive:3)
             TEST_NAME+=":html_pagination_named_canonical"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
             MARSH_OUID="${MARSH_UID:-}"
-            MARSH_OCONFIG_PATH="${MARSH_CONFIG_PATH:-}"
-            MARSH_OCONFIG_URL="${MARSH_CONFIG_URL:-}"
             MARSH_UID="archiveuid"
+            MARSH_OTEMP="${MARSH_TEMP:-}"
+            MARSH_TEMP="${MARSH_TEST_TEMP}"
+            MARSH_OCONFIG_PATH="${MARSH_CONFIG_PATH:-}"
             MARSH_CONFIG_PATH="${MARSH_TEST_TEMP}"
+            MARSH_OCONFIG_URL="${MARSH_CONFIG_URL:-}"
             MARSH_CONFIG_URL="https://example.test"
             marsh_test_create_archive_document "${TARGET_DIR}" "news/2026/01/03/03-third.markdown" "${MARSH_UID}" "post" "Third" "2026-01-03"
             marsh_test_create_archive_document "${TARGET_DIR}" "news/2026/01/02/02-second.markdown" "${MARSH_UID}" "post" "Second" "2026-01-02"
@@ -620,6 +701,8 @@ function marsh_test {
             rm -rf "${TARGET_DIR}"
             MARSH_UID="${MARSH_OUID}"
             [[ "${MARSH_UID}" == "" ]] && unset MARSH_UID
+            MARSH_TEMP="${MARSH_OTEMP}"
+            [[ "${MARSH_TEMP}" == "" ]] && unset MARSH_TEMP
             MARSH_CONFIG_PATH="${MARSH_OCONFIG_PATH}"
             [[ "${MARSH_CONFIG_PATH}" == "" ]] && unset MARSH_CONFIG_PATH
             MARSH_CONFIG_URL="${MARSH_OCONFIG_URL}"
@@ -628,14 +711,16 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_build_archive:5)
+        marsh_build_archive:4)
             TEST_NAME+=":html_pagination_cleanup"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
             MARSH_OUID="${MARSH_UID:-}"
-            MARSH_OCONFIG_PATH="${MARSH_CONFIG_PATH:-}"
-            MARSH_OCONFIG_URL="${MARSH_CONFIG_URL:-}"
             MARSH_UID="archiveuid"
+            MARSH_OTEMP="${MARSH_TEMP:-}"
+            MARSH_TEMP="${MARSH_TEST_TEMP}"
+            MARSH_OCONFIG_PATH="${MARSH_CONFIG_PATH:-}"
             MARSH_CONFIG_PATH="${MARSH_TEST_TEMP}"
+            MARSH_OCONFIG_URL="${MARSH_CONFIG_URL:-}"
             MARSH_CONFIG_URL="https://example.test"
             marsh_test_create_archive_document "${TARGET_DIR}" "news/2026/01/03/03-third.markdown" "${MARSH_UID}" "post" "Third" "2026-01-03"
             marsh_test_create_archive_document "${TARGET_DIR}" "news/2026/01/02/02-second.markdown" "${MARSH_UID}" "post" "Second" "2026-01-02"
@@ -649,6 +734,39 @@ function marsh_test {
             rm -rf "${TARGET_DIR}"
             MARSH_UID="${MARSH_OUID}"
             [[ "${MARSH_UID}" == "" ]] && unset MARSH_UID
+            MARSH_TEMP="${MARSH_OTEMP}"
+            [[ "${MARSH_TEMP}" == "" ]] && unset MARSH_TEMP
+            MARSH_CONFIG_PATH="${MARSH_OCONFIG_PATH}"
+            [[ "${MARSH_CONFIG_PATH}" == "" ]] && unset MARSH_CONFIG_PATH
+            MARSH_CONFIG_URL="${MARSH_OCONFIG_URL}"
+            [[ "${MARSH_CONFIG_URL}" == "" ]] && unset MARSH_CONFIG_URL
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_build_archive:5)
+            TEST_NAME+=":non_html_ignore_pagination"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            MARSH_OUID="${MARSH_UID:-}"
+            MARSH_UID="archiveuid"
+            MARSH_OTEMP="${MARSH_TEMP:-}"
+            MARSH_TEMP="${MARSH_TEST_TEMP}"
+            MARSH_OCONFIG_PATH="${MARSH_CONFIG_PATH:-}"
+            MARSH_CONFIG_PATH="${MARSH_TEST_TEMP}"
+            MARSH_OCONFIG_URL="${MARSH_CONFIG_URL:-}"
+            MARSH_CONFIG_URL="https://example.test"
+            marsh_test_create_archive_document "${TARGET_DIR}" "news/2026/01/03/03-third.markdown" "${MARSH_UID}" "post" "Third" "2026-01-03"
+            marsh_test_create_archive_document "${TARGET_DIR}" "news/2026/01/02/02-second.markdown" "${MARSH_UID}" "post" "Second" "2026-01-02"
+            marsh_test_create_archive_document "${TARGET_DIR}" "news/2026/01/01/01-first.markdown" "${MARSH_UID}" "post" "First" "2026-01-01"
+            ARCHIVE_PAGES=$(marsh_build_archive "atom" "${TARGET_DIR}" "feed.xml" "Archive" "English" "en" "" "2" "1" "post" "0" 2>/dev/null)
+            CANONICAL_META=$(sed -n -e '/^Type:/p' -e '/^Paginated:/p' "${TARGET_DIR}/feed.xml")
+            TEST="$([[ "${ARCHIVE_PAGES}" == "feed.xml" ]] && [[ "${CANONICAL_META}" == "Type: archive-atom" ]] && [[ -e "${TARGET_DIR}/feed.xml" ]] && [[ ! -e "${TARGET_DIR}/page/1/index.xml" ]] && [[ ! -d "${TARGET_DIR}/page" ]]; printf '%s' "$?")"
+            EXPECTED="0"
+            rm -rf "${TARGET_DIR}"
+            MARSH_UID="${MARSH_OUID}"
+            [[ "${MARSH_UID}" == "" ]] && unset MARSH_UID
+            MARSH_TEMP="${MARSH_OTEMP}"
+            [[ "${MARSH_TEMP}" == "" ]] && unset MARSH_TEMP
             MARSH_CONFIG_PATH="${MARSH_OCONFIG_PATH}"
             [[ "${MARSH_CONFIG_PATH}" == "" ]] && unset MARSH_CONFIG_PATH
             MARSH_CONFIG_URL="${MARSH_OCONFIG_URL}"
@@ -658,21 +776,48 @@ function marsh_test {
             fi
             ;;
         marsh_build_archive:6)
-            TEST_NAME+=":non_html_ignore_pagination"
+            TEST_NAME+=":manifest"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            MANIFEST_FILE="${TEST_TEMP_PREFIX}.archive-manifest"
             MARSH_OUID="${MARSH_UID:-}"
-            MARSH_OCONFIG_PATH="${MARSH_CONFIG_PATH:-}"
-            MARSH_OCONFIG_URL="${MARSH_CONFIG_URL:-}"
             MARSH_UID="archiveuid"
+            MARSH_OCONFIG_PATH="${MARSH_CONFIG_PATH:-}"
             MARSH_CONFIG_PATH="${MARSH_TEST_TEMP}"
+            MARSH_OCONFIG_URL="${MARSH_CONFIG_URL:-}"
             MARSH_CONFIG_URL="https://example.test"
             marsh_test_create_archive_document "${TARGET_DIR}" "news/2026/01/03/03-third.markdown" "${MARSH_UID}" "post" "Third" "2026-01-03"
             marsh_test_create_archive_document "${TARGET_DIR}" "news/2026/01/02/02-second.markdown" "${MARSH_UID}" "post" "Second" "2026-01-02"
             marsh_test_create_archive_document "${TARGET_DIR}" "news/2026/01/01/01-first.markdown" "${MARSH_UID}" "post" "First" "2026-01-01"
-            ARCHIVE_PAGES=$(marsh_build_archive "atom" "${TARGET_DIR}" "feed.xml" "Archive" "English" "en" "" "2" "1" "post" "0" 2>/dev/null)
-            CANONICAL_META=$(sed -n -e '/^Type:/p' -e '/^Paginated:/p' "${TARGET_DIR}/feed.xml")
-            TEST="$([[ "${ARCHIVE_PAGES}" == "feed.xml" ]] && [[ "${CANONICAL_META}" == "Type: archive-atom" ]] && [[ -e "${TARGET_DIR}/feed.xml" ]] && [[ ! -e "${TARGET_DIR}/page/1/index.xml" ]] && [[ ! -d "${TARGET_DIR}/page" ]]; printf '%s' "$?")"
+            marsh_build_archive_manifest "${TARGET_DIR}" > "${MANIFEST_FILE}"
+            ARCHIVE_PAGES=$(marsh_build_archive "html" "${TARGET_DIR}" "index.markdown" "Archive" "English" "en" "" "2" "1" "post" "0" "${MANIFEST_FILE}")
+            PAGE_META=$(sed -n -e '/^Page:/p' -e '/^Page_Total:/p' -e '/^Page_Subdocuments_Total:/p' -e '/^Archive_Subdocuments_Total:/p' "${TARGET_DIR}/page/2/index.markdown")
+            TEST="$([[ "${ARCHIVE_PAGES}" == "index.markdown"$'\n'"page/1/index.markdown"$'\n'"page/2/index.markdown" ]] && [[ "${PAGE_META}" == "Page: 2"$'\n'"Page_Total: 2"$'\n'"Page_Subdocuments_Total: 1"$'\n'"Archive_Subdocuments_Total: 3" ]] && [[ -e "${MANIFEST_FILE}" ]]; printf '%s' "$?")"
             EXPECTED="0"
+            rm -rf "${TARGET_DIR}" "${MANIFEST_FILE}"
+            MARSH_UID="${MARSH_OUID}"
+            [[ "${MARSH_UID}" == "" ]] && unset MARSH_UID
+            MARSH_CONFIG_PATH="${MARSH_OCONFIG_PATH}"
+            [[ "${MARSH_CONFIG_PATH}" == "" ]] && unset MARSH_CONFIG_PATH
+            MARSH_CONFIG_URL="${MARSH_OCONFIG_URL}"
+            [[ "${MARSH_CONFIG_URL}" == "" ]] && unset MARSH_CONFIG_URL
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_build_archive_manifest:0)
+            TEST_NAME+=":build"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            MARSH_OUID="${MARSH_UID:-}"
+            MARSH_UID="archiveuid"
+            MARSH_OCONFIG_PATH="${MARSH_CONFIG_PATH:-}"
+            MARSH_CONFIG_PATH="${MARSH_TEST_TEMP}"
+            MARSH_OCONFIG_URL="${MARSH_CONFIG_URL:-}"
+            MARSH_CONFIG_URL="https://example.test"
+            SEP=$(printf '\034')
+            marsh_test_create_archive_document "${TARGET_DIR}" "news/2026/01/02/02-second.markdown" "${MARSH_UID}" "post" "Second" "2026-01-02" "published"
+            marsh_test_create_archive_document "${TARGET_DIR}" "news/2026/01/01/01-first.markdown" "${MARSH_UID}" "note" "First" "2026-01-01"
+            TEST=$(marsh_build_archive_manifest "${TARGET_DIR}")
+            EXPECTED="$(printf '%q\t%q\t%q\t%q\t%q\n' "news/2026/01/02/02-second.markdown.${MARSH_UID}.document" "post" "https://example.test/$(basename "${TARGET_DIR}")/news/2026/01/02/02-second.html" "https://example.test/$(basename "${TARGET_DIR}")/news/2026/01/02" "published")"$'\n'"$(printf '%q\t%q\t%q\t%q\t%q\n' "news/2026/01/01/01-first.markdown.${MARSH_UID}.document" "note" "https://example.test/$(basename "${TARGET_DIR}")/news/2026/01/01/01-first.html" "https://example.test/$(basename "${TARGET_DIR}")/news/2026/01/01" "")"
             rm -rf "${TARGET_DIR}"
             MARSH_UID="${MARSH_OUID}"
             [[ "${MARSH_UID}" == "" ]] && unset MARSH_UID
@@ -2037,6 +2182,7 @@ function marsh_test {
 source "${MARSH}"
 KNOWN_FUNCTIONS=(
     marsh_build_archive
+    marsh_build_archive_manifest
     marsh_build_target
     marsh_check_dependencies
     marsh_clean_target
@@ -2044,6 +2190,7 @@ KNOWN_FUNCTIONS=(
     marsh_extract_frontmatter
     marsh_find_advanced_nav
     marsh_flat_to_array
+    marsh_get_archive_manifest
     marsh_get_archive_metadata
     marsh_get_files
     marsh_get_local_declarations

@@ -34,6 +34,13 @@ Build:
           Path:     index.markdown
           #Encoding: html
           #Count:    10
+          Page_Size: 10
+          Types:    [ news ]
+          Exclude_States: [ draft ]
+        - Name:     Marsh Example News Archive
+          Path:     all/index.markdown
+          #Encoding: html
+          #Count:    10
           Types:    [ news ]
           Exclude_States: [ draft ]
         - Name:     Marsh Example News

@@ -1,8 +1,42 @@
 <section class="{{ document.type }}">
     {{ template.styles }}
     {{ template.header }}
-    {{ document }}
+
+    <h1>{{ document.title }}</h1>
+
+    {% if document.page-has-subdocuments is not "true" %}
+    <p class="archive-empty">Nothing to see here.</p>
+    {% endif %}
+
+    {% if document.paginated is "true" %}
+    <nav class="archive-pagination archive-pagination-top">
+        <p>Page {{ document.page }} of {{ document.page-total }}.
+            {% if document.page-has-prev is "true" %}
+            <a href="{{ document.page-prev-uri }}">&larr; Previous Page</a>
+            {% endif %}
+            {% if document.page-has-next is "true" %}
+            <a href="{{ document.page-next-uri }}">Next Page &rarr;</a>
+            {% endif %}
+        </p>
+    </nav><!-- end nav.archive-pagination.archive-pagination-top -->
+    {% endif %}
+
     {{ subdocuments }}
+
+    {% if document.paginated is "true" %}
+    <nav class="archive-pagination archive-pagination-bottom">
+        <p>Page {{ document.page }} of {{ document.page-total }}.
+            {% if document.page-has-prev is "true" %}
+            <a href="{{ document.page-prev-uri }}">&larr; Previous Page</a>
+            {% endif %}
+            {% if document.page-has-next is "true" %}
+            <a href="{{ document.page-next-uri }}">Next Page &rarr;</a>
+            {% endif %}
+        </p>
+        <p>Showing {{ document.page-subdocuments-total }} of {{ document.archive-subdocuments-total }} items.</p>
+    </nav><!-- end nav.archive-pagination.archive-pagination-bottom -->
+    {% endif %}
+
     {{ template.footer }}
     {{ template.scripts }}
 </section><!-- end section.{{ document.type }} -->

@@ -156,6 +156,29 @@ function marsh_test_create_archive_document {
     fi
 }
 
+function marsh_test_create_minimal_template {
+    local TEMPLATES_DIR TEMPLATE_NAME
+
+    TEMPLATES_DIR="${1:-}"
+    TEMPLATE_NAME="${2:-}"
+    [[ "${TEMPLATES_DIR}" == "" ]] && return 1
+    [[ "${TEMPLATE_NAME}" == "" ]] && return 1
+    mkdir -p "${TEMPLATES_DIR}/${TEMPLATE_NAME}/partials" "${TEMPLATES_DIR}/${TEMPLATE_NAME}/css" || return 1
+    printf '%s\n' \
+        '---' \
+        'Template:' \
+        '  Partials:' \
+        '    Base: partials/base.html' \
+        '    Body: partials/body.html' \
+        '  Assets:' \
+        '    Styles:' \
+        '      - css/site.css' \
+        '...' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/template.yaml" || return 1
+    printf '%s\n' '<!DOCTYPE html>' '<html><head>{{ template.styles }}</head><body>{{ template.body }}</body></html>' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/partials/base.html" || return 1
+    printf '%s\n' '{{ document }}' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/partials/body.html" || return 1
+    printf '%s\n' 'body { color: black; }' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/css/site.css" || return 1
+}
+
 function marsh_test_group {
     local FUNCTION_NAME="${1}" ERRORS TEST_ID RES
     ERRORS=0
@@ -657,6 +680,44 @@ function marsh_test {
             [[ "${MARSH_CONFIG_PATH}" == "" ]] && unset MARSH_CONFIG_PATH
             MARSH_CONFIG_URL="${MARSH_OCONFIG_URL}"
             [[ "${MARSH_CONFIG_URL}" == "" ]] && unset MARSH_CONFIG_URL
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_build_target:0)
+            TEST_NAME+=":copy_assets"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            MARSH_OTEMP="${MARSH_TEMP:-}"
+            MARSH_TEMP="${MARSH_TEST_TEMP}"
+            mkdir -p "${TARGET_DIR}"
+            marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
+            printf '%s\n' '---' 'Title: Example' '...' '' '# Example' > "${TARGET_DIR}/index.markdown"
+            TEST=$(marsh_build_target "${TARGET_DIR}" "./index.markdown" "1" "" "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0)
+            TEST="$([[ "$?" -eq 0 ]] && [[ -e "${TARGET_DIR}/css/site.css" ]] && [[ -e "${TARGET_DIR}/index.html" ]]; printf '%s' "$?")"
+            EXPECTED="0"
+            rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}"
+            MARSH_TEMP="${MARSH_OTEMP}"
+            [[ "${MARSH_TEMP}" == "" ]] && unset MARSH_TEMP
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_build_target:1)
+            TEST_NAME+=":skip_assets"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            MARSH_OTEMP="${MARSH_TEMP:-}"
+            MARSH_TEMP="${MARSH_TEST_TEMP}"
+            mkdir -p "${TARGET_DIR}"
+            marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
+            printf '%s\n' '---' 'Title: Example' '...' '' '# Example' > "${TARGET_DIR}/index.markdown"
+            marsh_build_target "${TARGET_DIR}" "./index.markdown" "1" "" "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 true >/dev/null 2>&1
+            TEST="$([[ -e "${TARGET_DIR}/index.html" ]] && [[ ! -e "${TARGET_DIR}/css/site.css" ]]; printf '%s' "$?")"
+            EXPECTED="0"
+            rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}"
+            MARSH_TEMP="${MARSH_OTEMP}"
+            [[ "${MARSH_TEMP}" == "" ]] && unset MARSH_TEMP
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
@@ -1976,6 +2037,7 @@ function marsh_test {
 source "${MARSH}"
 KNOWN_FUNCTIONS=(
     marsh_build_archive
+    marsh_build_target
     marsh_check_dependencies
     marsh_clean_target
     marsh_escape_substitution

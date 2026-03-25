@@ -3090,10 +3090,10 @@ function marsh_build_document {  # marsh_build_document dest_dir target_dir docu
 }
 
 # builds a target, parallel if possible
-function marsh_build_target {  # marsh_build_target dest_dir target jobs advanced_nav templates_dir template markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links #template_overrides[@] template_overrides[@]
+function marsh_build_target {  # marsh_build_target dest_dir target jobs advanced_nav templates_dir template markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links #template_overrides[@] template_overrides[@] skip_template_assets
     local DEST_DIR TARGET JOBS ADVANCED_NAV TEMPLATES_DIR TEMPLATE
     local MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_FILEEXT_REGEX MARKDOWN_REWRITE_LINKS
-    local NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDES
+    local NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDES SKIP_TEMPLATE_ASSETS
     local TEMPLATE_META TEMPLATE_META_VARS TEMPLATE_ASSETS_ALL
     local TARGET_DIR TEMPLATE_PREFIX DOCUMENTS_LIST DOCUMENTS DOCUMENTS_DIR DOCUMENTS_FIND_ARGS FILTERED_DOCUMENTS DOCUMENT
     local PARALLEL PARALLEL_MARKDOWN ASSET
@@ -3127,9 +3127,10 @@ function marsh_build_target {  # marsh_build_target dest_dir target jobs advance
         NUM_TEMPLATE_OVERRIDES=$((NUM_TEMPLATE_OVERRIDES - 1))
         shift 1
     done
+    SKIP_TEMPLATE_ASSETS="${1:-false}"
 
     # copy template assets
-    if [[ "${TEMPLATES_DIR}" != "" ]] && [[ "${TEMPLATE}" != "" ]]; then
+    if [[ "${SKIP_TEMPLATE_ASSETS}" != true ]] && [[ "${TEMPLATES_DIR}" != "" ]] && [[ "${TEMPLATE}" != "" ]]; then
         TEMPLATE_PREFIX="TEMPLATE_"
         TEMPLATE_META=$(marsh_get_template_metadata "${TEMPLATE_PREFIX}" "${TEMPLATES_DIR}/${TEMPLATE}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}")
         if [[ $? -ne 0 ]]; then
@@ -3785,7 +3786,8 @@ function marsh_cli {
                                         "${MARKDOWN_FILEEXT_CSV}" \
                                         "${MARKDOWN_REWRITE_LINKS}" \
                                         "${#TARGET_TEMPLATE_OVERRIDES[@]}" \
-                                        "${TARGET_TEMPLATE_OVERRIDES[@]}"
+                                        "${TARGET_TEMPLATE_OVERRIDES[@]}" \
+                                        true
                         then
                             die_gracefully
                         fi

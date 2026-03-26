@@ -1767,7 +1767,7 @@ function marsh_get_template_metadata {  # marsh_get_template_metadata prefix tem
 # loads target metadata into convenience variables
 function marsh_get_target_metadata {  # marsh_get_target_metadata source_prefix prefix
     local SOURCE_PREFIX PREFIX
-    local TARGET_PATH TARGET_NAME TARGET_SOURCE TARGET_TYPE TARGET_FORCE TARGET_NAV
+    local TARGET_PATH TARGET_NAME TARGET_SOURCE TARGET_FORCE TARGET_NAV
     local II TEMPLATE_SOURCE TEMPLATE_OVERRIDE TEMPLATE_OVERRIDES
     local ARCHIVE ARCHIVE_NAME ARCHIVE_ENCODING ARCHIVE_LANGUAGE ARCHIVE_LANGUAGE_CODE
     local ARCHIVE_COUNT ARCHIVE_PAGE_SIZE ARCHIVE_CONTENT ARCHIVE_TYPES ARCHIVE_EXCLUDED_STATES OIFS
@@ -1781,13 +1781,11 @@ function marsh_get_target_metadata {  # marsh_get_target_metadata source_prefix 
     [[ -z ${!TARGET_PATH+isset} ]] && return 1
     TARGET_NAME="${SOURCE_PREFIX}Name"
     TARGET_SOURCE="${SOURCE_PREFIX}Source"
-    TARGET_TYPE="${SOURCE_PREFIX}Type"
     TARGET_FORCE="${SOURCE_PREFIX}Force"
     TARGET_NAV="${SOURCE_PREFIX}Navigation"
     [[ "${!TARGET_PATH:-}"   != "" ]] && echo "${PREFIX}PATH=\"${!TARGET_PATH//\"/\\\"}\""
     [[ "${!TARGET_NAME:-}"   != "" ]] && echo "${PREFIX}NAME=\"${!TARGET_NAME//\"/\\\"}\""
     [[ "${!TARGET_SOURCE:-}" != "" ]] && echo "${PREFIX}SOURCE=\"${!TARGET_SOURCE//\"/\\\"}\""
-    [[ "${!TARGET_TYPE:-}"   != "" ]] && echo "${PREFIX}TYPE=\"${!TARGET_TYPE//\"/\\\"}\""
     [[ "${!TARGET_NAV:-}"    != "" ]] && echo "${PREFIX}NAV=\"${!TARGET_NAV//\"/\\\"}\""
     [[ "${!TARGET_FORCE:-}"  != "" ]] && echo "${PREFIX}FORCE=\"${!TARGET_FORCE//\"/\\\"}\""
 
@@ -1963,7 +1961,7 @@ function marsh_write_archive_page {  # marsh_write_archive_page encoding target_
     local ENCODING TARGET_DIR DEST DEST_SUB_PREFIX DEST_TITLE LANGUAGE LANGCODE PAGINATED
     local PAGE PAGE_TOTAL PAGE_SIZE PAGE_SUBDOCUMENTS_TOTAL ARCHIVE_SUBDOCUMENTS_TOTAL
     local PAGE_URI PAGE_CANONICAL_URI PAGE_FIRST_URI PAGE_PREV_URI PAGE_NEXT_URI PAGE_LAST_URI
-    local NUM_DOCUMENTS DOCUMENTS DOCUMENT_URIS DOCUMENT_ABSPATHS DOCUMENT INDEX URI ABSPATH DEST_SUB MANIFEST_FILE
+    local NUM_DOCUMENTS DOCUMENTS DOCUMENT_URIS DOCUMENT_ABSPATHS DOCUMENT INDEX URI ABSPATH MANIFEST_FILE
     local PAGE_IS_FIRST PAGE_IS_LAST PAGE_HAS_PREV PAGE_HAS_NEXT PAGE_HAS_SUBDOCUMENTS
 
     ENCODING="${1:-}"

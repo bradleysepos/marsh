@@ -228,7 +228,7 @@ function marsh_test {
     case "${TEST_NAME}" in
         marsh_check_dependencies:0)
             TEST_NAME+=":found"
-            $(marsh_check_dependencies bash)
+            marsh_check_dependencies bash
             TEST=$?
             EXPECTED=0
             if [[ "${TEST}" -eq "${EXPECTED}" ]]; then
@@ -237,7 +237,7 @@ function marsh_test {
             ;;
         marsh_check_dependencies:1)
             TEST_NAME+=":missing"
-            $(marsh_check_dependencies definitely_missing_command_xyz 2>/dev/null)
+            marsh_check_dependencies definitely_missing_command_xyz
             TEST=$?
             EXPECTED=1
             if [[ "${TEST}" -eq "${EXPECTED}" ]]; then
@@ -246,7 +246,7 @@ function marsh_test {
             ;;
         marsh_check_dependencies:2)
             TEST_NAME+=":alternative_found"
-            $(marsh_check_dependencies definitely_missing_command_xyz\|bash)
+            marsh_check_dependencies definitely_missing_command_xyz\|bash
             TEST=$?
             EXPECTED=0
             if [[ "${TEST}" -eq "${EXPECTED}" ]]; then
@@ -310,7 +310,7 @@ function marsh_test {
             ;;
         marsh_clean_target:3)
             TEST_NAME+=":missing_target"
-            $(marsh_clean_target "" "markdown,md" 2>/dev/null)
+            marsh_clean_target "" "markdown,md" 2>/dev/null
             TEST=$?
             EXPECTED=1
             if [[ "${TEST}" -eq "${EXPECTED}" ]]; then
@@ -321,7 +321,7 @@ function marsh_test {
             TEST_NAME+=":missing_extensions"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
             mkdir -p "${TARGET_DIR}"
-            $(marsh_clean_target "${TARGET_DIR}" "" 2>/dev/null)
+            marsh_clean_target "${TARGET_DIR}" "" 2>/dev/null
             TEST=$?
             EXPECTED=1
             rm -rf "${TARGET_DIR}"
@@ -447,7 +447,7 @@ function marsh_test {
             MARSH_OUID="${MARSH_UID:-}"
             MARSH_UID="navtest"
             mkdir -p "${TARGET_DIR}/news"
-            TEST=$(marsh_find_advanced_nav "${TARGET_DIR}" "news/article.markdown" "nav.html" 2>/dev/null)
+            marsh_find_advanced_nav "${TARGET_DIR}" "news/article.markdown" "nav.html" 2>/dev/null
             TEST=$?
             EXPECTED=1
             rm -rf "${TARGET_DIR}"
@@ -595,7 +595,7 @@ function marsh_test {
             MARSH_OUID="${MARSH_UID:-}"
             MARSH_UID="archiveuid"
             mkdir -p "${TARGET_DIR}/news"
-            TEST=$(marsh_get_archive_metadata "${TARGET_DIR}" "news/article.markdown.${MARSH_UID}.document" 2>/dev/null)
+            marsh_get_archive_metadata "${TARGET_DIR}" "news/article.markdown.${MARSH_UID}.document" 2>/dev/null
             TEST=$?
             EXPECTED=1
             rm -rf "${TARGET_DIR}"
@@ -1107,7 +1107,7 @@ function marsh_test {
             ;;
         marsh_get_target_metadata:2)
             TEST_NAME+=":missing"
-            TEST=$(marsh_get_target_metadata "MARSH_TEST_TARGET_MISSING_" "TARGET_" 2>/dev/null)
+            marsh_get_target_metadata "MARSH_TEST_TARGET_MISSING_" "TARGET_" 2>/dev/null
             TEST=$?
             EXPECTED=1
             if [[ "${TEST}" -eq "${EXPECTED}" ]]; then
@@ -1144,7 +1144,7 @@ function marsh_test {
             MARSH_OTEMP="${MARSH_TEMP:-}"
             MARSH_TEMP="${MARSH_TEST_TEMP}"
             mkdir -p "${TEMPLATE_DIR}"
-            TEST=$(marsh_get_template_metadata "TEMPLATE_" "${TEMPLATE_DIR}" 0 2>/dev/null)
+            marsh_get_template_metadata "TEMPLATE_" "${TEMPLATE_DIR}" 0 2>/dev/null
             TEST=$?
             EXPECTED=1
             rm -rf "${TEMPLATE_DIR}"
@@ -1182,7 +1182,7 @@ function marsh_test {
             TEST_NAME+=":true"
             SOURCE_FILE="${TEST_TEMP_PREFIX}.source.markdown"
             printf '%s\n' '---'$'\n''Title: Example'$'\n''---'$'\n\n''Body text' > "${SOURCE_FILE}"
-            $(marsh_has_frontmatter "${SOURCE_FILE}")
+            marsh_has_frontmatter "${SOURCE_FILE}"
             TEST=$?
             EXPECTED=0
             rm -f "${SOURCE_FILE}"
@@ -1194,7 +1194,7 @@ function marsh_test {
             TEST_NAME+=":false"
             SOURCE_FILE="${TEST_TEMP_PREFIX}.source.markdown"
             printf '%s\n' 'Title: Example'$'\n\n''Body text' > "${SOURCE_FILE}"
-            $(marsh_has_frontmatter "${SOURCE_FILE}")
+            marsh_has_frontmatter "${SOURCE_FILE}"
             TEST=$?
             EXPECTED=1
             rm -f "${SOURCE_FILE}"
@@ -1204,7 +1204,7 @@ function marsh_test {
             ;;
         marsh_in_array:0)
             TEST_NAME+=":false"
-            $(marsh_in_array "baz" "foo" "bar")
+            marsh_in_array "baz" "foo" "bar"
             TEST=$?
             EXPECTED=1
             if [[ "${TEST}" -eq "${EXPECTED}" ]]; then
@@ -1213,7 +1213,7 @@ function marsh_test {
             ;;
         marsh_in_array:1)
             TEST_NAME+=":true"
-            $(marsh_in_array "baz" "foo" "bar" "baz")
+            marsh_in_array "baz" "foo" "bar" "baz"
             TEST=$?
             EXPECTED=0
             if [[ "${TEST}" -eq "${EXPECTED}" ]]; then
@@ -1222,7 +1222,7 @@ function marsh_test {
             ;;
         marsh_is_markdown_extension:0)
             TEST_NAME+=":true"
-            $(marsh_is_markdown_extension "MD" "markdown,md")
+            marsh_is_markdown_extension "MD" "markdown,md"
             TEST=$?
             EXPECTED=0
             if [[ "${TEST}" -eq "${EXPECTED}" ]]; then
@@ -1231,7 +1231,7 @@ function marsh_test {
             ;;
         marsh_is_markdown_extension:1)
             TEST_NAME+=":false"
-            $(marsh_is_markdown_extension "txt" "markdown,md")
+            marsh_is_markdown_extension "txt" "markdown,md"
             TEST=$?
             EXPECTED=1
             if [[ "${TEST}" -eq "${EXPECTED}" ]]; then
@@ -1295,7 +1295,7 @@ function marsh_test {
             TEST_NAME+=":missing"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.template"
             mkdir -p "${TEMPLATE_DIR}"
-            TEST=$(marsh_parse_template_metadata "TEMPLATE_" "${TEMPLATE_DIR}" 2>/dev/null)
+            marsh_parse_template_metadata "TEMPLATE_" "${TEMPLATE_DIR}" 2>/dev/null
             TEST=$?
             EXPECTED=1
             rm -rf "${TEMPLATE_DIR}"
@@ -1425,7 +1425,7 @@ function marsh_test {
             ;;
         marsh_resolve_tag_metadata:5)
             TEST_NAME+=":nonexistent"
-            TEST=$(marsh_resolve_tag_metadata "document.foo" "DOCUMENT_" 2>/dev/null)
+            marsh_resolve_tag_metadata "document.foo" "DOCUMENT_" 2>/dev/null
             TEST=$?
             EXPECTED=1
             if [[ "${TEST}" -eq "${EXPECTED}" ]]; then
@@ -1434,7 +1434,7 @@ function marsh_test {
             ;;
         marsh_resolve_tag_metadata:6)
             TEST_NAME+=":ambiguous"
-            TEST=$(marsh_resolve_tag_metadata "document.foo-bar" "DOCUMENT_" "DOCUMENT_Foo_Bar"$'\n'"DOCUMENT_FOO_BAR" 2>/dev/null)
+            marsh_resolve_tag_metadata "document.foo-bar" "DOCUMENT_" "DOCUMENT_Foo_Bar"$'\n'"DOCUMENT_FOO_BAR" 2>/dev/null
             TEST=$?
             EXPECTED=1
             if [[ "${TEST}" -eq "${EXPECTED}" ]]; then

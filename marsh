@@ -3899,50 +3899,42 @@ function marsh_cli {
             fi
             for I in "${!TARGET_ARCHIVES[@]}"; do
                 if [[ "${TARGET_ARCHIVES[$I]}" != "" ]]; then
-                    ARCHIVE_PAGES=()
                     OIFS="${IFS}"
                     IFS=$(echo @|tr @ '\034')
                     TARGET_ARCHIVE_TYPES=(${TARGET_ARCHIVES_TYPES[$I]:-})
                     TARGET_ARCHIVE_EXCLUDED_STATES=(${TARGET_ARCHIVES_EXCLUDED_STATES[$I]:-})
                     IFS="${OIFS}"
-                    GENERATED_ARCHIVES_LIST=$(marsh_build_archive "${TARGET_ARCHIVES_ENCODING[$I]}" \
-                                    "${MARSH_CONFIG_PATH}/${TARGET_PATH}" \
-                                    "${TARGET_ARCHIVES[$I]}" \
-                                    "${TARGET_ARCHIVES_NAME[$I]:-$TARGET_NAME}" \
-                                    "${TARGET_ARCHIVES_LANGUAGE[$I]:-}" \
-                                    "${TARGET_ARCHIVES_LANGUAGE_CODE[$I]:-}" \
-                                    "${TARGET_ARCHIVES_COUNT[$I]}" \
-                                    "${TARGET_ARCHIVES_PAGE_SIZE[$I]}" \
-                                    "${#TARGET_ARCHIVE_TYPES[@]}" \
-                                    "${TARGET_ARCHIVE_TYPES[@]}" \
-                                    "${#TARGET_ARCHIVE_EXCLUDED_STATES[@]}" \
-                                    "${TARGET_ARCHIVE_EXCLUDED_STATES[@]}" \
-                                    "${TARGET_ARCHIVE_MANIFEST}")
-                    if [[ "$?" -ne 0 ]]; then
+                    if ! marsh_build_archive "${TARGET_ARCHIVES_ENCODING[$I]}" \
+                        "${MARSH_CONFIG_PATH}/${TARGET_PATH}" \
+                        "${TARGET_ARCHIVES[$I]}" \
+                        "${TARGET_ARCHIVES_NAME[$I]:-$TARGET_NAME}" \
+                        "${TARGET_ARCHIVES_LANGUAGE[$I]:-}" \
+                        "${TARGET_ARCHIVES_LANGUAGE_CODE[$I]:-}" \
+                        "${TARGET_ARCHIVES_COUNT[$I]}" \
+                        "${TARGET_ARCHIVES_PAGE_SIZE[$I]}" \
+                        "${#TARGET_ARCHIVE_TYPES[@]}" \
+                        "${TARGET_ARCHIVE_TYPES[@]}" \
+                        "${#TARGET_ARCHIVE_EXCLUDED_STATES[@]}" \
+                        "${TARGET_ARCHIVE_EXCLUDED_STATES[@]}" \
+                        "${TARGET_ARCHIVE_MANIFEST}" | while IFS= read -r GENERATED_ARCHIVE; do
+                            [[ "${GENERATED_ARCHIVE}" == "" ]] && continue
+                            marsh_build_target "${MARSH_CONFIG_PATH}" \
+                                "${TARGET_PATH}/${GENERATED_ARCHIVE}" \
+                                "${JOBS}" \
+                                "" \
+                                "${TEMPLATES_DIR}" \
+                                "${TARGET_TEMPLATE:-}" \
+                                "${MARKDOWN_COMMAND}" \
+                                "${MARKDOWN_OPTIONS_CSV}" \
+                                "${MARKDOWN_FILEEXT_CSV}" \
+                                "${MARKDOWN_REWRITE_LINKS}" \
+                                "${#TARGET_TEMPLATE_OVERRIDES[@]}" \
+                                "${TARGET_TEMPLATE_OVERRIDES[@]}" \
+                                true || exit 1
+                        done
+                    then
                         die_gracefully
                     fi
-                    while IFS= read -r GENERATED_ARCHIVE; do
-                        [[ "${GENERATED_ARCHIVE}" == "" ]] && continue
-                        ARCHIVE_PAGES+=("${GENERATED_ARCHIVE}")
-                    done <<< "${GENERATED_ARCHIVES_LIST}"
-                    for GENERATED_ARCHIVE in "${ARCHIVE_PAGES[@]}"; do
-                        if ! marsh_build_target "${MARSH_CONFIG_PATH}" \
-                                        "${TARGET_PATH}/${GENERATED_ARCHIVE}" \
-                                        "${JOBS}" \
-                                        "" \
-                                        "${TEMPLATES_DIR}" \
-                                        "${TARGET_TEMPLATE:-}" \
-                                        "${MARKDOWN_COMMAND}" \
-                                        "${MARKDOWN_OPTIONS_CSV}" \
-                                        "${MARKDOWN_FILEEXT_CSV}" \
-                                        "${MARKDOWN_REWRITE_LINKS}" \
-                                        "${#TARGET_TEMPLATE_OVERRIDES[@]}" \
-                                        "${TARGET_TEMPLATE_OVERRIDES[@]}" \
-                                        true
-                        then
-                            die_gracefully
-                        fi
-                    done
                 fi
             done
 

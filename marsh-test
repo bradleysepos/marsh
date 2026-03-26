@@ -776,6 +776,60 @@ function marsh_test {
             fi
             ;;
         marsh_build_template:0)
+            TEST_NAME+=":nested_conditionals"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            marsh_test_set_env "templateuid" true
+            mkdir -p "${TARGET_DIR}" "${TEMPLATE_DIR}/sample/partials"
+            printf '%s\n' \
+                '---' \
+                'Template:' \
+                '  Partials:' \
+                '    Base: partials/base.html' \
+                '    Body: partials/body.html' \
+                '...' > "${TEMPLATE_DIR}/sample/template.yaml"
+            printf '%s\n' \
+                '<!DOCTYPE html>' \
+                '<html><head>' \
+                '{% if document.type is "archive" %}' \
+                '{% if document.paginated is "true" %}' \
+                '<link rel="canonical" href="{{ document.page-canonical-uri }}" />' \
+                '{% else %}' \
+                '<link rel="canonical" href="{{ document.uri }}" />' \
+                '{% endif %}' \
+                '<title>{{ document.title }}</title>' \
+                '{% else %}' \
+                '<title>{{ document.project }} - {{ document.title }}</title>' \
+                '{% endif %}' \
+                '</head><body>{{ template.body }}</body></html>' > "${TEMPLATE_DIR}/sample/partials/base.html"
+            printf '%s\n' '{{ document }}' > "${TEMPLATE_DIR}/sample/partials/body.html"
+            printf '%s\n' '<p>Home</p>' > "${TARGET_DIR}/index.markdown.${MARSH_UID}.document"
+            printf '%s\n' \
+                '---' \
+                'Type: page' \
+                'Title: Home' \
+                'Project: Example Site' \
+                '...' > "${TARGET_DIR}/index.markdown.${MARSH_UID}.meta.yaml"
+            TEST="1"
+            if marsh_build_template "${TARGET_DIR}" "." "index.markdown" "" "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1; then
+                TEST=$(<"${TARGET_DIR}/index.html")
+                if [[ "${TEST}" == *'<title>Example Site - Home</title>'* ]] \
+                    && [[ "${TEST}" != *'{% else %}'* ]] \
+                    && [[ "${TEST}" != *'{% endif %}'* ]] \
+                    && [[ "${TEST}" != *'document.page-canonical-uri'* ]]; then
+                    TEST="0"
+                else
+                    TEST="1"
+                fi
+            fi
+            EXPECTED="0"
+            rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}"
+            marsh_test_restore_env
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_build_template:1)
             TEST_NAME+=":archive_subdocument_tags_from_manifest"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"

@@ -2327,7 +2327,7 @@ function marsh_build_archive {  # marsh_build_archive encoding target_dir dest_f
 # builds advanced navigation
 function marsh_build_advanced_nav {  # marsh_build_advanced_nav target_dir navigation_file markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links
     local TARGET_DIR NAV_FILE MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_REWRITE_LINKS
-    local NAV_TARGETS_LIST NAV_TARGETS NAV_TARGET NAV_DEST TEXT_FILTER
+    local NAV_TARGETS_LIST NAV_TARGET NAV_DEST TEXT_FILTER
 
     # init
     TARGET_DIR="${1:-}"
@@ -2343,12 +2343,8 @@ function marsh_build_advanced_nav {  # marsh_build_advanced_nav target_dir navig
     [[ "${MARKDOWN_REWRITE_LINKS}" == "" ]] && return 1
 
     NAV_TARGETS_LIST=$(cd "${TARGET_DIR}" && find . -name "${NAV_FILE#\./}")
-    NAV_TARGETS=()
     while IFS= read -r NAV_TARGET; do
         [[ "${NAV_TARGET}" == "" ]] && continue
-        NAV_TARGETS+=("${NAV_TARGET}")
-    done <<< "${NAV_TARGETS_LIST}"
-    for NAV_TARGET in "${NAV_TARGETS[@]}"; do
         NAV_TARGET="${TARGET_DIR}/${NAV_TARGET}"
         NAV_DEST="${NAV_TARGET}.${MARSH_UID}.advanced-nav.html"
         if marsh_has_frontmatter "${NAV_TARGET}"; then
@@ -2366,7 +2362,7 @@ function marsh_build_advanced_nav {  # marsh_build_advanced_nav target_dir navig
         <"${NAV_DEST}.temp" marsh_text_filter ${TEXT_FILTER} | marsh_process_markdown "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" > "${NAV_DEST}"
         rm -f "${NAV_DEST}.meta.yaml" 2>/dev/null || true
         rm -f "${NAV_DEST}.temp"
-    done
+    done <<< "${NAV_TARGETS_LIST}"
 }
 
 # builds a template and applies it to a document

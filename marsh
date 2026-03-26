@@ -1851,7 +1851,9 @@ function marsh_get_target_metadata {  # marsh_get_target_metadata source_prefix 
 # copies files from local sources
 function marsh_get_files {  # marsh_get_files source dest force
     local SOURCE DEST FORCE
-    local SOURCE_DIR FILES_LIST FILES FILE
+    local SOURCE_DIR FILES_LIST FILE
+
+    # init
     SOURCE="${1:-}"
     DEST="${2:-}"
     if [[ "${SOURCE}" == "" ]]; then
@@ -1864,27 +1866,21 @@ function marsh_get_files {  # marsh_get_files source dest force
     SOURCE_DIR="${SOURCE%/*}"
     SOURCE_DIR="${SOURCE_DIR:-.}"
     FORCE="${3:-}"
+
     # select files for copy
     if [[ -d "${SOURCE}" ]]; then
-        # entire directory
-        FILES="${SOURCE#$SOURCE_DIR/}"
-        DEST="${DEST%/$FILES}"
-        FILES=("${FILES}")
+        FILES_LIST="${SOURCE#$SOURCE_DIR/}"
+        DEST="${DEST%/$FILES_LIST}"
     else
-        # directory contents
         FILES_LIST=$(cd "${SOURCE_DIR}" >/dev/null 2>&1 && find . -maxdepth 1 -name "${SOURCE##*/}" | sed -e 's/^\.\///' -e 's/^\.$//')
         if [[ $? -ne 0 ]]; then
             echo "Unable to change into directory: ${SOURCE_DIR}" >&2
             return 1
         fi
-        FILES=()
-        while IFS= read -r FILE; do
-            [[ "${FILE}" == "" ]] && continue
-            FILES+=("${FILE}")
-        done <<< "${FILES_LIST}"
     fi
-    # loop over files
-    for FILE in "${FILES[@]}"; do
+
+    while IFS= read -r FILE; do
+        [[ "${FILE}" == "" ]] && continue
         # sanity
         if [[ "${SOURCE_DIR}/${FILE}" == "${DEST%/}/${FILE}" ]]; then
             # same source and destination
@@ -1912,7 +1908,7 @@ function marsh_get_files {  # marsh_get_files source dest force
             echo "Unable to copy file: ${SOURCE_DIR}/${FILE} -> ${DEST%/}/${FILE}" >&2
             return 1
         fi
-    done
+    done <<< "${FILES_LIST}"
     return 0
 }
 

@@ -1610,8 +1610,14 @@ function marsh_parse_template_metadata {  # marsh_parse_template_metadata prefix
     [[ "${MARSH_TEMPLATE_Template_Partials_Notice:-}"   != "" ]] && echo "${PREFIX}Template_Partials_Notice=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Notice//\"/\\\"}\""
     [[ "${MARSH_TEMPLATE_Template_Partials_Footer:-}"   != "" ]] && echo "${PREFIX}Template_Partials_Footer=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Footer//\"/\\\"}\""
     [[ "${MARSH_TEMPLATE_Template_Partials_Redirect:-}" != "" ]] && echo "${PREFIX}Template_Partials_Redirect=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Redirect//\"/\\\"}\""
+    [[ "${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Base:-}"     != "" ]] && echo "${PREFIX}Template_Partials_Archive_HTML_Base=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Base//\"/\\\"}\""
+    [[ "${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Head:-}"     != "" ]] && echo "${PREFIX}Template_Partials_Archive_HTML_Head=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Head//\"/\\\"}\""
     [[ "${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Body:-}"     != "" ]] && echo "${PREFIX}Template_Partials_Archive_HTML_Body=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Body//\"/\\\"}\""
     [[ "${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Document:-}" != "" ]] && echo "${PREFIX}Template_Partials_Archive_HTML_Document=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Document//\"/\\\"}\""
+    [[ "${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Header:-}"   != "" ]] && echo "${PREFIX}Template_Partials_Archive_HTML_Header=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Header//\"/\\\"}\""
+    [[ "${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Nav:-}"      != "" ]] && echo "${PREFIX}Template_Partials_Archive_HTML_Nav=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Nav//\"/\\\"}\""
+    [[ "${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Notice:-}"   != "" ]] && echo "${PREFIX}Template_Partials_Archive_HTML_Notice=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Notice//\"/\\\"}\""
+    [[ "${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Footer:-}"   != "" ]] && echo "${PREFIX}Template_Partials_Archive_HTML_Footer=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Footer//\"/\\\"}\""
     [[ "${MARSH_TEMPLATE_Template_Partials_Archive_Atom_Body:-}"     != "" ]] && echo "${PREFIX}Template_Partials_Archive_Atom_Body=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Archive_Atom_Body//\"/\\\"}\""
     [[ "${MARSH_TEMPLATE_Template_Partials_Archive_Atom_Document:-}" != "" ]] && echo "${PREFIX}Template_Partials_Archive_Atom_Document=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Archive_Atom_Document//\"/\\\"}\""
     [[ "${MARSH_TEMPLATE_Template_Partials_Archive_JSON_Body:-}"     != "" ]] && echo "${PREFIX}Template_Partials_Archive_JSON_Body=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Archive_JSON_Body//\"/\\\"}\""
@@ -2663,6 +2669,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
     local NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDES
     local TEMPLATE_PREFIX TEMPLATE_META TEMPLATE_META_VARS PARTIALS TEMPLATE_BASE TEMPLATE_TEMP
     local TEMPLATE_RENDER
+    local TEMPLATE_BASE_FILE TEMPLATE_HEAD_FILE TEMPLATE_BODY_FILE TEMPLATE_DOCUMENT_FILE TEMPLATE_HEADER_FILE TEMPLATE_FOOTER_FILE TEMPLATE_NAV_FILE TEMPLATE_NOTICE_FILE
     local TEMPLATE_HEAD_TEMPLATE TEMPLATE_BODY TEMPLATE_DOCUMENT_TEMPLATE TEMPLATE_HEADER_TEMPLATE TEMPLATE_FOOTER_TEMPLATE
     local TEMPLATE_STYLES STYLE TEMPLATE_SCRIPTS SCRIPT TEMPLATE_NAV_TEMPLATE TEMPLATE_NOTICE_TEMPLATE TEMPLATE_ADVNAV
     local TEMPLATE_HEAD_ESC TEMPLATE_BODY_ESC TEMPLATE_DOCUMENT_ESC TEMPLATE_HEADER_ESC TEMPLATE_FOOTER_ESC
@@ -2767,7 +2774,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
         eval "${TEMPLATE_META}"
 
         # partials
-        PARTIALS=("${TEMPLATE_Template_Partials_Redirect:-}" "${TEMPLATE_Template_Partials_Base:-}" "${TEMPLATE_Template_Partials_Head:-}" "${TEMPLATE_Template_Partials_Body:-}" "${TEMPLATE_Template_Partials_Document:-}" "${TEMPLATE_Template_Partials_Header:-}" "${TEMPLATE_Template_Partials_Footer:-}" "${TEMPLATE_Template_Partials_Nav:-}" "${TEMPLATE_Template_Partials_Notice:-}" "${TEMPLATE_Template_Partials_Archive_HTML_Body:-}" "${TEMPLATE_Template_Partials_Archive_HTML_Document:-}" "${TEMPLATE_Template_Partials_Archive_Atom_Body:-}" "${TEMPLATE_Template_Partials_Archive_Atom_Document:-}" "${TEMPLATE_Template_Partials_Archive_JSON_Body:-}" "${TEMPLATE_Template_Partials_Archive_JSON_Document:-}")
+        PARTIALS=("${TEMPLATE_Template_Partials_Redirect:-}" "${TEMPLATE_Template_Partials_Base:-}" "${TEMPLATE_Template_Partials_Head:-}" "${TEMPLATE_Template_Partials_Body:-}" "${TEMPLATE_Template_Partials_Document:-}" "${TEMPLATE_Template_Partials_Header:-}" "${TEMPLATE_Template_Partials_Footer:-}" "${TEMPLATE_Template_Partials_Nav:-}" "${TEMPLATE_Template_Partials_Notice:-}" "${TEMPLATE_Template_Partials_Archive_HTML_Base:-}" "${TEMPLATE_Template_Partials_Archive_HTML_Head:-}" "${TEMPLATE_Template_Partials_Archive_HTML_Body:-}" "${TEMPLATE_Template_Partials_Archive_HTML_Document:-}" "${TEMPLATE_Template_Partials_Archive_HTML_Header:-}" "${TEMPLATE_Template_Partials_Archive_HTML_Footer:-}" "${TEMPLATE_Template_Partials_Archive_HTML_Nav:-}" "${TEMPLATE_Template_Partials_Archive_HTML_Notice:-}" "${TEMPLATE_Template_Partials_Archive_Atom_Body:-}" "${TEMPLATE_Template_Partials_Archive_Atom_Document:-}" "${TEMPLATE_Template_Partials_Archive_JSON_Body:-}" "${TEMPLATE_Template_Partials_Archive_JSON_Document:-}")
         # conditionals
         for J in "${!PARTIALS[@]}"; do
             [[ "${PARTIALS[$J]}" == "" ]] && continue
@@ -2813,12 +2820,37 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
         TEMPLATE_Template_Partials_Footer="${PARTIALS[6]:-}"
         TEMPLATE_Template_Partials_Nav="${PARTIALS[7]:-}"
         TEMPLATE_Template_Partials_Notice="${PARTIALS[8]:-}"
-        TEMPLATE_Template_Partials_Archive_HTML_Body="${PARTIALS[9]:-}"
-        TEMPLATE_Template_Partials_Archive_HTML_Document="${PARTIALS[10]:-}"
-        TEMPLATE_Template_Partials_Archive_Atom_Body="${PARTIALS[11]:-}"
-        TEMPLATE_Template_Partials_Archive_Atom_Document="${PARTIALS[12]:-}"
-        TEMPLATE_Template_Partials_Archive_JSON_Body="${PARTIALS[13]:-}"
-        TEMPLATE_Template_Partials_Archive_JSON_Document="${PARTIALS[14]:-}"
+        TEMPLATE_Template_Partials_Archive_HTML_Base="${PARTIALS[9]:-}"
+        TEMPLATE_Template_Partials_Archive_HTML_Head="${PARTIALS[10]:-}"
+        TEMPLATE_Template_Partials_Archive_HTML_Body="${PARTIALS[11]:-}"
+        TEMPLATE_Template_Partials_Archive_HTML_Document="${PARTIALS[12]:-}"
+        TEMPLATE_Template_Partials_Archive_HTML_Header="${PARTIALS[13]:-}"
+        TEMPLATE_Template_Partials_Archive_HTML_Footer="${PARTIALS[14]:-}"
+        TEMPLATE_Template_Partials_Archive_HTML_Nav="${PARTIALS[15]:-}"
+        TEMPLATE_Template_Partials_Archive_HTML_Notice="${PARTIALS[16]:-}"
+        TEMPLATE_Template_Partials_Archive_Atom_Body="${PARTIALS[17]:-}"
+        TEMPLATE_Template_Partials_Archive_Atom_Document="${PARTIALS[18]:-}"
+        TEMPLATE_Template_Partials_Archive_JSON_Body="${PARTIALS[19]:-}"
+        TEMPLATE_Template_Partials_Archive_JSON_Document="${PARTIALS[20]:-}"
+
+        TEMPLATE_BASE_FILE="${TEMPLATE_Template_Partials_Base:-}"
+        TEMPLATE_HEAD_FILE="${TEMPLATE_Template_Partials_Head:-}"
+        TEMPLATE_BODY_FILE="${TEMPLATE_Template_Partials_Body:-}"
+        TEMPLATE_DOCUMENT_FILE="${TEMPLATE_Template_Partials_Document:-}"
+        TEMPLATE_HEADER_FILE="${TEMPLATE_Template_Partials_Header:-}"
+        TEMPLATE_FOOTER_FILE="${TEMPLATE_Template_Partials_Footer:-}"
+        TEMPLATE_NAV_FILE="${TEMPLATE_Template_Partials_Nav:-}"
+        TEMPLATE_NOTICE_FILE="${TEMPLATE_Template_Partials_Notice:-}"
+        if [[ "${DOCUMENT_Type}" == "archive" ]]; then
+            TEMPLATE_BASE_FILE="${TEMPLATE_Template_Partials_Archive_HTML_Base:-${TEMPLATE_BASE_FILE:-}}"
+            TEMPLATE_HEAD_FILE="${TEMPLATE_Template_Partials_Archive_HTML_Head:-${TEMPLATE_HEAD_FILE:-}}"
+            TEMPLATE_BODY_FILE="${TEMPLATE_Template_Partials_Archive_HTML_Body:-${TEMPLATE_BODY_FILE:-}}"
+            TEMPLATE_DOCUMENT_FILE="${TEMPLATE_Template_Partials_Archive_HTML_Document:-${TEMPLATE_DOCUMENT_FILE:-}}"
+            TEMPLATE_HEADER_FILE="${TEMPLATE_Template_Partials_Archive_HTML_Header:-${TEMPLATE_HEADER_FILE:-}}"
+            TEMPLATE_FOOTER_FILE="${TEMPLATE_Template_Partials_Archive_HTML_Footer:-${TEMPLATE_FOOTER_FILE:-}}"
+            TEMPLATE_NAV_FILE="${TEMPLATE_Template_Partials_Archive_HTML_Nav:-${TEMPLATE_NAV_FILE:-}}"
+            TEMPLATE_NOTICE_FILE="${TEMPLATE_Template_Partials_Archive_HTML_Notice:-${TEMPLATE_NOTICE_FILE:-}}"
+        fi
 
         # body template
         TEMPLATE_BODY=""
@@ -2837,15 +2869,15 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                 return 1
             fi
         elif [[ "${DOCUMENT_Type}" == "archive" ]]; then
-            if [[ "${TEMPLATE_Template_Partials_Archive_HTML_Body:-}" != "" ]]; then
-                TEMPLATE_BODY=$(<"${TEMPLATE_Template_Partials_Archive_HTML_Body}")
+            if [[ "${TEMPLATE_BODY_FILE:-}" != "" ]]; then
+                TEMPLATE_BODY=$(<"${TEMPLATE_BODY_FILE}")
             else
                 echo "HTML archive body partial not found for primary template: ${TEMPLATE}" >&2
                 return 1
             fi
         else
-            if [[ "${TEMPLATE_Template_Partials_Body}" != "" ]]; then
-                TEMPLATE_BODY=$(<"${TEMPLATE_Template_Partials_Body}")
+            if [[ "${TEMPLATE_BODY_FILE}" != "" ]]; then
+                TEMPLATE_BODY=$(<"${TEMPLATE_BODY_FILE}")
             else
                 echo "Body partial not found for primary template: ${TEMPLATE}" >&2
                 return 1
@@ -2857,46 +2889,39 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
         if [[ "${DOCUMENT_Type}" != "archive-atom" ]] && [[ "${DOCUMENT_Type}" != "archive-json" ]]; then
             if [[ "${DOCUMENT_Redirect_URL:-}" != "" ]]; then
                 # redirect
-                TEMPLATE_BASE="${TEMPLATE_Template_Partials_Redirect}"
+                TEMPLATE_BASE_FILE="${TEMPLATE_Template_Partials_Redirect}"
             fi
-            TEMPLATE_BASE="${TEMPLATE_BASE:-$TEMPLATE_Template_Partials_Base}"
-            if [[ "${TEMPLATE_BASE}" != "" ]]; then
-                if [[ -f "${TEMPLATE_BASE}" ]] && [[ -r "${TEMPLATE_BASE}" ]]; then
-                    TEMPLATE_RENDER=$(<"${TEMPLATE_BASE}")
+            if [[ "${TEMPLATE_BASE_FILE}" != "" ]]; then
+                if [[ -f "${TEMPLATE_BASE_FILE}" ]] && [[ -r "${TEMPLATE_BASE_FILE}" ]]; then
+                    TEMPLATE_RENDER=$(<"${TEMPLATE_BASE_FILE}")
                 fi
             fi
         fi
 
         # remaining templates
         TEMPLATE_DOCUMENT_TEMPLATE=""
-        if [[ "${DOCUMENT_Type}" == "archive" ]]; then
-            if [[ -f "${TEMPLATE_Template_Partials_Archive_HTML_Document}" ]] && [[ -r "${TEMPLATE_Template_Partials_Archive_HTML_Document}" ]]; then
-                TEMPLATE_DOCUMENT_TEMPLATE=$(<"${TEMPLATE_Template_Partials_Archive_HTML_Document}")
-            fi
-        else
-            if [[ -f "${TEMPLATE_Template_Partials_Document}" ]] && [[ -r "${TEMPLATE_Template_Partials_Document}" ]]; then
-                TEMPLATE_DOCUMENT_TEMPLATE=$(<"${TEMPLATE_Template_Partials_Document}")
-            fi
+        if [[ -f "${TEMPLATE_DOCUMENT_FILE}" ]] && [[ -r "${TEMPLATE_DOCUMENT_FILE}" ]]; then
+            TEMPLATE_DOCUMENT_TEMPLATE=$(<"${TEMPLATE_DOCUMENT_FILE}")
         fi
         TEMPLATE_HEAD_TEMPLATE=""
-        if [[ -f "${TEMPLATE_Template_Partials_Head}" ]] && [[ -r "${TEMPLATE_Template_Partials_Head}" ]]; then
-            TEMPLATE_HEAD_TEMPLATE=$(<"${TEMPLATE_Template_Partials_Head}")
+        if [[ -f "${TEMPLATE_HEAD_FILE}" ]] && [[ -r "${TEMPLATE_HEAD_FILE}" ]]; then
+            TEMPLATE_HEAD_TEMPLATE=$(<"${TEMPLATE_HEAD_FILE}")
         fi
         TEMPLATE_HEADER_TEMPLATE=""
-        if [[ -f "${TEMPLATE_Template_Partials_Header}" ]] && [[ -r "${TEMPLATE_Template_Partials_Header}" ]]; then
-            TEMPLATE_HEADER_TEMPLATE=$(<"${TEMPLATE_Template_Partials_Header}")
+        if [[ -f "${TEMPLATE_HEADER_FILE}" ]] && [[ -r "${TEMPLATE_HEADER_FILE}" ]]; then
+            TEMPLATE_HEADER_TEMPLATE=$(<"${TEMPLATE_HEADER_FILE}")
         fi
         TEMPLATE_FOOTER_TEMPLATE=""
-        if [[ -f "${TEMPLATE_Template_Partials_Footer}" ]] && [[ -r "${TEMPLATE_Template_Partials_Footer}" ]]; then
-            TEMPLATE_FOOTER_TEMPLATE=$(<"${TEMPLATE_Template_Partials_Footer}")
+        if [[ -f "${TEMPLATE_FOOTER_FILE}" ]] && [[ -r "${TEMPLATE_FOOTER_FILE}" ]]; then
+            TEMPLATE_FOOTER_TEMPLATE=$(<"${TEMPLATE_FOOTER_FILE}")
         fi
         TEMPLATE_NAV_TEMPLATE=""
-        if [[ -f "${TEMPLATE_Template_Partials_Nav}" ]] && [[ -r "${TEMPLATE_Template_Partials_Nav}" ]]; then
-            TEMPLATE_NAV_TEMPLATE=$(<"${TEMPLATE_Template_Partials_Nav}")
+        if [[ -f "${TEMPLATE_NAV_FILE}" ]] && [[ -r "${TEMPLATE_NAV_FILE}" ]]; then
+            TEMPLATE_NAV_TEMPLATE=$(<"${TEMPLATE_NAV_FILE}")
         fi
         TEMPLATE_NOTICE_TEMPLATE=""
-        if [[ -f "${TEMPLATE_Template_Partials_Notice}" ]] && [[ -r "${TEMPLATE_Template_Partials_Notice}" ]]; then
-            TEMPLATE_NOTICE_TEMPLATE=$(<"${TEMPLATE_Template_Partials_Notice}")
+        if [[ -f "${TEMPLATE_NOTICE_FILE}" ]] && [[ -r "${TEMPLATE_NOTICE_FILE}" ]]; then
+            TEMPLATE_NOTICE_TEMPLATE=$(<"${TEMPLATE_NOTICE_FILE}")
         fi
 
         # scripts and styles
@@ -3055,11 +3080,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                         return 1
                     }
                     # document template
-                    if [[ "${DOCUMENT_Type}" == "archive" ]]; then
-                        SUBDOCUMENT_TEMPLATE=$(<"${TEMPLATE_Template_Partials_Archive_HTML_Document}")
-                    else
-                        SUBDOCUMENT_TEMPLATE=$(<"${TEMPLATE_Template_Partials_Document}")
-                    fi
+                    SUBDOCUMENT_TEMPLATE="${TEMPLATE_DOCUMENT_TEMPLATE}"
                 fi
                 SUBDOCUMENT_CONTENT_ESC=$(<"${SUBDOCUMENT_CONTENT}" marsh_escape_substitution)
                 SUBDOCUMENT_RENDER=$(printf '%s' "${SUBDOCUMENT_TEMPLATE}" | sed -E \

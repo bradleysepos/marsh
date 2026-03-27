@@ -182,24 +182,95 @@ function marsh_test_create_minimal_template {
 }
 
 function marsh_test_create_archive_template {
-    local TEMPLATES_DIR TEMPLATE_NAME
+    local TEMPLATES_DIR TEMPLATE_NAME INCLUDE_ARCHIVE_PARTIALS
 
     TEMPLATES_DIR="${1:-}"
     TEMPLATE_NAME="${2:-}"
+    INCLUDE_ARCHIVE_PARTIALS="${3:-true}"
     [[ "${TEMPLATES_DIR}" == "" ]] && return 1
     [[ "${TEMPLATE_NAME}" == "" ]] && return 1
     mkdir -p "${TEMPLATES_DIR}/${TEMPLATE_NAME}/partials" || return 1
-    printf '%s\n' \
-        '---' \
-        'Template:' \
-        '  Partials:' \
-        '    Base: partials/base.html' \
-        '    Archive_HTML_Body: partials/archive-body.html' \
-        '    Archive_HTML_Document: partials/archive-document.html' \
-        '...' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/template.yaml" || return 1
-    printf '%s\n' '<!DOCTYPE html>' '<html><body>{{ template.body }}</body></html>' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/partials/base.html" || return 1
-    printf '%s\n' '{{ subdocuments }}' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/partials/archive-body.html" || return 1
-    printf '%s\n' '{{ document }}' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/partials/archive-document.html" || return 1
+    if [[ "${INCLUDE_ARCHIVE_PARTIALS}" == true ]]; then
+        printf '%s\n' \
+            '---' \
+            'Template:' \
+            '  Partials:' \
+            '    Base: partials/base.html' \
+            '    Head: partials/head.html' \
+            '    Body: partials/body.html' \
+            '    Document: partials/document.html' \
+            '    Header: partials/header.html' \
+            '    Footer: partials/footer.html' \
+            '    Nav: partials/nav.html' \
+            '    Notice: partials/notice.html' \
+            '    Archive:' \
+            '      HTML:' \
+            '        Base: partials/archive-base.html' \
+            '        Head: partials/archive-head.html' \
+            '        Body: partials/archive-body.html' \
+            '        Document: partials/archive-document.html' \
+            '        Header: partials/archive-header.html' \
+            '        Footer: partials/archive-footer.html' \
+            '        Nav: partials/archive-nav.html' \
+            '        Notice: partials/archive-notice.html' \
+            '...' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/template.yaml" || return 1
+        printf '%s\n' '<!DOCTYPE html>' \
+            '<html>' \
+            '<head>' \
+            '    {{ template.head }}' \
+            '</head>' \
+            '<body>' \
+            '    archive-base' \
+            '    {{ template.header }}' \
+            '    {{ template.nav }}' \
+            '    {{ template.notice }}' \
+            '    {{ template.body }}' \
+            '    {{ template.footer }}' \
+            '</body>' \
+            '</html>' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/partials/archive-base.html" || return 1
+        printf '%s\n' '<meta name="template-head" content="archive" />' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/partials/archive-head.html" || return 1
+        printf '%s\n' 'archive-body'$'\n''{{ subdocuments }}' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/partials/archive-body.html" || return 1
+        printf '%s\n' 'archive-document'$'\n''{{ document }}' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/partials/archive-document.html" || return 1
+        printf '%s\n' '<header>archive-header</header>' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/partials/archive-header.html" || return 1
+        printf '%s\n' '<footer>archive-footer</footer>' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/partials/archive-footer.html" || return 1
+        printf '%s\n' '<nav>archive-nav</nav>' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/partials/archive-nav.html" || return 1
+        printf '%s\n' '<aside>archive-notice</aside>' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/partials/archive-notice.html" || return 1
+    else
+        printf '%s\n' \
+            '---' \
+            'Template:' \
+            '  Partials:' \
+            '    Base: partials/base.html' \
+            '    Head: partials/head.html' \
+            '    Body: partials/body.html' \
+            '    Document: partials/document.html' \
+            '    Header: partials/header.html' \
+            '    Footer: partials/footer.html' \
+            '    Nav: partials/nav.html' \
+            '    Notice: partials/notice.html' \
+            '...' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/template.yaml" || return 1
+    fi
+    printf '%s\n' '<!DOCTYPE html>' \
+        '<html>' \
+        '<head>' \
+        '    {{ template.head }}' \
+        '</head>' \
+        '<body>' \
+        '    target-base' \
+        '    {{ template.header }}' \
+        '    {{ template.nav }}' \
+        '    {{ template.notice }}' \
+        '    {{ template.body }}' \
+        '    {{ template.footer }}' \
+        '</body>' \
+        '</html>' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/partials/base.html" || return 1
+    printf '%s\n' '<meta name="template-head" content="fallback" />' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/partials/head.html" || return 1
+    printf '%s\n' 'target-body'$'\n''{{ subdocuments }}' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/partials/body.html" || return 1
+    printf '%s\n' 'target-document'$'\n''{{ document }}' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/partials/document.html" || return 1
+    printf '%s\n' '<header>target-header</header>' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/partials/header.html" || return 1
+    printf '%s\n' '<footer>target-footer</footer>' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/partials/footer.html" || return 1
+    printf '%s\n' '<nav>target-nav</nav>' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/partials/nav.html" || return 1
+    printf '%s\n' '<aside>target-notice</aside>' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/partials/notice.html" || return 1
 }
 
 function marsh_test_set_env {
@@ -856,6 +927,97 @@ function marsh_test {
             if [[ "${TEST}" == *"Tagged Item"* ]] \
                 && [[ "${TEST}" == *"https://example.test/$(basename "${TARGET_DIR}")/news/item.html"* ]] \
                 && [[ "${TEST}" == *"https://example.test/$(basename "${TARGET_DIR}")/news"* ]]; then
+                TEST="0"
+            else
+                TEST="1"
+            fi
+            rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}"
+            marsh_test_restore_env
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_build_template:2)
+            TEST_NAME+=":archive_template"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            marsh_test_set_env "archiveuid" true true
+            mkdir -p "${TARGET_DIR}/news"
+            marsh_test_create_archive_template "${TEMPLATE_DIR}" "sample"
+            printf '%s\n' '{{ document.title }}' '{{ document.uri }}' '{{ document.abspath }}' > "${TARGET_DIR}/news/item.markdown.${MARSH_UID}.document"
+            printf '%s\n' \
+                '---' \
+                'Type: post' \
+                'Title: Tagged Item' \
+                'Date: 2026-01-01' \
+                '...' > "${TARGET_DIR}/news/item.markdown.${MARSH_UID}.meta.yaml"
+            ARCHIVE_PAGES=$(marsh_build_archive "html" "${TARGET_DIR}" "index.markdown" "Archive" "English" "en" "" "2" "1" "post" "0")
+            TEST=""
+            if [[ "${ARCHIVE_PAGES}" == "index.markdown"$'\n'"page/1/index.markdown" ]] \
+                && marsh_build_document "${TARGET_DIR}" "." "index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" >/dev/null 2>&1 \
+                && marsh_build_template "${TARGET_DIR}" "." "index.markdown" "" "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1; then
+                TEST=$(<"${TARGET_DIR}/index.html")
+            fi
+            EXPECTED="0"
+            if [[ "${TEST}" == *"Tagged Item"* ]] \
+                && [[ "${TEST}" == *"https://example.test/$(basename "${TARGET_DIR}")/news/item.html"* ]] \
+                && [[ "${TEST}" == *"https://example.test/$(basename "${TARGET_DIR}")/news"* ]] \
+                && [[ "${TEST}" == *'<meta name="template-head" content="archive" />'* ]] \
+                && [[ "${TEST}" == *'archive-base'* ]] \
+                && [[ "${TEST}" == *'archive-body'* ]] \
+                && [[ "${TEST}" == *'archive-document'* ]] \
+                && [[ "${TEST}" == *'archive-header'* ]] \
+                && [[ "${TEST}" == *'archive-footer'* ]] \
+                && [[ "${TEST}" == *'archive-nav'* ]] \
+                && [[ "${TEST}" == *'archive-notice'* ]]; then
+                TEST="0"
+            else
+                TEST="1"
+            fi
+            rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}"
+            marsh_test_restore_env
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_build_template:3)
+            TEST_NAME+=":archive_template_fallback"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            marsh_test_set_env "archiveuid" true true
+            mkdir -p "${TARGET_DIR}/news"
+            marsh_test_create_archive_template "${TEMPLATE_DIR}" "sample" false
+            printf '%s\n' '{{ document.title }}' > "${TARGET_DIR}/news/item.markdown.${MARSH_UID}.document"
+            printf '%s\n' \
+                '---' \
+                'Type: post' \
+                'Title: Tagged Item' \
+                'Date: 2026-01-01' \
+                '...' > "${TARGET_DIR}/news/item.markdown.${MARSH_UID}.meta.yaml"
+            ARCHIVE_PAGES=$(marsh_build_archive "html" "${TARGET_DIR}" "index.markdown" "Archive" "English" "en" "" "2" "1" "post" "0")
+            TEST=""
+            if [[ "${ARCHIVE_PAGES}" == "index.markdown"$'\n'"page/1/index.markdown" ]] \
+                && marsh_build_document "${TARGET_DIR}" "." "index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" >/dev/null 2>&1 \
+                && marsh_build_template "${TARGET_DIR}" "." "index.markdown" "" "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1; then
+                TEST=$(<"${TARGET_DIR}/index.html")
+            fi
+            EXPECTED="0"
+            if [[ "${TEST}" == *'<meta name="template-head" content="fallback" />'* ]] \
+                && [[ "${TEST}" != *'<meta name="template-head" content="archive" />'* ]] \
+                && [[ "${TEST}" == *'target-base'* ]] \
+                && [[ "${TEST}" == *'target-body'* ]] \
+                && [[ "${TEST}" == *'target-document'* ]] \
+                && [[ "${TEST}" == *'target-header'* ]] \
+                && [[ "${TEST}" == *'target-footer'* ]] \
+                && [[ "${TEST}" == *'target-nav'* ]] \
+                && [[ "${TEST}" == *'target-notice'* ]] \
+                && [[ "${TEST}" != *'archive-base'* ]] \
+                && [[ "${TEST}" != *'archive-body'* ]] \
+                && [[ "${TEST}" != *'archive-document'* ]] \
+                && [[ "${TEST}" != *'archive-header'* ]] \
+                && [[ "${TEST}" != *'archive-footer'* ]] \
+                && [[ "${TEST}" != *'archive-nav'* ]] \
+                && [[ "${TEST}" != *'archive-notice'* ]]; then
                 TEST="0"
             else
                 TEST="1"

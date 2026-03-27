@@ -17,6 +17,7 @@ Template:
     Redirect: partials/redirect.html
     Archive:
       HTML:
+        Head:     partials/archive/html/head.html
         Body:     partials/archive/html/body.html
         Document: partials/archive/html/document.html
       Atom:

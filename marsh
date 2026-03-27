@@ -1602,6 +1602,7 @@ function marsh_parse_template_metadata {  # marsh_parse_template_metadata prefix
 
     # print partials paths relative to template dir
     [[ "${MARSH_TEMPLATE_Template_Partials_Base:-}"     != "" ]] && echo "${PREFIX}Template_Partials_Base=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Base//\"/\\\"}\""
+    [[ "${MARSH_TEMPLATE_Template_Partials_Head:-}"     != "" ]] && echo "${PREFIX}Template_Partials_Head=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Head//\"/\\\"}\""
     [[ "${MARSH_TEMPLATE_Template_Partials_Body:-}"     != "" ]] && echo "${PREFIX}Template_Partials_Body=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Body//\"/\\\"}\""
     [[ "${MARSH_TEMPLATE_Template_Partials_Document:-}" != "" ]] && echo "${PREFIX}Template_Partials_Document=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Document//\"/\\\"}\""
     [[ "${MARSH_TEMPLATE_Template_Partials_Header:-}"   != "" ]] && echo "${PREFIX}Template_Partials_Header=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Header//\"/\\\"}\""
@@ -2662,9 +2663,9 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
     local NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDES
     local TEMPLATE_PREFIX TEMPLATE_META TEMPLATE_META_VARS PARTIALS TEMPLATE_BASE TEMPLATE_TEMP
     local TEMPLATE_RENDER
-    local TEMPLATE_BODY TEMPLATE_DOCUMENT_TEMPLATE TEMPLATE_HEADER_TEMPLATE TEMPLATE_FOOTER_TEMPLATE
+    local TEMPLATE_HEAD_TEMPLATE TEMPLATE_BODY TEMPLATE_DOCUMENT_TEMPLATE TEMPLATE_HEADER_TEMPLATE TEMPLATE_FOOTER_TEMPLATE
     local TEMPLATE_STYLES STYLE TEMPLATE_SCRIPTS SCRIPT TEMPLATE_NAV_TEMPLATE TEMPLATE_NOTICE_TEMPLATE TEMPLATE_ADVNAV
-    local TEMPLATE_BODY_ESC TEMPLATE_DOCUMENT_ESC TEMPLATE_HEADER_ESC TEMPLATE_FOOTER_ESC
+    local TEMPLATE_HEAD_ESC TEMPLATE_BODY_ESC TEMPLATE_DOCUMENT_ESC TEMPLATE_HEADER_ESC TEMPLATE_FOOTER_ESC
     local TEMPLATE_NAV_ESC TEMPLATE_NOTICE_ESC TEMPLATE_SCRIPTS_ESC TEMPLATE_STYLES_ESC TEMPLATE_ADVNAV_ESC
     local DOCUMENT_META DOCUMENT_META_VARS DOCUMENT_CONTENT
     local SUBDOCUMENTS_LIST SUBDOCUMENTS SUBDOCUMENT_URIS SUBDOCUMENT_ABSPATHS NUM_SUBDOCUMENTS
@@ -2766,7 +2767,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
         eval "${TEMPLATE_META}"
 
         # partials
-        PARTIALS=("${TEMPLATE_Template_Partials_Redirect:-}" "${TEMPLATE_Template_Partials_Base:-}" "${TEMPLATE_Template_Partials_Body:-}" "${TEMPLATE_Template_Partials_Document:-}" "${TEMPLATE_Template_Partials_Header:-}" "${TEMPLATE_Template_Partials_Footer:-}" "${TEMPLATE_Template_Partials_Nav:-}" "${TEMPLATE_Template_Partials_Notice:-}" "${TEMPLATE_Template_Partials_Archive_HTML_Body:-}" "${TEMPLATE_Template_Partials_Archive_HTML_Document:-}" "${TEMPLATE_Template_Partials_Archive_Atom_Body:-}" "${TEMPLATE_Template_Partials_Archive_Atom_Document:-}" "${TEMPLATE_Template_Partials_Archive_JSON_Body:-}" "${TEMPLATE_Template_Partials_Archive_JSON_Document:-}")
+        PARTIALS=("${TEMPLATE_Template_Partials_Redirect:-}" "${TEMPLATE_Template_Partials_Base:-}" "${TEMPLATE_Template_Partials_Head:-}" "${TEMPLATE_Template_Partials_Body:-}" "${TEMPLATE_Template_Partials_Document:-}" "${TEMPLATE_Template_Partials_Header:-}" "${TEMPLATE_Template_Partials_Footer:-}" "${TEMPLATE_Template_Partials_Nav:-}" "${TEMPLATE_Template_Partials_Notice:-}" "${TEMPLATE_Template_Partials_Archive_HTML_Body:-}" "${TEMPLATE_Template_Partials_Archive_HTML_Document:-}" "${TEMPLATE_Template_Partials_Archive_Atom_Body:-}" "${TEMPLATE_Template_Partials_Archive_Atom_Document:-}" "${TEMPLATE_Template_Partials_Archive_JSON_Body:-}" "${TEMPLATE_Template_Partials_Archive_JSON_Document:-}")
         # conditionals
         for J in "${!PARTIALS[@]}"; do
             [[ "${PARTIALS[$J]}" == "" ]] && continue
@@ -2805,18 +2806,19 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
         done
         TEMPLATE_Template_Partials_Redirect="${PARTIALS[0]:-}"
         TEMPLATE_Template_Partials_Base="${PARTIALS[1]:-}"
-        TEMPLATE_Template_Partials_Body="${PARTIALS[2]:-}"
-        TEMPLATE_Template_Partials_Document="${PARTIALS[3]:-}"
-        TEMPLATE_Template_Partials_Header="${PARTIALS[4]:-}"
-        TEMPLATE_Template_Partials_Footer="${PARTIALS[5]:-}"
-        TEMPLATE_Template_Partials_Nav="${PARTIALS[6]:-}"
-        TEMPLATE_Template_Partials_Notice="${PARTIALS[7]:-}"
-        TEMPLATE_Template_Partials_Archive_HTML_Body="${PARTIALS[8]:-}"
-        TEMPLATE_Template_Partials_Archive_HTML_Document="${PARTIALS[9]:-}"
-        TEMPLATE_Template_Partials_Archive_Atom_Body="${PARTIALS[10]:-}"
-        TEMPLATE_Template_Partials_Archive_Atom_Document="${PARTIALS[11]:-}"
-        TEMPLATE_Template_Partials_Archive_JSON_Body="${PARTIALS[12]:-}"
-        TEMPLATE_Template_Partials_Archive_JSON_Document="${PARTIALS[13]:-}"
+        TEMPLATE_Template_Partials_Head="${PARTIALS[2]:-}"
+        TEMPLATE_Template_Partials_Body="${PARTIALS[3]:-}"
+        TEMPLATE_Template_Partials_Document="${PARTIALS[4]:-}"
+        TEMPLATE_Template_Partials_Header="${PARTIALS[5]:-}"
+        TEMPLATE_Template_Partials_Footer="${PARTIALS[6]:-}"
+        TEMPLATE_Template_Partials_Nav="${PARTIALS[7]:-}"
+        TEMPLATE_Template_Partials_Notice="${PARTIALS[8]:-}"
+        TEMPLATE_Template_Partials_Archive_HTML_Body="${PARTIALS[9]:-}"
+        TEMPLATE_Template_Partials_Archive_HTML_Document="${PARTIALS[10]:-}"
+        TEMPLATE_Template_Partials_Archive_Atom_Body="${PARTIALS[11]:-}"
+        TEMPLATE_Template_Partials_Archive_Atom_Document="${PARTIALS[12]:-}"
+        TEMPLATE_Template_Partials_Archive_JSON_Body="${PARTIALS[13]:-}"
+        TEMPLATE_Template_Partials_Archive_JSON_Document="${PARTIALS[14]:-}"
 
         # body template
         TEMPLATE_BODY=""
@@ -2876,6 +2878,10 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                 TEMPLATE_DOCUMENT_TEMPLATE=$(<"${TEMPLATE_Template_Partials_Document}")
             fi
         fi
+        TEMPLATE_HEAD_TEMPLATE=""
+        if [[ -f "${TEMPLATE_Template_Partials_Head}" ]] && [[ -r "${TEMPLATE_Template_Partials_Head}" ]]; then
+            TEMPLATE_HEAD_TEMPLATE=$(<"${TEMPLATE_Template_Partials_Head}")
+        fi
         TEMPLATE_HEADER_TEMPLATE=""
         if [[ -f "${TEMPLATE_Template_Partials_Header}" ]] && [[ -r "${TEMPLATE_Template_Partials_Header}" ]]; then
             TEMPLATE_HEADER_TEMPLATE=$(<"${TEMPLATE_Template_Partials_Header}")
@@ -2932,6 +2938,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
             fi
         fi
 
+        TEMPLATE_HEAD_ESC=$(printf '%s' "${TEMPLATE_HEAD_TEMPLATE}" | marsh_escape_substitution)
         TEMPLATE_BODY_ESC=$(printf '%s' "${TEMPLATE_BODY}" | marsh_escape_substitution)
         TEMPLATE_DOCUMENT_ESC=$(printf '%s' "${TEMPLATE_DOCUMENT_TEMPLATE}" | marsh_escape_substitution)
         TEMPLATE_HEADER_ESC=$(printf '%s' "${TEMPLATE_HEADER_TEMPLATE}" | marsh_escape_substitution)
@@ -2943,6 +2950,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
         TEMPLATE_ADVNAV_ESC=$(printf '%s' "${TEMPLATE_ADVNAV}" | marsh_escape_substitution)
 
         TEMPLATE_RENDER=$(printf '%s' "${TEMPLATE_RENDER}" | sed -E \
+        -e "/\{\{[ ]*template\.head[ ]*\}\}/s//${TEMPLATE_HEAD_ESC:-}/g" \
         -e "/\{\{[ ]*template\.body[ ]*\}\}/s//${TEMPLATE_BODY_ESC:-}/g" \
         -e "/\{\{[ ]*template\.document[ ]*\}\}/s//${TEMPLATE_DOCUMENT_ESC:-}/g" \
         -e "/\{\{[ ]*template\.header[ ]*\}\}/s//${TEMPLATE_HEADER_ESC:-}/g" \

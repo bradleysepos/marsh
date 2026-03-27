@@ -1,25 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="utf-8" />
-    <meta name="author" content="{{ document.authors | email:remove-angle-addr | join-type:oxford }}" />
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    {% if document.type is "archive" %}
-    {% if document.paginated is "true" %}
-    <link rel="canonical" href="{{ document.page-canonical-uri }}" />
-    {% if document.page-has-prev is "true" %}
-    <link rel="prev" href="{{ document.page-prev-uri }}" />
-    {% endif %}
-    {% if document.page-has-next is "true" %}
-    <link rel="next" href="{{ document.page-next-uri }}" />
-    {% endif %}
-    {% else %}
-    <link rel="canonical" href="{{ document.uri }}" />
-    {% endif %}
-    <title>{{ document.title }}</title>
-    {% else %}
-    <title>{{ document.project }} &mdash; {{ document.title }}</title>
-    {% endif %}
+    {{ template.head }}
 </head>
 <body>
     {{ template.body }}

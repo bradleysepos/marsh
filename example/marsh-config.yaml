@@ -34,6 +34,10 @@ Build:
           Path:     index.markdown
           #Encoding: html
           #Count:    10
+          #Template:
+          #  Source: ../templates/example
+          #  Overrides:
+          #    - ../templates/example/template-overrides.yaml
           Page_Size: 10
           Types:    [ news ]
           Exclude_States: [ draft ]

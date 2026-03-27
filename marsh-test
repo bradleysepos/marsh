@@ -1153,7 +1153,7 @@ function marsh_test {
             TEST_NAME+=":minimal"
             MARSH_TEST_TARGET_MIN_Path="/site/minimal"
             TEST=$(marsh_get_target_metadata "MARSH_TEST_TARGET_MIN_" "TARGET_")
-            EXPECTED="TARGET_PATH=\"/site/minimal\""$'\n'"TARGET_TEMPLATE_OVERRIDES=()"$'\n'"TARGET_ARCHIVES=()"$'\n'"TARGET_ARCHIVES_ENCODING=()"$'\n'"TARGET_ARCHIVES_NAME=()"$'\n'"TARGET_ARCHIVES_LANGUAGE=()"$'\n'"TARGET_ARCHIVES_LANGUAGE_CODE=()"$'\n'"TARGET_ARCHIVES_COUNT=()"$'\n'"TARGET_ARCHIVES_PAGE_SIZE=()"$'\n'"TARGET_ARCHIVES_CONTENT=()"$'\n'"TARGET_ARCHIVES_TYPES=()"$'\n'"TARGET_ARCHIVES_EXCLUDED_STATES=()"
+            EXPECTED="TARGET_PATH=\"/site/minimal\""$'\n'"TARGET_TEMPLATE_OVERRIDES=()"$'\n'"TARGET_ARCHIVES=()"$'\n'"TARGET_ARCHIVES_ENCODING=()"$'\n'"TARGET_ARCHIVES_NAME=()"$'\n'"TARGET_ARCHIVES_LANGUAGE=()"$'\n'"TARGET_ARCHIVES_LANGUAGE_CODE=()"$'\n'"TARGET_ARCHIVES_COUNT=()"$'\n'"TARGET_ARCHIVES_PAGE_SIZE=()"$'\n'"TARGET_ARCHIVES_CONTENT=()"$'\n'"TARGET_ARCHIVES_TYPES=()"$'\n'"TARGET_ARCHIVES_EXCLUDED_STATES=()"$'\n'"TARGET_ARCHIVES_TEMPLATE_SOURCE=()"$'\n'"TARGET_ARCHIVES_TEMPLATE_OVERRIDES=()"$'\n'"TARGET_ARCHIVES_TEMPLATE=()"
             unset MARSH_TEST_TARGET_MIN_Path
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1181,9 +1181,13 @@ function marsh_test {
             MARSH_TEST_TARGET_Archives_0_Types_0="post"
             MARSH_TEST_TARGET_Archives_0_Types_1="note"
             MARSH_TEST_TARGET_Archives_0_Exclude_States_0="draft"
+            MARSH_TEST_TARGET_Archives_0_Template_Source="templates/archive-atom"
+            MARSH_TEST_TARGET_Archives_0_Template_Overrides_0="templates/archive-atom-compact"
+            MARSH_TEST_TARGET_Archives_0_Template_Overrides_1="templates/archive-atom-custom2"
             HASH=$(printf 'templates/default' | marsh_text_filter hash:md5)
+            ARCHIVE_HASH=$(printf 'templates/archive-atom' | marsh_text_filter hash:md5)
             TEST=$(marsh_get_target_metadata "MARSH_TEST_TARGET_" "TARGET_")
-            EXPECTED="TARGET_PATH=\"/site/output\""$'\n'"TARGET_NAME=\"Main Site\""$'\n'"TARGET_SOURCE=\"source\""$'\n'"TARGET_NAV=\"nav.markdown\""$'\n'"TARGET_FORCE=\"true\""$'\n'"TARGET_TEMPLATE_SOURCE=\"templates/default\""$'\n'"TARGET_TEMPLATE_OVERRIDES=()"$'\n'"TARGET_TEMPLATE_OVERRIDES+=(\"foo=foo\")"$'\n'"TARGET_TEMPLATE_OVERRIDES+=(\"bar=bar\")"$'\n'"TARGET_TEMPLATE=\"default-${HASH}\""$'\n'"TARGET_ARCHIVES=()"$'\n'"TARGET_ARCHIVES_ENCODING=()"$'\n'"TARGET_ARCHIVES_NAME=()"$'\n'"TARGET_ARCHIVES_LANGUAGE=()"$'\n'"TARGET_ARCHIVES_LANGUAGE_CODE=()"$'\n'"TARGET_ARCHIVES_COUNT=()"$'\n'"TARGET_ARCHIVES_PAGE_SIZE=()"$'\n'"TARGET_ARCHIVES_CONTENT=()"$'\n'"TARGET_ARCHIVES_TYPES=()"$'\n'"TARGET_ARCHIVES_EXCLUDED_STATES=()"$'\n'"TARGET_ARCHIVES+=(\"feed.xml\")"$'\n'"TARGET_ARCHIVES_ENCODING+=(\"atom\")"$'\n'"TARGET_ARCHIVES_NAME+=(\"Feed\")"$'\n'"TARGET_ARCHIVES_LANGUAGE+=(\"English\")"$'\n'"TARGET_ARCHIVES_LANGUAGE_CODE+=(\"en\")"$'\n'"TARGET_ARCHIVES_COUNT+=(\"42\")"$'\n'"TARGET_ARCHIVES_PAGE_SIZE+=(\"\")"$'\n'"TARGET_ARCHIVES_CONTENT+=(\"excerpt:200:2\")"$'\n'"TARGET_ARCHIVES_TYPES+=(\"post${SEP}note\")"$'\n'"TARGET_ARCHIVES_EXCLUDED_STATES+=(\"draft\")"
+            EXPECTED="TARGET_PATH=\"/site/output\""$'\n'"TARGET_NAME=\"Main Site\""$'\n'"TARGET_SOURCE=\"source\""$'\n'"TARGET_NAV=\"nav.markdown\""$'\n'"TARGET_FORCE=\"true\""$'\n'"TARGET_TEMPLATE_SOURCE=\"templates/default\""$'\n'"TARGET_TEMPLATE_OVERRIDES=()"$'\n'"TARGET_TEMPLATE_OVERRIDES+=(\"foo=foo\")"$'\n'"TARGET_TEMPLATE_OVERRIDES+=(\"bar=bar\")"$'\n'"TARGET_TEMPLATE=\"default-${HASH}\""$'\n'"TARGET_ARCHIVES=()"$'\n'"TARGET_ARCHIVES_ENCODING=()"$'\n'"TARGET_ARCHIVES_NAME=()"$'\n'"TARGET_ARCHIVES_LANGUAGE=()"$'\n'"TARGET_ARCHIVES_LANGUAGE_CODE=()"$'\n'"TARGET_ARCHIVES_COUNT=()"$'\n'"TARGET_ARCHIVES_PAGE_SIZE=()"$'\n'"TARGET_ARCHIVES_CONTENT=()"$'\n'"TARGET_ARCHIVES_TYPES=()"$'\n'"TARGET_ARCHIVES_EXCLUDED_STATES=()"$'\n'"TARGET_ARCHIVES_TEMPLATE_SOURCE=()"$'\n'"TARGET_ARCHIVES_TEMPLATE_OVERRIDES=()"$'\n'"TARGET_ARCHIVES_TEMPLATE=()"$'\n'"TARGET_ARCHIVES+=(\"feed.xml\")"$'\n'"TARGET_ARCHIVES_ENCODING+=(\"atom\")"$'\n'"TARGET_ARCHIVES_NAME+=(\"Feed\")"$'\n'"TARGET_ARCHIVES_LANGUAGE+=(\"English\")"$'\n'"TARGET_ARCHIVES_LANGUAGE_CODE+=(\"en\")"$'\n'"TARGET_ARCHIVES_COUNT+=(\"42\")"$'\n'"TARGET_ARCHIVES_PAGE_SIZE+=(\"\")"$'\n'"TARGET_ARCHIVES_CONTENT+=(\"excerpt:200:2\")"$'\n'"TARGET_ARCHIVES_TYPES+=(\"post${SEP}note\")"$'\n'"TARGET_ARCHIVES_EXCLUDED_STATES+=(\"draft\")"$'\n'"TARGET_ARCHIVES_TEMPLATE_SOURCE+=(\"templates/archive-atom\")"$'\n'"TARGET_ARCHIVES_TEMPLATE_OVERRIDES+=(\"templates/archive-atom-compact${SEP}templates/archive-atom-custom2\")"$'\n'"TARGET_ARCHIVES_TEMPLATE+=(\"archive-atom-${ARCHIVE_HASH}\")"
             unset MARSH_TEST_TARGET_Path MARSH_TEST_TARGET_Name MARSH_TEST_TARGET_Source MARSH_TEST_TARGET_Type
             unset MARSH_TEST_TARGET_Force MARSH_TEST_TARGET_Navigation MARSH_TEST_TARGET_Template_Source
             unset MARSH_TEST_TARGET_Template_Overrides_0 MARSH_TEST_TARGET_Template_Overrides_1
@@ -1192,6 +1196,9 @@ function marsh_test {
             unset MARSH_TEST_TARGET_Archives_0_Count MARSH_TEST_TARGET_Archives_0_Content
             unset MARSH_TEST_TARGET_Archives_0_Types_0 MARSH_TEST_TARGET_Archives_0_Types_1
             unset MARSH_TEST_TARGET_Archives_0_Exclude_States_0
+            unset MARSH_TEST_TARGET_Archives_0_Template_Source
+            unset MARSH_TEST_TARGET_Archives_0_Template_Overrides_0
+            unset MARSH_TEST_TARGET_Archives_0_Template_Overrides_1
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi

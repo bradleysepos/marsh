@@ -1777,7 +1777,9 @@ function marsh_get_target_metadata {  # marsh_get_target_metadata source_prefix 
     local TARGET_PATH TARGET_NAME TARGET_SOURCE TARGET_FORCE TARGET_NAV
     local II TEMPLATE_SOURCE TEMPLATE_OVERRIDE TEMPLATE_OVERRIDES
     local ARCHIVE ARCHIVE_NAME ARCHIVE_ENCODING ARCHIVE_LANGUAGE ARCHIVE_LANGUAGE_CODE
-    local ARCHIVE_COUNT ARCHIVE_PAGE_SIZE ARCHIVE_CONTENT ARCHIVE_TYPES ARCHIVE_EXCLUDED_STATES OIFS
+    local ARCHIVE_COUNT ARCHIVE_PAGE_SIZE ARCHIVE_CONTENT ARCHIVE_TYPES ARCHIVE_EXCLUDED_STATES
+    local ARCHIVE_TEMPLATE_SOURCE ARCHIVE_TEMPLATE_OVERRIDE ARCHIVE_TEMPLATE_OVERRIDES
+    local OIFS
 
     # init
     SOURCE_PREFIX="${1:-}"
@@ -1817,6 +1819,9 @@ function marsh_get_target_metadata {  # marsh_get_target_metadata source_prefix 
     echo "${PREFIX}ARCHIVES_CONTENT=()"
     echo "${PREFIX}ARCHIVES_TYPES=()"
     echo "${PREFIX}ARCHIVES_EXCLUDED_STATES=()"
+    echo "${PREFIX}ARCHIVES_TEMPLATE_SOURCE=()"
+    echo "${PREFIX}ARCHIVES_TEMPLATE_OVERRIDES=()"
+    echo "${PREFIX}ARCHIVES_TEMPLATE=()"
     II=0
     ARCHIVE="${SOURCE_PREFIX}Archives_${II}_Path"
     ARCHIVE_ENCODING="${SOURCE_PREFIX}Archives_${II}_Encoding"
@@ -1826,6 +1831,7 @@ function marsh_get_target_metadata {  # marsh_get_target_metadata source_prefix 
     ARCHIVE_COUNT="${SOURCE_PREFIX}Archives_${II}_Count"
     ARCHIVE_PAGE_SIZE="${SOURCE_PREFIX}Archives_${II}_Page_Size"
     ARCHIVE_CONTENT="${SOURCE_PREFIX}Archives_${II}_Content"
+    ARCHIVE_TEMPLATE_SOURCE="${SOURCE_PREFIX}Archives_${II}_Template_Source"
     while [[ "${!ARCHIVE:-}" != "" ]]; do
         echo "${PREFIX}ARCHIVES+=(\"${!ARCHIVE//\"/\\\"}\")"
         echo "${PREFIX}ARCHIVES_ENCODING+=(\"${!ARCHIVE_ENCODING//\"/\\\"}\")"
@@ -1839,6 +1845,14 @@ function marsh_get_target_metadata {  # marsh_get_target_metadata source_prefix 
         OIFS="${IFS}"; IFS=$(echo @|tr @ '\034'); echo "${PREFIX}ARCHIVES_TYPES+=(\"${ARCHIVE_TYPES[*]//\"/\\\"}\")"; IFS="${OIFS}"
         eval $(marsh_flat_to_array "ARCHIVE_EXCLUDED_STATES" "${SOURCE_PREFIX}Archives_${II}_Exclude_States_")
         OIFS="${IFS}"; IFS=$(echo @|tr @ '\034'); echo "${PREFIX}ARCHIVES_EXCLUDED_STATES+=(\"${ARCHIVE_EXCLUDED_STATES[*]//\"/\\\"}\")"; IFS="${OIFS}"
+        echo "${PREFIX}ARCHIVES_TEMPLATE_SOURCE+=(\"${!ARCHIVE_TEMPLATE_SOURCE//\"/\\\"}\")"
+        eval $(marsh_flat_to_array "ARCHIVE_TEMPLATE_OVERRIDES" "${SOURCE_PREFIX}Archives_${II}_Template_Overrides_")
+        OIFS="${IFS}"; IFS=$(echo @|tr @ '\034'); echo "${PREFIX}ARCHIVES_TEMPLATE_OVERRIDES+=(\"${ARCHIVE_TEMPLATE_OVERRIDES[*]//\"/\\\"}\")"; IFS="${OIFS}"
+        if [[ "${!ARCHIVE_TEMPLATE_SOURCE:-}" != "" ]]; then
+            echo "${PREFIX}ARCHIVES_TEMPLATE+=(\"${!ARCHIVE_TEMPLATE_SOURCE##*/}-$(echo -n ${!ARCHIVE_TEMPLATE_SOURCE} | marsh_text_filter hash:md5)\")"
+        else
+            echo "${PREFIX}ARCHIVES_TEMPLATE+=(\"\")"
+        fi
         II=$((II+1))
         ARCHIVE="${SOURCE_PREFIX}Archives_${II}_Path"
         ARCHIVE_ENCODING="${SOURCE_PREFIX}Archives_${II}_Encoding"
@@ -1848,6 +1862,7 @@ function marsh_get_target_metadata {  # marsh_get_target_metadata source_prefix 
         ARCHIVE_COUNT="${SOURCE_PREFIX}Archives_${II}_Count"
         ARCHIVE_PAGE_SIZE="${SOURCE_PREFIX}Archives_${II}_Page_Size"
         ARCHIVE_CONTENT="${SOURCE_PREFIX}Archives_${II}_Content"
+        ARCHIVE_TEMPLATE_SOURCE="${SOURCE_PREFIX}Archives_${II}_Template_Source"
     done
 
     return 0
@@ -3466,8 +3481,9 @@ function marsh_cli {
     local DEPS MARKDOWN_UNKNOWN UNKNOWN TEMP_DIR TEMPLATES_DIR FORCE JOBS
     local MARKDOWN_COMMAND MARKDOWN_OPTIONS MARKDOWN_FILEEXT MARKDOWN_REWRITE_LINKS
     local MARKDOWN_OPTIONS_CSV MARKDOWN_OPTIONS_CLIARGS MARKDOWN_FILEEXT_CSV
-    local INDEX PREFIX META META_VARS CONFIG_VARS OIFS I
+    local INDEX PREFIX META META_VARS CONFIG_VARS OIFS I J
     local TARGET_ARCHIVE_TYPES TARGET_ARCHIVE_EXCLUDED_STATES TARGET_ARCHIVE_MANIFEST
+    local TARGET_ARCHIVE_TEMPLATE TARGET_ARCHIVE_TEMPLATE_SOURCE TARGET_ARCHIVE_TEMPLATE_OVERRIDES
     local BUILD_DEST_DIR BUILD_TARGET_DIR BUILD_DOCUMENT BUILD_ADVANCED_NAV
     local BUILD_TEMPLATES_DIR BUILD_TEMPLATE BUILD_NUM_TEMPLATE_OVERRIDES BUILD_TEMPLATE_OVERRIDES
 
@@ -3906,17 +3922,17 @@ function marsh_cli {
 
             # get template
             if [[ "${TARGET_TEMPLATE_SOURCE:-}" != "" ]]; then
-                if [[ ! -e "${TEMPLATES_DIR}/${TARGET_TEMPLATE}" ]]; then
-                    if [[ ! "${TARGET_TEMPLATE_SOURCE}" =~ ^/ ]]; then
-                        TARGET_TEMPLATE_SOURCE="${MARSH_CONFIG_FILE_DIR}/${TARGET_TEMPLATE_SOURCE}"
-                        TARGET_TEMPLATE_SOURCE="${TARGET_TEMPLATE_SOURCE#./}"
+                if [[ ! "${TARGET_TEMPLATE_SOURCE}" =~ ^/ ]]; then
+                    TARGET_TEMPLATE_SOURCE="${MARSH_CONFIG_FILE_DIR}/${TARGET_TEMPLATE_SOURCE}"
+                    TARGET_TEMPLATE_SOURCE="${TARGET_TEMPLATE_SOURCE#./}"
+                fi
+                for I in "${!TARGET_TEMPLATE_OVERRIDES[@]}"; do
+                    if [[ "${TARGET_TEMPLATE_OVERRIDES[$I]:-}" != "" ]] && [[ ! "${TARGET_TEMPLATE_OVERRIDES[$I]}" =~ ^/ ]]; then
+                        TARGET_TEMPLATE_OVERRIDES[$I]="${MARSH_CONFIG_FILE_DIR}/${TARGET_TEMPLATE_OVERRIDES[$I]}"
+                        TARGET_TEMPLATE_OVERRIDES[$I]="${TARGET_TEMPLATE_OVERRIDES[$I]#./}"
                     fi
-                    for I in "${!TARGET_TEMPLATE_OVERRIDES[@]}"; do
-                        if [[ "${TARGET_TEMPLATE_OVERRIDES[$I]:-}" != "" ]] && [[ ! "${TARGET_TEMPLATE_OVERRIDES[$I]}" =~ ^/ ]]; then
-                            TARGET_TEMPLATE_OVERRIDES[$I]="${MARSH_CONFIG_FILE_DIR}/${TARGET_TEMPLATE_OVERRIDES[$I]}"
-                            TARGET_TEMPLATE_OVERRIDES[$I]="${TARGET_TEMPLATE_OVERRIDES[$I]#./}"
-                        fi
-                    done
+                done
+                if [[ ! -e "${TEMPLATES_DIR}/${TARGET_TEMPLATE}" ]]; then
                     marsh_get_files "${TARGET_TEMPLATE_SOURCE}/*" \
                             "${TEMPLATES_DIR}/${TARGET_TEMPLATE}" \
                             false || die_gracefully
@@ -3972,7 +3988,33 @@ function marsh_cli {
                     IFS=$(echo @|tr @ '\034')
                     TARGET_ARCHIVE_TYPES=(${TARGET_ARCHIVES_TYPES[$I]:-})
                     TARGET_ARCHIVE_EXCLUDED_STATES=(${TARGET_ARCHIVES_EXCLUDED_STATES[$I]:-})
+                    TARGET_ARCHIVE_TEMPLATE_OVERRIDES=(${TARGET_ARCHIVES_TEMPLATE_OVERRIDES[$I]:-})
                     IFS="${OIFS}"
+                    TARGET_ARCHIVE_TEMPLATE="${TARGET_TEMPLATE:-}"
+                    TARGET_ARCHIVE_TEMPLATE_SOURCE="${TARGET_TEMPLATE_SOURCE:-}"
+                    if [[ "${TARGET_ARCHIVES_TEMPLATE_SOURCE[$I]:-}" != "" ]]; then
+                        TARGET_ARCHIVE_TEMPLATE="${TARGET_ARCHIVES_TEMPLATE[$I]:-}"
+                        TARGET_ARCHIVE_TEMPLATE_SOURCE="${TARGET_ARCHIVES_TEMPLATE_SOURCE[$I]:-}"
+                    elif [[ "${TARGET_ARCHIVES_TEMPLATE_OVERRIDES[$I]:-}" == "" ]]; then
+                        TARGET_ARCHIVE_TEMPLATE_OVERRIDES=("${TARGET_TEMPLATE_OVERRIDES[@]}")
+                    fi
+                    if [[ "${TARGET_ARCHIVE_TEMPLATE_SOURCE:-}" != "" ]]; then
+                        if [[ ! "${TARGET_ARCHIVE_TEMPLATE_SOURCE}" =~ ^/ ]]; then
+                            TARGET_ARCHIVE_TEMPLATE_SOURCE="${MARSH_CONFIG_FILE_DIR}/${TARGET_ARCHIVE_TEMPLATE_SOURCE}"
+                            TARGET_ARCHIVE_TEMPLATE_SOURCE="${TARGET_ARCHIVE_TEMPLATE_SOURCE#./}"
+                        fi
+                        for J in "${!TARGET_ARCHIVE_TEMPLATE_OVERRIDES[@]}"; do
+                            if [[ "${TARGET_ARCHIVE_TEMPLATE_OVERRIDES[$J]:-}" != "" ]] && [[ ! "${TARGET_ARCHIVE_TEMPLATE_OVERRIDES[$J]}" =~ ^/ ]]; then
+                                TARGET_ARCHIVE_TEMPLATE_OVERRIDES[$J]="${MARSH_CONFIG_FILE_DIR}/${TARGET_ARCHIVE_TEMPLATE_OVERRIDES[$J]}"
+                                TARGET_ARCHIVE_TEMPLATE_OVERRIDES[$J]="${TARGET_ARCHIVE_TEMPLATE_OVERRIDES[$J]#./}"
+                            fi
+                        done
+                        if [[ ! -e "${TEMPLATES_DIR}/${TARGET_ARCHIVE_TEMPLATE}" ]]; then
+                            marsh_get_files "${TARGET_ARCHIVE_TEMPLATE_SOURCE}/*" \
+                                    "${TEMPLATES_DIR}/${TARGET_ARCHIVE_TEMPLATE}" \
+                                    false || die_gracefully
+                        fi
+                    fi
                     if ! marsh_build_archive "${TARGET_ARCHIVES_ENCODING[$I]}" \
                         "${MARSH_CONFIG_PATH}/${TARGET_PATH}" \
                         "${TARGET_ARCHIVES[$I]}" \
@@ -3992,13 +4034,13 @@ function marsh_cli {
                                 "${JOBS}" \
                                 "" \
                                 "${TEMPLATES_DIR}" \
-                                "${TARGET_TEMPLATE:-}" \
+                                "${TARGET_ARCHIVE_TEMPLATE:-}" \
                                 "${MARKDOWN_COMMAND}" \
                                 "${MARKDOWN_OPTIONS_CSV}" \
                                 "${MARKDOWN_FILEEXT_CSV}" \
                                 "${MARKDOWN_REWRITE_LINKS}" \
-                                "${#TARGET_TEMPLATE_OVERRIDES[@]}" \
-                                "${TARGET_TEMPLATE_OVERRIDES[@]}" \
+                                "${#TARGET_ARCHIVE_TEMPLATE_OVERRIDES[@]}" \
+                                "${TARGET_ARCHIVE_TEMPLATE_OVERRIDES[@]}" \
                                 true || exit 1
                         done
                     then

@@ -18,8 +18,8 @@ This page was built with [marsh](https://github.com/bradleysepos/marsh) and is p
 Pages:
 
 - Home (this page)
-- [About](about)
-- [News](news)
+- [About](about/)
+- [News](news/)
   - [News Atom feed](news/feed.xml)
   - [News JSON feed](news/feed.json)
 

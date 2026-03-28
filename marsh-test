@@ -1176,6 +1176,38 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
+        marsh_get_relative_path:0)
+            TEST_NAME+=":root_to_nested_index"
+            TEST=$(marsh_get_relative_path "./" "news/index.html")
+            EXPECTED="news/"
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_get_relative_path:1)
+            TEST_NAME+=":nested_to_parent_index"
+            TEST=$(marsh_get_relative_path "news/2026/" "news/index.html")
+            EXPECTED="../"
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_get_relative_path:2)
+            TEST_NAME+=":nested_to_file"
+            TEST=$(marsh_get_relative_path "news/2026/" "about.html")
+            EXPECTED="../../about.html"
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_get_relative_path:3)
+            TEST_NAME+=":same_dir_index"
+            TEST=$(marsh_get_relative_path "news/" "news/index.html")
+            EXPECTED="./"
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
         marsh_get_subdocuments:0)
             TEST_NAME+=":ordered"
             DOCUMENT_FILE="${TEST_TEMP_PREFIX}.document"
@@ -1410,6 +1442,54 @@ function marsh_test {
             TEST=$?
             EXPECTED=1
             if [[ "${TEST}" -eq "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_normalize_directory_path:0)
+            TEST_NAME+=":path"
+            TEST=$(marsh_normalize_directory_path "/news")
+            EXPECTED="/news/"
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_normalize_directory_path:1)
+            TEST_NAME+=":url"
+            TEST=$(marsh_normalize_directory_path "https://example.test/site")
+            EXPECTED="https://example.test/site/"
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_normalize_directory_path:2)
+            TEST_NAME+=":relative_root"
+            TEST=$(marsh_normalize_directory_path ".")
+            EXPECTED="./"
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_normalize_document_path:0)
+            TEST_NAME+=":nested_index"
+            TEST=$(marsh_normalize_document_path "/news/index.html")
+            EXPECTED="/news/"
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_normalize_document_path:1)
+            TEST_NAME+=":root_index_url"
+            TEST=$(marsh_normalize_document_path "https://example.test/index.html")
+            EXPECTED="https://example.test/"
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_normalize_document_path:2)
+            TEST_NAME+=":non_index"
+            TEST=$(marsh_normalize_document_path "/about.html")
+            EXPECTED="/about.html"
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
             ;;
@@ -2471,6 +2551,7 @@ KNOWN_FUNCTIONS=(
     marsh_get_archive_metadata
     marsh_get_files
     marsh_get_local_declarations
+    marsh_get_relative_path
     marsh_get_subdocuments
     marsh_get_target_metadata
     marsh_get_template_metadata
@@ -2478,6 +2559,8 @@ KNOWN_FUNCTIONS=(
     marsh_has_frontmatter
     marsh_in_array
     marsh_is_markdown_extension
+    marsh_normalize_directory_path
+    marsh_normalize_document_path
     marsh_parse_template_metadata
     marsh_parse_yaml
     marsh_process_markdown

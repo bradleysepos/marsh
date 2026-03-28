@@ -22,9 +22,11 @@ Template:
         Body:     partials/archive/html/body.html
         Document: partials/archive/html/document.html
       Atom:
+        Base:     partials/archive/atom/base.xml
         Body:     partials/archive/atom/body.xml
         Document: partials/archive/atom/document.xml
       JSON:
+        Base:     partials/archive/json/base.json
         Body:     partials/archive/json/body.json
         Document: partials/archive/json/document.json
   Assets:

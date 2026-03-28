@@ -1128,12 +1128,16 @@ function marsh_resolve_tag_metadata {  # marsh_resolve_tag_metadata tag_name pre
     TAG_VAR=""
     TAG_TYPE=""
     case "${TAG_NAME}" in
-        base.relpath|document.relpath)
-            TAG_VAR="${PREFIX}RELPATH"
+        base.rootpath)
+            TAG_VAR="${PREFIX}ROOTPATH"
             TAG_TYPE="string"
             ;;
-        base.abspath|document.abspath)
+        base.abspath)
             TAG_VAR="${PREFIX}ABSPATH"
+            TAG_TYPE="string"
+            ;;
+        document.href)
+            TAG_VAR="${PREFIX}HREF"
             TAG_TYPE="string"
             ;;
         document.uri)
@@ -2060,14 +2064,16 @@ function marsh_get_archive_page_uri {  # marsh_get_archive_page_uri target_dir a
     [[ "${ARCHIVE_SOURCE}" == "" ]] && return 1
     URI="${TARGET_DIR#$MARSH_CONFIG_PATH}"
     URI="${MARSH_CONFIG_URL%/}/${URI#/}/${ARCHIVE_SOURCE}"
-    printf '%s\n' "${URI%.*}.html"
+    URI="${URI%.*}.html"
+    marsh_normalize_document_path "${URI}"
 }
 
 # writes a single archive source page and its page-local subdocuments
-function marsh_write_archive_page {  # marsh_write_archive_page encoding target_dir archive_source title language langcode paginated page page_total page_size page_subdocuments_total archive_subdocuments_total current_uri canonical_uri first_uri prev_uri next_uri last_uri #documents[@] documents[@] document_uris[@] document_abspaths[@]
+function marsh_write_archive_page {  # marsh_write_archive_page encoding target_dir archive_source title language langcode paginated page page_total page_size page_subdocuments_total archive_subdocuments_total current_uri canonical_uri first_uri prev_uri next_uri last_uri current_href canonical_href first_href prev_href next_href last_href #documents[@] documents[@] document_uris[@] document_abspaths[@]
     local ENCODING TARGET_DIR DEST DEST_SUB_PREFIX DEST_TITLE LANGUAGE LANGCODE PAGINATED
     local PAGE PAGE_TOTAL PAGE_SIZE PAGE_SUBDOCUMENTS_TOTAL ARCHIVE_SUBDOCUMENTS_TOTAL
     local PAGE_URI PAGE_CANONICAL_URI PAGE_FIRST_URI PAGE_PREV_URI PAGE_NEXT_URI PAGE_LAST_URI
+    local PAGE_HREF PAGE_CANONICAL_HREF PAGE_FIRST_HREF PAGE_PREV_HREF PAGE_NEXT_HREF PAGE_LAST_HREF
     local NUM_DOCUMENTS DOCUMENTS DOCUMENT_URIS DOCUMENT_ABSPATHS DOCUMENT INDEX URI ABSPATH MANIFEST_FILE
     local PAGE_IS_FIRST PAGE_IS_LAST PAGE_HAS_PREV PAGE_HAS_NEXT PAGE_HAS_SUBDOCUMENTS
 
@@ -2092,7 +2098,13 @@ function marsh_write_archive_page {  # marsh_write_archive_page encoding target_
     PAGE_PREV_URI="${13:-}"
     PAGE_NEXT_URI="${14:-}"
     PAGE_LAST_URI="${15:-}"
-    shift 15
+    PAGE_HREF="${16:-}"
+    PAGE_CANONICAL_HREF="${17:-}"
+    PAGE_FIRST_HREF="${18:-}"
+    PAGE_PREV_HREF="${19:-}"
+    PAGE_NEXT_HREF="${20:-}"
+    PAGE_LAST_HREF="${21:-}"
+    shift 21
     NUM_DOCUMENTS="${1:-0}"
     shift 1
     DOCUMENTS=()
@@ -2169,6 +2181,12 @@ function marsh_write_archive_page {  # marsh_write_archive_page encoding target_
         echo "Page_Prev_URI: ${PAGE_PREV_URI}" >> "${DEST}"
         echo "Page_Next_URI: ${PAGE_NEXT_URI}" >> "${DEST}"
         echo "Page_Last_URI: ${PAGE_LAST_URI}" >> "${DEST}"
+        echo "Page_Href: ${PAGE_HREF}" >> "${DEST}"
+        echo "Page_Canonical_Href: ${PAGE_CANONICAL_HREF}" >> "${DEST}"
+        echo "Page_First_Href: ${PAGE_FIRST_HREF}" >> "${DEST}"
+        echo "Page_Prev_Href: ${PAGE_PREV_HREF}" >> "${DEST}"
+        echo "Page_Next_Href: ${PAGE_NEXT_HREF}" >> "${DEST}"
+        echo "Page_Last_Href: ${PAGE_LAST_HREF}" >> "${DEST}"
     fi
     echo "---" >> "${DEST}"
 
@@ -2207,7 +2225,9 @@ function marsh_build_archive {  # marsh_build_archive encoding target_dir dest_f
     local ARCHIVE_PAGES ARCHIVE_SUBDOCUMENTS_TOTAL
     local PAGE_DEST PAGE_ALIAS_DEST PAGE_ROOT
     local PAGE_URI PAGE_CANONICAL_URI PAGE_FIRST_URI PAGE_PREV_URI PAGE_NEXT_URI PAGE_LAST_URI
+    local PAGE_HREF PAGE_CANONICAL_HREF PAGE_FIRST_HREF PAGE_PREV_HREF PAGE_NEXT_HREF PAGE_LAST_HREF
     local PAGE_PREV_DEST PAGE_NEXT_DEST PAGE_LAST_DEST
+    local PAGE_OUTPUT_PATH PAGE_CANONICAL_OUTPUT_PATH PAGE_FIRST_OUTPUT_PATH PAGE_PREV_OUTPUT_PATH PAGE_NEXT_OUTPUT_PATH PAGE_LAST_OUTPUT_PATH PAGE_BASE_PATH
 
     # init
     ENCODING="${1:-html}"
@@ -2320,11 +2340,15 @@ function marsh_build_archive {  # marsh_build_archive encoding target_dir dest_f
     fi
     PAGE_CANONICAL_URI=$(marsh_get_archive_page_uri "${TARGET_DIR}" "${DEST}") || return 1
     PAGE_FIRST_URI="${PAGE_CANONICAL_URI}"
+    PAGE_CANONICAL_OUTPUT_PATH="${DEST%.*}.html"
+    PAGE_FIRST_OUTPUT_PATH="${PAGE_CANONICAL_OUTPUT_PATH}"
     if [[ "${PAGINATED}" == true ]] && [[ "${PAGE_TOTAL}" -gt 1 ]]; then
         PAGE_LAST_DEST=$(marsh_get_archive_page_source "${DEST}" "${PAGE_TOTAL}") || return 1
         PAGE_LAST_URI=$(marsh_get_archive_page_uri "${TARGET_DIR}" "${PAGE_LAST_DEST}") || return 1
+        PAGE_LAST_OUTPUT_PATH="${PAGE_LAST_DEST%.*}.html"
     else
         PAGE_LAST_URI="${PAGE_CANONICAL_URI}"
+        PAGE_LAST_OUTPUT_PATH="${PAGE_CANONICAL_OUTPUT_PATH}"
     fi
     for ((PAGE=1; PAGE<=PAGE_TOTAL; PAGE++)); do
         PAGE_DOCUMENTS=()
@@ -2353,8 +2377,16 @@ function marsh_build_archive {  # marsh_build_archive encoding target_dir dest_f
             PAGE_DEST="${DEST}"
         fi
         PAGE_URI=$(marsh_get_archive_page_uri "${TARGET_DIR}" "${PAGE_DEST}") || return 1
+        PAGE_OUTPUT_PATH="${PAGE_DEST%.*}.html"
+        PAGE_BASE_PATH="./${PAGE_OUTPUT_PATH}"
+        PAGE_BASE_PATH="${PAGE_BASE_PATH%/*}"
+        PAGE_BASE_PATH="${PAGE_BASE_PATH#./}"
+        PAGE_BASE_PATH="${PAGE_BASE_PATH:-.}"
+        PAGE_BASE_PATH=$(marsh_normalize_directory_path "${PAGE_BASE_PATH}") || return 1
         PAGE_PREV_URI=""
         PAGE_NEXT_URI=""
+        PAGE_PREV_OUTPUT_PATH=""
+        PAGE_NEXT_OUTPUT_PATH=""
         if [[ "${PAGE}" -gt 1 ]]; then
             if [[ "${PAGE}" -eq 2 ]]; then
                 PAGE_PREV_DEST="${DEST}"
@@ -2362,11 +2394,21 @@ function marsh_build_archive {  # marsh_build_archive encoding target_dir dest_f
                 PAGE_PREV_DEST=$(marsh_get_archive_page_source "${DEST}" "$((PAGE - 1))") || return 1
             fi
             PAGE_PREV_URI=$(marsh_get_archive_page_uri "${TARGET_DIR}" "${PAGE_PREV_DEST}") || return 1
+            PAGE_PREV_OUTPUT_PATH="${PAGE_PREV_DEST%.*}.html"
         fi
         if [[ "${PAGE}" -lt "${PAGE_TOTAL}" ]]; then
             PAGE_NEXT_DEST=$(marsh_get_archive_page_source "${DEST}" "$((PAGE + 1))") || return 1
             PAGE_NEXT_URI=$(marsh_get_archive_page_uri "${TARGET_DIR}" "${PAGE_NEXT_DEST}") || return 1
+            PAGE_NEXT_OUTPUT_PATH="${PAGE_NEXT_DEST%.*}.html"
         fi
+        PAGE_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${PAGE_OUTPUT_PATH}") || return 1
+        PAGE_CANONICAL_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${PAGE_CANONICAL_OUTPUT_PATH}") || return 1
+        PAGE_FIRST_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${PAGE_FIRST_OUTPUT_PATH}") || return 1
+        PAGE_PREV_HREF=""
+        [[ "${PAGE_PREV_OUTPUT_PATH}" != "" ]] && PAGE_PREV_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${PAGE_PREV_OUTPUT_PATH}") || true
+        PAGE_NEXT_HREF=""
+        [[ "${PAGE_NEXT_OUTPUT_PATH}" != "" ]] && PAGE_NEXT_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${PAGE_NEXT_OUTPUT_PATH}") || true
+        PAGE_LAST_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${PAGE_LAST_OUTPUT_PATH}") || return 1
 
         marsh_write_archive_page "${ENCODING}" \
                 "${TARGET_DIR}" \
@@ -2386,6 +2428,12 @@ function marsh_build_archive {  # marsh_build_archive encoding target_dir dest_f
                 "${PAGE_PREV_URI}" \
                 "${PAGE_NEXT_URI}" \
                 "${PAGE_LAST_URI}" \
+                "${PAGE_HREF}" \
+                "${PAGE_CANONICAL_HREF}" \
+                "${PAGE_FIRST_HREF}" \
+                "${PAGE_PREV_HREF}" \
+                "${PAGE_NEXT_HREF}" \
+                "${PAGE_LAST_HREF}" \
                 "${#PAGE_DOCUMENTS[@]}" \
                 "${PAGE_DOCUMENTS[@]}" \
                 "${PAGE_DOCUMENT_URIS[@]}" \
@@ -2395,6 +2443,18 @@ function marsh_build_archive {  # marsh_build_archive encoding target_dir dest_f
         if [[ "${PAGINATED}" == true ]] && [[ "${PAGE}" -eq 1 ]]; then
             PAGE_ALIAS_DEST=$(marsh_get_archive_page_source "${DEST}" '1') || return 1
             PAGE_URI=$(marsh_get_archive_page_uri "${TARGET_DIR}" "${PAGE_ALIAS_DEST}") || return 1
+            PAGE_OUTPUT_PATH="${PAGE_ALIAS_DEST%.*}.html"
+            PAGE_BASE_PATH="./${PAGE_OUTPUT_PATH}"
+            PAGE_BASE_PATH="${PAGE_BASE_PATH%/*}"
+            PAGE_BASE_PATH="${PAGE_BASE_PATH#./}"
+            PAGE_BASE_PATH="${PAGE_BASE_PATH:-.}"
+            PAGE_BASE_PATH=$(marsh_normalize_directory_path "${PAGE_BASE_PATH}") || return 1
+            PAGE_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${PAGE_OUTPUT_PATH}") || return 1
+            PAGE_CANONICAL_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${PAGE_CANONICAL_OUTPUT_PATH}") || return 1
+            PAGE_FIRST_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${PAGE_FIRST_OUTPUT_PATH}") || return 1
+            PAGE_NEXT_HREF=""
+            [[ "${PAGE_NEXT_OUTPUT_PATH}" != "" ]] && PAGE_NEXT_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${PAGE_NEXT_OUTPUT_PATH}") || true
+            PAGE_LAST_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${PAGE_LAST_OUTPUT_PATH}") || return 1
             marsh_write_archive_page "${ENCODING}" \
                     "${TARGET_DIR}" \
                     "${PAGE_ALIAS_DEST}" \
@@ -2413,6 +2473,12 @@ function marsh_build_archive {  # marsh_build_archive encoding target_dir dest_f
                     '' \
                     "${PAGE_NEXT_URI}" \
                     "${PAGE_LAST_URI}" \
+                    "${PAGE_HREF}" \
+                    "${PAGE_CANONICAL_HREF}" \
+                    "${PAGE_FIRST_HREF}" \
+                    '' \
+                    "${PAGE_NEXT_HREF}" \
+                    "${PAGE_LAST_HREF}" \
                     "${#PAGE_DOCUMENTS[@]}" \
                     "${PAGE_DOCUMENTS[@]}" \
                     "${PAGE_DOCUMENT_URIS[@]}" \
@@ -2723,7 +2789,11 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
             eval "${TAG_PARSE}"
             TAG_VAR=""
             TAG_TYPE=""
-            eval "$(marsh_resolve_tag_metadata "${TAG_NAME}" "${PREFIX}" "${METADATA_VARS}" 2>/dev/null)" || true
+            if [[ "${TAG_NAME}" =~ ^base.* ]]; then
+                eval "$(marsh_resolve_tag_metadata "${TAG_NAME}" "BASE_" "${BASE_METADATA_VARS}" 2>/dev/null)" || true
+            else
+                eval "$(marsh_resolve_tag_metadata "${TAG_NAME}" "${PREFIX}" "${METADATA_VARS}" 2>/dev/null)" || true
+            fi
             if [[ "${TAG_VAR}" != "" ]] && [[ "${TAG_TYPE}" != "" ]]; then
                 if [[ "${TAG_TYPE}" == "array" ]]; then
                     eval "$(marsh_flat_to_array "TAG_VALUES" "${TAG_VAR}")"
@@ -2762,8 +2832,9 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
         return "${RES}"
     }
 
-    local DEST_DIR TARGET_DIR ADVANCED_NAV
-    local DOCUMENT DOCUMENT_EXT DOCUMENT_DIR DOCUMENT_RELPATH DOCUMENT_ABSPATH DOCUMENT_URI
+    local DEST_DIR TARGET_DIR TARGET_PATH ADVANCED_NAV
+    local DOCUMENT DOCUMENT_EXT DOCUMENT_DIR DOCUMENT_HREF DOCUMENT_URI DOCUMENT_OUTPUT_PATH DOCUMENT_BASE_PATH
+    local BASE_ROOTPATH BASE_ABSPATH
     local DEST DEST_NAME
     local TEMPLATE_DIR TEMPLATE MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_FILEEXT_REGEX MARKDOWN_REWRITE_LINKS
     local NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDES
@@ -2777,7 +2848,8 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
     local DOCUMENT_META DOCUMENT_META_VARS DOCUMENT_CONTENT
     local SUBDOCUMENTS_LIST SUBDOCUMENTS SUBDOCUMENT_URIS SUBDOCUMENT_ABSPATHS NUM_SUBDOCUMENTS
     local SUBDOCUMENT SUBDOCUMENT_SOURCE SUBDOCUMENT_CONTENT SUBDOCUMENT_CONTENT_ESC SUBDOCUMENT_META SUBDOCUMENT_META_VARS
-    local SUBDOCUMENT_RENDER SUBDOCUMENT_TEMPLATE SUBDOCUMENT_RENDER_FILE SUBDOCUMENT_URI SUBDOCUMENT_ABSPATH
+    local SUBDOCUMENT_RENDER SUBDOCUMENT_TEMPLATE SUBDOCUMENT_RENDER_FILE SUBDOCUMENT_URI SUBDOCUMENT_ABSPATH SUBDOCUMENT_HREF
+    local SUBDOCUMENT_OUTPUT_PATH SUBDOCUMENT_OUTPUT_EXT
     local SUBDOCUMENT_URI_FROM_MANIFEST SUBDOCUMENT_ABSPATH_FROM_MANIFEST SUBDOCUMENT_DOCUMENT_ESC SUBDOCUMENT_URI_ESC SUBDOCUMENT_ABSPATH_ESC SUBDOCUMENTS_MANIFEST
     local TEXT_FILTER UTIL_JSON_SEPARATOR I J
     local CONDITIONAL_TAG CONDITIONAL_VALUES
@@ -2787,23 +2859,20 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
 
     # init
     DEST_DIR="${1:-.}"
-    DEST_DIR="${DEST_DIR%/}"
     TARGET_DIR="${2:-.}"
-    TARGET_DIR="${TARGET_DIR%/}"
     DOCUMENT="${3:-}"
-    [[ "${DOCUMENT}" == "" ]] && return 1
     ADVANCED_NAV="${4:-}"
     TEMPLATE_DIR="${5:-}"
     TEMPLATE="${6:-}"
     MARKDOWN_COMMAND="${7:-}"
     MARKDOWN_OPTIONS_CSV="${8:-}"
     MARKDOWN_FILEEXT_CSV="${9:-}"
-    MARKDOWN_FILEEXT_REGEX="${MARKDOWN_FILEEXT_CSV//,/|}"
     MARKDOWN_REWRITE_LINKS="${10:-}"
-    shift 10
+    [[ "${DOCUMENT}" == "" ]] && return 1
     [[ "${MARKDOWN_COMMAND}" == "" ]] && return 1
     [[ "${MARKDOWN_FILEEXT_CSV}" == "" ]] && return 1
     [[ "${MARKDOWN_REWRITE_LINKS}" == "" ]] && return 1
+    shift 10
     NUM_TEMPLATE_OVERRIDES="${1:-0}"
     shift 1
     TEMPLATE_OVERRIDES=()
@@ -2813,17 +2882,40 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
         shift 1
     done
 
+    # normalized directory paths
+    DEST_DIR="${DEST_DIR%/}"
+    TARGET_DIR="${TARGET_DIR%/}"
+    TARGET_PATH="${DEST_DIR}/${TARGET_DIR}"
+    TARGET_PATH="${TARGET_PATH%/.}"
+
+    # document file extension
     DOCUMENT_EXT="${DOCUMENT##*.}"
+
+    # normalized document directory
     DOCUMENT_DIR="./${DOCUMENT}"
     DOCUMENT_DIR="${DOCUMENT_DIR%/*}"
     DOCUMENT_DIR="${DOCUMENT_DIR#./}"
-    DOCUMENT_RELPATH="${DOCUMENT#./}"                 # strip current dir
-    DOCUMENT_RELPATH="${DOCUMENT_RELPATH//[^\/]}"     # leave only slashes
-    DOCUMENT_RELPATH="${DOCUMENT_RELPATH//[\/]/../}"  # slashes to dirs
-    DOCUMENT_RELPATH="${DOCUMENT_RELPATH:-./}"        # empty to current dir
-    DOCUMENT_ABSPATH="${MARSH_CONFIG_URL:-}"
-    DOCUMENT_ABSPATH="${DOCUMENT_ABSPATH%/}/${TARGET_DIR}/${DOCUMENT_DIR}"
-    DOCUMENT_ABSPATH="${DOCUMENT_ABSPATH%/.}"
+
+    # absolute path to document directory
+    BASE_ABSPATH="${TARGET_DIR}/${DOCUMENT_DIR}"
+    BASE_ABSPATH="${BASE_ABSPATH#./}"
+    BASE_ABSPATH="${BASE_ABSPATH%/.}"
+    [[ "${BASE_ABSPATH}" == "." ]] && BASE_ABSPATH=""
+    if [[ "${MARSH_CONFIG_URL:-}" != "" ]]; then
+        BASE_ABSPATH="${MARSH_CONFIG_URL%/}/${BASE_ABSPATH}"
+        BASE_ABSPATH="${BASE_ABSPATH%/}"
+    else
+        BASE_ABSPATH="${BASE_ABSPATH:-.}"
+    fi
+    BASE_ABSPATH=$(marsh_normalize_directory_path "${BASE_ABSPATH}") || return 1
+
+    # relative path to site root from document directory
+    BASE_ROOTPATH="${DOCUMENT#./}"              # strip current dir
+    BASE_ROOTPATH="${BASE_ROOTPATH//[^\/]}"     # leave only slashes
+    BASE_ROOTPATH="${BASE_ROOTPATH//[\/]/../}"  # slashes to dirs
+    BASE_ROOTPATH="${BASE_ROOTPATH:-./}"        # empty to current dir
+
+    # document destination
     DEST="${DOCUMENT}"
     DEST_NAME="${DEST%.$DOCUMENT_EXT}"
     DEST_NAME="${DEST_NAME##*/}"
@@ -2833,9 +2925,24 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
     if [[ "${TARGET_DIR}" != "." ]]; then
         DEST="${TARGET_DIR}/${DEST}"
     fi
+    DOCUMENT_OUTPUT_PATH="${DEST#./}"
     DEST="${DEST_DIR}/${DEST}"
     DOCUMENT="${DEST_DIR}/${TARGET_DIR}/${DOCUMENT}"
-    DOCUMENT_URI="${DOCUMENT_ABSPATH:+$DOCUMENT_ABSPATH/}${DEST##*/}"
+
+    # normalized document base path
+    DOCUMENT_BASE_PATH="${TARGET_DIR}/${DOCUMENT_DIR}"
+    DOCUMENT_BASE_PATH="${DOCUMENT_BASE_PATH#./}"
+    DOCUMENT_BASE_PATH="${DOCUMENT_BASE_PATH%/.}"
+    DOCUMENT_BASE_PATH="${DOCUMENT_BASE_PATH:-.}"
+    DOCUMENT_BASE_PATH=$(marsh_normalize_directory_path "${DOCUMENT_BASE_PATH}") || return 1
+
+    # document uri (absolute link) and href (relative link)
+    DOCUMENT_URI="${BASE_ABSPATH}${DEST##*/}"
+    DOCUMENT_URI=$(marsh_normalize_document_path "${DOCUMENT_URI}") || return 1
+    DOCUMENT_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "${DOCUMENT_OUTPUT_PATH}") || return 1
+
+    # markdown file extension regex
+    MARKDOWN_FILEEXT_REGEX="${MARKDOWN_FILEEXT_CSV//,/|}"
 
     # utility vars
     UTIL_JSON_SEPARATOR=","
@@ -2852,6 +2959,9 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                 echo "Unable to extract document frontmatter: ${DOCUMENT}" >&2
                 return 1
             }
+        else
+            echo "Document content not found: ${DOCUMENT_CONTENT}" >&2
+            return 1
         fi
     fi
 
@@ -3007,11 +3117,11 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
         # scripts and styles
         TEMPLATE_SCRIPTS=""
         for SCRIPT in "${TEMPLATE_ASSETS_SCRIPTS[@]}"; do
-            TEMPLATE_SCRIPTS="${TEMPLATE_SCRIPTS}<script src=\"${DOCUMENT_RELPATH}${SCRIPT}\"></script>"
+            TEMPLATE_SCRIPTS="${TEMPLATE_SCRIPTS}<script src=\"${BASE_ROOTPATH}${SCRIPT}\"></script>"
         done
         TEMPLATE_STYLES=""
         for STYLE in "${TEMPLATE_ASSETS_STYLES[@]}"; do
-            TEMPLATE_STYLES="${TEMPLATE_STYLES}<link rel=\"stylesheet\" href=\"${DOCUMENT_RELPATH}${STYLE}\" />"
+            TEMPLATE_STYLES="${TEMPLATE_STYLES}<link rel=\"stylesheet\" href=\"${BASE_ROOTPATH}${STYLE}\" />"
         done
 
         # advanced navigation
@@ -3130,6 +3240,31 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                 fi
                 [[ "${SUBDOCUMENT_URI_FROM_MANIFEST:-}" != "" ]] && SUBDOCUMENT_URI="${SUBDOCUMENT_URI_FROM_MANIFEST}"
                 [[ "${SUBDOCUMENT_ABSPATH_FROM_MANIFEST:-}" != "" ]] && SUBDOCUMENT_ABSPATH="${SUBDOCUMENT_ABSPATH_FROM_MANIFEST}"
+                SUBDOCUMENT_OUTPUT_PATH="${SUBDOCUMENT_SOURCE#${DEST_DIR%/}/}"
+                if [[ "${SUBDOCUMENT_OUTPUT_PATH}" == "${SUBDOCUMENT_SOURCE}" ]]; then
+                    SUBDOCUMENT_OUTPUT_PATH="${SUBDOCUMENT_SOURCE#${TARGET_PATH}/}"
+                    if [[ "${SUBDOCUMENT_OUTPUT_PATH}" != "${SUBDOCUMENT_SOURCE}" ]] && [[ "${TARGET_DIR}" != "." ]]; then
+                        SUBDOCUMENT_OUTPUT_PATH="${TARGET_DIR}/${SUBDOCUMENT_OUTPUT_PATH#./}"
+                    fi
+                fi
+                if [[ "${SUBDOCUMENT_OUTPUT_PATH%.$MARSH_UID.document}" != "${SUBDOCUMENT_OUTPUT_PATH}" ]]; then
+                    SUBDOCUMENT_OUTPUT_PATH="${SUBDOCUMENT_OUTPUT_PATH%.$MARSH_UID.document}"
+                else
+                    SUBDOCUMENT_OUTPUT_PATH="${SUBDOCUMENT_OUTPUT_PATH%.document}"
+                fi
+                SUBDOCUMENT_OUTPUT_EXT="${SUBDOCUMENT_OUTPUT_PATH##*.}"
+                if marsh_is_markdown_extension "${SUBDOCUMENT_OUTPUT_EXT}" "${MARKDOWN_FILEEXT_CSV}"; then
+                    SUBDOCUMENT_OUTPUT_PATH="${SUBDOCUMENT_OUTPUT_PATH%.*}.html"
+                fi
+                if [[ "${SUBDOCUMENT_URI:-}" == "" ]]; then
+                    if [[ "${MARSH_CONFIG_URL:-}" != "" ]]; then
+                        SUBDOCUMENT_URI="${MARSH_CONFIG_URL%/}/${SUBDOCUMENT_OUTPUT_PATH#./}"
+                    else
+                        SUBDOCUMENT_URI="${SUBDOCUMENT_OUTPUT_PATH}"
+                    fi
+                fi
+                SUBDOCUMENT_URI=$(marsh_normalize_document_path "${SUBDOCUMENT_URI}") || return 1
+                SUBDOCUMENT_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "${SUBDOCUMENT_OUTPUT_PATH}") || return 1
                 # state
                 eval $(marsh_flat_to_array "SUBDOCUMENT_State" "SUBDOCUMENT_State_")
                 SUBDOCUMENT_TEMPLATE=$(<"${SUBDOCUMENT_SOURCE}")

@@ -698,10 +698,10 @@ function marsh_test {
             marsh_test_create_archive_document "${TARGET_DIR}" "news/2026/01/01/01-first.markdown" "${MARSH_UID}" "post" "First" "2026-01-01"
             ARCHIVE_PAGES=$(marsh_build_archive "html" "${TARGET_DIR}" "index.markdown" "Archive" "English" "en" "" "2" "1" "post" "0")
             BASE_URI="https://example.test/$(basename "${TARGET_DIR}")"
-            CANONICAL_META=$(sed -n -e '/^Page:/p' -e '/^Page_Total:/p' -e '/^Page_Size:/p' -e '/^Page_Subdocuments_Total:/p' -e '/^Archive_Subdocuments_Total:/p' -e '/^Page_URI:/p' -e '/^Page_Canonical_URI:/p' -e '/^Page_Next_URI:/p' -e '/^Page_Last_URI:/p' "${TARGET_DIR}/index.markdown")
-            ALIAS_META=$(sed -n -e '/^Page:/p' -e '/^Page_URI:/p' -e '/^Page_Canonical_URI:/p' -e '/^Page_Next_URI:/p' "${TARGET_DIR}/page/1/index.markdown")
-            PAGE_META=$(sed -n -e '/^Page:/p' -e '/^Page_Total:/p' -e '/^Page_Subdocuments_Total:/p' -e '/^Archive_Subdocuments_Total:/p' -e '/^Page_Prev_URI:/p' -e '/^Page_Last_URI:/p' "${TARGET_DIR}/page/2/index.markdown")
-            TEST="$([[ "${ARCHIVE_PAGES}" == "index.markdown"$'\n'"page/1/index.markdown"$'\n'"page/2/index.markdown" ]] && [[ "${CANONICAL_META}" == "Page: 1"$'\n'"Page_Total: 2"$'\n'"Page_Size: 2"$'\n'"Page_Subdocuments_Total: 2"$'\n'"Archive_Subdocuments_Total: 3"$'\n'"Page_URI: ${BASE_URI}/index.html"$'\n'"Page_Canonical_URI: ${BASE_URI}/index.html"$'\n'"Page_Next_URI: ${BASE_URI}/page/2/index.html"$'\n'"Page_Last_URI: ${BASE_URI}/page/2/index.html" ]] && [[ "${ALIAS_META}" == "Page: 1"$'\n'"Page_URI: ${BASE_URI}/page/1/index.html"$'\n'"Page_Canonical_URI: ${BASE_URI}/index.html"$'\n'"Page_Next_URI: ${BASE_URI}/page/2/index.html" ]] && [[ "${PAGE_META}" == "Page: 2"$'\n'"Page_Total: 2"$'\n'"Page_Subdocuments_Total: 1"$'\n'"Archive_Subdocuments_Total: 3"$'\n'"Page_Prev_URI: ${BASE_URI}/index.html"$'\n'"Page_Last_URI: ${BASE_URI}/page/2/index.html" ]] && [[ -e "${TARGET_DIR}/index.markdown.${MARSH_UID}.subdocuments.manifest" ]] && [[ -e "${TARGET_DIR}/page/1/index.markdown.${MARSH_UID}.subdocuments.manifest" ]] && [[ -e "${TARGET_DIR}/page/2/index.markdown.${MARSH_UID}.subdocuments.manifest" ]] && [[ ! -e "${TARGET_DIR}/index.markdown.${MARSH_UID}.subdocuments.0.document" ]] && [[ ! -e "${TARGET_DIR}/page/2/index.markdown.${MARSH_UID}.subdocuments.0.document" ]]; printf '%s' "$?")"
+            CANONICAL_META=$(sed -n -e '/^Page:/p' -e '/^Page_Total:/p' -e '/^Page_Size:/p' -e '/^Page_Subdocuments_Total:/p' -e '/^Archive_Subdocuments_Total:/p' -e '/^Page_URI:/p' -e '/^Page_Canonical_URI:/p' -e '/^Page_Next_URI:/p' -e '/^Page_Last_URI:/p' -e '/^Page_Href:/p' -e '/^Page_Canonical_Href:/p' -e '/^Page_Next_Href:/p' -e '/^Page_Last_Href:/p' "${TARGET_DIR}/index.markdown")
+            ALIAS_META=$(sed -n -e '/^Page:/p' -e '/^Page_URI:/p' -e '/^Page_Canonical_URI:/p' -e '/^Page_Next_URI:/p' -e '/^Page_Href:/p' -e '/^Page_Canonical_Href:/p' -e '/^Page_Next_Href:/p' -e '/^Page_Last_Href:/p' "${TARGET_DIR}/page/1/index.markdown")
+            PAGE_META=$(sed -n -e '/^Page:/p' -e '/^Page_Total:/p' -e '/^Page_Subdocuments_Total:/p' -e '/^Archive_Subdocuments_Total:/p' -e '/^Page_Prev_URI:/p' -e '/^Page_Last_URI:/p' -e '/^Page_Href:/p' -e '/^Page_Prev_Href:/p' -e '/^Page_Last_Href:/p' "${TARGET_DIR}/page/2/index.markdown")
+            TEST="$([[ "${ARCHIVE_PAGES}" == "index.markdown"$'\n'"page/1/index.markdown"$'\n'"page/2/index.markdown" ]] && [[ "${CANONICAL_META}" == "Page: 1"$'\n'"Page_Total: 2"$'\n'"Page_Size: 2"$'\n'"Page_Subdocuments_Total: 2"$'\n'"Archive_Subdocuments_Total: 3"$'\n'"Page_URI: ${BASE_URI}/"$'\n'"Page_Canonical_URI: ${BASE_URI}/"$'\n'"Page_Next_URI: ${BASE_URI}/page/2/"$'\n'"Page_Last_URI: ${BASE_URI}/page/2/"$'\n'"Page_Href: ./"$'\n'"Page_Canonical_Href: ./"$'\n'"Page_Next_Href: page/2/"$'\n'"Page_Last_Href: page/2/" ]] && [[ "${ALIAS_META}" == "Page: 1"$'\n'"Page_URI: ${BASE_URI}/page/1/"$'\n'"Page_Canonical_URI: ${BASE_URI}/"$'\n'"Page_Next_URI: ${BASE_URI}/page/2/"$'\n'"Page_Href: ./"$'\n'"Page_Canonical_Href: ../../"$'\n'"Page_Next_Href: ../2/"$'\n'"Page_Last_Href: ../2/" ]] && [[ "${PAGE_META}" == "Page: 2"$'\n'"Page_Total: 2"$'\n'"Page_Subdocuments_Total: 1"$'\n'"Archive_Subdocuments_Total: 3"$'\n'"Page_Prev_URI: ${BASE_URI}/"$'\n'"Page_Last_URI: ${BASE_URI}/page/2/"$'\n'"Page_Href: ./"$'\n'"Page_Prev_Href: ../../"$'\n'"Page_Last_Href: ./" ]] && [[ -e "${TARGET_DIR}/index.markdown.${MARSH_UID}.subdocuments.manifest" ]] && [[ -e "${TARGET_DIR}/page/1/index.markdown.${MARSH_UID}.subdocuments.manifest" ]] && [[ -e "${TARGET_DIR}/page/2/index.markdown.${MARSH_UID}.subdocuments.manifest" ]] && [[ ! -e "${TARGET_DIR}/index.markdown.${MARSH_UID}.subdocuments.0.document" ]] && [[ ! -e "${TARGET_DIR}/page/2/index.markdown.${MARSH_UID}.subdocuments.0.document" ]]; printf '%s' "$?")"
             EXPECTED="0"
             rm -rf "${TARGET_DIR}"
             marsh_test_restore_env
@@ -751,8 +751,8 @@ function marsh_test {
             marsh_test_create_archive_document "${TARGET_DIR}" "news/2026/01/01/01-first.markdown" "${MARSH_UID}" "post" "First" "2026-01-01"
             ARCHIVE_PAGES=$(marsh_build_archive "html" "${TARGET_DIR}" "blog.markdown" "Archive" "English" "en" "" "2" "1" "post" "0")
             BASE_URI="https://example.test/$(basename "${TARGET_DIR}")"
-            ALIAS_META=$(sed -n -e '/^Page_URI:/p' -e '/^Page_Canonical_URI:/p' "${TARGET_DIR}/blog/page/1/index.markdown")
-            TEST="$([[ "${ARCHIVE_PAGES}" == "blog.markdown"$'\n'"blog/page/1/index.markdown"$'\n'"blog/page/2/index.markdown" ]] && [[ "${ALIAS_META}" == "Page_URI: ${BASE_URI}/blog/page/1/index.html"$'\n'"Page_Canonical_URI: ${BASE_URI}/blog.html" ]] && [[ -e "${TARGET_DIR}/blog.markdown" ]] && [[ -e "${TARGET_DIR}/blog/page/1/index.markdown" ]] && [[ -e "${TARGET_DIR}/blog/page/2/index.markdown" ]]; printf '%s' "$?")"
+            ALIAS_META=$(sed -n -e '/^Page_URI:/p' -e '/^Page_Canonical_URI:/p' -e '/^Page_Href:/p' -e '/^Page_Canonical_Href:/p' "${TARGET_DIR}/blog/page/1/index.markdown")
+            TEST="$([[ "${ARCHIVE_PAGES}" == "blog.markdown"$'\n'"blog/page/1/index.markdown"$'\n'"blog/page/2/index.markdown" ]] && [[ "${ALIAS_META}" == "Page_URI: ${BASE_URI}/blog/page/1/"$'\n'"Page_Canonical_URI: ${BASE_URI}/blog.html"$'\n'"Page_Href: ./"$'\n'"Page_Canonical_Href: ../../../blog.html" ]] && [[ -e "${TARGET_DIR}/blog.markdown" ]] && [[ -e "${TARGET_DIR}/blog/page/1/index.markdown" ]] && [[ -e "${TARGET_DIR}/blog/page/2/index.markdown" ]]; printf '%s' "$?")"
             EXPECTED="0"
             rm -rf "${TARGET_DIR}"
             marsh_test_restore_env
@@ -929,7 +929,7 @@ function marsh_test {
             marsh_test_set_env "archiveuid" true true
             mkdir -p "${TARGET_DIR}/news"
             marsh_test_create_archive_template "${TEMPLATE_DIR}" "sample" "html" true
-            printf '%s\n' '{{ document.title }}' '{{ document.uri }}' '{{ document.abspath }}' > "${TARGET_DIR}/news/item.markdown.${MARSH_UID}.document"
+            printf '%s\n' '{{ document.title }}' '{{ document.uri }}' > "${TARGET_DIR}/news/item.markdown.${MARSH_UID}.document"
             printf '%s\n' \
                 '---' \
                 'Type: post' \
@@ -945,8 +945,7 @@ function marsh_test {
             fi
             EXPECTED="0"
             if [[ "${TEST}" == *"Tagged Item"* ]] \
-                && [[ "${TEST}" == *"https://example.test/$(basename "${TARGET_DIR}")/news/item.html"* ]] \
-                && [[ "${TEST}" == *"https://example.test/$(basename "${TARGET_DIR}")/news"* ]]; then
+                && [[ "${TEST}" == *"https://example.test/$(basename "${TARGET_DIR}")/news/item.html"* ]]; then
                 TEST="0"
             else
                 TEST="1"
@@ -964,7 +963,7 @@ function marsh_test {
             marsh_test_set_env "archiveuid" true true
             mkdir -p "${TARGET_DIR}/news"
             marsh_test_create_archive_template "${TEMPLATE_DIR}" "sample" "html" true
-            printf '%s\n' '{{ document.title }}' '{{ document.uri }}' '{{ document.abspath }}' > "${TARGET_DIR}/news/item.markdown.${MARSH_UID}.document"
+            printf '%s\n' '{{ document.title }}' '{{ document.uri }}' > "${TARGET_DIR}/news/item.markdown.${MARSH_UID}.document"
             printf '%s\n' \
                 '---' \
                 'Type: post' \
@@ -981,7 +980,6 @@ function marsh_test {
             EXPECTED="0"
             if [[ "${TEST}" == *"Tagged Item"* ]] \
                 && [[ "${TEST}" == *"https://example.test/$(basename "${TARGET_DIR}")/news/item.html"* ]] \
-                && [[ "${TEST}" == *"https://example.test/$(basename "${TARGET_DIR}")/news"* ]] \
                 && [[ "${TEST}" == *'<meta name="template-head" content="archive" />'* ]] \
                 && [[ "${TEST}" == *'archive-base'* ]] \
                 && [[ "${TEST}" == *'archive-body'* ]] \
@@ -1088,6 +1086,136 @@ function marsh_test {
                 if [[ "${TEST}" == *'json-base'* ]] \
                     && [[ "${TEST}" == *'json-body'* ]] \
                     && [[ "${TEST}" == *'"Tagged Item"'* ]]; then
+                    TEST="0"
+                else
+                    TEST="1"
+                fi
+            fi
+            EXPECTED="0"
+            rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}"
+            marsh_test_restore_env
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_build_template:6)
+            TEST_NAME+=":generated_base_tags"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            local ROOT_TEST NESTED_TEST
+            marsh_test_set_env "basetaguid" true true
+            mkdir -p "${TARGET_DIR}/news/2026"
+            marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
+            printf '%s\n' '{{ base.rootpath }}' '{{ base.abspath }}' > "${TEMPLATE_DIR}/sample/partials/body.html"
+            printf '%s\n' 'Example' > "${TARGET_DIR}/index.markdown.${MARSH_UID}.document"
+            printf '%s\n' '---' 'Title: Example' '...' > "${TARGET_DIR}/index.markdown.${MARSH_UID}.meta.yaml"
+            printf '%s\n' 'Example' > "${TARGET_DIR}/news/2026/index.markdown.${MARSH_UID}.document"
+            printf '%s\n' '---' 'Title: Example' '...' > "${TARGET_DIR}/news/2026/index.markdown.${MARSH_UID}.meta.yaml"
+            TEST="1"
+            if marsh_build_template "${TARGET_DIR}" "." "index.markdown" "" "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1 \
+                && marsh_build_template "${TARGET_DIR}" "." "news/2026/index.markdown" "" "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1; then
+                ROOT_TEST=$(<"${TARGET_DIR}/index.html")
+                NESTED_TEST=$(<"${TARGET_DIR}/news/2026/index.html")
+                if [[ "${ROOT_TEST}" == *'./'* ]] \
+                    && [[ "${ROOT_TEST}" == *'https://example.test/'* ]] \
+                    && [[ "${NESTED_TEST}" == *'../../'* ]] \
+                    && [[ "${NESTED_TEST}" == *'https://example.test/news/2026/'* ]]; then
+                    TEST="0"
+                else
+                    TEST="1"
+                fi
+            fi
+            EXPECTED="0"
+            rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}"
+            marsh_test_restore_env
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_build_template:7)
+            TEST_NAME+=":generated_document_tags"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            local ABOUT_TEST INDEX_TEST
+            marsh_test_set_env "doctaguid" true true
+            mkdir -p "${TARGET_DIR}/news/2026"
+            marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
+            printf '%s\n' '{{ document.href }}' '{{ document.uri }}' > "${TEMPLATE_DIR}/sample/partials/body.html"
+            printf '%s\n' 'Example' > "${TARGET_DIR}/about.markdown.${MARSH_UID}.document"
+            printf '%s\n' '---' 'Title: Example' '...' > "${TARGET_DIR}/about.markdown.${MARSH_UID}.meta.yaml"
+            printf '%s\n' 'Example' > "${TARGET_DIR}/news/2026/index.markdown.${MARSH_UID}.document"
+            printf '%s\n' '---' 'Title: Example' '...' > "${TARGET_DIR}/news/2026/index.markdown.${MARSH_UID}.meta.yaml"
+            TEST="1"
+            if marsh_build_template "${TARGET_DIR}" "." "about.markdown" "" "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1 \
+                && marsh_build_template "${TARGET_DIR}" "." "news/2026/index.markdown" "" "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1; then
+                ABOUT_TEST=$(<"${TARGET_DIR}/about.html")
+                INDEX_TEST=$(<"${TARGET_DIR}/news/2026/index.html")
+                if [[ "${ABOUT_TEST}" == *'about.html'* ]] \
+                    && [[ "${ABOUT_TEST}" == *'https://example.test/about.html'* ]] \
+                    && [[ "${INDEX_TEST}" == *'./'* ]] \
+                    && [[ "${INDEX_TEST}" == *'https://example.test/news/2026/'* ]]; then
+                    TEST="0"
+                else
+                    TEST="1"
+                fi
+            fi
+            EXPECTED="0"
+            rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}"
+            marsh_test_restore_env
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_build_template:8)
+            TEST_NAME+=":archive_generated_tags"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            marsh_test_set_env "archiveuid" true true
+            marsh_test_create_archive_document "${TARGET_DIR}" "news/2026/01/02/02-second.markdown" "${MARSH_UID}" "post" "Second" "2026-01-02"
+            marsh_test_create_archive_document "${TARGET_DIR}" "news/2026/01/01/01-first.markdown" "${MARSH_UID}" "post" "First" "2026-01-01"
+            marsh_test_create_archive_template "${TEMPLATE_DIR}" "sample" "html" true
+            printf '%s\n' '<article data-base-root="{{ base.rootpath }}" data-base-abs="{{ base.abspath }}" data-document-uri="{{ document.uri }}"><a href="{{ document.href }}">{{ document.title }}</a></article>' > "${TEMPLATE_DIR}/sample/partials/archive-document.html"
+            TEST="1"
+            if [[ "$(marsh_build_archive "html" "${TARGET_DIR}" "news/index.markdown" "Archive" "English" "en" "" "1" "1" "post" "0" 2>/dev/null)" == "news/index.markdown"$'\n'"news/page/1/index.markdown"$'\n'"news/page/2/index.markdown" ]] \
+                && marsh_build_document "${TARGET_DIR}" "." "news/page/1/index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" >/dev/null 2>&1 \
+                && marsh_build_template "${TARGET_DIR}" "." "news/page/1/index.markdown" "" "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1; then
+                TEST=$(<"${TARGET_DIR}/news/page/1/index.html")
+                if [[ "${TEST}" == *'data-base-root="../../../"'* ]] \
+                    && [[ "${TEST}" == *'data-base-abs="https://example.test/news/page/1/"'* ]] \
+                    && [[ "${TEST}" == *"data-document-uri=\"https://example.test/$(basename "${TARGET_DIR}")/news/2026/01/02/02-second.html\""* ]] \
+                    && [[ "${TEST}" == *'<a href="../../2026/01/02/02-second.html">Second</a>'* ]]; then
+                    TEST="0"
+                else
+                    TEST="1"
+                fi
+            fi
+            EXPECTED="0"
+            rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}"
+            marsh_test_restore_env
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_build_template:9)
+            TEST_NAME+=":archive_generated_tags"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            marsh_test_set_env "archiveuid" true true
+            marsh_test_create_archive_document "${TARGET_DIR}" "news/2026/01/03/03-third.markdown" "${MARSH_UID}" "post" "Third" "2026-01-03"
+            marsh_test_create_archive_document "${TARGET_DIR}" "news/2026/01/02/02-second.markdown" "${MARSH_UID}" "post" "Second" "2026-01-02"
+            marsh_test_create_archive_document "${TARGET_DIR}" "news/2026/01/01/01-first.markdown" "${MARSH_UID}" "post" "First" "2026-01-01"
+            marsh_test_create_archive_template "${TEMPLATE_DIR}" "sample" "html" true
+            printf '%s\n' '<nav><a class="prev" href="{{ document.page-prev-href }}">prev</a><a class="next" href="{{ document.page-next-href }}">next</a></nav>' > "${TEMPLATE_DIR}/sample/partials/archive-body.html"
+            printf '%s\n' '<meta data-canonical="{{ document.page-canonical-uri }}" data-next="{{ document.page-next-uri }}" />' > "${TEMPLATE_DIR}/sample/partials/archive-head.html"
+            TEST="1"
+            if [[ "$(marsh_build_archive "html" "${TARGET_DIR}" "news/index.markdown" "Archive" "English" "en" "" "2" "1" "post" "0" 2>/dev/null)" == "news/index.markdown"$'\n'"news/page/1/index.markdown"$'\n'"news/page/2/index.markdown" ]] \
+                && marsh_build_document "${TARGET_DIR}" "." "news/page/1/index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" >/dev/null 2>&1 \
+                && marsh_build_template "${TARGET_DIR}" "." "news/page/1/index.markdown" "" "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1; then
+                TEST=$(<"${TARGET_DIR}/news/page/1/index.html")
+                if [[ "${TEST}" == *'<a class="prev" href="">prev</a>'* ]] \
+                    && [[ "${TEST}" == *'<a class="next" href="../2/">next</a>'* ]] \
+                    && [[ "${TEST}" == *"data-canonical=\"https://example.test/$(basename "${TARGET_DIR}")/news/\""* ]] \
+                    && [[ "${TEST}" == *"data-next=\"https://example.test/$(basename "${TARGET_DIR}")/news/page/2/\""* ]]; then
                     TEST="0"
                 else
                     TEST="1"
@@ -1655,13 +1783,37 @@ function marsh_test {
             ;;
         marsh_resolve_tag_metadata:0)
             TEST_NAME+=":generated"
+            TEST=$(marsh_resolve_tag_metadata "base.rootpath" "DOCUMENT_")
+            EXPECTED="TAG_VAR=DOCUMENT_ROOTPATH"$'\n'"TAG_TYPE=string"
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_resolve_tag_metadata:1)
+            TEST_NAME+=":generated"
+            TEST=$(marsh_resolve_tag_metadata "document.href" "DOCUMENT_")
+            EXPECTED="TAG_VAR=DOCUMENT_HREF"$'\n'"TAG_TYPE=string"
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_resolve_tag_metadata:2)
+            TEST_NAME+=":generated"
             TEST=$(marsh_resolve_tag_metadata "document.uri" "DOCUMENT_")
             EXPECTED="TAG_VAR=DOCUMENT_URI"$'\n'"TAG_TYPE=string"
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
             ;;
-        marsh_resolve_tag_metadata:1)
+        marsh_resolve_tag_metadata:3)
+            TEST_NAME+=":generated"
+            TEST=$(marsh_resolve_tag_metadata "document.page-next-href" "DOCUMENT_" "DOCUMENT_Page_Next_Href")
+            EXPECTED="TAG_VAR=DOCUMENT_Page_Next_Href"$'\n'"TAG_TYPE=string"
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_resolve_tag_metadata:4)
             TEST_NAME+=":known"
             TEST=$(marsh_resolve_tag_metadata "document.title" "DOCUMENT_")
             EXPECTED="TAG_VAR=DOCUMENT_Title"$'\n'"TAG_TYPE=string"
@@ -1669,7 +1821,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_resolve_tag_metadata:2)
+        marsh_resolve_tag_metadata:5)
             TEST_NAME+=":known"
             TEST=$(marsh_resolve_tag_metadata "document.project-version" "DOCUMENT_" "DOCUMENT_Title"$'\n'"DOCUMENT_Project_Version")
             EXPECTED="TAG_VAR=DOCUMENT_Project_Version"$'\n'"TAG_TYPE=string"
@@ -1677,7 +1829,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_resolve_tag_metadata:3)
+        marsh_resolve_tag_metadata:6)
             TEST_NAME+=":known"
             TEST=$(marsh_resolve_tag_metadata "document.authors" "SUBDOCUMENT_")
             EXPECTED="TAG_VAR=SUBDOCUMENT_Authors_"$'\n'"TAG_TYPE=array"
@@ -1685,7 +1837,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_resolve_tag_metadata:4)
+        marsh_resolve_tag_metadata:7)
             TEST_NAME+=":custom"
             TEST=$(marsh_resolve_tag_metadata "document.custom-thing" "DOCUMENT_" "DOCUMENT_Custom_Thing")
             EXPECTED="TAG_VAR=DOCUMENT_Custom_Thing"$'\n'"TAG_TYPE=string"
@@ -1693,7 +1845,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_resolve_tag_metadata:5)
+        marsh_resolve_tag_metadata:8)
             TEST_NAME+=":nonexistent"
             marsh_resolve_tag_metadata "document.foo" "DOCUMENT_" 2>/dev/null
             TEST=$?
@@ -1702,7 +1854,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_resolve_tag_metadata:6)
+        marsh_resolve_tag_metadata:9)
             TEST_NAME+=":ambiguous"
             marsh_resolve_tag_metadata "document.foo-bar" "DOCUMENT_" "DOCUMENT_Foo_Bar"$'\n'"DOCUMENT_FOO_BAR" 2>/dev/null
             TEST=$?

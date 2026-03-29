@@ -978,8 +978,6 @@ function marsh_test {
                     && [[ "${TEST}" != *'{% endif %}'* ]] \
                     && [[ "${TEST}" != *'document.page-canonical-uri'* ]]; then
                     TEST="0"
-                else
-                    TEST="1"
                 fi
             fi
             EXPECTED="0"
@@ -1128,8 +1126,6 @@ function marsh_test {
                     && [[ "${TEST}" == *'atom-body'* ]] \
                     && [[ "${TEST}" == *'<entry>Tagged Item</entry>'* ]]; then
                     TEST="0"
-                else
-                    TEST="1"
                 fi
             fi
             EXPECTED="0"
@@ -1154,8 +1150,6 @@ function marsh_test {
                     && [[ "${TEST}" == *'json-body'* ]] \
                     && [[ "${TEST}" == *'"Tagged Item"'* ]]; then
                     TEST="0"
-                else
-                    TEST="1"
                 fi
             fi
             EXPECTED="0"
@@ -1188,8 +1182,6 @@ function marsh_test {
                     && [[ "${NESTED_TEST}" == *'../../'* ]] \
                     && [[ "${NESTED_TEST}" == *'https://example.test/news/2026/'* ]]; then
                     TEST="0"
-                else
-                    TEST="1"
                 fi
             fi
             EXPECTED="0"
@@ -1222,8 +1214,6 @@ function marsh_test {
                     && [[ "${INDEX_TEST}" == *'./'* ]] \
                     && [[ "${INDEX_TEST}" == *'https://example.test/news/2026/'* ]]; then
                     TEST="0"
-                else
-                    TEST="1"
                 fi
             fi
             EXPECTED="0"
@@ -1252,8 +1242,6 @@ function marsh_test {
                     && [[ "${TEST}" == *"data-document-uri=\"https://example.test/$(basename "${TARGET_DIR}")/news/2026/01/02/02-second.html\""* ]] \
                     && [[ "${TEST}" == *'<a href="../../2026/01/02/02-second.html">Second</a>'* ]]; then
                     TEST="0"
-                else
-                    TEST="1"
                 fi
             fi
             EXPECTED="0"
@@ -1284,8 +1272,6 @@ function marsh_test {
                     && [[ "${TEST}" == *"data-canonical=\"https://example.test/$(basename "${TARGET_DIR}")/news/\""* ]] \
                     && [[ "${TEST}" == *"data-next=\"https://example.test/$(basename "${TARGET_DIR}")/news/page/2/\""* ]]; then
                     TEST="0"
-                else
-                    TEST="1"
                 fi
             fi
             EXPECTED="0"

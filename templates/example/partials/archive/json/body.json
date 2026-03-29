@@ -1,9 +1,9 @@
 
   "version": "https://jsonfeed.org/version/1",
   "title": "{{ document.title | decode:entities }}",
-  "home_page_url": "{{ document.abspath }}/",
+  "home_page_url": "{{ base.abspath }}",
   "feed_url": "{{ document.uri }}",
-  "icon": "{{ document.abspath }}/icon.png",
+  "icon": "{{ base.abspath }}icon.png",
   "items": [
     {{ subdocuments }}
   ]

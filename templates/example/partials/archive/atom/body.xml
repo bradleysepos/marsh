@@ -1,7 +1,7 @@
     <id>{{ document.uri }}</id>
     <link rel="self" href="{{ document.uri }}" type="application/atom+xml" />
-    <link rel="alternate" href="{{ document.abspath }}/" type="text/html" />
-    <icon>{{ document.abspath }}/icon.png</icon>
+    <link rel="alternate" href="{{ base.abspath }}" type="text/html" />
+    <icon>{{ base.abspath }}icon.png</icon>
     <updated>{{ document.date | date:rfc3339 }}</updated>
     <title>{{ document.title | decode:entities }}</title>
     {{ subdocuments }}

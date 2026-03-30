@@ -36,7 +36,8 @@ where:
         discount markdown translation options (comma delimited)
         default: $(echo ${MARKDOWN_OPTIONS[@]:-} | sed 's/ /,/g')
   --markdown-file-extensions
-        markdown file extensions to process (comma delimited)
+        markdown file extensions (without leading dot, comma delimited)
+        regardless of this setting, 'markdown' is always included
         default: $(echo ${MARKDOWN_FILEEXT[@]:-} | sed 's/ /,/g')
   --markdown-rewrite-links
         rewrite markdown syntax relative markdown links to *.html
@@ -4037,6 +4038,9 @@ function marsh_cli {
     for I in "${!MARKDOWN_FILEEXT[@]}"; do
         MARKDOWN_FILEEXT[$I]=$(printf '%s' "${MARKDOWN_FILEEXT[$I]}" | awk '{ print tolower($0) }')
     done
+    if ! marsh_in_array "markdown" "${MARKDOWN_FILEEXT[@]}"; then
+        MARKDOWN_FILEEXT+=("markdown")
+    fi
     MARKDOWN_FILEEXT_CSV=$(echo ${MARKDOWN_FILEEXT[@]} | sed 's/ /,/g')
 
     # discount markdown options

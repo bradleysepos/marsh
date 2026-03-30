@@ -2437,48 +2437,48 @@ function marsh_test {
             fi
             ;;
         marsh_text_transform:56)
-            TEST_NAME+=":items_xml_wrap"
-            TEST=$(printf '%s' $'\n\n\n'"John Doe"$'\n\n\n' | marsh_text_transform items:xml-wrap:name)
+            TEST_NAME+=":items_wrap_type_xml"
+            TEST=$(printf '%s' $'\n\n\n'"John Doe"$'\n\n\n' | marsh_text_transform items:wrap-type:xml:name)
             EXPECTED='<name>John Doe</name>'
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
             ;;
         marsh_text_transform:57)
-            TEST_NAME+=":items_xml_wrap"
-            TEST=$(printf '%s' "John Doe"$'\n'"Jane Doe" | marsh_text_transform items:xml-wrap:name)
+            TEST_NAME+=":items_wrap_type_xml"
+            TEST=$(printf '%s' "John Doe"$'\n'"Jane Doe" | marsh_text_transform items:wrap-type:xml:name)
             EXPECTED='<name>John Doe</name><name>Jane Doe</name>'
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
             ;;
         marsh_text_transform:58)
-            TEST_NAME+=":items_xml_wrap"
-            TEST=$(printf '%s' "John Doe"$'\n\n\n'"Jane Doe" | marsh_text_transform items:xml-wrap:name)
+            TEST_NAME+=":items_wrap_type_xml"
+            TEST=$(printf '%s' "John Doe"$'\n\n\n'"Jane Doe" | marsh_text_transform items:wrap-type:xml:name)
             EXPECTED='<name>John Doe</name><name>Jane Doe</name>'
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
             ;;
         marsh_text_transform:59)
-            TEST_NAME+=":items_xml_wrap"
-            TEST=$(printf '%s' "Jack & Jill <friends>" | marsh_text_transform items:xml-wrap:person)
+            TEST_NAME+=":items_wrap_type_xml"
+            TEST=$(printf '%s' "Jack & Jill <friends>" | marsh_text_transform items:wrap-type:xml:person)
             EXPECTED='<person>Jack &amp; Jill &lt;friends&gt;</person>'
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
             ;;
         marsh_text_transform:60)
-            TEST_NAME+=":items_xml_wrap"
-            TEST=$(printf '%s' "John Doe"$'\n'"Jane Doe" | marsh_text_transform items:xml-wrap:name:author)
+            TEST_NAME+=":items_wrap_type_xml"
+            TEST=$(printf '%s' "John Doe"$'\n'"Jane Doe" | marsh_text_transform items:wrap-type:xml:name:author)
             EXPECTED='<author><name>John Doe</name></author><author><name>Jane Doe</name></author>'
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
             ;;
         marsh_text_transform:61)
-            TEST_NAME+=":items_xml_wrap"
-            TEST=$(printf '%s' "John Doe"$'\n'"Jane Doe" | marsh_text_transform items:xml-wrap:name:author:people)
+            TEST_NAME+=":items_wrap_type_xml"
+            TEST=$(printf '%s' "John Doe"$'\n'"Jane Doe" | marsh_text_transform items:wrap-type:xml:name:author:people)
             EXPECTED='<people><author><name>John Doe</name></author></people><people><author><name>Jane Doe</name></author></people>'
             if [[ "${TEST}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"

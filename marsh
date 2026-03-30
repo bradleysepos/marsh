@@ -916,11 +916,11 @@ function marsh_text_transform {  # marsh_text_transform transform [transform...]
             WRAP_END="${WRAP_END//\\/\\\\}"
             awk -v WRAP_START="${WRAP_START}" -v WRAP_END="${WRAP_END}" '{ print WRAP_START $0 WRAP_END }'
             ;;
-        items:xml-wrap:*)
-            XML_TAG="${OPTIONS[1]:-tag}"
+        items:wrap-type:xml:*)
+            XML_TAG="${OPTIONS[2]:-tag}"
             XML_TAG_OPEN=""
             XML_TAG_CLOSE=""
-            for ((I = 2; I < ${#OPTIONS[@]}; I++)); do
+            for ((I = 3; I < ${#OPTIONS[@]}; I++)); do
                 [[ "${OPTIONS[$I]:-}" == "" ]] && continue
                 XML_TAG_OPEN="<${OPTIONS[$I]}>${XML_TAG_OPEN}"
                 XML_TAG_CLOSE+="</${OPTIONS[$I]}>"

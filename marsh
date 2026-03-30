@@ -299,7 +299,7 @@ function marsh_flat_to_array {  # marsh_flat_to_array array_name variable_prefix
 }
 
 # transforms headings without relying on GNU sed multiline behavior
-function marsh_text_filter_headings {  # marsh_text_filter_headings action
+function marsh_text_transform_headings {  # marsh_text_transform_headings action
     local ACTION="${1:-}"
     awk -v ACTION="${ACTION}" '
     BEGIN {
@@ -464,14 +464,14 @@ function marsh_text_filter_headings {  # marsh_text_filter_headings action
 }
 
 # transforms a string
-function marsh_text_filter {  # marsh_text_filter filter [filter...]
-    local FILTER OIFS PIPE_STATUS STATUS
-    FILTER="${1:-}"
+function marsh_text_transform {  # marsh_text_transform transform [transform...]
+    local TRANSFORM OIFS PIPE_STATUS STATUS
+    TRANSFORM="${1:-}"
     OIFS="${IFS}"
     IFS=$'\n'
     if [[ "${#@}" -gt 1 ]]; then
         shift 1
-        marsh_text_filter "${FILTER}" | marsh_text_filter "${@}"
+        marsh_text_transform "${TRANSFORM}" | marsh_text_transform "${@}"
         PIPE_STATUS=(${PIPESTATUS[@]})
         for STATUS in "${PIPE_STATUS[@]}"; do
             [[ "${STATUS}" -ne 0 ]] && return "${STATUS}"
@@ -480,8 +480,8 @@ function marsh_text_filter {  # marsh_text_filter filter [filter...]
     fi
     local OPTIONS OPTIONS_STRING OPTION_CURRENT OPTION_INDEX OPTION_CHAR OPTION_NEXT
     OPTIONS=()
-    OPTIONS_STRING="${FILTER#*:}"
-    if [[ "${OPTIONS_STRING}" == "${FILTER}" ]]; then
+    OPTIONS_STRING="${TRANSFORM#*:}"
+    if [[ "${OPTIONS_STRING}" == "${TRANSFORM}" ]]; then
         :
     elif [[ "${OPTIONS_STRING}" != *\\* ]]; then
         OPTIONS=(${OPTIONS_STRING//:/$'\n'})
@@ -519,7 +519,7 @@ function marsh_text_filter {  # marsh_text_filter filter [filter...]
     local TRAILING_PUNCTUATION APPEND MAX_CHARS MAX_PARAS MD_EXT_REGEX PROTOCOL_SEP WRAP_START WRAP_END
     local COUNT DELIM1 DELIM2 DELIM3 END I ITEM_KEY PREPEND REPLACE_EXT START XML_TAG XML_TAG_CLOSE XML_TAG_OPEN
     TRAILING_PUNCTUATION=',.:;?!'
-    case "${FILTER}" in
+    case "${TRANSFORM}" in
         append:*)
             APPEND="${OPTIONS[0]:-}"
             APPEND=$(printf '%s' "${APPEND}" | marsh_escape_substitution)
@@ -558,7 +558,7 @@ function marsh_text_filter {  # marsh_text_filter filter [filter...]
             sed -E -e 's/([^\n<>]+)[ ]+<[^>]+@[^>]+>([^\n<]+)?/\1\2/g'
             ;;
         escape:html)
-            marsh_text_filter decode:entities | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' -e 's/"/\&quot;/g' -e 's/'"'"'/\&#39;/g'
+            marsh_text_transform decode:entities | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' -e 's/"/\&quot;/g' -e 's/'"'"'/\&#39;/g'
             ;;
         escape:json-val)
             sed -e 's/"/\\"/g' | awk '(NR==1) { printf "%s", $0 } (NR>1) { printf "\\n%s", $0 }'
@@ -570,7 +570,7 @@ function marsh_text_filter {  # marsh_text_filter filter [filter...]
             MAX_CHARS="${OPTIONS[0]:-300}"
             MAX_PARAS="${OPTIONS[1]:-2}"
             MAX_CHARS=$((MAX_CHARS - 1))
-            marsh_text_filter headings:remove plaintext newlines:trim items:trim newlines:reduce:2 | awk -v RS='' -v MAX_PARAS="${MAX_PARAS}" 'NR<=MAX_PARAS { print $0 }' | marsh_text_filter newlines:tospaces | cut -c1-"${MAX_CHARS}" | sed -E -e 's/[ '"${TRAILING_PUNCTUATION}"']+$//' | marsh_text_filter append:…
+            marsh_text_transform headings:remove plaintext newlines:trim items:trim newlines:reduce:2 | awk -v RS='' -v MAX_PARAS="${MAX_PARAS}" 'NR<=MAX_PARAS { print $0 }' | marsh_text_transform newlines:tospaces | cut -c1-"${MAX_CHARS}" | sed -E -e 's/[ '"${TRAILING_PUNCTUATION}"']+$//' | marsh_text_transform append:…
             ;;
         excerpt-type:html|excerpt-type:html:*)
             MAX_CHARS="${OPTIONS[1]:-300}"
@@ -787,13 +787,13 @@ function marsh_text_filter {  # marsh_text_filter filter [filter...]
             fi
             ;;
         headings:push)
-            marsh_text_filter_headings push
+            marsh_text_transform_headings push
             ;;
         headings:shift)
-            marsh_text_filter_headings shift | marsh_text_filter newlines:trim
+            marsh_text_transform_headings shift | marsh_text_transform newlines:trim
             ;;
         headings:remove)
-            marsh_text_filter_headings remove | marsh_text_filter newlines:trim
+            marsh_text_transform_headings remove | marsh_text_transform newlines:trim
             ;;
         items:append:*)
             APPEND="${OPTIONS[1]:-}"
@@ -847,7 +847,7 @@ function marsh_text_filter {  # marsh_text_filter filter [filter...]
             '
             ;;
         items:join-type:oxford)
-            marsh_text_filter 'items:join:, : and :, and '
+            marsh_text_transform 'items:join:, : and :, and '
             ;;
         items:json-array|items:json-array:*)
             ITEM_KEY="${OPTIONS[1]:-}"
@@ -1001,7 +1001,7 @@ function marsh_text_filter {  # marsh_text_filter filter [filter...]
         plaintext)
             # ':a;s/<[^>]*>//g;/</{;$!{N;ba;};}' strips html tags and works across multiple lines (better version of 's/<[^>]*>//g')
             # '/./,/^$/!d' deletes blank lines at start and collapses consecutive blank lines into one, leaving up to one blank line at end
-            sed -e ':a' -e 's/<[^>]*>//g' -e '/</{' -e '$!{N' -e 'ba' -e '}' -e '}' | sed '/./,/^$/!d' | marsh_text_filter decode:entities
+            sed -e ':a' -e 's/<[^>]*>//g' -e '/</{' -e '$!{N' -e 'ba' -e '}' -e '}' | sed '/./,/^$/!d' | marsh_text_transform decode:entities
             ;;
         prepend:*)
             PREPEND="${OPTIONS[0]:-}"
@@ -1057,7 +1057,7 @@ function marsh_text_filter {  # marsh_text_filter filter [filter...]
             ;;
     esac
 }
-export -f marsh_text_filter
+export -f marsh_text_transform
 
 # prints a list of variables given their assignment commands, one per line, e.g. FOO="bar" prints FOO
 function marsh_get_variables {  # marsh_get_variables assignments_string
@@ -1465,7 +1465,7 @@ function marsh_get_archive_manifest {  # marsh_get_archive_manifest target_dir
         echo "Unable to create archive manifest cache directory: ${CACHE_DIR}" >&2
         return 1
     }
-    CACHE_KEY=$(printf '%s\034%s\n' "${TARGET_DIR}" "${MARSH_UID}" | marsh_text_filter hash:md5)
+    CACHE_KEY=$(printf '%s\034%s\n' "${TARGET_DIR}" "${MARSH_UID}" | marsh_text_transform hash:md5)
     CACHE_FILE="${CACHE_DIR}/${CACHE_KEY}.manifest"
     if [[ -f "${CACHE_FILE}" ]] && [[ -r "${CACHE_FILE}" ]]; then
         printf '%s\n' "${CACHE_FILE}"
@@ -1755,7 +1755,7 @@ function marsh_get_template_metadata {  # marsh_get_template_metadata prefix tem
         echo "Unable to create template metadata cache directory: ${CACHE_DIR}" >&2
         return 1
     }
-    CACHE_KEY=$(printf '%s\034' "${PREFIX}" "${TEMPLATE_DIR}" "${TEMPLATE_OVERRIDES[@]}" | marsh_text_filter hash:md5)
+    CACHE_KEY=$(printf '%s\034' "${PREFIX}" "${TEMPLATE_DIR}" "${TEMPLATE_OVERRIDES[@]}" | marsh_text_transform hash:md5)
     CACHE_FILE="${CACHE_DIR}/${CACHE_KEY}.meta"
     if [[ -f "${CACHE_FILE}" ]] && [[ -r "${CACHE_FILE}" ]]; then
         cat "${CACHE_FILE}"
@@ -1813,7 +1813,7 @@ function marsh_get_target_metadata {  # marsh_get_target_metadata source_prefix 
     for TEMPLATE_OVERRIDE in "${TEMPLATE_OVERRIDES[@]}"; do
         [[ "${TEMPLATE_OVERRIDE}" != "" ]] && echo "${PREFIX}TEMPLATE_OVERRIDES+=(\"${TEMPLATE_OVERRIDE//\"/\\\"}\")"
     done
-    [[ "${!TEMPLATE_SOURCE:-}" != "" ]] && echo "${PREFIX}TEMPLATE=\"${!TEMPLATE_SOURCE##*/}-$(echo -n ${!TEMPLATE_SOURCE} | marsh_text_filter hash:md5)\""
+    [[ "${!TEMPLATE_SOURCE:-}" != "" ]] && echo "${PREFIX}TEMPLATE=\"${!TEMPLATE_SOURCE##*/}-$(echo -n ${!TEMPLATE_SOURCE} | marsh_text_transform hash:md5)\""
 
     # archives
     echo "${PREFIX}ARCHIVES=()"
@@ -1856,7 +1856,7 @@ function marsh_get_target_metadata {  # marsh_get_target_metadata source_prefix 
         eval $(marsh_flat_to_array "ARCHIVE_TEMPLATE_OVERRIDES" "${SOURCE_PREFIX}Archives_${II}_Template_Overrides_")
         OIFS="${IFS}"; IFS=$(echo @|tr @ '\034'); echo "${PREFIX}ARCHIVES_TEMPLATE_OVERRIDES+=(\"${ARCHIVE_TEMPLATE_OVERRIDES[*]//\"/\\\"}\")"; IFS="${OIFS}"
         if [[ "${!ARCHIVE_TEMPLATE_SOURCE:-}" != "" ]]; then
-            echo "${PREFIX}ARCHIVES_TEMPLATE+=(\"${!ARCHIVE_TEMPLATE_SOURCE##*/}-$(echo -n ${!ARCHIVE_TEMPLATE_SOURCE} | marsh_text_filter hash:md5)\")"
+            echo "${PREFIX}ARCHIVES_TEMPLATE+=(\"${!ARCHIVE_TEMPLATE_SOURCE##*/}-$(echo -n ${!ARCHIVE_TEMPLATE_SOURCE} | marsh_text_transform hash:md5)\")"
         else
             echo "${PREFIX}ARCHIVES_TEMPLATE+=(\"\")"
         fi
@@ -2495,7 +2495,7 @@ function marsh_build_archive {  # marsh_build_archive encoding target_dir dest_f
 # builds advanced navigation
 function marsh_build_advanced_nav {  # marsh_build_advanced_nav target_dir navigation_file markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links
     local TARGET_DIR NAV_FILE MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_REWRITE_LINKS
-    local NAV_TARGETS_LIST NAV_TARGET NAV_DEST TEXT_FILTER
+    local NAV_TARGETS_LIST NAV_TARGET NAV_DEST TEXT_TRANSFORM
 
     # init
     TARGET_DIR="${1:-}"
@@ -2523,11 +2523,11 @@ function marsh_build_advanced_nav {  # marsh_build_advanced_nav target_dir navig
         else
             cp "${NAV_TARGET}" "${NAV_DEST}.temp"
         fi
-        TEXT_FILTER=
+        TEXT_TRANSFORM=
         if [[ "${MARKDOWN_REWRITE_LINKS}" == true ]]; then
-            TEXT_FILTER="links:replace-ext:${MARKDOWN_FILEEXT_CSV}:html"
+            TEXT_TRANSFORM="links:replace-ext:${MARKDOWN_FILEEXT_CSV}:html"
         fi
-        <"${NAV_DEST}.temp" marsh_text_filter ${TEXT_FILTER} | marsh_process_markdown "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" > "${NAV_DEST}"
+        <"${NAV_DEST}.temp" marsh_text_transform ${TEXT_TRANSFORM} | marsh_process_markdown "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" > "${NAV_DEST}"
         rm -f "${NAV_DEST}.meta.yaml" 2>/dev/null || true
         rm -f "${NAV_DEST}.temp"
     done <<< "${NAV_TARGETS_LIST}"
@@ -2812,7 +2812,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                     rm -f "${REPLACEMENTS}"
                     return 1
                 fi
-                TAG_VALUE=$(printf '%s' "${TAG_VALUE}" | marsh_text_filter "${TAG_FILTERS[@]}" | marsh_escape_substitution)
+                TAG_VALUE=$(printf '%s' "${TAG_VALUE}" | marsh_text_transform "${TAG_FILTERS[@]}" | marsh_escape_substitution)
                 printf '/%s/s//%s/g\n' "${TAG_ESC}" "${TAG_VALUE:-}" >> "${REPLACEMENTS}" || {
                     rm -f "${REPLACEMENTS}"
                     return 1
@@ -2852,7 +2852,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
     local SUBDOCUMENT_RENDER SUBDOCUMENT_TEMPLATE SUBDOCUMENT_RENDER_FILE SUBDOCUMENT_URI SUBDOCUMENT_ABSPATH SUBDOCUMENT_HREF
     local SUBDOCUMENT_OUTPUT_PATH SUBDOCUMENT_OUTPUT_EXT
     local SUBDOCUMENT_URI_FROM_MANIFEST SUBDOCUMENT_ABSPATH_FROM_MANIFEST SUBDOCUMENT_DOCUMENT_ESC SUBDOCUMENT_URI_ESC SUBDOCUMENT_ABSPATH_ESC SUBDOCUMENTS_MANIFEST
-    local TEXT_FILTER UTIL_JSON_SEPARATOR I J
+    local TEXT_TRANSFORM UTIL_JSON_SEPARATOR I J
     local CONDITIONAL_TAG CONDITIONAL_VALUES
     local DOCUMENT_State
     local PARTIAL_CONDITIONAL_TAGS
@@ -3271,15 +3271,15 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                 SUBDOCUMENT_TEMPLATE=$(<"${SUBDOCUMENT_SOURCE}")
                 if [[ "${DOCUMENT_Type}" == "archive" ]]; then
                     # markdown to html
-                    TEXT_FILTER=
+                    TEXT_TRANSFORM=
                     if [[ "${MARKDOWN_REWRITE_LINKS}" == true ]]; then
-                        TEXT_FILTER="links:replace-ext:${MARKDOWN_FILEEXT_CSV}:html"
+                        TEXT_TRANSFORM="links:replace-ext:${MARKDOWN_FILEEXT_CSV}:html"
                     fi
                     SUBDOCUMENT_CONTENT=$(mktemp "${MARSH_TEMP}/subdocument-content-XXXXXX") || {
                         echo "Unable to create subdocument render file: ${MARSH_TEMP}/subdocument-content-XXXXXX" >&2
                         return 1
                     }
-                    <"${SUBDOCUMENT_SOURCE}" marsh_text_filter ${TEXT_FILTER} | marsh_process_markdown "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" > "${SUBDOCUMENT_CONTENT}" || {
+                    <"${SUBDOCUMENT_SOURCE}" marsh_text_transform ${TEXT_TRANSFORM} | marsh_process_markdown "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" > "${SUBDOCUMENT_CONTENT}" || {
                         echo "Unable to process subdocument markdown: ${SUBDOCUMENT_SOURCE}" >&2
                         rm -f "${SUBDOCUMENT_CONTENT}"
                         return 1
@@ -3389,7 +3389,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
 
 # builds a document from a single file
 function marsh_build_document {  # marsh_build_document dest_dir target_dir document markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links
-    local DEST_DIR TARGET_DIR DOCUMENT DOCUMENT_EXT DOCUMENT_DIR TEXT_FILTER
+    local DEST_DIR TARGET_DIR DOCUMENT DOCUMENT_EXT DOCUMENT_DIR TEXT_TRANSFORM
     local MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_REWRITE_LINKS
     local TARGET_PATH DOCUMENT_PATH DOCUMENT_META DOCUMENT_CONTENT ARCHIVE_META ARCHIVE_META_TEMP
 
@@ -3440,11 +3440,11 @@ function marsh_build_document {  # marsh_build_document dest_dir target_dir docu
         # unwrap figures (remove p tag)
         # process images with multiple resolution assets
         cp "${DOCUMENT_CONTENT}" "${DOCUMENT_CONTENT}.temp"
-        TEXT_FILTER=
+        TEXT_TRANSFORM=
         if [[ "${MARKDOWN_REWRITE_LINKS}" == true ]]; then
-            TEXT_FILTER="links:replace-ext:${MARKDOWN_FILEEXT_CSV}:html"
+            TEXT_TRANSFORM="links:replace-ext:${MARKDOWN_FILEEXT_CSV}:html"
         fi
-        <"${DOCUMENT_CONTENT}.temp" marsh_text_filter ${TEXT_FILTER} | sed -E \
+        <"${DOCUMENT_CONTENT}.temp" marsh_text_transform ${TEXT_TRANSFORM} | sed -E \
         -e 's|^!\[(.+)]\([ ]*([^ ]+)[ ]*"(.+)"[ ]*\)$|<figure>'$'\\\n''<a href="\2">'$'\\\n''<img src="\2" alt="\1" />'$'\\\n''</a>'$'\\\n''<figcaption>\3</figcaption>'$'\\\n''</figure>|' |
         marsh_process_markdown "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" |
         sed -E \
@@ -3620,13 +3620,13 @@ function marsh_build_target {  # marsh_build_target dest_dir target jobs advance
     if [[ "${JOBS:-1}" -gt 1 ]] && [[ "${PARALLEL:-}" != "" ]] && [[ "$(${PARALLEL} --version --no-notice 2>/dev/null | head -n 1 | grep -o 'GNU parallel')" == "GNU parallel" ]]; then
         # in parallel
         export -f marsh_build_document
-        if ! "${PARALLEL}" --halt now,fail=1 --quote --no-notice --env marsh_text_filter --env marsh_process_markdown --env marsh_build_document --jobs="${JOBS:-1}" "${SELF_DIR}/${SELF_NAME}" build-document --markdown="${PARALLEL_MARKDOWN}" --markdown-options="${MARKDOWN_OPTIONS_CSV}" --markdown-file-extensions="${MARKDOWN_FILEEXT_CSV}" --markdown-rewrite-links="${MARKDOWN_REWRITE_LINKS}" --marsh-uid="${MARSH_UID}" --marsh-temp="${MARSH_TEMP}" --marsh-config-file="${MARSH_CONFIG_FILE}" --marsh-config-file-dir="${MARSH_CONFIG_FILE_DIR}" --marsh-config-path="${MARSH_CONFIG_PATH}" --marsh-config-url="${MARSH_CONFIG_URL}" "${DEST_DIR}" "${TARGET_DIR}" {} ::: "${DOCUMENTS[@]}"; then
+        if ! "${PARALLEL}" --halt now,fail=1 --quote --no-notice --env marsh_text_transform --env marsh_process_markdown --env marsh_build_document --jobs="${JOBS:-1}" "${SELF_DIR}/${SELF_NAME}" build-document --markdown="${PARALLEL_MARKDOWN}" --markdown-options="${MARKDOWN_OPTIONS_CSV}" --markdown-file-extensions="${MARKDOWN_FILEEXT_CSV}" --markdown-rewrite-links="${MARKDOWN_REWRITE_LINKS}" --marsh-uid="${MARSH_UID}" --marsh-temp="${MARSH_TEMP}" --marsh-config-file="${MARSH_CONFIG_FILE}" --marsh-config-file-dir="${MARSH_CONFIG_FILE_DIR}" --marsh-config-path="${MARSH_CONFIG_PATH}" --marsh-config-url="${MARSH_CONFIG_URL}" "${DEST_DIR}" "${TARGET_DIR}" {} ::: "${DOCUMENTS[@]}"; then
             echo "Unable to build one or more documents in target: ${TARGET}" >&2
             return 1
         fi
         if [[ "${TEMPLATES_DIR}" != "" ]] && [[ "${TEMPLATE}" != "" ]]; then
             export -f marsh_build_template
-            if ! "${PARALLEL}" --halt now,fail=1 --quote --no-notice --env marsh_text_filter --env marsh_process_markdown --env marsh_build_template --jobs="${JOBS:-1}" "${SELF_DIR}/${SELF_NAME}" build-template --markdown="${PARALLEL_MARKDOWN}" --markdown-options="${MARKDOWN_OPTIONS_CSV}" --markdown-file-extensions="${MARKDOWN_FILEEXT_CSV}" --markdown-rewrite-links="${MARKDOWN_REWRITE_LINKS}" --marsh-uid="${MARSH_UID}" --marsh-temp="${MARSH_TEMP}" --marsh-config-file="${MARSH_CONFIG_FILE}" --marsh-config-file-dir="${MARSH_CONFIG_FILE_DIR}" --marsh-config-path="${MARSH_CONFIG_PATH}" --marsh-config-url="${MARSH_CONFIG_URL}" "${DEST_DIR}" "${TARGET_DIR}" {} "${ADVANCED_NAV}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" ::: "${DOCUMENTS[@]}"; then
+            if ! "${PARALLEL}" --halt now,fail=1 --quote --no-notice --env marsh_text_transform --env marsh_process_markdown --env marsh_build_template --jobs="${JOBS:-1}" "${SELF_DIR}/${SELF_NAME}" build-template --markdown="${PARALLEL_MARKDOWN}" --markdown-options="${MARKDOWN_OPTIONS_CSV}" --markdown-file-extensions="${MARKDOWN_FILEEXT_CSV}" --markdown-rewrite-links="${MARKDOWN_REWRITE_LINKS}" --marsh-uid="${MARSH_UID}" --marsh-temp="${MARSH_TEMP}" --marsh-config-file="${MARSH_CONFIG_FILE}" --marsh-config-file-dir="${MARSH_CONFIG_FILE_DIR}" --marsh-config-path="${MARSH_CONFIG_PATH}" --marsh-config-url="${MARSH_CONFIG_URL}" "${DEST_DIR}" "${TARGET_DIR}" {} "${ADVANCED_NAV}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" ::: "${DOCUMENTS[@]}"; then
                 echo "Unable to build template: ${TEMPLATE}" >&2
                 return 1
             fi

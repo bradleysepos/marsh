@@ -46,7 +46,7 @@ Usage
 
 The basic syntax is:
 
-```
+```text
 marsh build [config_file]
 ```
 
@@ -56,21 +56,23 @@ Output is written to the path defined in the build configuration file, e.g., "pu
 
 If you have GNU parallel installed, `marsh` will build multiple documents simultaneously for speed. The number of concurrent jobs can be specified using the `-j` or `--jobs` parameters, default being the number of logical processors available on your machine.
 
-```
+```text
 marsh build -j 4
 ```
 
 You can specify the location for the Discount `markdown` application using the `--markdown` parameter, useful if the installation location is not in your `PATH`.
 
-```
+```text
 marsh build --markdown="/path/to/markdown"
 ```
 
 Full usage:
 
-```
+```text
 marsh --help
 ```
+
+The included `marsh-test` test suite may be run to verify `marsh` compatibility with your system. Run `marsh-test --help` for usage information.
 
 
 Site Configuration
@@ -90,39 +92,44 @@ Build:
       Path:   .
       Source: source
       Template:
-        Source: templates/default
-        Overrides:
-          - templates/default/template-override.yaml
+        Source: templates/example
 ...
 ```
 
-See the `example` directory for a more extensive configuration.
+See the `example` directory for a more extensive configuration example.
 
 
 Documents
 ---------
 
-### File types
+### Processing
 
-The main document format is [Markdown](https://en.wikipedia.org/wiki/Markdown) and may use any of the following file extensions:
+The main document format is [Markdown](https://en.wikipedia.org/wiki/Markdown). `marsh` converts Markdown documents to HTML, with additional formatting defined by the configured template(s), and finally saves the rendered output to the paths specified in the build configuration.
 
-- .markdown
-- .md
-- .mkd
-- .mkdn
-- .mdown
-
-Markdown documents are converted to HTML pages and saved to the paths specified in the build configuration.
+Within Markdown documents, relative path Markdown syntax links ending in the configured Markdown file extensions are by default rewritten to use the file extension `.html` (configurable via the `--markdown-rewrite-links` command line parameter). This allows Markdown documents to link directly to each other, useful for source documents on repository hosting, while ensuring rendered pages also link to each other.
 
 Files of other types and file extensions are copied as-is to the paths specified in the build configuration.
 
+### Markdown file types
+
+Markdown documents may use any of the following file extensions (configurable via the `--markdown-file-extensions` command line parameter):
+
+- `.markdown` (always set; not configurable)
+- `.md`
+- `.mkd`
+- `.mkdn`
+- `.mdown`
+- `.mdtxt`
+- `.mdtext`
+- `.text`
+
 ### Markdown document format
 
-Markdown documents may begin with [YAML](https://en.wikipedia.org/wiki/YAML) frontmatter containing metadata such as title, author, and license information. This allows documents to be self-describing, and templates can include this information for display (see the Templates section that follows).
+Markdown documents may begin with [YAML](https://en.wikipedia.org/wiki/YAML) frontmatter containing metadata such as title and author information. This allows documents to be self-describing.
 
 Example:
 
-```
+```text
 ---
 Type:            article
 Date:            2026-02-20
@@ -147,6 +154,8 @@ convallis felis. Aenean id sodales est, sed aliquet lectus. Sed.
 
 See the `example` directory for additional document examples.
 
+Templates may include document metadata for display on rendered pages and embedding in syndicated feeds. See the `Templates` section for information on template tags.
+
 ### Markdown syntax
 
 `marsh` supports all core Markdown syntax.
@@ -165,7 +174,7 @@ Reference:
 
 Given the following source structure:
 
-```
+```text
 images/
 ├─ image.png
 ├─ image@2x.png
@@ -275,34 +284,35 @@ Build:
       Path:   .
       Source: source/*
       Template:
-        Source: templates/default
-        Overrides:
-          - templates/default/template-override.yaml
+        Source: templates/example
     - Name:   Website news
       Path:   news
       Source: source/news
       Template:
-        Source: templates/default
-        Overrides:
-          - templates/default/template-override.yaml
+        Source: templates/example
       Archives:
-        - Name:     Latest News
-          Path:     index.markdown
-          Count:    3
-        - Name:     News Feed
-          Path:     feed.xml
-          Encoding: atom
-          Count:    10
-        - Name:     News Feed
-          Path:     feed.json
-          Encoding: json
-          Count:    10
+        - Name:      Latest News
+          Path:      index.markdown
+          Encoding:  html
+          Count:     3
+          Page_Size: 2
+        - Name:      News Archive
+          Path:      all/index.markdown
+          Encoding:  html
+        - Name:      News Feed
+          Path:      feed.xml
+          Encoding:  atom
+          Count:     10
+        - Name:      News Feed
+          Path:      feed.json
+          Encoding:  json
+          Count:     10
 ...
 ```
 
 Given the following source structure:
 
-```
+```text
 source/
 ├─ news/
 │  └─ 2026/
@@ -310,36 +320,457 @@ source/
 │     │  ├─ 01-news-item-one.markdown
 │     │  └─ 02-news-item-two.markdown
 │     └─ 02/
-│        └─ 01-news-item-three.markdown
+│        ├─ 01-news-item-three.markdown
+│        └─ 02-news-item-four.markdown
 ├─ about.markdown
 └─ index.markdown
 ```
 
 Builds this site structure:
 
-```
+```text
 public/
 ├─ news/
 │  ├─ 2026/
 │  │  ├─ 01/
 │  │  │  ├─ 01-news-item-one.html
 │  │  │  └─ 02-news-item-two.html
-│  │  └─ 02
-│  │     └─ 01-news-item-three.html
-│  ├─ feed.json   <--
-│  ├─ feed.xml    <--
-│  └─ index.html  <--
+│  │  └─ 02/
+│  │     ├─ 01-news-item-three.html
+│  │     └─ 02-news-item-four.html
+│  ├─ all/              <--
+│  │  └─ index.html     <--
+│  ├─ feed.json         <--
+│  ├─ feed.xml          <--
+│  ├─ index.html        <--
+│  └─ page/             <--
+│     ├─ 1/             <--
+│     │  └─ index.html  <--
+│     └─ 2/             <--
+│        └─ index.html  <--
 ├─ about.html
 └─ index.html
 ```
 
-While `marsh` internally compiles the collection of documents, it relies on templating to generate archives in the appropriate formats. The default template at `templates/default` provides partial templates for these formats under `partials/archive`.
+In this example, the `Latest News` HTML archive includes the latest three documents as specified by `Count`, limited to two per page as specified by the `Page_Size`. The generated document `public/news/index.html` is the canonical archive reference and first page, and additional pages are generated as documents in the numbered `page` subdirectories (the document `public/news/page/1/index.html` is essentially identical to the canonical page).
+
+Only HTML archives support pagination, and if `Page_Size` is omitted, the `page` directories will not be created. Atom and JSON Feed archives do not support pagination and are generated as single files.
+
+The `News Archive` HTML archive includes all documents and generates the document `public/news/all/index.html` as specified by `Path` in the archive configuration, further illustrating how multiple archives can be created from the same source content.
+
+Generated archives do not affect the individual documents, which are still built as usual.
+
+While `marsh` internally compiles the collection of documents to include in an archive, it relies on templating to generate the archive in the desired format. See the `Templates` section for more information. The template at `templates/example` provides partial template examples under `partials/archive`.
 
 
 Templates
 ---------
 
-TODO. See the default template at `templates/default` for an example.
+Templates control how documents are rendered to become complete web pages with features like headers and navigation, as well as images, layout, and style. Templates also control how syndication feeds are rendered.
+
+A `marsh` template is a directory containing a `template.yaml` configuration file and one or more partial template files, also known as partials. The template configuration declares the resources that `marsh` will use during rendering.
+
+The smallest useful HTML template usually consists of `Base`, `Head`, and `Body` partials.
+
+Given a minimal template directory structure like this:
+
+```text
+templates/
+└─ my-template/
+   ├─ template.yaml
+   └─ partials/
+      ├─ base.html
+      ├─ body.html
+      └─ head.html
+```
+
+The `template.yaml` configuration file should have the contents:
+
+```yaml
+---
+Template:
+  Partials:
+    Base: partials/base.html
+    Head: partials/head.html
+    Body: partials/body.html
+...
+```
+
+Partials paths are relative to the location of the configuration file.
+
+See the `Advanced template usage` section and the template at `templates/example` for more information.
+
+### Template tags
+
+Template tags allow you to include information about a document, archive, or other metadata in the rendered output, and can be placed within partial templates wherever desired. Template tags are formatted using the name of the tag surrounded by double curly braces, e.g., `{{ document.title }}`. When building, `marsh` replaces these tags with their associated values, such as the title of the document according to its YAML frontmatter metadata.
+
+Tag values come from three main sources:
+
+- Generated metadata created by `marsh` itself.
+- Recognized metadata defined in document frontmatter.
+- Custom metadata defined in document frontmatter.
+
+#### Generated metadata tags
+
+Generated metadata is created by `marsh` itself. The names of these template tags are reserved and their values may not be overridden in document frontmatter.
+
+- `base.rootpath`: Relative link from the current rendered page to the target root, such as `./`, `../`, or `../../`.
+- `base.abspath`: Absolute path or URL for the directory containing the current rendered page.
+- `document.href`: Relative link from the current rendered page to the current page itself, or for archive pages, the embedded archive subdocument.
+- `document.uri`: Absolute path or URL for the current rendered page or archive subdocument. For directory-style page paths ending in `index.html`, `document.uri` is normalized to the directory form, e.g., `/news/index.html` becomes `/news/`.
+- `document.page-uri`: Absolute path or URL for the current archive page.
+- `document.page-canonical-uri`: Absolute path or URL for the canonical archive page.
+- `document.page-first-uri`: Absolute path or URL for the first archive page.
+- `document.page-prev-uri`: Absolute path or URL for the previous archive page.
+- `document.page-next-uri`: Absolute path or URL for the next archive page.
+- `document.page-last-uri`: Absolute path or URL for the last archive page.
+- `document.page-href`: Relative link to the current archive page.
+- `document.page-canonical-href`: Relative link to the canonical archive page.
+- `document.page-first-href`: Relative link to the first archive page.
+- `document.page-prev-href`: Relative link to the previous archive page.
+- `document.page-next-href`: Relative link to the next archive page.
+- `document.page-last-href`: Relative link to the last archive page.
+
+Generated metadata tags are useful for rendering calculated paths, links, and archive navigation. In general, use the `*-href` forms for HTML links inside rendered pages, and use the `*-uri` forms for canonical metadata, embedding in syndication feeds, and wherever absolute references are most appropriate.
+
+#### Recognized document metadata tags
+
+Recognized document metadata tags correspond to the metadata defined in the frontmatter for each document. The underlying variable representations for these tags may be used by `marsh` for internal purposes, hence "recognized".
+
+Document tag names begin with `document.` and end with the name of the metadata field, lowercased and with underscores converted to dashes. For example, the document metadata field `Project_URL` may be referenced using the tag name `document.project-url`.
+
+- `document.title`: The document title.
+- `document.type`: The document type, such as `page`, `article`, `post`, or another user-defined type.
+- `document.date`: The document date or timestamp.
+- `document.language`: The document language name, such as `English`.
+- `document.language-code`: The document language code, such as `en`.
+- `document.authors`: The list of document authors.
+- `document.copyright`: The copyright notice for the document.
+- `document.credits-url`: A URL for credits or attribution information.
+- `document.license`: The document license name.
+- `document.license-abbr`: A short abbreviation for the document license.
+- `document.license-url`: A URL for the document license.
+- `document.project`: The project or site name associated with the document.
+- `document.project-version`: The project or site version.
+- `document.project-url`: A URL for the project or site.
+- `document.redirect-url`: A redirect destination URL for redirect pages.
+- `document.state`: The list of document state values, such as `draft` or `published`.
+
+These tags are useful for a variety of purposes such as display on HTML pages and embedding in syndication feeds.
+
+#### Custom document metadata tags
+
+Custom document metadata may also be defined in a document's frontmatter and accessed in templates using `document.*` tags. Custom document metadata naming must not collide with generated metadata and related tags, and values must be plain text strings. Arrays/lists and other data types are not supported.
+
+This example document frontmatter with custom metadata:
+
+```yaml
+---
+Original_Language: English
+Original_Language_Code: en
+...
+```
+
+Makes these custom tags available for use in templates:
+
+```text
+{{ document.original-language }}
+{{ document.original-language-code }}
+```
+
+Custom document metadata tags generally provide the same utility as recognized document metadata tags.
+
+### Text transforms
+
+Text transforms modify template tag values during rendering. A transform is added after a tag name using the pipe character.
+
+Consider the following template tag:
+
+```text
+{{ document.title | slug }}
+```
+
+The `slug` text transform produces a URL-style text fragment, changing a document title such as "My favorite document" into "my-favorite-document".
+
+Multiple transforms may be chained, and they are applied in order from left to right.
+
+Useful transforms include:
+
+- `date` and date format variants such as `date:rfc2822` and `date:rfc3339` for formatting document dates
+- `trim` for removing leading and trailing whitespace
+- `slug` for converting text into a simple URL-style slug
+- `decode:entities` for decoding HTML entities
+- `escape:html` and `escape:json-val` for safe HTML and JSON output
+- `plaintext` for stripping HTML markup down to plain text
+- `excerpt` and `excerpt-type:html` for generating short summaries, e.g., `excerpt:100` converts to plain text and limits to 100 characters
+
+Item transforms are useful when working with list-style metadata such as `document.authors` and `document.state`:
+
+- `items:join` renders values joined together using a delimiter, e.g., `items:join:,` produces "a,b,c"
+- `items:join-type:oxford` renders values as a natural-language list, e.g., "a, b, and c"
+- `items:json-array` renders values as JSON array items
+- `items:wrap-type:xml` renders each value wrapped in XML tags, e.g., `items:wrap-type:xml:tag` produces "<tag>a</tag><tag>b</tag><tag>c</tag>"
+
+Heading transforms are useful in select cases:
+
+- `headings:push`: Push headings down by one level (Markdown `#` becomes `##`, etc.)
+- `headings:shift`: Shift headings up by one level (Markdown `##` becomes `#`, etc.)
+- `headings:remove`: Remove headings entirely
+
+Examples:
+
+```text
+{{ document.title | trim | slug }}
+{{ document.date | date:rfc3339 }}
+{{ document.authors | items:join-type:oxford }}
+{{ document | excerpt:300:2 }}
+```
+
+Text transforms may be applied to recognized and custom document metadata tags, as well as rendered document content.
+
+
+Advanced template usage
+-----------------------
+
+The `Templates` section above covers the minimum structure needed to begin rendering pages. `marsh` also provides additional template features for more advanced customization of site output.
+
+These features are useful when you want to:
+
+- Split a template into logical, modular components for ease of management and reuse
+- Add stylesheets, scripts, fonts, images, or other assets to a template
+- Embed a table of contents document on other pages for use as an advanced navigation section
+- Customize an existing template using override files, instead of creating a new template from scratch
+- Render specific archives using different templates and overrides
+- Select specific document types or exclude specific document states from generated archives
+
+The following subsections describe these advanced features in more detail.
+
+### Template partials
+
+Template configuration may define multiple partials for document page rendering, archive rendering, and special functions like redirecting one page to another.
+
+The `Base` partial is required. Partials other than the `Base` partial may be inserted into other partials using template tags prefixed with `template.`.
+
+The following is a list of recognized partials, their suggested use, and their associated template tags. See also `templates/example/template.yaml` for a comprehensive example template configuration.
+
+#### HTML document partials
+
+Building blocks for turning documents into complete web pages.
+
+- `Base`: The required outer wrapper partial for documents. Has no template tag and may not be inserted into other partials.
+- `Head`: The contents of the HTML `<head>` section for a rendered page. Inserted using `{{ template.head }}`.
+- `Body`: The main body wrapper for a rendered page. Inserted using `{{ template.body }}`.
+- `Document`: The document content wrapper for a rendered page. Inserted using `{{ template.document }}`.
+- `Header`: A reusable page header partial. Inserted using `{{ template.header }}`.
+- `Footer`: A reusable page footer partial. Inserted using `{{ template.footer }}`.
+- `Nav`: A reusable navigation partial. Inserted using `{{ template.nav }}`.
+- `Notice`: A reusable notice or aside partial. Inserted using `{{ template.notice }}`.
+
+#### Special HTML document partials
+
+Partials purpose-built to handle special situations.
+
+- `Redirect`: A dedicated outer partial used when rendering redirect pages. Has no template tag and may not be inserted into other partials. Automatically selected by `marsh` where document frontmatter metadata includes `Redirect_URL`. Ideal contents are minimal HTML page markup with `<meta http-equiv="refresh" content="0; url={{ document.redirect-url }}">` in the HTML `<head>` section.
+
+#### HTML archive partials
+
+Archive-specific HTML partials supersede document partials, allowing you to render archive pages differently from the rest of your pages. Where an HTML archive partial is not specified, `marsh` uses the corresponding regular HTML document partial.
+
+- `Archive.HTML.Base`: The outer wrapper for HTML archive pages. Has no template tag and may not be inserted into other partials.
+- `Archive.HTML.Head`: Archive-specific head markup. Inserted using `{{ template.head }}` when rendering an HTML archive.
+- `Archive.HTML.Body`: Archive-specific body wrapper. Inserted using `{{ template.body }}` when rendering an HTML archive.
+- `Archive.HTML.Document`: Archive-specific document content wrapper. Inserted using `{{ template.document }}` when rendering an HTML archive.
+- `Archive.HTML.Header`: Archive-specific header partial. Inserted using `{{ template.header }}` when rendering an HTML archive.
+- `Archive.HTML.Footer`: Archive-specific footer partial. Inserted using `{{ template.footer }}` when rendering an HTML archive.
+- `Archive.HTML.Nav`: Archive-specific navigation partial. Inserted using `{{ template.nav }}` when rendering an HTML archive.
+- `Archive.HTML.Notice`: Archive-specific notice or aside partial. Inserted using `{{ template.notice }}` when rendering an HTML archive.
+
+#### Atom archive partials
+
+For rendering [Atom](https://en.wikipedia.org/wiki/Atom_%28web_standard%29) syndication feeds.
+
+- `Archive.Atom.Base`: The required outer wrapper for the Atom feed. Has no template tag and may not be inserted into other partials.
+- `Archive.Atom.Body`: The main body wrapper for the Atom feed. Inserted using `{{ template.body }}` when rendering an Atom archive.
+- `Archive.Atom.Document`: The document content wrapper for rendering each Atom entry. Inserted using `{{ template.document }}` when rendering an Atom archive.
+
+#### JSON archive partials
+
+For rendering [JSON Feed](https://en.wikipedia.org/wiki/JSON_Feed) syndication feeds.
+
+- `Archive.JSON.Base`: The required outer wrapper for the JSON Feed. Has no template tag and may not be inserted into other partials.
+- `Archive.JSON.Body`: The main body wrapper for the JSON Feed. Inserted using `{{ template.body }}` when rendering a JSON Feed archive.
+- `Archive.JSON.Document`: The document content wrapper for rendering each JSON Feed entry. Inserted using `{{ template.document }}` when rendering a JSON Feed archive.
+
+#### Related generated template tags
+
+In addition to the partial-specific `template.*` tags above, `marsh` provides generated template tags for some template assets:
+
+- `template.styles`: HTML stylesheet links generated from the template `Styles` asset list.
+- `template.scripts`: HTML script tags generated from the template `Scripts` asset list.
+
+### Template assets
+
+Templates may declare static assets in `template.yaml`. These assets are copied into the build output along with the rendered documents for targets using the template.
+
+Supported asset categories are:
+
+- `Fonts`
+- `Styles`
+- `Scripts`
+- `Images`
+- `Audio`
+- `Video`
+- `Documents`
+- `Binaries`
+- `Other`
+
+Paths are relative to the template directory.
+
+Example template configuration with assets:
+
+```yaml
+---
+Template:
+  Partials:
+    Base: partials/base.html
+    Head: partials/head.html
+    Body: partials/body.html
+  Assets:
+    Styles:
+      - css/site.css
+    Scripts:
+      - js/site.js
+    Images:
+      - images/logo.png
+...
+```
+
+In this example, the files `css/site.css`, `js/site.js`, and `images/logo.png` are copied from the template into the build output for the target.
+
+You can reference any specific asset by combining its path with generated metadata template tags. The styles and scripts asset categories are also given the special template tags `template.styles` and `template.scripts` that insert each category's assets as HTML stylesheet links or script tags into the rendered output. The following example demonstrates both types of template tags usage with assets.
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+    {{ template.styles }}
+</head>
+<body>
+    <img class="logo" src="{{ base.rootpath }}images/logo.png" />
+    {{ document }}
+    {{ template.scripts }}
+</body>
+</html>
+```
+
+### Advanced navigation
+
+Targets may define a `Navigation` source document in the site build configuration that `marsh` builds and makes available to templates using the tag `{{ navigation }}`. Marsh rewrites relative link paths in the advanced navigation to work consistently across all pages where it is used.
+
+Advanced navigation is useful when you want a navigation structure to be derived from a source document and made reusable across multiple pages in the same target.
+
+### Template overrides
+
+A template override is an additional template configuration file that is applied in addition to the primary target template, allowing you to customize an existing template without creating a separate full template copy. Overrides are specified alongside the template specification in your site build configuration file (not the template configuration file).
+
+Example site build configuration specifying a template and template override:
+
+```yaml
+---
+Build:
+  Targets:
+    - Name: Example Site
+      Path: .
+      Source: source/*
+      Template:
+        Source: templates/example
+        Overrides:
+          - templates/example/template-overrides.yaml
+...
+```
+
+Overrides are useful when you want to:
+
+- Change one or more partial paths
+- Remove a partial by setting its path to an empty string
+- Filter or rewrite template asset paths without changing the base template
+
+Example override file:
+
+```yaml
+---
+Template:
+  Partials:
+    Footer: ""
+  Filters:
+    - Regex: /opensans/d
+      Assets:
+        - Fonts
+        - Styles
+...
+```
+
+This example override configuration modifies two things in relation to the primary template configuration:
+
+- The footer partial is removed from the partials list by setting its path to an empty string
+- Fonts or stylesheets with asset paths matching `opensans` are removed from the template asset lists
+
+Overrides are best used as small customization layers on top of an existing template. Creating a separate template may be better where more extensive modifications are desired.
+
+### Archive-specific templates and overrides
+
+Archives may use the target's template configuration, or they may specify their own template source and overrides. This makes it possible for one target to render normal pages, HTML archives, and syndication feeds with different template behavior where needed.
+
+Archive-level template configuration is specified inside the definition for each archive in the site build configuration:
+
+```yaml
+---
+Build:
+  Targets:
+    - Name: Example Site News
+      Path: news
+      Source: source/news
+      Template:
+        Source: templates/example
+      Archives:
+        - Name: Latest News
+          Path: index.markdown
+          Encoding: html
+          Template:
+            Source: templates/archive-html
+            Overrides:
+              - templates/archive-html/custom.yaml
+        - Name: News Feed
+          Path: feed.xml
+          Encoding: atom
+...
+```
+
+In this example, the `Latest News` HTML archive uses its own archive template and override file separate from the target template.
+
+Where an archive does not specify its own template, like the `News Feed` Atom syndication feed in this example, `marsh` uses the target template.
+
+Archive-specific template configuration is useful when you want to:
+
+- Render HTML archive pages differently from normal documents and other archives for the same target
+- Apply template overrides to a single archive without affecting the rest of the target
+
+### Archive document selection and exclusion
+
+Archives may also select which documents to include and how archive subdocument content is rendered:
+
+- `Types` limits an archive to include only the specified document types
+- `Exclude_States` omits documents with matching state values, such as `draft`
+
+For example, an archive configuration might specify `Types: [ news ]` and `Exclude_States: [ draft ]` to include only published news documents.
+
+### Redirect pages
+
+Templates may also define a dedicated redirect partial. When a document provides redirect metadata, `marsh` can render that document using the redirect partial instead of the normal page partials.
+
+The redirect destination is available in templates using the tag `document.redirect-url`.
+
+This is useful for placeholder pages, moved content, or preserving older URLs while sending readers to a new location.
 
 
 License

@@ -1,5 +1,5 @@
 <section class="{{ document.type }}">
-    {{ template.styles }}
+    {{ template.assets.styles | items:wrap-type:html-style-link }}
     {{ template.header }}
 
     <h1>{{ document.title }}</h1>
@@ -38,5 +38,5 @@
     {% endif %}
 
     {{ template.footer }}
-    {{ template.scripts }}
+    {{ template.assets.scripts | items:wrap-type:html-script-src }}
 </section><!-- end section.{{ document.type }} -->

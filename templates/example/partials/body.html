@@ -1,7 +1,7 @@
 <section class="{{ document.type }}" lang="{{ document.language-code }}">
-    {{ template.styles }}
+    {{ template.assets.styles | items:wrap-type:html-style-link }}
     {{ template.header }}
     {{ template.document }}
     {{ template.footer }}
-    {{ template.scripts }}
+    {{ template.assets.scripts | items:wrap-type:html-script-src }}
 </section><!-- end section.{{ document.type }} -->

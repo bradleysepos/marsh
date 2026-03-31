@@ -362,19 +362,19 @@ function marsh_test {
             fi
             ;;
         marsh_check_dependencies:1)
-            TEST_NAME+=":missing"
-            marsh_check_dependencies definitely_missing_command_xyz 2>/dev/null
+            TEST_NAME+=":found_alternate"
+            marsh_check_dependencies definitely_missing_command_xyz\|bash 2>/dev/null
             TEST=$?
-            EXPECTED=1
+            EXPECTED=0
             if [[ "${TEST}" -eq "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
             ;;
         marsh_check_dependencies:2)
-            TEST_NAME+=":alternative_found"
-            marsh_check_dependencies definitely_missing_command_xyz\|bash 2>/dev/null
+            TEST_NAME+=":missing"
+            marsh_check_dependencies definitely_missing_command_xyz 2>/dev/null
             TEST=$?
-            EXPECTED=0
+            EXPECTED=1
             if [[ "${TEST}" -eq "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi

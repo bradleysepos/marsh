@@ -916,6 +916,54 @@ function marsh_text_transform {  # marsh_text_transform transform [transform...]
             WRAP_END="${WRAP_END//\\/\\\\}"
             awk -v WRAP_START="${WRAP_START}" -v WRAP_END="${WRAP_END}" '{ print WRAP_START $0 WRAP_END }'
             ;;
+        items:wrap-type:html-script-src)
+            awk '
+            function html_attr_escape(value) {
+                gsub(/&/, "\\&amp;", value)
+                gsub(/</, "\\&lt;", value)
+                gsub(/>/, "\\&gt;", value)
+                gsub(/"/, "\\&quot;", value)
+                return value
+            }
+            {
+                if ($0 == "") {
+                    next
+                }
+                value_escaped = html_attr_escape($0)
+                printf "<script src=\"%s\"></script>", value_escaped
+                emitted = 1
+            }
+            END {
+                if (emitted) {
+                    printf "\n"
+                }
+            }
+            '
+            ;;
+        items:wrap-type:html-style-link)
+            awk '
+            function html_attr_escape(value) {
+                gsub(/&/, "\\&amp;", value)
+                gsub(/</, "\\&lt;", value)
+                gsub(/>/, "\\&gt;", value)
+                gsub(/"/, "\\&quot;", value)
+                return value
+            }
+            {
+                if ($0 == "") {
+                    next
+                }
+                value_escaped = html_attr_escape($0)
+                printf "<link rel=\"stylesheet\" href=\"%s\" />", value_escaped
+                emitted = 1
+            }
+            END {
+                if (emitted) {
+                    printf "\n"
+                }
+            }
+            '
+            ;;
         items:wrap-type:xml:*)
             XML_TAG="${OPTIONS[2]:-tag}"
             XML_TAG_OPEN=""

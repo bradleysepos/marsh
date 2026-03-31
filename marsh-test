@@ -163,7 +163,10 @@ function marsh_test_create_minimal_template {
     TEMPLATE_NAME="${2:-}"
     [[ "${TEMPLATES_DIR}" == "" ]] && return 1
     [[ "${TEMPLATE_NAME}" == "" ]] && return 1
-    mkdir -p "${TEMPLATES_DIR}/${TEMPLATE_NAME}/partials" "${TEMPLATES_DIR}/${TEMPLATE_NAME}/css" || return 1
+    mkdir -p "${TEMPLATES_DIR}/${TEMPLATE_NAME}/partials" || return 1
+    mkdir -p "${TEMPLATES_DIR}/${TEMPLATE_NAME}/css" || return 1
+    mkdir -p "${TEMPLATES_DIR}/${TEMPLATE_NAME}/js" || return 1
+    mkdir -p "${TEMPLATES_DIR}/${TEMPLATE_NAME}/images" || return 1
     printf '%s\n' \
         '---' \
         'Template:' \
@@ -174,11 +177,18 @@ function marsh_test_create_minimal_template {
         '  Assets:' \
         '    Styles:' \
         '      - css/site.css' \
+        '      - css/print.css' \
+        '    Scripts:' \
+        '      - js/site.js' \
+        '    Images:' \
+        '      - images/logo.png' \
         '...' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/template.yaml" || return 1
     printf '%s\n' '<!DOCTYPE html>'$'\n''<html><head>{{ template.head }}</head><body>{{ template.body }}</body></html>' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/partials/base.html" || return 1
-    printf '%s\n' '<title>{{ document.title }}</title>{{ template.styles }}' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/partials/head.html" || return 1
+    printf '%s\n' '<title>{{ document.title }}</title>{{ template.assets.styles }}' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/partials/head.html" || return 1
     printf '%s\n' '{{ document }}' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/partials/body.html" || return 1
     printf '%s\n' 'body { color: black; }' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/css/site.css" || return 1
+    printf '%s\n' 'console.log("sample");' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/js/site.js" || return 1
+    printf '%s\n' 'logo' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/images/logo.png" || return 1
 }
 
 function marsh_test_create_archive_template {
@@ -268,6 +278,13 @@ function marsh_test_create_archive_template {
             printf '%s\n' '<aside>archive-notice</aside>' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/partials/archive-notice.html" || return 1
         fi
         printf '%s\n' \
+            '  Assets:' \
+            '    Styles:' \
+            '      - css/site.css' \
+            '      - css/print.css' \
+            '    Scripts:' \
+            '      - js/site.js' >> "${TEMPLATES_DIR}/${TEMPLATE_NAME}/template.yaml" || return 1
+        printf '%s\n' \
             '...' >> "${TEMPLATES_DIR}/${TEMPLATE_NAME}/template.yaml" || return 1
         printf '%s\n' '<!DOCTYPE html>' \
             '<html>' \
@@ -290,6 +307,9 @@ function marsh_test_create_archive_template {
         printf '%s\n' '<footer>target-footer</footer>' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/partials/footer.html" || return 1
         printf '%s\n' '<nav>target-nav</nav>' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/partials/nav.html" || return 1
         printf '%s\n' '<aside>target-notice</aside>' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/partials/notice.html" || return 1
+        mkdir -p "${TEMPLATES_DIR}/${TEMPLATE_NAME}/css" "${TEMPLATES_DIR}/${TEMPLATE_NAME}/js" || return 1
+        printf '%s\n' 'body { color: black; }' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/css/site.css" || return 1
+        printf '%s\n' 'console.log("sample");' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/js/site.js" || return 1
     fi
 }
 
@@ -1286,6 +1306,60 @@ function marsh_test {
                     TEST="0"
                 else
                     TEST="1"
+                fi
+            fi
+            EXPECTED="0"
+            rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}"
+            marsh_test_restore_env
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_build_template:10)
+            TEST_NAME+=":template_asset_tags"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            marsh_test_set_env "assettaguid" true true
+            mkdir -p "${TARGET_DIR}/news/2026"
+            marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
+            printf '%s\n' '<styles>{{ template.assets.styles }}</styles>'$'\n''<scripts>{{ template.assets.scripts }}</scripts>'$'\n''<images>{{ template.assets.images }}</images>' > "${TEMPLATE_DIR}/sample/partials/body.html"
+            printf '%s\n' '@media print { body { color: black; } }' > "${TEMPLATE_DIR}/sample/css/print.css"
+            printf '%s\n' 'Example' > "${TARGET_DIR}/news/2026/index.markdown.${MARSH_UID}.document"
+            printf '%s\n' '---'$'\n''Title: Example'$'\n''...' > "${TARGET_DIR}/news/2026/index.markdown.${MARSH_UID}.meta.yaml"
+            TEST="1"
+            if marsh_build_template "${TARGET_DIR}" "." "news/2026/index.markdown" "" "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1; then
+                TEST=$(<"${TARGET_DIR}/news/2026/index.html")
+                if [[ "${TEST}" == *"<styles>../../css/site.css"$'\n'"../../css/print.css</styles>"* ]] \
+                    && [[ "${TEST}" == *"<scripts>../../js/site.js</scripts>"* ]] \
+                    && [[ "${TEST}" == *"<images>../../images/logo.png</images>"* ]]; then
+                    TEST="0"
+                fi
+            fi
+            EXPECTED="0"
+            rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}"
+            marsh_test_restore_env
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_build_template:11)
+            TEST_NAME+=":archive_template_asset_tags"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            marsh_test_set_env "assetarchiveuid" true true
+            marsh_test_create_archive_template "${TEMPLATE_DIR}" "sample" "html" true
+            printf '%s\n' '<styles>{{ template.assets.styles }}</styles>'$'\n''<scripts>{{ template.assets.scripts }}</scripts>'$'\n''{{ subdocuments }}' > "${TEMPLATE_DIR}/sample/partials/archive-body.html"
+            printf '%s\n' '<entry>{{ document.title }}</entry>' > "${TEMPLATE_DIR}/sample/partials/archive-document.html"
+            marsh_test_create_archive_document "${TARGET_DIR}" "news/item.markdown" "${MARSH_UID}" "post" "Tagged Item" "2026-01-01"
+            TEST="1"
+            if [[ "$(marsh_build_archive "html" "${TARGET_DIR}" "news/index.markdown" "Archive" "English" "en" "" "1" "1" "post" "0" 2>/dev/null)" == "news/index.markdown"$'\n'"news/page/1/index.markdown" ]] \
+                && marsh_build_document "${TARGET_DIR}" "." "news/page/1/index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" >/dev/null 2>&1 \
+                && marsh_build_template "${TARGET_DIR}" "." "news/page/1/index.markdown" "" "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1; then
+                TEST=$(<"${TARGET_DIR}/news/page/1/index.html")
+                if [[ "${TEST}" == *"<styles>../../../css/site.css"$'\n'"../../../css/print.css</styles>"* ]] \
+                    && [[ "${TEST}" == *"<scripts>../../../js/site.js</scripts>"* ]] \
+                    && [[ "${TEST}" == *"<entry>Tagged Item</entry>"* ]]; then
+                    TEST="0"
                 fi
             fi
             EXPECTED="0"
@@ -2451,6 +2525,22 @@ function marsh_test {
             fi
             ;;
         marsh_text_transform:56)
+            TEST_NAME+=":items_wrap_type_html_script_src"
+            TEST=$(printf '%s' "js/site.js"$'\n\n'"js/feature.js" | marsh_text_transform items:wrap-type:html-script-src)
+            EXPECTED='<script src="js/site.js"></script><script src="js/feature.js"></script>'
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_text_transform:57)
+            TEST_NAME+=":items_wrap_type_html_style_link"
+            TEST=$(printf '%s' "css/site.css"$'\n\n'"css/print.css" | marsh_text_transform items:wrap-type:html-style-link)
+            EXPECTED='<link rel="stylesheet" href="css/site.css" /><link rel="stylesheet" href="css/print.css" />'
+            if [[ "${TEST}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_text_transform:58)
             TEST_NAME+=":items_wrap_type_xml"
             TEST=$(printf '%s' $'\n\n\n'"John Doe"$'\n\n\n' | marsh_text_transform items:wrap-type:xml:name)
             EXPECTED='<name>John Doe</name>'
@@ -2458,7 +2548,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_transform:57)
+        marsh_text_transform:59)
             TEST_NAME+=":items_wrap_type_xml"
             TEST=$(printf '%s' "John Doe"$'\n'"Jane Doe" | marsh_text_transform items:wrap-type:xml:name)
             EXPECTED='<name>John Doe</name><name>Jane Doe</name>'
@@ -2466,7 +2556,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_transform:58)
+        marsh_text_transform:60)
             TEST_NAME+=":items_wrap_type_xml"
             TEST=$(printf '%s' "John Doe"$'\n\n\n'"Jane Doe" | marsh_text_transform items:wrap-type:xml:name)
             EXPECTED='<name>John Doe</name><name>Jane Doe</name>'
@@ -2474,7 +2564,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_transform:59)
+        marsh_text_transform:61)
             TEST_NAME+=":items_wrap_type_xml"
             TEST=$(printf '%s' "Jack & Jill <friends>" | marsh_text_transform items:wrap-type:xml:person)
             EXPECTED='<person>Jack &amp; Jill &lt;friends&gt;</person>'
@@ -2482,7 +2572,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_transform:60)
+        marsh_text_transform:62)
             TEST_NAME+=":items_wrap_type_xml"
             TEST=$(printf '%s' "John Doe"$'\n'"Jane Doe" | marsh_text_transform items:wrap-type:xml:name:author)
             EXPECTED='<author><name>John Doe</name></author><author><name>Jane Doe</name></author>'
@@ -2490,7 +2580,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_transform:61)
+        marsh_text_transform:63)
             TEST_NAME+=":items_wrap_type_xml"
             TEST=$(printf '%s' "John Doe"$'\n'"Jane Doe" | marsh_text_transform items:wrap-type:xml:name:author:people)
             EXPECTED='<people><author><name>John Doe</name></author></people><people><author><name>Jane Doe</name></author></people>'
@@ -2498,7 +2588,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_transform:62)
+        marsh_text_transform:64)
             TEST_NAME+=":links_replace_ext"
             TEST=$(printf '%s\n' \
                 '[foo](foo.markdown) [foo](foo.md) [foo](foo.text) [foo](foo.md "title") [![image](image.jpg)](imagepage.md) [![image](image.jpg) "title"](imagepage.md) [![image](image.jpg)](imagepage.md "title") [![image](image.jpg) "title"](imagepage.md "title")' \
@@ -2513,7 +2603,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_transform:63)
+        marsh_text_transform:65)
             TEST_NAME+=":links_replace_ext"
             TEST=$(printf '%s' "[foo](foo.markdown) [foo](foo.md) [foo](foo.text)" | marsh_text_transform links:replace-ext:md,markdown)
             EXPECTED="[foo](foo) [foo](foo) [foo](foo.text)"
@@ -2521,7 +2611,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_transform:64)
+        marsh_text_transform:66)
             TEST_NAME+=":links_replace_ext_special"
             TEST=$(printf '%s' '[foo](foo.md)'$'\n''[1]: reference1.md' | marsh_text_transform 'links:replace-ext:md:h&tm\\l')
             EXPECTED='[foo](foo.h&tm\l)'$'\n''[1]: reference1.h&tm\l'
@@ -2529,7 +2619,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_transform:65)
+        marsh_text_transform:67)
             TEST_NAME+=":newlines_reduce"
             TEST=$(printf '%s' "# Heading 1"$'\n\n\n\n\n\n'"Paragraph" | marsh_text_transform newlines:reduce:3)
             EXPECTED="# Heading 1"$'\n\n\n'"Paragraph"
@@ -2537,7 +2627,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_transform:66)
+        marsh_text_transform:68)
             TEST_NAME+=":newlines_remove"
             TEST=$(printf '%s' "# Heading 1"$'\n\n\n\n'"Paragraph" | marsh_text_transform newlines:remove)
             EXPECTED="# Heading 1Paragraph"
@@ -2545,7 +2635,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_transform:67)
+        marsh_text_transform:69)
             TEST_NAME+=":newlines_tospaces"
             TEST=$(printf '%s' "# Heading 1"$'\n\n\n\n'"Paragraph" | marsh_text_transform newlines:tospaces)
             EXPECTED="# Heading 1    Paragraph"
@@ -2553,7 +2643,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_transform:68)
+        marsh_text_transform:70)
             TEST_NAME+=":newlines_trim"
             TEST=$(printf '%s' $'\n\n\n\n'"# Heading 1"$'\n\n\n\n'"Paragraph"$'\n\n\n\n' | marsh_text_transform newlines:trim)
             EXPECTED="# Heading 1"$'\n\n\n\n'"Paragraph"
@@ -2561,7 +2651,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_transform:69)
+        marsh_text_transform:71)
             TEST_NAME+=":plaintext"
             TEST=$(printf '%s' "<div><p>Some HTML content and entities to decode: &lt; &gt; &amp; &#34; &#165; &#9829;<br><br /></p></div>" | marsh_text_transform plaintext)
             EXPECTED="Some HTML content and entities to decode: < > & \" ¥ ♥"
@@ -2569,7 +2659,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_transform:70)
+        marsh_text_transform:72)
             TEST_NAME+=":plaintext"
             TEST=$(printf '%s' "Raw < character should work on BSD sed" | marsh_text_transform plaintext)
             EXPECTED="Raw < character should work on BSD sed"
@@ -2577,7 +2667,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_transform:71)
+        marsh_text_transform:73)
             TEST_NAME+=":prepend"
             TEST=$(printf '%s' "Some text"$'\n'"More text" | marsh_text_transform prepend:before)
             EXPECTED="beforeSome text"$'\n'"More text"
@@ -2585,7 +2675,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_transform:72)
+        marsh_text_transform:74)
             TEST_NAME+=":prepend_type_block"
             TEST=$(printf '%s' "Some text"$'\n'"More text" | marsh_text_transform prepend-type:block:before)
             EXPECTED="before"$'\n'"Some text"$'\n'"More text"
@@ -2593,7 +2683,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_transform:73)
+        marsh_text_transform:75)
             TEST_NAME+=":slug"
             TEST=$(printf '%s' "Title of something" | marsh_text_transform slug)
             EXPECTED="title-of-something"
@@ -2601,7 +2691,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_transform:74)
+        marsh_text_transform:76)
             TEST_NAME+=":trim"
             TEST=$(printf '%s' ' '$'\t''  Some text with spaces'$'\t''  ' | marsh_text_transform trim)
             EXPECTED="Some text with spaces"
@@ -2609,7 +2699,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_transform:75)
+        marsh_text_transform:77)
             TEST_NAME+=":trim_multiline"
             TEST=$(printf '%s' ' '$'\t''First line'$'\n''  indented second line'$'\t\n''Third line'$'\t''  ' | marsh_text_transform trim; printf '\001')
             TEST="${TEST%$'\001'}"
@@ -2618,7 +2708,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_transform:76)
+        marsh_text_transform:78)
             TEST_NAME+=":wrap"
             TEST=$(printf '%s' "Some text"$'\n\n'"More text" | marsh_text_transform wrap:before:after)
             EXPECTED="beforeSome text"$'\n\n'"More textafter"
@@ -2626,7 +2716,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_transform:77)
+        marsh_text_transform:79)
             TEST_NAME+=":wrap_type_block"
             TEST=$(printf '%s' "Some text"$'\n\n'"More text" | marsh_text_transform wrap-type:block:before:after)
             EXPECTED="before"$'\n\n'"Some text"$'\n\n'"More text"$'\n\n'"after"
@@ -2634,7 +2724,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_transform:78)
+        marsh_text_transform:80)
             TEST_NAME+=":wrap_type_special_comment"
             TEST=$(printf '%s' "Some text"$'\n\n'"<p>Some HTML</p>" | marsh_text_transform wrap-type:special-comment:div.wrapper)
             EXPECTED="<!-- div.wrapper -->"$'\n\n'"Some text"$'\n\n'"<p>Some HTML</p>"$'\n\n'"<!-- /div.wrapper -->"
@@ -2642,7 +2732,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_transform:79)
+        marsh_text_transform:81)
             TEST_NAME+=":multiple"
             TEST=$(printf '%s' $'\n\n\n\n'"Some text"$'\n'"&#9829;" | marsh_text_transform newlines:trim newlines:tospaces decode:entities items:wrap:\")
             EXPECTED="\"Some text ♥\""
@@ -2650,7 +2740,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_transform:80)
+        marsh_text_transform:82)
             TEST_NAME+=":multiple"
             TEST=$(printf '%s' "First item"$'\n'"Second item"$'\n'"Third item" | marsh_text_transform items:slice:1 escape:nbsp items:wrap:\" items:join-type:oxford)
             EXPECTED="\"First&nbsp;item\", \"Second&nbsp;item\", and \"Third&nbsp;item\""

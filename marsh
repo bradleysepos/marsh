@@ -1185,6 +1185,42 @@ function marsh_resolve_tag_metadata {  # marsh_resolve_tag_metadata tag_name pre
             TAG_VAR="${PREFIX}ABSPATH"
             TAG_TYPE="string"
             ;;
+        template.assets.fonts)
+            TAG_VAR="TEMPLATE_TAG_ASSETS_FONTS"
+            TAG_TYPE="shell-array"
+            ;;
+        template.assets.styles)
+            TAG_VAR="TEMPLATE_TAG_ASSETS_STYLES"
+            TAG_TYPE="shell-array"
+            ;;
+        template.assets.scripts)
+            TAG_VAR="TEMPLATE_TAG_ASSETS_SCRIPTS"
+            TAG_TYPE="shell-array"
+            ;;
+        template.assets.images)
+            TAG_VAR="TEMPLATE_TAG_ASSETS_IMAGES"
+            TAG_TYPE="shell-array"
+            ;;
+        template.assets.audio)
+            TAG_VAR="TEMPLATE_TAG_ASSETS_AUDIO"
+            TAG_TYPE="shell-array"
+            ;;
+        template.assets.video)
+            TAG_VAR="TEMPLATE_TAG_ASSETS_VIDEO"
+            TAG_TYPE="shell-array"
+            ;;
+        template.assets.documents)
+            TAG_VAR="TEMPLATE_TAG_ASSETS_DOCUMENTS"
+            TAG_TYPE="shell-array"
+            ;;
+        template.assets.binaries)
+            TAG_VAR="TEMPLATE_TAG_ASSETS_BINARIES"
+            TAG_TYPE="shell-array"
+            ;;
+        template.assets.other)
+            TAG_VAR="TEMPLATE_TAG_ASSETS_OTHER"
+            TAG_TYPE="shell-array"
+            ;;
         document.href)
             TAG_VAR="${PREFIX}HREF"
             TAG_TYPE="string"
@@ -2847,6 +2883,9 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                 if [[ "${TAG_TYPE}" == "array" ]]; then
                     eval "$(marsh_flat_to_array "TAG_VALUES" "${TAG_VAR}")"
                     TAG_VALUE=$(printf '%s\n' "${TAG_VALUES[@]}")
+                elif [[ "${TAG_TYPE}" == "shell-array" ]]; then
+                    eval "TAG_VALUES=(\"\${${TAG_VAR}[@]}\")"
+                    TAG_VALUE=$(printf '%s\n' "${TAG_VALUES[@]}")
                 elif [[ "${TAG_TYPE}" == "file" ]]; then
                     if [[ -f "${!TAG_VAR}" ]] && [[ -r "${!TAG_VAR}" ]]; then
                         TAG_VALUE=$(<"${!TAG_VAR}")
@@ -2891,9 +2930,12 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
     local TEMPLATE_RENDER
     local TEMPLATE_BASE_FILE TEMPLATE_HEAD_FILE TEMPLATE_BODY_FILE TEMPLATE_DOCUMENT_FILE TEMPLATE_HEADER_FILE TEMPLATE_FOOTER_FILE TEMPLATE_NAV_FILE TEMPLATE_NOTICE_FILE
     local TEMPLATE_BASE_TEMPLATE TEMPLATE_HEAD_TEMPLATE TEMPLATE_BODY_TEMPLATE TEMPLATE_DOCUMENT_TEMPLATE TEMPLATE_HEADER_TEMPLATE TEMPLATE_FOOTER_TEMPLATE
-    local TEMPLATE_STYLES STYLE TEMPLATE_SCRIPTS SCRIPT TEMPLATE_NAV_TEMPLATE TEMPLATE_NOTICE_TEMPLATE TEMPLATE_ADVNAV
+    local TEMPLATE_NAV_TEMPLATE TEMPLATE_NOTICE_TEMPLATE TEMPLATE_ADVNAV
+    local TEMPLATE_ASSET_TYPES TEMPLATE_ASSET_TYPE ASSET
+    local TEMPLATE_TAG_ASSETS_FONTS TEMPLATE_TAG_ASSETS_STYLES TEMPLATE_TAG_ASSETS_SCRIPTS TEMPLATE_TAG_ASSETS_IMAGES
+    local TEMPLATE_TAG_ASSETS_AUDIO TEMPLATE_TAG_ASSETS_VIDEO TEMPLATE_TAG_ASSETS_DOCUMENTS TEMPLATE_TAG_ASSETS_BINARIES TEMPLATE_TAG_ASSETS_OTHER
     local TEMPLATE_HEAD_ESC TEMPLATE_BODY_ESC TEMPLATE_DOCUMENT_ESC TEMPLATE_HEADER_ESC TEMPLATE_FOOTER_ESC
-    local TEMPLATE_NAV_ESC TEMPLATE_NOTICE_ESC TEMPLATE_SCRIPTS_ESC TEMPLATE_STYLES_ESC TEMPLATE_ADVNAV_ESC
+    local TEMPLATE_NAV_ESC TEMPLATE_NOTICE_ESC TEMPLATE_ADVNAV_ESC
     local DOCUMENT_META DOCUMENT_META_VARS DOCUMENT_CONTENT
     local SUBDOCUMENTS_LIST SUBDOCUMENTS SUBDOCUMENT_URIS SUBDOCUMENT_ABSPATHS NUM_SUBDOCUMENTS
     local SUBDOCUMENT SUBDOCUMENT_SOURCE SUBDOCUMENT_CONTENT SUBDOCUMENT_CONTENT_ESC SUBDOCUMENT_META SUBDOCUMENT_META_VARS
@@ -3163,15 +3205,17 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
             TEMPLATE_NOTICE_TEMPLATE=$(<"${TEMPLATE_NOTICE_FILE}")
         fi
 
-        # scripts and styles
-        TEMPLATE_SCRIPTS=""
-        for SCRIPT in "${TEMPLATE_ASSETS_SCRIPTS[@]}"; do
-            TEMPLATE_SCRIPTS="${TEMPLATE_SCRIPTS}<script src=\"${BASE_ROOTPATH}${SCRIPT}\"></script>"
-        done
-        TEMPLATE_STYLES=""
-        for STYLE in "${TEMPLATE_ASSETS_STYLES[@]}"; do
-            TEMPLATE_STYLES="${TEMPLATE_STYLES}<link rel=\"stylesheet\" href=\"${BASE_ROOTPATH}${STYLE}\" />"
-        done
+        # page-relative template asset arrays for transform-aware tag replacement
+        TEMPLATE_ASSET_TYPES=('FONTS' 'STYLES' 'SCRIPTS' 'IMAGES' 'AUDIO' 'VIDEO' 'DOCUMENTS' 'BINARIES' 'OTHER')
+        TEMPLATE_TAG_ASSETS_FONTS=()
+        TEMPLATE_TAG_ASSETS_STYLES=()
+        TEMPLATE_TAG_ASSETS_SCRIPTS=()
+        TEMPLATE_TAG_ASSETS_IMAGES=()
+        TEMPLATE_TAG_ASSETS_AUDIO=()
+        TEMPLATE_TAG_ASSETS_VIDEO=()
+        TEMPLATE_TAG_ASSETS_DOCUMENTS=()
+        TEMPLATE_TAG_ASSETS_BINARIES=()
+        TEMPLATE_TAG_ASSETS_OTHER=()
 
         # advanced navigation
         TEMPLATE_ADVNAV=""
@@ -3210,8 +3254,6 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
         TEMPLATE_FOOTER_ESC=$(printf '%s' "${TEMPLATE_FOOTER_TEMPLATE}" | marsh_escape_substitution)
         TEMPLATE_NAV_ESC=$(printf '%s' "${TEMPLATE_NAV_TEMPLATE}" | marsh_escape_substitution)
         TEMPLATE_NOTICE_ESC=$(printf '%s' "${TEMPLATE_NOTICE_TEMPLATE}" | marsh_escape_substitution)
-        TEMPLATE_SCRIPTS_ESC=$(printf '%s' "${TEMPLATE_SCRIPTS}" | marsh_escape_substitution)
-        TEMPLATE_STYLES_ESC=$(printf '%s' "${TEMPLATE_STYLES}" | marsh_escape_substitution)
         TEMPLATE_ADVNAV_ESC=$(printf '%s' "${TEMPLATE_ADVNAV}" | marsh_escape_substitution)
 
         TEMPLATE_RENDER=$(printf '%s' "${TEMPLATE_BASE_TEMPLATE}" | sed -E \
@@ -3222,11 +3264,59 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
         -e "/\{\{[ ]*template\.footer[ ]*\}\}/s//${TEMPLATE_FOOTER_ESC:-}/g" \
         -e "/\{\{[ ]*template\.nav[ ]*\}\}/s//${TEMPLATE_NAV_ESC:-}/g" \
         -e "/\{\{[ ]*template\.notice[ ]*\}\}/s//${TEMPLATE_NOTICE_ESC:-}/g" \
-        -e '/\{\{[ ]*template\.scripts[ ]*\}\}/s||'"${TEMPLATE_SCRIPTS_ESC:-}"'|g' \
-        -e '/\{\{[ ]*template\.styles[ ]*\}\}/s||'"${TEMPLATE_STYLES_ESC:-}"'|g' \
         -e "/\{\{[ ]*navigation[ ]*\}\}/s//${TEMPLATE_ADVNAV_ESC:-}/g" \
-        -e 's/\{\{[ ]*navigation[ ]*\}\}//g' \
-        -e '/\{\{[ ]*template(\.[a-z]+)?[ ]*\}\}/s///g')
+        -e 's/\{\{[ ]*navigation[ ]*\}\}//g')
+
+        for TEMPLATE_ASSET_TYPE in "${TEMPLATE_ASSET_TYPES[@]}"; do
+            case "${TEMPLATE_ASSET_TYPE}" in
+                FONTS)
+                    for ASSET in "${TEMPLATE_ASSETS_FONTS[@]}"; do
+                        TEMPLATE_TAG_ASSETS_FONTS+=("${BASE_ROOTPATH}${ASSET}")
+                    done
+                    ;;
+                STYLES)
+                    for ASSET in "${TEMPLATE_ASSETS_STYLES[@]}"; do
+                        TEMPLATE_TAG_ASSETS_STYLES+=("${BASE_ROOTPATH}${ASSET}")
+                    done
+                    ;;
+                SCRIPTS)
+                    for ASSET in "${TEMPLATE_ASSETS_SCRIPTS[@]}"; do
+                        TEMPLATE_TAG_ASSETS_SCRIPTS+=("${BASE_ROOTPATH}${ASSET}")
+                    done
+                    ;;
+                IMAGES)
+                    for ASSET in "${TEMPLATE_ASSETS_IMAGES[@]}"; do
+                        TEMPLATE_TAG_ASSETS_IMAGES+=("${BASE_ROOTPATH}${ASSET}")
+                    done
+                    ;;
+                AUDIO)
+                    for ASSET in "${TEMPLATE_ASSETS_AUDIO[@]}"; do
+                        TEMPLATE_TAG_ASSETS_AUDIO+=("${BASE_ROOTPATH}${ASSET}")
+                    done
+                    ;;
+                VIDEO)
+                    for ASSET in "${TEMPLATE_ASSETS_VIDEO[@]}"; do
+                        TEMPLATE_TAG_ASSETS_VIDEO+=("${BASE_ROOTPATH}${ASSET}")
+                    done
+                    ;;
+                DOCUMENTS)
+                    for ASSET in "${TEMPLATE_ASSETS_DOCUMENTS[@]}"; do
+                        TEMPLATE_TAG_ASSETS_DOCUMENTS+=("${BASE_ROOTPATH}${ASSET}")
+                    done
+                    ;;
+                BINARIES)
+                    for ASSET in "${TEMPLATE_ASSETS_BINARIES[@]}"; do
+                        TEMPLATE_TAG_ASSETS_BINARIES+=("${BASE_ROOTPATH}${ASSET}")
+                    done
+                    ;;
+                OTHER)
+                    for ASSET in "${TEMPLATE_ASSETS_OTHER[@]}"; do
+                        TEMPLATE_TAG_ASSETS_OTHER+=("${BASE_ROOTPATH}${ASSET}")
+                    done
+                    ;;
+            esac
+        done
+        TEMPLATE_RENDER=$(printf '%s' "${TEMPLATE_RENDER}" | sed -E -e '/\{\{[ ]*template\.(head|body|document|header|footer|nav|notice)[ ]*\}\}/s///g')
         printf '%s\n' "${TEMPLATE_RENDER}" > "${DEST}" || {
             echo "Unable to write template output: ${DEST}" >&2
             return 1

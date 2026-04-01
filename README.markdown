@@ -510,6 +510,8 @@ Item transforms are useful when working with list-style metadata such as `docume
 - `items:join-type:oxford` renders values as a natural-language list, e.g., "a, b, and c"
 - `items:json-array` renders values as JSON array items
 - `items:wrap-type:xml` renders each value wrapped in XML tags, e.g., `items:wrap-type:xml:tag` produces "<tag>a</tag><tag>b</tag><tag>c</tag>"
+- `items:wrap-type:html-style-link` renders each value as an HTML `<link rel="stylesheet" href="..." />` tag
+- `items:wrap-type:html-script-src` renders each value as an HTML `<script src="..."></script>` tag
 
 Heading transforms are useful in select cases:
 
@@ -524,6 +526,7 @@ Examples:
 {{ document.date | date:rfc3339 }}
 {{ document.authors | items:join-type:oxford }}
 {{ document | excerpt:300:2 }}
+{{ template.assets.scripts | items:wrap-type:html-script-src }}
 ```
 
 Text transforms may be applied to recognized and custom document metadata tags, as well as rendered document content.
@@ -603,10 +606,17 @@ For rendering [JSON Feed](https://en.wikipedia.org/wiki/JSON_Feed) syndication f
 
 #### Related generated template tags
 
-In addition to the partial-specific `template.*` tags above, `marsh` provides generated template tags for some template assets:
+In addition to the partial-specific `template.*` tags above, `marsh` provides generated template tags for template asset lists using the prefix `template.assets.`. Each tag resolves to a newline-delimited list of page-relative asset paths for the items in that asset category.
 
-- `template.styles`: HTML stylesheet links generated from the template `Styles` asset list.
-- `template.scripts`: HTML script tags generated from the template `Scripts` asset list.
+- `template.assets.fonts`: List of font assets.
+- `template.assets.styles`: List of stylesheet assets.
+- `template.assets.scripts`: List of script assets.
+- `template.assets.images`: List of image assets.
+- `template.assets.audio`: List of audio assets.
+- `template.assets.video`: List of video assets.
+- `template.assets.documents`: List of document assets such as PDF files.
+- `template.assets.binaries`: List of binary assets such as ZIP files.
+- `template.assets.other`: List of other non-specific types of assets.
 
 ### Template assets
 
@@ -647,18 +657,36 @@ Template:
 
 In this example, the files `css/site.css`, `js/site.js`, and `images/logo.png` are copied from the template into the build output for the target.
 
-You can reference any specific asset by combining its path with generated metadata template tags. The styles and scripts asset categories are also given the special template tags `template.styles` and `template.scripts` that insert each category's assets as HTML stylesheet links or script tags into the rendered output. The following example demonstrates both types of template tags usage with assets.
+You can reference any specific asset in a partial template by combining its path with generated metadata template tags. You can also reference the list of assets for any category by its associated template tag, and apply text transforms to customize how it is rendered. The following example demonstrates both types of asset inclusion in partials.
+
+The following example partial:
 
 ```html
 <!DOCTYPE html>
 <html>
 <head>
-    {{ template.styles }}
+    {{ template.assets.styles | items:wrap-type:html-style-link }}
 </head>
 <body>
     <img class="logo" src="{{ base.rootpath }}images/logo.png" />
     {{ document }}
-    {{ template.scripts }}
+    {{ template.assets.scripts | items:wrap-type:html-script-src }}
+</body>
+</html>
+```
+
+Combined with the template configuration with assets above, this example partial would produce the following rendered output for a document one directory level below the root path:
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+    <link rel="stylesheet" href="../css/site.css" />
+</head>
+<body>
+    <img class="logo" src="../images/logo.png" />
+    <!-- document contents included here -->
+    <script src="../js/site.js"></script>
 </body>
 </html>
 ```

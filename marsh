@@ -311,10 +311,18 @@ function marsh_text_transform_headings {  # marsh_text_transform_headings action
         prefix[6] = "###### "
     }
 
-    function remove_html_level(line, level, pattern) {
-        pattern = "<h" level "[^>]*>[^<]*</h" level ">"
-        while (match(line, pattern)) {
-            line = substr(line, 1, RSTART - 1) substr(line, RSTART + RLENGTH)
+    function remove_html_level(line, level, open_pattern, close_tag, open_start, open_len, rest, close_pos) {
+        open_pattern = "<h" level "[^>]*>"
+        close_tag = "</h" level ">"
+        while (match(line, open_pattern)) {
+            open_start = RSTART
+            open_len = RLENGTH
+            rest = substr(line, open_start + open_len)
+            close_pos = index(rest, close_tag)
+            if (close_pos == 0) {
+                break
+            }
+            line = substr(line, 1, open_start - 1) substr(rest, close_pos + length(close_tag))
         }
         return line
     }

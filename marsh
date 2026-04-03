@@ -2239,14 +2239,25 @@ function marsh_get_archive_page_source {  # marsh_get_archive_page_source archiv
 
 # returns output uri for an archive source path
 function marsh_get_archive_page_uri {  # marsh_get_archive_page_uri target_dir archive_source
-    local TARGET_DIR ARCHIVE_SOURCE URI
+    local TARGET_DIR ARCHIVE_SOURCE TARGET_PATH URI
 
     TARGET_DIR="${1:-}"
     ARCHIVE_SOURCE="${2:-}"
     [[ "${TARGET_DIR}" == "" ]] && return 1
     [[ "${ARCHIVE_SOURCE}" == "" ]] && return 1
-    URI="${TARGET_DIR#$MARSH_CONFIG_PATH}"
-    URI="${MARSH_CONFIG_URL%/}/${URI#/}/${ARCHIVE_SOURCE}"
+
+    TARGET_PATH="${TARGET_DIR#$MARSH_CONFIG_PATH}"
+    TARGET_PATH="${TARGET_PATH#./}"
+    TARGET_PATH="${TARGET_PATH#/}"
+    TARGET_PATH="${TARGET_PATH%/.}"
+    if [[ "${TARGET_PATH}" == "." ]]; then
+        TARGET_PATH=""
+    fi
+    URI="${MARSH_CONFIG_URL%/}"
+    if [[ "${TARGET_PATH}" != "" ]]; then
+        URI="${URI}/${TARGET_PATH}"
+    fi
+    URI="${URI}/${ARCHIVE_SOURCE}"
     URI="${URI%.*}.html"
     marsh_normalize_document_path "${URI}"
 }

@@ -1465,6 +1465,124 @@ function marsh_test {
             rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}"
             marsh_test_restore_env
             ;;
+        marsh_build_template:12)
+            TEST_NAME+=":template_asset_tags_with_transforms"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            marsh_test_set_env "assettagtransformuid" true true
+            mkdir -p "${TARGET_DIR}/news/2026"
+            marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
+            printf '%s\n' '{{ template.assets.styles | items:wrap-type:html-style-link }}'$'\n''{{ template.assets.scripts | items:wrap-type:html-script-src }}' > "${TEMPLATE_DIR}/sample/partials/body.html"
+            printf '%s\n' '@media print { body { color: black; } }' > "${TEMPLATE_DIR}/sample/css/print.css"
+            printf '%s\n' 'console.log("feature");' > "${TEMPLATE_DIR}/sample/js/feature.js"
+            printf '%s\n' \
+                '---' \
+                'Template:' \
+                '  Partials:' \
+                '    Base: partials/base.html' \
+                '    Head: partials/head.html' \
+                '    Body: partials/body.html' \
+                '  Assets:' \
+                '    Styles:' \
+                '      - css/site.css' \
+                '      - css/print.css' \
+                '    Scripts:' \
+                '      - js/site.js' \
+                '      - js/feature.js' \
+                '...' > "${TEMPLATE_DIR}/sample/template.yaml"
+            printf '%s\n' 'Example' > "${TARGET_DIR}/news/2026/index.markdown.${MARSH_UID}.document"
+            printf '%s\n' '---'$'\n''Title: Example'$'\n''...' > "${TARGET_DIR}/news/2026/index.markdown.${MARSH_UID}.meta.yaml"
+            marsh_build_template "${TARGET_DIR}" "." "news/2026/index.markdown" "" "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                ACTUAL=$(<"${TARGET_DIR}/news/2026/index.html")
+                ASSERTION="contains"
+                EXPECTED='<link rel="stylesheet" href="../../css/site.css" /><link rel="stylesheet" href="../../css/print.css" />'
+                if printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
+                    EXPECTED='<script src="../../js/site.js"></script><script src="../../js/feature.js"></script>'
+                    if printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
+                        RES="[PASS]"
+                    fi
+                fi
+            fi
+            rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}"
+            marsh_test_restore_env
+            ;;
+        marsh_build_template:13)
+            TEST_NAME+=":archive_template_asset_tags_with_transforms"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            marsh_test_set_env "assetarchivetransformuid" true true
+            marsh_test_create_archive_template "${TEMPLATE_DIR}" "sample" "html" true
+            printf '%s\n' '{{ template.assets.styles | items:wrap-type:html-style-link }}'$'\n''{{ template.assets.scripts | items:wrap-type:html-script-src }}'$'\n''{{ subdocuments }}' > "${TEMPLATE_DIR}/sample/partials/archive-body.html"
+            printf '%s\n' '<entry>{{ document.title }}</entry>' > "${TEMPLATE_DIR}/sample/partials/archive-document.html"
+            printf '%s\n' '@media print { body { color: black; } }' > "${TEMPLATE_DIR}/sample/css/print.css"
+            printf '%s\n' 'console.log("feature");' > "${TEMPLATE_DIR}/sample/js/feature.js"
+            printf '%s\n' \
+                '---' \
+                'Template:' \
+                '  Partials:' \
+                '    Base: partials/base.html' \
+                '    Head: partials/head.html' \
+                '    Body: partials/body.html' \
+                '    Document: partials/document.html' \
+                '    Header: partials/header.html' \
+                '    Footer: partials/footer.html' \
+                '    Nav: partials/nav.html' \
+                '    Notice: partials/notice.html' \
+                '    Archive:' \
+                '      HTML:' \
+                '        Base: partials/archive-base.html' \
+                '        Head: partials/archive-head.html' \
+                '        Body: partials/archive-body.html' \
+                '        Document: partials/archive-document.html' \
+                '        Header: partials/archive-header.html' \
+                '        Footer: partials/archive-footer.html' \
+                '        Nav: partials/archive-nav.html' \
+                '        Notice: partials/archive-notice.html' \
+                '  Assets:' \
+                '    Styles:' \
+                '      - css/site.css' \
+                '      - css/print.css' \
+                '    Scripts:' \
+                '      - js/site.js' \
+                '      - js/feature.js' \
+                '...' > "${TEMPLATE_DIR}/sample/template.yaml"
+            marsh_test_create_archive_document "${TARGET_DIR}" "news/item.markdown" "${MARSH_UID}" "post" "Tagged Item" "2026-01-01"
+            ACTUAL=$(marsh_build_archive "html" "${TARGET_DIR}" "news/index.markdown" "Archive" "English" "en" "" "1" "1" "post" "0" 2>/dev/null)
+            EXPECTED='news/index.markdown'$'\n''news/page/1/index.markdown'
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                marsh_build_document "${TARGET_DIR}" "." "news/page/1/index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" >/dev/null 2>&1
+                ACTUAL=$?
+                EXPECTED=0
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    marsh_build_template "${TARGET_DIR}" "." "news/page/1/index.markdown" "" "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+                    ACTUAL=$?
+                    EXPECTED=0
+                    ASSERTION="equals"
+                    if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                        ACTUAL=$(<"${TARGET_DIR}/news/page/1/index.html")
+                        ASSERTION="contains"
+                        EXPECTED='<link rel="stylesheet" href="../../../css/site.css" /><link rel="stylesheet" href="../../../css/print.css" />'
+                        if printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
+                            EXPECTED='<script src="../../../js/site.js"></script><script src="../../../js/feature.js"></script>'
+                            if printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
+                                EXPECTED='<entry>Tagged Item</entry>'
+                                if printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
+                                    RES="[PASS]"
+                                fi
+                            fi
+                        fi
+                    fi
+                fi
+            fi
+            rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}"
+            marsh_test_restore_env
+            ;;
         marsh_check_dependencies:0)
             TEST_NAME+=":found"
             marsh_check_dependencies bash 2>/dev/null

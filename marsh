@@ -2933,7 +2933,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
     local TEMPLATE_BASE_FILE TEMPLATE_HEAD_FILE TEMPLATE_BODY_FILE TEMPLATE_DOCUMENT_FILE TEMPLATE_HEADER_FILE TEMPLATE_FOOTER_FILE TEMPLATE_NAV_FILE TEMPLATE_NOTICE_FILE
     local TEMPLATE_BASE_TEMPLATE TEMPLATE_HEAD_TEMPLATE TEMPLATE_BODY_TEMPLATE TEMPLATE_DOCUMENT_TEMPLATE TEMPLATE_HEADER_TEMPLATE TEMPLATE_FOOTER_TEMPLATE
     local TEMPLATE_NAV_TEMPLATE TEMPLATE_NOTICE_TEMPLATE TEMPLATE_ADVNAV
-    local TEMPLATE_ASSET_TYPES TEMPLATE_ASSET_TYPE ASSET
+    local TEMPLATE_ASSET_TYPES TEMPLATE_ASSET_TYPE ASSET ASSET_PATH ASSET_QUERY ASSET_HREF
     local TEMPLATE_TAG_ASSETS_FONTS TEMPLATE_TAG_ASSETS_STYLES TEMPLATE_TAG_ASSETS_SCRIPTS TEMPLATE_TAG_ASSETS_IMAGES
     local TEMPLATE_TAG_ASSETS_AUDIO TEMPLATE_TAG_ASSETS_VIDEO TEMPLATE_TAG_ASSETS_DOCUMENTS TEMPLATE_TAG_ASSETS_BINARIES TEMPLATE_TAG_ASSETS_OTHER
     local TEMPLATE_HEAD_ESC TEMPLATE_BODY_ESC TEMPLATE_DOCUMENT_ESC TEMPLATE_HEADER_ESC TEMPLATE_FOOTER_ESC
@@ -3275,47 +3275,74 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
             case "${TEMPLATE_ASSET_TYPE}" in
                 FONTS)
                     for ASSET in "${TEMPLATE_ASSETS_FONTS[@]}"; do
-                        TEMPLATE_TAG_ASSETS_FONTS+=("${BASE_ROOTPATH}${ASSET}")
+                        ASSET_PATH="${ASSET%\?*}"
+                        ASSET_QUERY="${ASSET#${ASSET_PATH}}"
+                        ASSET_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "${ASSET_PATH}") || return 1
+                        TEMPLATE_TAG_ASSETS_FONTS+=("${ASSET_HREF}${ASSET_QUERY}")
                     done
                     ;;
                 STYLES)
                     for ASSET in "${TEMPLATE_ASSETS_STYLES[@]}"; do
-                        TEMPLATE_TAG_ASSETS_STYLES+=("${BASE_ROOTPATH}${ASSET}")
+                        ASSET_PATH="${ASSET%\?*}"
+                        ASSET_QUERY="${ASSET#${ASSET_PATH}}"
+                        ASSET_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "${ASSET_PATH}") || return 1
+                        TEMPLATE_TAG_ASSETS_STYLES+=("${ASSET_HREF}${ASSET_QUERY}")
                     done
                     ;;
                 SCRIPTS)
                     for ASSET in "${TEMPLATE_ASSETS_SCRIPTS[@]}"; do
-                        TEMPLATE_TAG_ASSETS_SCRIPTS+=("${BASE_ROOTPATH}${ASSET}")
+                        ASSET_PATH="${ASSET%\?*}"
+                        ASSET_QUERY="${ASSET#${ASSET_PATH}}"
+                        ASSET_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "${ASSET_PATH}") || return 1
+                        TEMPLATE_TAG_ASSETS_SCRIPTS+=("${ASSET_HREF}${ASSET_QUERY}")
                     done
                     ;;
                 IMAGES)
                     for ASSET in "${TEMPLATE_ASSETS_IMAGES[@]}"; do
-                        TEMPLATE_TAG_ASSETS_IMAGES+=("${BASE_ROOTPATH}${ASSET}")
+                        ASSET_PATH="${ASSET%\?*}"
+                        ASSET_QUERY="${ASSET#${ASSET_PATH}}"
+                        ASSET_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "${ASSET_PATH}") || return 1
+                        TEMPLATE_TAG_ASSETS_IMAGES+=("${ASSET_HREF}${ASSET_QUERY}")
                     done
                     ;;
                 AUDIO)
                     for ASSET in "${TEMPLATE_ASSETS_AUDIO[@]}"; do
-                        TEMPLATE_TAG_ASSETS_AUDIO+=("${BASE_ROOTPATH}${ASSET}")
+                        ASSET_PATH="${ASSET%\?*}"
+                        ASSET_QUERY="${ASSET#${ASSET_PATH}}"
+                        ASSET_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "${ASSET_PATH}") || return 1
+                        TEMPLATE_TAG_ASSETS_AUDIO+=("${ASSET_HREF}${ASSET_QUERY}")
                     done
                     ;;
                 VIDEO)
                     for ASSET in "${TEMPLATE_ASSETS_VIDEO[@]}"; do
-                        TEMPLATE_TAG_ASSETS_VIDEO+=("${BASE_ROOTPATH}${ASSET}")
+                        ASSET_PATH="${ASSET%\?*}"
+                        ASSET_QUERY="${ASSET#${ASSET_PATH}}"
+                        ASSET_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "${ASSET_PATH}") || return 1
+                        TEMPLATE_TAG_ASSETS_VIDEO+=("${ASSET_HREF}${ASSET_QUERY}")
                     done
                     ;;
                 DOCUMENTS)
                     for ASSET in "${TEMPLATE_ASSETS_DOCUMENTS[@]}"; do
-                        TEMPLATE_TAG_ASSETS_DOCUMENTS+=("${BASE_ROOTPATH}${ASSET}")
+                        ASSET_PATH="${ASSET%\?*}"
+                        ASSET_QUERY="${ASSET#${ASSET_PATH}}"
+                        ASSET_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "${ASSET_PATH}") || return 1
+                        TEMPLATE_TAG_ASSETS_DOCUMENTS+=("${ASSET_HREF}${ASSET_QUERY}")
                     done
                     ;;
                 BINARIES)
                     for ASSET in "${TEMPLATE_ASSETS_BINARIES[@]}"; do
-                        TEMPLATE_TAG_ASSETS_BINARIES+=("${BASE_ROOTPATH}${ASSET}")
+                        ASSET_PATH="${ASSET%\?*}"
+                        ASSET_QUERY="${ASSET#${ASSET_PATH}}"
+                        ASSET_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "${ASSET_PATH}") || return 1
+                        TEMPLATE_TAG_ASSETS_BINARIES+=("${ASSET_HREF}${ASSET_QUERY}")
                     done
                     ;;
                 OTHER)
                     for ASSET in "${TEMPLATE_ASSETS_OTHER[@]}"; do
-                        TEMPLATE_TAG_ASSETS_OTHER+=("${BASE_ROOTPATH}${ASSET}")
+                        ASSET_PATH="${ASSET%\?*}"
+                        ASSET_QUERY="${ASSET#${ASSET_PATH}}"
+                        ASSET_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "${ASSET_PATH}") || return 1
+                        TEMPLATE_TAG_ASSETS_OTHER+=("${ASSET_HREF}${ASSET_QUERY}")
                     done
                     ;;
             esac
@@ -3659,7 +3686,7 @@ function marsh_build_target {  # marsh_build_target dest_dir target jobs advance
     local NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDES SKIP_TEMPLATE_ASSETS
     local TEMPLATE_META TEMPLATE_META_VARS TEMPLATE_ASSETS_ALL
     local TARGET_DIR TEMPLATE_PREFIX DOCUMENTS_LIST DOCUMENTS DOCUMENTS_DIR DOCUMENTS_FIND_ARGS FILTERED_DOCUMENTS DOCUMENT
-    local PARALLEL PARALLEL_MARKDOWN ASSET
+    local PARALLEL PARALLEL_MARKDOWN ASSET ASSET_PATH ASSET_SOURCE ASSET_DEST ASSET_CACHE_DIR ASSET_CACHE_KEY ASSET_CACHE_FILE
 
     # init
     DEST_DIR="${1:-.}"
@@ -3713,16 +3740,35 @@ function marsh_build_target {  # marsh_build_target dest_dir target jobs advance
         TEMPLATE_ASSETS_ALL+=("${TEMPLATE_ASSETS_DOCUMENTS[@]}")
         TEMPLATE_ASSETS_ALL+=("${TEMPLATE_ASSETS_BINARIES[@]}")
         TEMPLATE_ASSETS_ALL+=("${TEMPLATE_ASSETS_OTHER[@]}")
+        ASSET_CACHE_DIR="${MARSH_TEMP}/asset-copy-cache"
+        mkdir -p "${ASSET_CACHE_DIR}" >/dev/null 2>&1 || {
+            echo "Unable to create asset copy cache directory: ${ASSET_CACHE_DIR}" >&2
+            return 1
+        }
         for ASSET in "${TEMPLATE_ASSETS_ALL[@]}"; do
-            ASSET="${ASSET%\?*}"
-            if [[ -d "${TEMPLATES_DIR}/${TEMPLATE}/${ASSET}" ]]; then
-                mkdir -p "${DEST_DIR}/${TARGET_DIR}/${ASSET}"
-            elif [[ -f "${TEMPLATES_DIR}/${TEMPLATE}/${ASSET}" ]]; then
-                mkdir -p "${DEST_DIR}/${TARGET_DIR}/${ASSET%/*}"
-            fi
-            if [[ -e "${TEMPLATES_DIR}/${TEMPLATE}/${ASSET}" ]] && [[ -r "${TEMPLATES_DIR}/${TEMPLATE}/${ASSET}" ]]; then
-                cp -R "${TEMPLATES_DIR}/${TEMPLATE}/${ASSET}" "${DEST_DIR}/${TARGET_DIR}/${ASSET}"
-            fi
+            ASSET_PATH="${ASSET%\?*}"
+            ASSET_SOURCE="${TEMPLATES_DIR}/${TEMPLATE}/${ASSET_PATH}"
+            ASSET_DEST="${DEST_DIR}/${ASSET_PATH}"
+            [[ -e "${ASSET_SOURCE}" ]] && [[ -r "${ASSET_SOURCE}" ]] || continue
+            ASSET_CACHE_KEY=$(printf '%s\034%s\n' "${ASSET_SOURCE}" "${ASSET_DEST}" | marsh_text_transform hash:md5)
+            ASSET_CACHE_FILE="${ASSET_CACHE_DIR}/${ASSET_CACHE_KEY}.copied"
+            [[ -e "${ASSET_CACHE_FILE}" ]] && continue
+            mkdir -p "${ASSET_DEST%/*}" || {
+                echo "Unable to create asset path: ${ASSET_DEST%/*}" >&2
+                return 1
+            }
+            rm -rf "${ASSET_DEST}" || {
+                echo "Unable to replace asset path: ${ASSET_DEST}" >&2
+                return 1
+            }
+            cp -R "${ASSET_SOURCE}" "${ASSET_DEST}" || {
+                echo "Unable to copy asset: ${ASSET_SOURCE} -> ${ASSET_DEST}" >&2
+                return 1
+            }
+            : > "${ASSET_CACHE_FILE}" || {
+                echo "Unable to write asset cache file: ${ASSET_CACHE_FILE}" >&2
+                return 1
+            }
         done
     fi
 
@@ -3815,6 +3861,7 @@ function marsh_cli {
     local MARKDOWN_COMMAND MARKDOWN_OPTIONS MARKDOWN_FILEEXT MARKDOWN_REWRITE_LINKS
     local MARKDOWN_OPTIONS_CSV MARKDOWN_OPTIONS_CLIARGS MARKDOWN_FILEEXT_CSV
     local INDEX PREFIX META META_VARS CONFIG_VARS OIFS I J
+    local GENERATED_ARCHIVES GENERATED_ARCHIVE
     local TARGET_ARCHIVE_TYPES TARGET_ARCHIVE_EXCLUDED_STATES TARGET_ARCHIVE_MANIFEST
     local TARGET_ARCHIVE_TEMPLATE TARGET_ARCHIVE_TEMPLATE_SOURCE TARGET_ARCHIVE_TEMPLATE_OVERRIDES
     local BUILD_DEST_DIR BUILD_TARGET_DIR BUILD_DOCUMENT BUILD_ADVANCED_NAV
@@ -4351,7 +4398,7 @@ function marsh_cli {
                                     false || die_gracefully
                         fi
                     fi
-                    if ! marsh_build_archive "${TARGET_ARCHIVES_ENCODING[$I]}" \
+                    GENERATED_ARCHIVES=$(marsh_build_archive "${TARGET_ARCHIVES_ENCODING[$I]}" \
                         "${MARSH_CONFIG_PATH}/${TARGET_PATH}" \
                         "${TARGET_ARCHIVES[$I]}" \
                         "${TARGET_ARCHIVES_NAME[$I]:-$TARGET_NAME}" \
@@ -4363,25 +4410,29 @@ function marsh_cli {
                         "${TARGET_ARCHIVE_TYPES[@]}" \
                         "${#TARGET_ARCHIVE_EXCLUDED_STATES[@]}" \
                         "${TARGET_ARCHIVE_EXCLUDED_STATES[@]}" \
-                        "${TARGET_ARCHIVE_MANIFEST}" | while IFS= read -r GENERATED_ARCHIVE; do
-                            [[ "${GENERATED_ARCHIVE}" == "" ]] && continue
-                            marsh_build_target "${MARSH_CONFIG_PATH}" \
-                                "${TARGET_PATH}/${GENERATED_ARCHIVE}" \
-                                "${JOBS}" \
-                                "" \
-                                "${TEMPLATES_DIR}" \
-                                "${TARGET_ARCHIVE_TEMPLATE:-}" \
-                                "${MARKDOWN_COMMAND}" \
-                                "${MARKDOWN_OPTIONS_CSV}" \
-                                "${MARKDOWN_FILEEXT_CSV}" \
-                                "${MARKDOWN_REWRITE_LINKS}" \
-                                "${#TARGET_ARCHIVE_TEMPLATE_OVERRIDES[@]}" \
-                                "${TARGET_ARCHIVE_TEMPLATE_OVERRIDES[@]}" \
-                                true || exit 1
-                        done
-                    then
-                        die_gracefully
-                    fi
+                        "${TARGET_ARCHIVE_MANIFEST}") || die_gracefully
+                    while IFS= read -r GENERATED_ARCHIVE; do
+                        [[ "${GENERATED_ARCHIVE}" == "" ]] && continue
+                        marsh_build_document "${MARSH_CONFIG_PATH}" \
+                            "${TARGET_PATH}" \
+                            "${GENERATED_ARCHIVE}" \
+                            "${MARKDOWN_COMMAND}" \
+                            "${MARKDOWN_OPTIONS_CSV}" \
+                            "${MARKDOWN_FILEEXT_CSV}" \
+                            "${MARKDOWN_REWRITE_LINKS}" || die_gracefully
+                        marsh_build_template "${MARSH_CONFIG_PATH}" \
+                            "${TARGET_PATH}" \
+                            "${GENERATED_ARCHIVE}" \
+                            "" \
+                            "${TEMPLATES_DIR}" \
+                            "${TARGET_ARCHIVE_TEMPLATE:-}" \
+                            "${MARKDOWN_COMMAND}" \
+                            "${MARKDOWN_OPTIONS_CSV}" \
+                            "${MARKDOWN_FILEEXT_CSV}" \
+                            "${MARKDOWN_REWRITE_LINKS}" \
+                            "${#TARGET_ARCHIVE_TEMPLATE_OVERRIDES[@]}" \
+                            "${TARGET_ARCHIVE_TEMPLATE_OVERRIDES[@]}" || die_gracefully
+                    done <<< "${GENERATED_ARCHIVES}"
                 fi
             done
 

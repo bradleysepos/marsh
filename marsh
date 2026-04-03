@@ -1866,10 +1866,10 @@ function marsh_get_template_metadata {  # marsh_get_template_metadata prefix tem
 function marsh_get_target_metadata {  # marsh_get_target_metadata source_prefix prefix
     local SOURCE_PREFIX PREFIX
     local TARGET_PATH TARGET_NAME TARGET_SOURCE TARGET_FORCE TARGET_NAV
-    local II TEMPLATE_SOURCE TEMPLATE_OVERRIDE TEMPLATE_OVERRIDES
+    local II TEMPLATE_SOURCE TEMPLATE_ASSETS_PATH TEMPLATE_OVERRIDE TEMPLATE_OVERRIDES
     local ARCHIVE ARCHIVE_NAME ARCHIVE_ENCODING ARCHIVE_LANGUAGE ARCHIVE_LANGUAGE_CODE
     local ARCHIVE_COUNT ARCHIVE_PAGE_SIZE ARCHIVE_CONTENT ARCHIVE_TYPES ARCHIVE_EXCLUDED_STATES
-    local ARCHIVE_TEMPLATE_SOURCE ARCHIVE_TEMPLATE_OVERRIDE ARCHIVE_TEMPLATE_OVERRIDES
+    local ARCHIVE_TEMPLATE_SOURCE ARCHIVE_TEMPLATE_ASSETS_PATH ARCHIVE_TEMPLATE_OVERRIDE ARCHIVE_TEMPLATE_OVERRIDES
     local OIFS
 
     # init
@@ -1891,8 +1891,10 @@ function marsh_get_target_metadata {  # marsh_get_target_metadata source_prefix 
 
     # template
     TEMPLATE_SOURCE="${SOURCE_PREFIX}Template_Source"
+    TEMPLATE_ASSETS_PATH="${SOURCE_PREFIX}Template_Assets_Path"
     eval $(marsh_flat_to_array "TEMPLATE_OVERRIDES" "${SOURCE_PREFIX}Template_Overrides_")
     [[ "${!TEMPLATE_SOURCE:-}" != "" ]] && echo "${PREFIX}TEMPLATE_SOURCE=\"${!TEMPLATE_SOURCE//\"/\\\"}\""
+    echo "${PREFIX}TEMPLATE_ASSETS_PATH=\"${!TEMPLATE_ASSETS_PATH//\"/\\\"}\""
     echo "${PREFIX}TEMPLATE_OVERRIDES=()"
     for TEMPLATE_OVERRIDE in "${TEMPLATE_OVERRIDES[@]}"; do
         [[ "${TEMPLATE_OVERRIDE}" != "" ]] && echo "${PREFIX}TEMPLATE_OVERRIDES+=(\"${TEMPLATE_OVERRIDE//\"/\\\"}\")"
@@ -1911,6 +1913,7 @@ function marsh_get_target_metadata {  # marsh_get_target_metadata source_prefix 
     echo "${PREFIX}ARCHIVES_TYPES=()"
     echo "${PREFIX}ARCHIVES_EXCLUDED_STATES=()"
     echo "${PREFIX}ARCHIVES_TEMPLATE_SOURCE=()"
+    echo "${PREFIX}ARCHIVES_TEMPLATE_ASSETS_PATH=()"
     echo "${PREFIX}ARCHIVES_TEMPLATE_OVERRIDES=()"
     echo "${PREFIX}ARCHIVES_TEMPLATE=()"
     II=0
@@ -1923,6 +1926,7 @@ function marsh_get_target_metadata {  # marsh_get_target_metadata source_prefix 
     ARCHIVE_PAGE_SIZE="${SOURCE_PREFIX}Archives_${II}_Page_Size"
     ARCHIVE_CONTENT="${SOURCE_PREFIX}Archives_${II}_Content"
     ARCHIVE_TEMPLATE_SOURCE="${SOURCE_PREFIX}Archives_${II}_Template_Source"
+    ARCHIVE_TEMPLATE_ASSETS_PATH="${SOURCE_PREFIX}Archives_${II}_Template_Assets_Path"
     while [[ "${!ARCHIVE:-}" != "" ]]; do
         echo "${PREFIX}ARCHIVES+=(\"${!ARCHIVE//\"/\\\"}\")"
         echo "${PREFIX}ARCHIVES_ENCODING+=(\"${!ARCHIVE_ENCODING//\"/\\\"}\")"
@@ -1937,6 +1941,7 @@ function marsh_get_target_metadata {  # marsh_get_target_metadata source_prefix 
         eval $(marsh_flat_to_array "ARCHIVE_EXCLUDED_STATES" "${SOURCE_PREFIX}Archives_${II}_Exclude_States_")
         OIFS="${IFS}"; IFS=$(echo @|tr @ '\034'); echo "${PREFIX}ARCHIVES_EXCLUDED_STATES+=(\"${ARCHIVE_EXCLUDED_STATES[*]//\"/\\\"}\")"; IFS="${OIFS}"
         echo "${PREFIX}ARCHIVES_TEMPLATE_SOURCE+=(\"${!ARCHIVE_TEMPLATE_SOURCE//\"/\\\"}\")"
+        echo "${PREFIX}ARCHIVES_TEMPLATE_ASSETS_PATH+=(\"${!ARCHIVE_TEMPLATE_ASSETS_PATH//\"/\\\"}\")"
         eval $(marsh_flat_to_array "ARCHIVE_TEMPLATE_OVERRIDES" "${SOURCE_PREFIX}Archives_${II}_Template_Overrides_")
         OIFS="${IFS}"; IFS=$(echo @|tr @ '\034'); echo "${PREFIX}ARCHIVES_TEMPLATE_OVERRIDES+=(\"${ARCHIVE_TEMPLATE_OVERRIDES[*]//\"/\\\"}\")"; IFS="${OIFS}"
         if [[ "${!ARCHIVE_TEMPLATE_SOURCE:-}" != "" ]]; then
@@ -1954,6 +1959,7 @@ function marsh_get_target_metadata {  # marsh_get_target_metadata source_prefix 
         ARCHIVE_PAGE_SIZE="${SOURCE_PREFIX}Archives_${II}_Page_Size"
         ARCHIVE_CONTENT="${SOURCE_PREFIX}Archives_${II}_Content"
         ARCHIVE_TEMPLATE_SOURCE="${SOURCE_PREFIX}Archives_${II}_Template_Source"
+        ARCHIVE_TEMPLATE_ASSETS_PATH="${SOURCE_PREFIX}Archives_${II}_Template_Assets_Path"
     done
 
     return 0
@@ -2021,6 +2027,90 @@ function marsh_get_files {  # marsh_get_files source dest force
         fi
     done <<< "${FILES_LIST}"
     return 0
+}
+
+# copies template assets into the build output, optionally under an output prefix
+function marsh_copy_template_assets {  # marsh_copy_template_assets dest_dir templates_dir template #template_overrides[@] template_overrides[@] template_assets_path
+    local DEST_DIR TEMPLATES_DIR TEMPLATE NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDES TEMPLATE_ASSETS_PATH
+    local TEMPLATE_PREFIX TEMPLATE_META TEMPLATE_META_VARS TEMPLATE_ASSETS_ALL
+    local ASSET ASSET_PATH ASSET_OUTPUT_PATH ASSET_SOURCE ASSET_DEST ASSET_CACHE_DIR ASSET_CACHE_KEY ASSET_CACHE_FILE
+
+    # init
+    DEST_DIR="${1:-}"
+    TEMPLATES_DIR="${2:-}"
+    TEMPLATE="${3:-}"
+    [[ "${DEST_DIR}" == "" ]] && return 1
+    [[ "${TEMPLATES_DIR}" == "" ]] && return 1
+    [[ "${TEMPLATE}" == "" ]] && return 1
+    shift 3
+    NUM_TEMPLATE_OVERRIDES="${1:-0}"
+    shift 1
+    TEMPLATE_OVERRIDES=()
+    while [[ "${NUM_TEMPLATE_OVERRIDES}" -gt 0 ]] && [[ "${#@}" -gt 0 ]]; do
+        TEMPLATE_OVERRIDES+=("${1}")
+        NUM_TEMPLATE_OVERRIDES=$((NUM_TEMPLATE_OVERRIDES - 1))
+        shift 1
+    done
+    TEMPLATE_ASSETS_PATH="${1:-}"
+
+    DEST_DIR="${DEST_DIR%/}"
+    TEMPLATE_ASSETS_PATH="${TEMPLATE_ASSETS_PATH#./}"
+    TEMPLATE_ASSETS_PATH="${TEMPLATE_ASSETS_PATH#/}"
+    TEMPLATE_ASSETS_PATH="${TEMPLATE_ASSETS_PATH%/}"
+
+    TEMPLATE_PREFIX="TEMPLATE_"
+    TEMPLATE_META=$(marsh_get_template_metadata "${TEMPLATE_PREFIX}" "${TEMPLATES_DIR}/${TEMPLATE}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}") || {
+        echo "Unable to load template metadata: ${TEMPLATES_DIR}/${TEMPLATE}" >&2
+        return 1
+    }
+    TEMPLATE_META_VARS=$(echo "${TEMPLATE_META}" | marsh_get_variables)
+    eval "$(printf '%s\n' "${TEMPLATE_META_VARS}" | marsh_get_local_declarations)"
+    eval "${TEMPLATE_META}"
+
+    TEMPLATE_ASSETS_ALL=()
+    TEMPLATE_ASSETS_ALL+=("${TEMPLATE_ASSETS_FONTS[@]}")
+    TEMPLATE_ASSETS_ALL+=("${TEMPLATE_ASSETS_STYLES[@]}")
+    TEMPLATE_ASSETS_ALL+=("${TEMPLATE_ASSETS_SCRIPTS[@]}")
+    TEMPLATE_ASSETS_ALL+=("${TEMPLATE_ASSETS_IMAGES[@]}")
+    TEMPLATE_ASSETS_ALL+=("${TEMPLATE_ASSETS_AUDIO[@]}")
+    TEMPLATE_ASSETS_ALL+=("${TEMPLATE_ASSETS_VIDEO[@]}")
+    TEMPLATE_ASSETS_ALL+=("${TEMPLATE_ASSETS_DOCUMENTS[@]}")
+    TEMPLATE_ASSETS_ALL+=("${TEMPLATE_ASSETS_BINARIES[@]}")
+    TEMPLATE_ASSETS_ALL+=("${TEMPLATE_ASSETS_OTHER[@]}")
+
+    ASSET_CACHE_DIR="${MARSH_TEMP}/asset-copy-cache"
+    mkdir -p "${ASSET_CACHE_DIR}" >/dev/null 2>&1 || {
+        echo "Unable to create asset copy cache directory: ${ASSET_CACHE_DIR}" >&2
+        return 1
+    }
+
+    for ASSET in "${TEMPLATE_ASSETS_ALL[@]}"; do
+        ASSET_PATH="${ASSET%\?*}"
+        ASSET_OUTPUT_PATH="${ASSET_PATH}"
+        [[ "${TEMPLATE_ASSETS_PATH}" != "" ]] && ASSET_OUTPUT_PATH="${TEMPLATE_ASSETS_PATH}/${ASSET_PATH}"
+        ASSET_SOURCE="${TEMPLATES_DIR}/${TEMPLATE}/${ASSET_PATH}"
+        ASSET_DEST="${DEST_DIR}/${ASSET_OUTPUT_PATH}"
+        [[ -e "${ASSET_SOURCE}" ]] && [[ -r "${ASSET_SOURCE}" ]] || continue
+        ASSET_CACHE_KEY=$(printf '%s\034%s\n' "${ASSET_SOURCE}" "${ASSET_DEST}" | marsh_text_transform hash:md5)
+        ASSET_CACHE_FILE="${ASSET_CACHE_DIR}/${ASSET_CACHE_KEY}.copied"
+        [[ -e "${ASSET_CACHE_FILE}" ]] && continue
+        mkdir -p "${ASSET_DEST%/*}" || {
+            echo "Unable to create asset path: ${ASSET_DEST%/*}" >&2
+            return 1
+        }
+        rm -rf "${ASSET_DEST}" || {
+            echo "Unable to replace asset path: ${ASSET_DEST}" >&2
+            return 1
+        }
+        cp -R "${ASSET_SOURCE}" "${ASSET_DEST}" || {
+            echo "Unable to copy asset: ${ASSET_SOURCE} -> ${ASSET_DEST}" >&2
+            return 1
+        }
+        : > "${ASSET_CACHE_FILE}" || {
+            echo "Unable to write asset cache file: ${ASSET_CACHE_FILE}" >&2
+            return 1
+        }
+    done
 }
 
 # normalizes a directory path to always end with a trailing slash
@@ -2620,7 +2710,7 @@ function marsh_build_advanced_nav {  # marsh_build_advanced_nav target_dir navig
 }
 
 # builds a template and applies it to a document
-function marsh_build_template {  # marsh_build_template dest_dir target_dir document advanced_nav templates_dir template markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links #template_overrides[@] template_overrides[@]
+function marsh_build_template {  # marsh_build_template dest_dir target_dir document advanced_nav templates_dir template markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links #template_overrides[@] template_overrides[@] template_assets_path
     function process_conditionals {  # process_conditionals file tag list[@]
         local FILE TAG LIST_SEP LIST_RAW
         local FILE_TEMP
@@ -2926,7 +3016,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
     local DOCUMENT DOCUMENT_EXT DOCUMENT_DIR DOCUMENT_HREF DOCUMENT_URI DOCUMENT_OUTPUT_PATH DOCUMENT_BASE_PATH
     local BASE_ROOTPATH BASE_ABSPATH
     local DEST DEST_NAME DEST_PRINT
-    local TEMPLATE_DIR TEMPLATE MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_FILEEXT_REGEX MARKDOWN_REWRITE_LINKS
+    local TEMPLATE_DIR TEMPLATE MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_FILEEXT_REGEX MARKDOWN_REWRITE_LINKS TEMPLATE_ASSETS_PATH
     local NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDES
     local TEMPLATE_PREFIX TEMPLATE_META TEMPLATE_META_VARS PARTIALS TEMPLATE_BASE TEMPLATE_TEMP
     local TEMPLATE_RENDER
@@ -2974,6 +3064,10 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
         NUM_TEMPLATE_OVERRIDES=$((NUM_TEMPLATE_OVERRIDES - 1))
         shift 1
     done
+    TEMPLATE_ASSETS_PATH="${1:-}"
+    TEMPLATE_ASSETS_PATH="${TEMPLATE_ASSETS_PATH#./}"
+    TEMPLATE_ASSETS_PATH="${TEMPLATE_ASSETS_PATH#/}"
+    TEMPLATE_ASSETS_PATH="${TEMPLATE_ASSETS_PATH%/}"
 
     # normalized directory paths
     DEST_DIR="${DEST_DIR%/}"
@@ -3277,6 +3371,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                     for ASSET in "${TEMPLATE_ASSETS_FONTS[@]}"; do
                         ASSET_PATH="${ASSET%\?*}"
                         ASSET_QUERY="${ASSET#${ASSET_PATH}}"
+                        [[ "${TEMPLATE_ASSETS_PATH}" != "" ]] && ASSET_PATH="${TEMPLATE_ASSETS_PATH}/${ASSET_PATH}"
                         ASSET_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "${ASSET_PATH}") || return 1
                         TEMPLATE_TAG_ASSETS_FONTS+=("${ASSET_HREF}${ASSET_QUERY}")
                     done
@@ -3285,6 +3380,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                     for ASSET in "${TEMPLATE_ASSETS_STYLES[@]}"; do
                         ASSET_PATH="${ASSET%\?*}"
                         ASSET_QUERY="${ASSET#${ASSET_PATH}}"
+                        [[ "${TEMPLATE_ASSETS_PATH}" != "" ]] && ASSET_PATH="${TEMPLATE_ASSETS_PATH}/${ASSET_PATH}"
                         ASSET_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "${ASSET_PATH}") || return 1
                         TEMPLATE_TAG_ASSETS_STYLES+=("${ASSET_HREF}${ASSET_QUERY}")
                     done
@@ -3293,6 +3389,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                     for ASSET in "${TEMPLATE_ASSETS_SCRIPTS[@]}"; do
                         ASSET_PATH="${ASSET%\?*}"
                         ASSET_QUERY="${ASSET#${ASSET_PATH}}"
+                        [[ "${TEMPLATE_ASSETS_PATH}" != "" ]] && ASSET_PATH="${TEMPLATE_ASSETS_PATH}/${ASSET_PATH}"
                         ASSET_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "${ASSET_PATH}") || return 1
                         TEMPLATE_TAG_ASSETS_SCRIPTS+=("${ASSET_HREF}${ASSET_QUERY}")
                     done
@@ -3301,6 +3398,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                     for ASSET in "${TEMPLATE_ASSETS_IMAGES[@]}"; do
                         ASSET_PATH="${ASSET%\?*}"
                         ASSET_QUERY="${ASSET#${ASSET_PATH}}"
+                        [[ "${TEMPLATE_ASSETS_PATH}" != "" ]] && ASSET_PATH="${TEMPLATE_ASSETS_PATH}/${ASSET_PATH}"
                         ASSET_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "${ASSET_PATH}") || return 1
                         TEMPLATE_TAG_ASSETS_IMAGES+=("${ASSET_HREF}${ASSET_QUERY}")
                     done
@@ -3309,6 +3407,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                     for ASSET in "${TEMPLATE_ASSETS_AUDIO[@]}"; do
                         ASSET_PATH="${ASSET%\?*}"
                         ASSET_QUERY="${ASSET#${ASSET_PATH}}"
+                        [[ "${TEMPLATE_ASSETS_PATH}" != "" ]] && ASSET_PATH="${TEMPLATE_ASSETS_PATH}/${ASSET_PATH}"
                         ASSET_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "${ASSET_PATH}") || return 1
                         TEMPLATE_TAG_ASSETS_AUDIO+=("${ASSET_HREF}${ASSET_QUERY}")
                     done
@@ -3317,6 +3416,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                     for ASSET in "${TEMPLATE_ASSETS_VIDEO[@]}"; do
                         ASSET_PATH="${ASSET%\?*}"
                         ASSET_QUERY="${ASSET#${ASSET_PATH}}"
+                        [[ "${TEMPLATE_ASSETS_PATH}" != "" ]] && ASSET_PATH="${TEMPLATE_ASSETS_PATH}/${ASSET_PATH}"
                         ASSET_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "${ASSET_PATH}") || return 1
                         TEMPLATE_TAG_ASSETS_VIDEO+=("${ASSET_HREF}${ASSET_QUERY}")
                     done
@@ -3325,6 +3425,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                     for ASSET in "${TEMPLATE_ASSETS_DOCUMENTS[@]}"; do
                         ASSET_PATH="${ASSET%\?*}"
                         ASSET_QUERY="${ASSET#${ASSET_PATH}}"
+                        [[ "${TEMPLATE_ASSETS_PATH}" != "" ]] && ASSET_PATH="${TEMPLATE_ASSETS_PATH}/${ASSET_PATH}"
                         ASSET_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "${ASSET_PATH}") || return 1
                         TEMPLATE_TAG_ASSETS_DOCUMENTS+=("${ASSET_HREF}${ASSET_QUERY}")
                     done
@@ -3333,6 +3434,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                     for ASSET in "${TEMPLATE_ASSETS_BINARIES[@]}"; do
                         ASSET_PATH="${ASSET%\?*}"
                         ASSET_QUERY="${ASSET#${ASSET_PATH}}"
+                        [[ "${TEMPLATE_ASSETS_PATH}" != "" ]] && ASSET_PATH="${TEMPLATE_ASSETS_PATH}/${ASSET_PATH}"
                         ASSET_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "${ASSET_PATH}") || return 1
                         TEMPLATE_TAG_ASSETS_BINARIES+=("${ASSET_HREF}${ASSET_QUERY}")
                     done
@@ -3341,6 +3443,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                     for ASSET in "${TEMPLATE_ASSETS_OTHER[@]}"; do
                         ASSET_PATH="${ASSET%\?*}"
                         ASSET_QUERY="${ASSET#${ASSET_PATH}}"
+                        [[ "${TEMPLATE_ASSETS_PATH}" != "" ]] && ASSET_PATH="${TEMPLATE_ASSETS_PATH}/${ASSET_PATH}"
                         ASSET_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "${ASSET_PATH}") || return 1
                         TEMPLATE_TAG_ASSETS_OTHER+=("${ASSET_HREF}${ASSET_QUERY}")
                     done
@@ -3680,13 +3783,12 @@ function marsh_build_document {  # marsh_build_document dest_dir target_dir docu
 }
 
 # builds a target, parallel if possible
-function marsh_build_target {  # marsh_build_target dest_dir target jobs advanced_nav templates_dir template markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links #template_overrides[@] template_overrides[@] skip_template_assets
+function marsh_build_target {  # marsh_build_target dest_dir target jobs advanced_nav templates_dir template markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links #template_overrides[@] template_overrides[@] skip_template_assets template_assets_path
     local DEST_DIR TARGET JOBS ADVANCED_NAV TEMPLATES_DIR TEMPLATE
     local MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_FILEEXT_REGEX MARKDOWN_REWRITE_LINKS
-    local NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDES SKIP_TEMPLATE_ASSETS
-    local TEMPLATE_META TEMPLATE_META_VARS TEMPLATE_ASSETS_ALL
+    local NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDES SKIP_TEMPLATE_ASSETS TEMPLATE_ASSETS_PATH
     local TARGET_DIR TEMPLATE_PREFIX DOCUMENTS_LIST DOCUMENTS DOCUMENTS_DIR DOCUMENTS_FIND_ARGS FILTERED_DOCUMENTS DOCUMENT
-    local PARALLEL PARALLEL_MARKDOWN ASSET ASSET_PATH ASSET_SOURCE ASSET_DEST ASSET_CACHE_DIR ASSET_CACHE_KEY ASSET_CACHE_FILE
+    local PARALLEL PARALLEL_MARKDOWN
 
     # init
     DEST_DIR="${1:-.}"
@@ -3718,58 +3820,11 @@ function marsh_build_target {  # marsh_build_target dest_dir target jobs advance
         shift 1
     done
     SKIP_TEMPLATE_ASSETS="${1:-false}"
+    TEMPLATE_ASSETS_PATH="${2:-}"
 
     # copy template assets
     if [[ "${SKIP_TEMPLATE_ASSETS}" != true ]] && [[ "${TEMPLATES_DIR}" != "" ]] && [[ "${TEMPLATE}" != "" ]]; then
-        TEMPLATE_PREFIX="TEMPLATE_"
-        TEMPLATE_META=$(marsh_get_template_metadata "${TEMPLATE_PREFIX}" "${TEMPLATES_DIR}/${TEMPLATE}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}")
-        if [[ $? -ne 0 ]]; then
-            echo "Unable to load template metadata: ${TEMPLATES_DIR}/${TEMPLATE}" >&2
-            return 1
-        fi
-        TEMPLATE_META_VARS=$(echo "${TEMPLATE_META}" | marsh_get_variables)
-        eval "$(printf '%s\n' "${TEMPLATE_META_VARS}" | marsh_get_local_declarations)"
-        eval "${TEMPLATE_META}"
-        TEMPLATE_ASSETS_ALL=()
-        TEMPLATE_ASSETS_ALL+=("${TEMPLATE_ASSETS_FONTS[@]}")
-        TEMPLATE_ASSETS_ALL+=("${TEMPLATE_ASSETS_STYLES[@]}")
-        TEMPLATE_ASSETS_ALL+=("${TEMPLATE_ASSETS_SCRIPTS[@]}")
-        TEMPLATE_ASSETS_ALL+=("${TEMPLATE_ASSETS_IMAGES[@]}")
-        TEMPLATE_ASSETS_ALL+=("${TEMPLATE_ASSETS_AUDIO[@]}")
-        TEMPLATE_ASSETS_ALL+=("${TEMPLATE_ASSETS_VIDEO[@]}")
-        TEMPLATE_ASSETS_ALL+=("${TEMPLATE_ASSETS_DOCUMENTS[@]}")
-        TEMPLATE_ASSETS_ALL+=("${TEMPLATE_ASSETS_BINARIES[@]}")
-        TEMPLATE_ASSETS_ALL+=("${TEMPLATE_ASSETS_OTHER[@]}")
-        ASSET_CACHE_DIR="${MARSH_TEMP}/asset-copy-cache"
-        mkdir -p "${ASSET_CACHE_DIR}" >/dev/null 2>&1 || {
-            echo "Unable to create asset copy cache directory: ${ASSET_CACHE_DIR}" >&2
-            return 1
-        }
-        for ASSET in "${TEMPLATE_ASSETS_ALL[@]}"; do
-            ASSET_PATH="${ASSET%\?*}"
-            ASSET_SOURCE="${TEMPLATES_DIR}/${TEMPLATE}/${ASSET_PATH}"
-            ASSET_DEST="${DEST_DIR}/${ASSET_PATH}"
-            [[ -e "${ASSET_SOURCE}" ]] && [[ -r "${ASSET_SOURCE}" ]] || continue
-            ASSET_CACHE_KEY=$(printf '%s\034%s\n' "${ASSET_SOURCE}" "${ASSET_DEST}" | marsh_text_transform hash:md5)
-            ASSET_CACHE_FILE="${ASSET_CACHE_DIR}/${ASSET_CACHE_KEY}.copied"
-            [[ -e "${ASSET_CACHE_FILE}" ]] && continue
-            mkdir -p "${ASSET_DEST%/*}" || {
-                echo "Unable to create asset path: ${ASSET_DEST%/*}" >&2
-                return 1
-            }
-            rm -rf "${ASSET_DEST}" || {
-                echo "Unable to replace asset path: ${ASSET_DEST}" >&2
-                return 1
-            }
-            cp -R "${ASSET_SOURCE}" "${ASSET_DEST}" || {
-                echo "Unable to copy asset: ${ASSET_SOURCE} -> ${ASSET_DEST}" >&2
-                return 1
-            }
-            : > "${ASSET_CACHE_FILE}" || {
-                echo "Unable to write asset cache file: ${ASSET_CACHE_FILE}" >&2
-                return 1
-            }
-        done
+        marsh_copy_template_assets "${DEST_DIR}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_ASSETS_PATH}" || return 1
     fi
 
     # build target documents
@@ -3814,7 +3869,7 @@ function marsh_build_target {  # marsh_build_target dest_dir target jobs advance
         fi
         if [[ "${TEMPLATES_DIR}" != "" ]] && [[ "${TEMPLATE}" != "" ]]; then
             export -f marsh_build_template
-            if ! "${PARALLEL}" --halt now,fail=1 --quote --no-notice --env marsh_text_transform --env marsh_process_markdown --env marsh_build_template --jobs="${JOBS:-1}" "${SELF_DIR}/${SELF_NAME}" build-template --markdown="${PARALLEL_MARKDOWN}" --markdown-options="${MARKDOWN_OPTIONS_CSV}" --markdown-file-extensions="${MARKDOWN_FILEEXT_CSV}" --markdown-rewrite-links="${MARKDOWN_REWRITE_LINKS}" --marsh-uid="${MARSH_UID}" --marsh-temp="${MARSH_TEMP}" --marsh-config-file="${MARSH_CONFIG_FILE}" --marsh-config-file-dir="${MARSH_CONFIG_FILE_DIR}" --marsh-config-path="${MARSH_CONFIG_PATH}" --marsh-config-url="${MARSH_CONFIG_URL}" "${DEST_DIR}" "${TARGET_DIR}" {} "${ADVANCED_NAV}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" ::: "${DOCUMENTS[@]}"; then
+            if ! "${PARALLEL}" --halt now,fail=1 --quote --no-notice --env marsh_text_transform --env marsh_process_markdown --env marsh_build_template --jobs="${JOBS:-1}" "${SELF_DIR}/${SELF_NAME}" build-template --markdown="${PARALLEL_MARKDOWN}" --markdown-options="${MARKDOWN_OPTIONS_CSV}" --markdown-file-extensions="${MARKDOWN_FILEEXT_CSV}" --markdown-rewrite-links="${MARKDOWN_REWRITE_LINKS}" --marsh-uid="${MARSH_UID}" --marsh-temp="${MARSH_TEMP}" --marsh-config-file="${MARSH_CONFIG_FILE}" --marsh-config-file-dir="${MARSH_CONFIG_FILE_DIR}" --marsh-config-path="${MARSH_CONFIG_PATH}" --marsh-config-url="${MARSH_CONFIG_URL}" "${DEST_DIR}" "${TARGET_DIR}" {} "${ADVANCED_NAV}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_ASSETS_PATH}" ::: "${DOCUMENTS[@]}"; then
                 echo "Unable to build template: ${TEMPLATE}" >&2
                 return 1
             fi
@@ -3827,7 +3882,7 @@ function marsh_build_target {  # marsh_build_target dest_dir target jobs advance
                 return 1
             fi
             if [[ "${TEMPLATES_DIR}" != "" ]] && [[ "${TEMPLATE}" != "" ]]; then
-                if ! marsh_build_template "${DEST_DIR}" "${TARGET_DIR}" "${DOCUMENT}" "${ADVANCED_NAV}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_FILEEXT_CSV}" "${MARKDOWN_REWRITE_LINKS}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}"; then
+                if ! marsh_build_template "${DEST_DIR}" "${TARGET_DIR}" "${DOCUMENT}" "${ADVANCED_NAV}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_FILEEXT_CSV}" "${MARKDOWN_REWRITE_LINKS}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_ASSETS_PATH}"; then
                     echo "Unable to build template: ${TEMPLATE}" >&2
                     return 1
                 fi
@@ -3863,9 +3918,10 @@ function marsh_cli {
     local INDEX PREFIX META META_VARS CONFIG_VARS OIFS I J
     local GENERATED_ARCHIVES GENERATED_ARCHIVE
     local TARGET_ARCHIVE_TYPES TARGET_ARCHIVE_EXCLUDED_STATES TARGET_ARCHIVE_MANIFEST
-    local TARGET_ARCHIVE_TEMPLATE TARGET_ARCHIVE_TEMPLATE_SOURCE TARGET_ARCHIVE_TEMPLATE_OVERRIDES
+    local TARGET_ARCHIVE_TEMPLATE TARGET_ARCHIVE_TEMPLATE_SOURCE TARGET_ARCHIVE_TEMPLATE_ASSETS_PATH TARGET_ARCHIVE_TEMPLATE_OVERRIDES
     local BUILD_DEST_DIR BUILD_TARGET_DIR BUILD_DOCUMENT BUILD_ADVANCED_NAV
-    local BUILD_TEMPLATES_DIR BUILD_TEMPLATE BUILD_NUM_TEMPLATE_OVERRIDES BUILD_TEMPLATE_OVERRIDES
+    local BUILD_TEMPLATES_DIR BUILD_TEMPLATE BUILD_NUM_TEMPLATE_OVERRIDES BUILD_TEMPLATE_OVERRIDES BUILD_TEMPLATE_ASSETS_PATH
+    local BUILD_TEMPLATE_OVERRIDE_INDEX
 
     # args with help
     MARKDOWN_OPTIONS=(-1.0 +alphalist -autolink -cdata +definitionlist -divquote -dldiscount +dlextra +ext +fencedcode +footnote +githubtags -header +html +image -latex +links -safelink +smarty +strikethrough +style +superscript +tables -tabstop -toc)
@@ -4182,7 +4238,14 @@ function marsh_cli {
     BUILD_TEMPLATES_DIR="${5:-}"
     BUILD_TEMPLATE="${6:-}"
     BUILD_NUM_TEMPLATE_OVERRIDES="${7:-0}"
-    BUILD_TEMPLATE_OVERRIDES=("${@:8}")
+    BUILD_TEMPLATE_OVERRIDES=()
+    BUILD_TEMPLATE_OVERRIDE_INDEX=8
+    while [[ "${#BUILD_TEMPLATE_OVERRIDES[@]}" -lt "${BUILD_NUM_TEMPLATE_OVERRIDES}" ]]; do
+        [[ -z ${!BUILD_TEMPLATE_OVERRIDE_INDEX+isset} ]] && break
+        BUILD_TEMPLATE_OVERRIDES+=("${!BUILD_TEMPLATE_OVERRIDE_INDEX}")
+        BUILD_TEMPLATE_OVERRIDE_INDEX=$((BUILD_TEMPLATE_OVERRIDE_INDEX + 1))
+    done
+    BUILD_TEMPLATE_ASSETS_PATH="${!BUILD_TEMPLATE_OVERRIDE_INDEX:-}"
 
     # parse config
     if [[ "${MARSH_CONFIG_FILE:-}" == "" ]]; then
@@ -4358,7 +4421,9 @@ function marsh_cli {
                         "${MARKDOWN_FILEEXT_CSV}" \
                         "${MARKDOWN_REWRITE_LINKS}" \
                         "${#TARGET_TEMPLATE_OVERRIDES[@]}" \
-                        "${TARGET_TEMPLATE_OVERRIDES[@]}" || die_gracefully
+                        "${TARGET_TEMPLATE_OVERRIDES[@]}" \
+                        false \
+                        "${TARGET_TEMPLATE_ASSETS_PATH:-}" || die_gracefully
 
             # archives
             TARGET_ARCHIVE_MANIFEST=""
@@ -4375,10 +4440,15 @@ function marsh_cli {
                     IFS="${OIFS}"
                     TARGET_ARCHIVE_TEMPLATE="${TARGET_TEMPLATE:-}"
                     TARGET_ARCHIVE_TEMPLATE_SOURCE="${TARGET_TEMPLATE_SOURCE:-}"
+                    TARGET_ARCHIVE_TEMPLATE_ASSETS_PATH="${TARGET_TEMPLATE_ASSETS_PATH:-}"
                     if [[ "${TARGET_ARCHIVES_TEMPLATE_SOURCE[$I]:-}" != "" ]]; then
                         TARGET_ARCHIVE_TEMPLATE="${TARGET_ARCHIVES_TEMPLATE[$I]:-}"
                         TARGET_ARCHIVE_TEMPLATE_SOURCE="${TARGET_ARCHIVES_TEMPLATE_SOURCE[$I]:-}"
-                    elif [[ "${TARGET_ARCHIVES_TEMPLATE_OVERRIDES[$I]:-}" == "" ]]; then
+                    fi
+                    if [[ "${TARGET_ARCHIVES_TEMPLATE_ASSETS_PATH[$I]:-}" != "" ]]; then
+                        TARGET_ARCHIVE_TEMPLATE_ASSETS_PATH="${TARGET_ARCHIVES_TEMPLATE_ASSETS_PATH[$I]:-}"
+                    fi
+                    if [[ "${TARGET_ARCHIVES_TEMPLATE_SOURCE[$I]:-}" == "" ]] && [[ "${TARGET_ARCHIVES_TEMPLATE_OVERRIDES[$I]:-}" == "" ]]; then
                         TARGET_ARCHIVE_TEMPLATE_OVERRIDES=("${TARGET_TEMPLATE_OVERRIDES[@]}")
                     fi
                     if [[ "${TARGET_ARCHIVE_TEMPLATE_SOURCE:-}" != "" ]]; then
@@ -4397,6 +4467,12 @@ function marsh_cli {
                                     "${TEMPLATES_DIR}/${TARGET_ARCHIVE_TEMPLATE}" \
                                     false || die_gracefully
                         fi
+                        marsh_copy_template_assets "${MARSH_CONFIG_PATH}" \
+                            "${TEMPLATES_DIR}" \
+                            "${TARGET_ARCHIVE_TEMPLATE}" \
+                            "${#TARGET_ARCHIVE_TEMPLATE_OVERRIDES[@]}" \
+                            "${TARGET_ARCHIVE_TEMPLATE_OVERRIDES[@]}" \
+                            "${TARGET_ARCHIVE_TEMPLATE_ASSETS_PATH:-}" || die_gracefully
                     fi
                     GENERATED_ARCHIVES=$(marsh_build_archive "${TARGET_ARCHIVES_ENCODING[$I]}" \
                         "${MARSH_CONFIG_PATH}/${TARGET_PATH}" \
@@ -4431,7 +4507,8 @@ function marsh_cli {
                             "${MARKDOWN_FILEEXT_CSV}" \
                             "${MARKDOWN_REWRITE_LINKS}" \
                             "${#TARGET_ARCHIVE_TEMPLATE_OVERRIDES[@]}" \
-                            "${TARGET_ARCHIVE_TEMPLATE_OVERRIDES[@]}" || die_gracefully
+                            "${TARGET_ARCHIVE_TEMPLATE_OVERRIDES[@]}" \
+                            "${TARGET_ARCHIVE_TEMPLATE_ASSETS_PATH:-}" || die_gracefully
                     done <<< "${GENERATED_ARCHIVES}"
                 fi
             done
@@ -4450,7 +4527,7 @@ function marsh_cli {
         marsh_build_document "${BUILD_DEST_DIR}" "${BUILD_TARGET_DIR}" "${BUILD_DOCUMENT}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_FILEEXT_CSV}" "${MARKDOWN_REWRITE_LINKS}"
     elif [[ "${COMMAND}" == "build-template" ]]; then
         # build template for document
-        marsh_build_template "${BUILD_DEST_DIR}" "${BUILD_TARGET_DIR}" "${BUILD_DOCUMENT}" "${BUILD_ADVANCED_NAV}" "${BUILD_TEMPLATES_DIR}" "${BUILD_TEMPLATE}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_FILEEXT_CSV}" "${MARKDOWN_REWRITE_LINKS}" "${BUILD_NUM_TEMPLATE_OVERRIDES}" "${BUILD_TEMPLATE_OVERRIDES[@]}"
+        marsh_build_template "${BUILD_DEST_DIR}" "${BUILD_TARGET_DIR}" "${BUILD_DOCUMENT}" "${BUILD_ADVANCED_NAV}" "${BUILD_TEMPLATES_DIR}" "${BUILD_TEMPLATE}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_FILEEXT_CSV}" "${MARKDOWN_REWRITE_LINKS}" "${#BUILD_TEMPLATE_OVERRIDES[@]}" "${BUILD_TEMPLATE_OVERRIDES[@]}" "${BUILD_TEMPLATE_ASSETS_PATH}"
     fi
 
     # done

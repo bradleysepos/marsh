@@ -2925,7 +2925,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
     local DEST_DIR TARGET_DIR TARGET_PATH ADVANCED_NAV
     local DOCUMENT DOCUMENT_EXT DOCUMENT_DIR DOCUMENT_HREF DOCUMENT_URI DOCUMENT_OUTPUT_PATH DOCUMENT_BASE_PATH
     local BASE_ROOTPATH BASE_ABSPATH
-    local DEST DEST_NAME
+    local DEST DEST_NAME DEST_PRINT
     local TEMPLATE_DIR TEMPLATE MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_FILEEXT_REGEX MARKDOWN_REWRITE_LINKS
     local NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDES
     local TEMPLATE_PREFIX TEMPLATE_META TEMPLATE_META_VARS PARTIALS TEMPLATE_BASE TEMPLATE_TEMP
@@ -3042,7 +3042,9 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
 
     # verbosity
     # seems logical to put this elsewhere, but this is a good catch-all for now
-    echo "  ${DEST#$DEST_DIR/}"
+    DEST_PRINT="${DEST#${DEST_DIR}/}"
+    DEST_PRINT="${DEST_PRINT#./}"
+    echo "  ${DEST_PRINT}"
 
     # document
     DOCUMENT_CONTENT="${DOCUMENT}.${MARSH_UID}.document"

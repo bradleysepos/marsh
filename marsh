@@ -3849,7 +3849,7 @@ function marsh_build_target {  # marsh_build_target dest_dir target jobs advance
     elif [[ -d "${DEST_DIR}/${TARGET}" ]]; then
         if [[ "${TARGET}" == "." ]]; then
             DOCUMENTS_DIR="${DEST_DIR}"
-            DOCUMENTS_FIND_ARGS=(. -maxdepth 1)
+            DOCUMENTS_FIND_ARGS=(.)
         else
             DOCUMENTS_DIR="${DEST_DIR}/${TARGET}"
             DOCUMENTS_FIND_ARGS=(.)

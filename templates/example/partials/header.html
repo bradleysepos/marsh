@@ -1,3 +1,16 @@
 <header>
+    <p class="title"><a href="{{ site.rootpath }}">marsh example website</a></p>
+    <p class="summary">A small static website demonstrating features of marsh.</p>
+    <nav class="primary-nav" aria-label="Primary navigation">
+        <ul>
+            <li><a href="{{ site.rootpath }}">Home</a></li>
+            <li><a href="{{ site.rootpath }}about/">About</a></li>
+            <li><a href="{{ site.rootpath }}news/">News</a></li>
+            <li>
+                <a href="{{ site.rootpath }}site-map/" data-site-nav-fallback-link>Site Map</a>
+                <button class="is-hidden" type="button" aria-expanded="false" aria-controls="site-nav-panel" data-site-nav-toggle-button hidden>Site Map</button>
+            </li>
+        </ul>
+    </nav>
     {{ template.nav }}
 </header>

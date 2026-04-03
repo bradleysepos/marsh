@@ -1,7 +1,8 @@
-<section class="{{ document.type }}" lang="{{ document.language-code }}">
-    {{ template.assets.styles | items:wrap-type:html-style-link }}
-    {{ template.header }}
-    {{ template.document }}
-    {{ template.footer }}
-    {{ template.assets.scripts | items:wrap-type:html-script-src }}
-</section><!-- end section.{{ document.type }} -->
+<section class="page {{ document.type }}" lang="{{ document.language-code }}">
+{{ template.header }}
+<main>
+{{ template.document }}
+</main>
+{{ template.footer }}
+</section><!-- end section.page.{{ document.type }} -->
+{{ template.assets.scripts | items:wrap-type:html-script-src }}

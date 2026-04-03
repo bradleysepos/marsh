@@ -1,62 +1,51 @@
 ---
 Build:
-  Name: Marsh Example Website
-  Description: Yet Another Example Website
+  Name: marsh example website
+  Description: Example static website built with marsh
   URL: https://bradleysepos.github.io/marsh-example
   Path: public
   Targets:
-    - Name:   Marsh Example Website
+    - Name:   marsh example website
       Path:   .
       Force:  true
       Source: source/*
-      Template:
-        Source: ../templates/example
-        #Overrides:
-        #  - ../templates/example/template-overrides.yaml
-    - Name:   About Marsh Example
-      Path:   about
-      Force:  true
-      Source: source/about
-      Template:
-        Source: ../templates/example
-        #Overrides:
-        #  - ../templates/example/template-overrides.yaml
-    - Name:   Marsh Example News
-      Path:   news
-      Force:  true
-      Source: source/news
+      Sitemap: site-map/index.markdown
       Template:
         Source: ../templates/example
         #Overrides:
         #  - ../templates/example/template-overrides.yaml
       Archives:
-        - Name:     Marsh Example News
-          Path:     index.markdown
-          #Encoding: html
-          #Count:    10
+        - Name:      marsh paginated news archive
+          Path:      news/index.markdown
+          Root_Path: news
+          Encoding:  html
+          #Count:     10
+          Page_Size: 10
+          Types:     [ news ]
+          Exclude_States: [ draft ]
           #Template:
           #  Source: ../templates/example
           #  Overrides:
           #    - ../templates/example/template-overrides.yaml
-          Page_Size: 10
-          Types:    [ news ]
+        - Name:      marsh full news archive
+          Path:      news/all/index.markdown
+          Root_Path: news
+          Encoding:  html
+          #Count:     10
+          Types:     [ news ]
+          Exclude_States:  [ draft ]
+        - Name:      marsh News Feed
+          Path:      news/feed.xml
+          Root_Path: news
+          Encoding:  atom
+          Count:     20
+          Types:     [ news ]
           Exclude_States: [ draft ]
-        - Name:     Marsh Example News Archive
-          Path:     all/index.markdown
-          #Encoding: html
-          #Count:    10
-          Types:    [ news ]
-          Exclude_States: [ draft ]
-        - Name:     Marsh Example News
-          Path:     feed.xml
-          Encoding: atom
-          #Count:    10
-          Types:    [ news ]
-          Exclude_States: [ draft ]
-        - Name:     Marsh Example News
-          Path:     feed.json
-          Encoding: json
-          #Count:    10
-          Types:    [ news ]
+        - Name:      marsh News Feed
+          Path:      news/feed.json
+          Root_Path: news
+          Encoding:  json
+          Count:     20
+          Types:     [ news ]
           Exclude_States: [ draft ]
 ...

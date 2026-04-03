@@ -2,7 +2,7 @@
 Type:            news
 Date:            2026-02-04
 Title:           Feed Validation Summary
-Project:         Marsh
+Project:         marsh
 Project_URL:     https://github.com/bradleysepos/marsh
 Language:        English
 Language_Code:   en

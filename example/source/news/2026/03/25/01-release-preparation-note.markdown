@@ -2,7 +2,7 @@
 Type:            news
 Date:            2026-03-25
 Title:           Release Preparation Note
-Project:         Marsh
+Project:         marsh
 Project_URL:     https://github.com/bradleysepos/marsh
 Language:        English
 Language_Code:   en

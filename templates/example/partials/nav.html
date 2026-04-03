@@ -1,5 +1,3 @@
-<nav>
-    <div class="navigation" hidden>
-        {{ navigation }}
-    </div>
+<nav class="sitemap is-hidden" aria-label="Sitemap" id="site-nav-panel" data-site-nav aria-hidden="true" hidden>
+    {{ target.sitemap | headings:remove }}
 </nav>

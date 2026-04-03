@@ -2,7 +2,7 @@
 Type:            news
 Date:            2026-01-25
 Title:           Archive Index Observation
-Project:         Marsh
+Project:         marsh
 Project_URL:     https://github.com/bradleysepos/marsh
 Language:        English
 Language_Code:   en

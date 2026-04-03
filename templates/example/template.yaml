@@ -32,7 +32,9 @@ Template:
   Assets:
     Fonts:
     Styles:
+      - assets/css/site.css
     Scripts:
+      - assets/js/site.js
     Images:
     Audio:
     Video:

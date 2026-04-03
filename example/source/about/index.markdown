@@ -1,28 +1,22 @@
 ---
 Type:            article
-Date:            2017-06-26
-Title:           About Marsh Example
-Project:         Marsh
+Date:            2026-03-28
+Title:           About marsh Example
+Project:         marsh
 Project_URL:     https://github.com/bradleysepos/marsh
 Language:        English
 Language_Code:   en
 Authors:         [ Bradley Sepos <bradley@bradleysepos.com> ]
-Copyright:       2017 Bradley Sepos
+Copyright:       2026 Bradley Sepos
 ---
 
-About Marsh Example
+About marsh Example
 ===================
 
-Example about page.
+This example site exists to show what a small `marsh` project can look like without adding a lot of extra machinery.
 
-<!-- .ipsum -->
+The content is intentionally plain to keep the example readable for people who are learning the structure for the first time.
 
-Lorem ipsum dolor sit amet, consectetur adipiscing elit. Fusce at magna neque. Lorem ipsum dolor sit amet, consectetur adipiscing elit. In non risus odio. Phasellus nec congue dui, a blandit ipsum. Vestibulum aliquam magna at dolor pharetra, in rutrum sapien tempus. Mauris ultrices erat ac tellus consectetur, et vulputate ante convallis. Nullam mi tellus, gravida eu orci at, vehicula blandit erat. Ut sapien massa, ultricies et eros quis, varius eleifend libero. In feugiat nisi ut sapien interdum, non luctus nisl dapibus. Suspendisse euismod finibus ligula, vitae dapibus erat ullamcorper ullamcorper. Proin non lacus dui. Donec ac tortor fermentum, hendrerit ipsum eu, tristique ligula. Nunc vehicula non ipsum eget fringilla. Vivamus in nulla non orci porta pharetra.
+The example template is intentionally small and practical. It uses one stylesheet for layout, colors, and typography; one small script to display the embedded Site Map; and a set of modular template components called partials that bring everything together to render each page as intended.
 
-Vestibulum ante ipsum primis in faucibus orci luctus et ultrices posuere cubilia Curae; Nulla pellentesque rutrum viverra. Aenean dictum et turpis quis molestie. Nulla non pellentesque dui. Curabitur rutrum urna at congue tincidunt. Maecenas nec sem sit amet nisi gravida rutrum. Nam vitae risus tincidunt, vestibulum nibh et, ullamcorper felis. In blandit a massa vel varius. Ut nibh ante, eleifend sed sem pellentesque, molestie mattis tortor. Sed nec sodales sapien. Morbi venenatis bibendum suscipit. Quisque viverra nisl sed egestas blandit. Proin venenatis commodo mauris et bibendum. Suspendisse sollicitudin, est sit amet luctus vulputate, ipsum massa dapibus est, id varius dui felis ultrices nisl.
-
-Ut efficitur aliquet ex, in scelerisque libero viverra ac. Praesent ac nulla quis eros varius gravida eu vel nibh. Etiam maximus sagittis libero, sit amet euismod ipsum varius vitae. Suspendisse lobortis ex rutrum lobortis fermentum. Ut et massa quis leo efficitur molestie. Cras eu ex et massa tempor egestas vel ac enim. Curabitur pulvinar risus id odio fermentum, nec suscipit lectus pharetra.
-
-Nulla ac mi sed nisl faucibus maximus sed sit amet velit. Donec posuere eros sit amet sem fermentum viverra. Aliquam erat volutpat. Maecenas urna ligula, suscipit sed velit sit amet, rutrum lacinia diam. Nam massa lorem, euismod eu nisi ac, consequat scelerisque lacus. Pellentesque semper pellentesque magna, eget finibus ex laoreet commodo. Aenean sollicitudin ipsum a risus cursus, et ornare nulla rutrum. Mauris molestie mauris at porttitor gravida. Ut eget tellus a dui tempor bibendum at sit amet justo.
-
-<!-- /.ipsum -->
+You don't need to understand a large application or a complicated theme to use `marsh`. You can browse the generated output right here, and inspect the example source documents and template in the [code repository](https://github.com/bradleysepos/marsh). Be sure to check out the [documentation](https://github.com/bradleysepos/marsh/blob/master/README.markdown) for tips on getting started.

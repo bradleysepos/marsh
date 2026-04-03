@@ -1,0 +1,378 @@
+* {
+    box-sizing: border-box;
+}
+
+html {
+    scroll-behavior: smooth;
+}
+
+body {
+    margin: 0;
+    background: #f6f8fb;
+    color: #12161b;
+    font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    line-height: 1.65;
+}
+
+a {
+    color: #305e99;
+}
+
+a:hover {
+    color: #df713d;
+}
+
+img {
+    height: auto;
+    max-width: 100%;
+}
+
+.page {
+    width: 72rem;
+    width: calc(100% - 2rem);
+    max-width: 72rem;
+    margin: 0 auto;
+    padding: 1rem 0 3rem;
+}
+
+header,
+main,
+footer {
+    background: #fdfefe;
+    border: 1px solid #c8d4e3;
+    box-shadow: 0 18px 36px rgba(18, 22, 27, 0.06);
+}
+
+header + main {
+    border-top: none;
+}
+
+main + footer {
+    border-top: none;
+}
+
+header {
+    padding: 1.35rem;
+    background: #6a87b7;
+    overflow: hidden;
+}
+
+.title,
+.summary {
+    margin: 0;
+}
+
+.title {
+    font-size: 2.2rem;
+    font-size: clamp(1.8rem, 3vw, 2.2rem);
+    line-height: 1.1;
+}
+
+.title a {
+    color: #f7f9fc;
+    text-decoration: none;
+}
+
+.title a:focus,
+.title a:focus-visible {
+    outline: 2px solid #fdfefe;
+    outline-offset: 3px;
+}
+
+.summary {
+    max-width: 42rem;
+    margin-top: 0.2rem;
+    color: rgba(247, 249, 252, 0.84);
+    font-size: 0.9rem;
+}
+
+.primary-nav {
+    margin-top: 1rem;
+}
+
+.primary-nav > ul {
+    display: flex;
+    flex-wrap: wrap;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    gap: 0.65rem;
+}
+
+.primary-nav > ul li {
+    margin: 0;
+}
+
+.primary-nav > ul a {
+    display: inline-block;
+    padding: 0.1rem 0.8rem 0.25rem;
+    border-top: 0.2rem solid transparent;
+    border-bottom: 0.2rem solid transparent;
+    background: #fdfefe;
+    color: #12161b;
+    text-decoration: none;
+    transition: border-bottom-color 180ms ease;
+}
+
+.primary-nav > ul button {
+    display: inline-block;
+    margin: 0;
+    padding: 0.1rem 0.8rem 0.25rem;
+    border: none;
+    border-top: 0.2rem solid transparent;
+    border-bottom: 0.2rem solid transparent;
+    background: #fdfefe;
+    color: #12161b;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: border-bottom-color 180ms ease;
+}
+
+.primary-nav > ul a.is-hidden,
+.primary-nav > ul a[hidden],
+.primary-nav > ul button.is-hidden,
+.primary-nav > ul button[hidden] {
+    display: none;
+}
+
+.primary-nav > ul a:hover,
+.primary-nav > ul button:hover,
+.primary-nav > ul a.is-active,
+.primary-nav > ul button.is-active {
+    border-bottom-color: #df713d;
+}
+
+.primary-nav > ul a:focus,
+.primary-nav > ul a:focus-visible,
+.primary-nav > ul button:focus,
+.primary-nav > ul button:focus-visible {
+    outline: 3px solid #df713d;
+    /*outline-offset: 3px;*/
+}
+
+.sitemap {
+    overflow: hidden;
+    max-height: 0;
+    margin-top: 0;
+    padding: 0;
+    background: #e3ebf6;
+    border-top: 0 solid #c8d4e3;
+    opacity: 0;
+    visibility: hidden;
+    transition:
+        max-height 220ms ease,
+        opacity 180ms ease,
+        margin-top 220ms ease,
+        padding 220ms ease,
+        border-top-width 220ms ease;
+}
+
+.sitemap.is-hidden,
+.sitemap[hidden] {
+    display: none;
+}
+
+.sitemap.is-expanded {
+    margin-top: 1rem;
+    max-height: 32rem;
+    padding: 1rem 1.05rem;
+    border-top-width: 1px;
+    opacity: 1;
+    visibility: visible;
+}
+
+.sitemap > :first-child {
+    margin-top: 0;
+}
+
+.sitemap > :last-child {
+    margin-bottom: 0;
+}
+
+.sitemap ul {
+    margin: 0;
+    padding-left: 1.2rem;
+}
+
+.sitemap li + li {
+    margin-top: 0.3rem;
+}
+
+main {
+    padding: 1.5rem 1.35rem;
+}
+
+main > :first-child,
+main > article > :first-child,
+main > section > :first-child {
+    margin-top: 0;
+}
+
+main > :last-child,
+main > article > :last-child,
+main > section > :last-child {
+    margin-bottom: 0;
+}
+
+main h1,
+main h2,
+main h3 {
+    line-height: 1.15;
+}
+
+main h1 {
+    margin-bottom: 0.85rem;
+    font-size: 2.2rem;
+    font-size: clamp(1.85rem, 3vw, 2.2rem);
+    letter-spacing: -0.02em;
+}
+
+main p,
+main ul,
+main ol,
+main blockquote {
+    max-width: 46rem;
+}
+
+main blockquote,
+.ipsum {
+    margin: 1.4rem 0;
+    padding: 1rem 1.1rem;
+    border-left: 0.3rem solid #305e99;
+    background: #e3ebf6;
+}
+
+.archive-intro {
+    margin: 1rem 0 1.3rem;
+    padding: 1rem 1.1rem;
+    border: 1px solid #c8d4e3;
+    background: #e3ebf6;
+}
+
+.archive-intro p {
+    margin: 0;
+}
+
+.archive-links {
+    display: flex;
+    flex-wrap: wrap;
+    margin: 0.8rem 0 0;
+    padding: 0;
+    list-style: none;
+    gap: 0.8rem 1.2rem;
+}
+
+.archive-links li {
+    margin: 0;
+}
+
+.archive article + article {
+    margin-top: 1.8rem;
+    padding-top: 1.4rem;
+    border-top: 1px solid #c8d4e3;
+}
+
+.archive-pagination {
+    margin: 1.2rem 0 1.5rem;
+}
+
+.archive-pagination-bottom {
+    padding-top: 1.35rem;
+    border-top: 1px solid #c8d4e3;
+}
+
+.archive-pagination p {
+    margin: 0;
+}
+
+.archive-pagination p + p {
+    margin-top: 0.4rem;
+}
+
+.archive-empty {
+    color: #5e6975;
+    font-style: italic;
+}
+
+.redirect {
+    padding-top: 12vh;
+}
+
+.redirect-main {
+    min-height: 0;
+}
+
+.redirect-summary > :first-child {
+    margin-top: 0;
+}
+
+footer {
+    padding: 1rem 1.35rem 1.25rem;
+    border-top: none;
+    color: #5e6975;
+    font-size: 0.95rem;
+}
+
+footer p {
+    margin: 0;
+}
+
+@media (min-width: 860px) {
+    header {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-areas:
+            "title nav"
+            "summary nav"
+            "advnav advnav";
+        column-gap: 1.5rem;
+        align-items: start;
+    }
+
+    .title {
+        grid-area: title;
+    }
+
+    .summary {
+        grid-area: summary;
+    }
+
+    .primary-nav {
+        max-width: 22rem;
+        grid-area: nav;
+        text-align: right;
+        justify-self: end;
+        align-self: end;
+        margin-top: 0;
+        margin-bottom: 0.2rem;
+    }
+
+    .primary-nav > ul {
+        justify-content: flex-end;
+    }
+
+    .sitemap {
+        grid-area: advnav;
+    }
+}
+
+@media (max-width: 760px) {
+    .page {
+        width: auto;
+        width: calc(100% - 1rem);
+        max-width: 72rem;
+        padding-top: 0.5rem;
+    }
+
+    header,
+    main,
+    footer {
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+
+    .primary-nav > ul {
+        gap: 0.5rem;
+    }
+}

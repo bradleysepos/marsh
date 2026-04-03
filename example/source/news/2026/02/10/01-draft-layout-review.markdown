@@ -3,7 +3,7 @@ Type:            news
 State:           [ draft ]
 Date:            2026-02-10
 Title:           Draft Layout Review
-Project:         Marsh
+Project:         marsh
 Project_URL:     https://github.com/bradleysepos/marsh
 Language:        English
 Language_Code:   en

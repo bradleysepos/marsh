@@ -3,7 +3,7 @@ Type:            news
 State:           [ draft ]
 Date:            2026-03-07
 Title:           Draft Navigation Note
-Project:         Marsh
+Project:         marsh
 Project_URL:     https://github.com/bradleysepos/marsh
 Language:        English
 Language_Code:   en

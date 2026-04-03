@@ -1,6 +1,7 @@
     <meta charset="utf-8" />
     <meta name="author" content="{{ document.authors | email:remove-angle-addr | join-type:oxford }}" />
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ document.title }}</title>
     {% if document.paginated is "true" %}
     <link rel="canonical" href="{{ document.page-canonical-uri }}" />
     {% if document.page-has-prev is "true" %}
@@ -12,4 +13,4 @@
     {% else %}
     <link rel="canonical" href="{{ document.uri }}" />
     {% endif %}
-    <title>{{ document.title }}</title>
+    {{ template.assets.styles | items:wrap-type:html-style-link }}

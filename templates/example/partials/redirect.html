@@ -1,10 +1,18 @@
 <!DOCTYPE html>
-<html>
+<html lang="{{ document.language-code }}">
 <head>
-    <meta http-equiv="refresh" content="0; url={{ document.redirect-url }}">
+    <meta http-equiv="refresh" content="5; url={{ document.redirect-url }}">
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Redirecting...</title>
+    {{ template.assets.styles | items:wrap-type:html-style-link }}
 </head>
 <body>
-{{ document }}
+<section class="page redirect" lang="{{ document.language-code }}">
+    <main class="redirect-main">
+        <h1>{{ document.title }}</h1>
+        <div class="redirect-summary">{{ document.content }}</div>
+        <p>You will be automatically redirected in 5 seconds. <a href="{{ document.redirect-url }}">Click here to continue to the destination page now.</a></p>
+    </main>
+</section>
 </body>
 </html>

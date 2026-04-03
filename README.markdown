@@ -414,7 +414,9 @@ Tag values come from three main sources:
 
 Generated metadata is created by `marsh` itself. The names of these template tags are reserved and their values may not be overridden in document frontmatter.
 
-- `base.rootpath`: Relative link from the current rendered page to the target root, such as `./`, `../`, or `../../`.
+- `site.rootpath`: Relative link from the current rendered page to the site root.
+- `site.abspath`: Absolute path or URL for the site root.
+- `base.rootpath`: Relative link from the current rendered page to the target root.
 - `base.abspath`: Absolute path or URL for the directory containing the current rendered page.
 - `document.href`: Relative link from the current rendered page to the current page itself, or for archive pages, the embedded archive subdocument.
 - `document.uri`: Absolute path or URL for the current rendered page or archive subdocument. For directory-style page paths ending in `index.html`, `document.uri` is normalized to the directory form, e.g., `/news/index.html` becomes `/news/`.
@@ -668,7 +670,7 @@ The following example partial:
     {{ template.assets.styles | items:wrap-type:html-style-link }}
 </head>
 <body>
-    <img class="logo" src="{{ base.rootpath }}images/logo.png" />
+    <img class="logo" src="{{ site.rootpath }}images/logo.png" />
     {{ document }}
     {{ template.assets.scripts | items:wrap-type:html-script-src }}
 </body>

@@ -1177,6 +1177,14 @@ function marsh_resolve_tag_metadata {  # marsh_resolve_tag_metadata tag_name pre
     TAG_VAR=""
     TAG_TYPE=""
     case "${TAG_NAME}" in
+        site.rootpath)
+            TAG_VAR="SITE_ROOTPATH"
+            TAG_TYPE="string"
+            ;;
+        site.abspath)
+            TAG_VAR="SITE_ABSPATH"
+            TAG_TYPE="string"
+            ;;
         base.rootpath)
             TAG_VAR="${PREFIX}ROOTPATH"
             TAG_TYPE="string"
@@ -3014,7 +3022,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
 
     local DEST_DIR TARGET_DIR TARGET_PATH ADVANCED_NAV
     local DOCUMENT DOCUMENT_EXT DOCUMENT_DIR DOCUMENT_HREF DOCUMENT_URI DOCUMENT_OUTPUT_PATH DOCUMENT_BASE_PATH
-    local BASE_ROOTPATH BASE_ABSPATH
+    local SITE_ROOTPATH SITE_ABSPATH BASE_ROOTPATH BASE_ABSPATH
     local DEST DEST_NAME DEST_PRINT
     local TEMPLATE_DIR TEMPLATE MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_FILEEXT_REGEX MARKDOWN_REWRITE_LINKS TEMPLATE_ASSETS_PATH
     local NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDES
@@ -3122,6 +3130,11 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
     DOCUMENT_BASE_PATH="${DOCUMENT_BASE_PATH%/.}"
     DOCUMENT_BASE_PATH="${DOCUMENT_BASE_PATH:-.}"
     DOCUMENT_BASE_PATH=$(marsh_normalize_directory_path "${DOCUMENT_BASE_PATH}") || return 1
+
+    # site root path and absolute site path
+    SITE_ROOTPATH=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "./") || return 1
+    SITE_ABSPATH="${MARSH_CONFIG_URL:-.}"
+    SITE_ABSPATH=$(marsh_normalize_directory_path "${SITE_ABSPATH}") || return 1
 
     # document uri (absolute link) and href (relative link)
     DOCUMENT_URI="${BASE_ABSPATH}${DEST##*/}"

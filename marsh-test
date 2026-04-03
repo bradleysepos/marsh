@@ -1348,6 +1348,40 @@ function marsh_test {
             marsh_test_restore_env
             ;;
         marsh_build_template:7)
+            TEST_NAME+=":generated_site_tags"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            marsh_test_set_env "sitetaguid" true true
+            mkdir -p "${TARGET_DIR}/news"
+            marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
+            printf '%s\n' '{{ site.rootpath }}'$'\n''{{ site.abspath }}'$'\n''{{ base.rootpath }}'$'\n''{{ base.abspath }}' > "${TEMPLATE_DIR}/sample/partials/body.html"
+            printf '%s\n' 'Example' > "${TARGET_DIR}/news/index.markdown.${MARSH_UID}.document"
+            printf '%s\n' '---'$'\n''Title: Example'$'\n''...' > "${TARGET_DIR}/news/index.markdown.${MARSH_UID}.meta.yaml"
+            marsh_build_template "${TARGET_DIR}" "news" "index.markdown" "" "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                ACTUAL=$(<"${TARGET_DIR}/news/index.html")
+                ASSERTION="contains"
+                EXPECTED='../'
+                if printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
+                    EXPECTED='https://example.test/'
+                    if printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
+                        EXPECTED='./'
+                        if printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
+                            EXPECTED='https://example.test/news/'
+                            if printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
+                                RES="[PASS]"
+                            fi
+                        fi
+                    fi
+                fi
+            fi
+            rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}"
+            marsh_test_restore_env
+            ;;
+        marsh_build_template:8)
             TEST_NAME+=":generated_document_tags"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
@@ -1390,7 +1424,7 @@ function marsh_test {
             rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}"
             marsh_test_restore_env
             ;;
-        marsh_build_template:8)
+        marsh_build_template:9)
             TEST_NAME+=":archive_generated_tags"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
@@ -1434,7 +1468,7 @@ function marsh_test {
             rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}"
             marsh_test_restore_env
             ;;
-        marsh_build_template:9)
+        marsh_build_template:10)
             TEST_NAME+=":archive_generated_tags"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
@@ -1480,7 +1514,7 @@ function marsh_test {
             rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}"
             marsh_test_restore_env
             ;;
-        marsh_build_template:10)
+        marsh_build_template:11)
             TEST_NAME+=":template_asset_tags"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
@@ -1512,7 +1546,7 @@ function marsh_test {
             rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}"
             marsh_test_restore_env
             ;;
-        marsh_build_template:11)
+        marsh_build_template:12)
             TEST_NAME+=":archive_template_asset_tags"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
@@ -1553,7 +1587,7 @@ function marsh_test {
             rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}"
             marsh_test_restore_env
             ;;
-        marsh_build_template:12)
+        marsh_build_template:13)
             TEST_NAME+=":template_asset_tags_with_transforms"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
@@ -1598,7 +1632,7 @@ function marsh_test {
             rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}"
             marsh_test_restore_env
             ;;
-        marsh_build_template:13)
+        marsh_build_template:14)
             TEST_NAME+=":archive_template_asset_tags_with_transforms"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
@@ -1671,7 +1705,7 @@ function marsh_test {
             rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}"
             marsh_test_restore_env
             ;;
-        marsh_build_template:14)
+        marsh_build_template:15)
             TEST_NAME+=":archive_template_asset_tags_with_transforms_target_root"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
@@ -1745,7 +1779,7 @@ function marsh_test {
             rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}"
             marsh_test_restore_env
             ;;
-        marsh_build_template:15)
+        marsh_build_template:16)
             TEST_NAME+=":archive_template_assets_path"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
@@ -2948,6 +2982,24 @@ function marsh_test {
             ;;
         marsh_resolve_tag_metadata:2)
             TEST_NAME+=":generated"
+            ACTUAL=$(marsh_resolve_tag_metadata "site.rootpath" "DOCUMENT_")
+            EXPECTED='TAG_VAR=SITE_ROOTPATH'$'\n''TAG_TYPE=string'
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_resolve_tag_metadata:3)
+            TEST_NAME+=":generated"
+            ACTUAL=$(marsh_resolve_tag_metadata "site.abspath" "DOCUMENT_")
+            EXPECTED='TAG_VAR=SITE_ABSPATH'$'\n''TAG_TYPE=string'
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_resolve_tag_metadata:4)
+            TEST_NAME+=":generated"
             ACTUAL=$(marsh_resolve_tag_metadata "document.uri" "DOCUMENT_")
             EXPECTED='TAG_VAR=DOCUMENT_URI'$'\n''TAG_TYPE=string'
             ASSERTION="equals"
@@ -2955,7 +3007,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_resolve_tag_metadata:3)
+        marsh_resolve_tag_metadata:5)
             TEST_NAME+=":generated"
             ACTUAL=$(marsh_resolve_tag_metadata "document.page-next-href" "DOCUMENT_" "DOCUMENT_Page_Next_Href")
             EXPECTED='TAG_VAR=DOCUMENT_Page_Next_Href'$'\n''TAG_TYPE=string'
@@ -2964,7 +3016,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_resolve_tag_metadata:4)
+        marsh_resolve_tag_metadata:6)
             TEST_NAME+=":known"
             ACTUAL=$(marsh_resolve_tag_metadata "document.title" "DOCUMENT_")
             EXPECTED='TAG_VAR=DOCUMENT_Title'$'\n''TAG_TYPE=string'
@@ -2973,7 +3025,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_resolve_tag_metadata:5)
+        marsh_resolve_tag_metadata:7)
             TEST_NAME+=":known"
             ACTUAL=$(marsh_resolve_tag_metadata "document.project-version" "DOCUMENT_" "DOCUMENT_Title"$'\n'"DOCUMENT_Project_Version")
             EXPECTED='TAG_VAR=DOCUMENT_Project_Version'$'\n''TAG_TYPE=string'
@@ -2982,7 +3034,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_resolve_tag_metadata:6)
+        marsh_resolve_tag_metadata:8)
             TEST_NAME+=":known"
             ACTUAL=$(marsh_resolve_tag_metadata "document.authors" "SUBDOCUMENT_")
             EXPECTED='TAG_VAR=SUBDOCUMENT_Authors_'$'\n''TAG_TYPE=array'
@@ -2991,7 +3043,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_resolve_tag_metadata:7)
+        marsh_resolve_tag_metadata:9)
             TEST_NAME+=":custom"
             ACTUAL=$(marsh_resolve_tag_metadata "document.custom-thing" "DOCUMENT_" "DOCUMENT_Custom_Thing")
             EXPECTED='TAG_VAR=DOCUMENT_Custom_Thing'$'\n''TAG_TYPE=string'
@@ -3000,7 +3052,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_resolve_tag_metadata:8)
+        marsh_resolve_tag_metadata:10)
             TEST_NAME+=":nonexistent"
             marsh_resolve_tag_metadata "document.foo" "DOCUMENT_" 2>/dev/null
             ACTUAL=$?
@@ -3010,7 +3062,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_resolve_tag_metadata:9)
+        marsh_resolve_tag_metadata:11)
             TEST_NAME+=":ambiguous"
             marsh_resolve_tag_metadata "document.foo-bar" "DOCUMENT_" "DOCUMENT_Foo_Bar"$'\n'"DOCUMENT_FOO_BAR" 2>/dev/null
             ACTUAL=$?

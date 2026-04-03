@@ -1193,6 +1193,10 @@ function marsh_resolve_tag_metadata {  # marsh_resolve_tag_metadata tag_name pre
             TAG_VAR="${PREFIX}ABSPATH"
             TAG_TYPE="string"
             ;;
+        navigation)
+            TAG_VAR="TEMPLATE_ADVNAV"
+            TAG_TYPE="string"
+            ;;
         template.assets.fonts)
             TAG_VAR="TEMPLATE_TAG_ASSETS_FONTS"
             TAG_TYPE="shell-array"
@@ -3385,9 +3389,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
         -e "/\{\{[ ]*template\.header[ ]*\}\}/s//${TEMPLATE_HEADER_ESC:-}/g" \
         -e "/\{\{[ ]*template\.footer[ ]*\}\}/s//${TEMPLATE_FOOTER_ESC:-}/g" \
         -e "/\{\{[ ]*template\.nav[ ]*\}\}/s//${TEMPLATE_NAV_ESC:-}/g" \
-        -e "/\{\{[ ]*template\.notice[ ]*\}\}/s//${TEMPLATE_NOTICE_ESC:-}/g" \
-        -e "/\{\{[ ]*navigation[ ]*\}\}/s//${TEMPLATE_ADVNAV_ESC:-}/g" \
-        -e 's/\{\{[ ]*navigation[ ]*\}\}//g')
+        -e "/\{\{[ ]*template\.notice[ ]*\}\}/s//${TEMPLATE_NOTICE_ESC:-}/g")
 
         for TEMPLATE_ASSET_TYPE in "${TEMPLATE_ASSET_TYPES[@]}"; do
             case "${TEMPLATE_ASSET_TYPE}" in

@@ -2495,34 +2495,35 @@ function marsh_build_archive {  # marsh_build_archive encoding target_dir dest_f
         [[ "${PAGE_NEXT_OUTPUT_PATH}" != "" ]] && PAGE_NEXT_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${PAGE_NEXT_OUTPUT_PATH}") || true
         PAGE_LAST_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${PAGE_LAST_OUTPUT_PATH}") || return 1
 
-        marsh_write_archive_page "${ENCODING}" \
-                "${TARGET_DIR}" \
-                "${PAGE_DEST}" \
-                "${DEST_TITLE}" \
-                "${LANGUAGE}" \
-                "${LANGCODE}" \
-                "${PAGINATED}" \
-                "${PAGE}" \
-                "${PAGE_TOTAL}" \
-                "${PAGE_SIZE}" \
-                "${PAGE_SUBDOCUMENTS_TOTAL}" \
-                "${ARCHIVE_SUBDOCUMENTS_TOTAL}" \
-                "${PAGE_URI}" \
-                "${PAGE_CANONICAL_URI}" \
-                "${PAGE_FIRST_URI}" \
-                "${PAGE_PREV_URI}" \
-                "${PAGE_NEXT_URI}" \
-                "${PAGE_LAST_URI}" \
-                "${PAGE_HREF}" \
-                "${PAGE_CANONICAL_HREF}" \
-                "${PAGE_FIRST_HREF}" \
-                "${PAGE_PREV_HREF}" \
-                "${PAGE_NEXT_HREF}" \
-                "${PAGE_LAST_HREF}" \
-                "${#PAGE_DOCUMENTS[@]}" \
-                "${PAGE_DOCUMENTS[@]}" \
-                "${PAGE_DOCUMENT_URIS[@]}" \
-                "${PAGE_DOCUMENT_ABSPATHS[@]}" || return 1
+        marsh_write_archive_page \
+            "${ENCODING}" \
+            "${TARGET_DIR}" \
+            "${PAGE_DEST}" \
+            "${DEST_TITLE}" \
+            "${LANGUAGE}" \
+            "${LANGCODE}" \
+            "${PAGINATED}" \
+            "${PAGE}" \
+            "${PAGE_TOTAL}" \
+            "${PAGE_SIZE}" \
+            "${PAGE_SUBDOCUMENTS_TOTAL}" \
+            "${ARCHIVE_SUBDOCUMENTS_TOTAL}" \
+            "${PAGE_URI}" \
+            "${PAGE_CANONICAL_URI}" \
+            "${PAGE_FIRST_URI}" \
+            "${PAGE_PREV_URI}" \
+            "${PAGE_NEXT_URI}" \
+            "${PAGE_LAST_URI}" \
+            "${PAGE_HREF}" \
+            "${PAGE_CANONICAL_HREF}" \
+            "${PAGE_FIRST_HREF}" \
+            "${PAGE_PREV_HREF}" \
+            "${PAGE_NEXT_HREF}" \
+            "${PAGE_LAST_HREF}" \
+            "${#PAGE_DOCUMENTS[@]}" \
+            "${PAGE_DOCUMENTS[@]}" \
+            "${PAGE_DOCUMENT_URIS[@]}" \
+            "${PAGE_DOCUMENT_ABSPATHS[@]}" || return 1
         ARCHIVE_PAGES+=("${PAGE_DEST}")
 
         if [[ "${PAGINATED}" == true ]] && [[ "${PAGE}" -eq 1 ]]; then
@@ -2540,34 +2541,35 @@ function marsh_build_archive {  # marsh_build_archive encoding target_dir dest_f
             PAGE_NEXT_HREF=""
             [[ "${PAGE_NEXT_OUTPUT_PATH}" != "" ]] && PAGE_NEXT_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${PAGE_NEXT_OUTPUT_PATH}") || true
             PAGE_LAST_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${PAGE_LAST_OUTPUT_PATH}") || return 1
-            marsh_write_archive_page "${ENCODING}" \
-                    "${TARGET_DIR}" \
-                    "${PAGE_ALIAS_DEST}" \
-                    "${DEST_TITLE}" \
-                    "${LANGUAGE}" \
-                    "${LANGCODE}" \
-                    "${PAGINATED}" \
-                    '1' \
-                    "${PAGE_TOTAL}" \
-                    "${PAGE_SIZE}" \
-                    "${PAGE_SUBDOCUMENTS_TOTAL}" \
-                    "${ARCHIVE_SUBDOCUMENTS_TOTAL}" \
-                    "${PAGE_URI}" \
-                    "${PAGE_CANONICAL_URI}" \
-                    "${PAGE_FIRST_URI}" \
-                    '' \
-                    "${PAGE_NEXT_URI}" \
-                    "${PAGE_LAST_URI}" \
-                    "${PAGE_HREF}" \
-                    "${PAGE_CANONICAL_HREF}" \
-                    "${PAGE_FIRST_HREF}" \
-                    '' \
-                    "${PAGE_NEXT_HREF}" \
-                    "${PAGE_LAST_HREF}" \
-                    "${#PAGE_DOCUMENTS[@]}" \
-                    "${PAGE_DOCUMENTS[@]}" \
-                    "${PAGE_DOCUMENT_URIS[@]}" \
-                    "${PAGE_DOCUMENT_ABSPATHS[@]}" || return 1
+            marsh_write_archive_page \
+                "${ENCODING}" \
+                "${TARGET_DIR}" \
+                "${PAGE_ALIAS_DEST}" \
+                "${DEST_TITLE}" \
+                "${LANGUAGE}" \
+                "${LANGCODE}" \
+                "${PAGINATED}" \
+                '1' \
+                "${PAGE_TOTAL}" \
+                "${PAGE_SIZE}" \
+                "${PAGE_SUBDOCUMENTS_TOTAL}" \
+                "${ARCHIVE_SUBDOCUMENTS_TOTAL}" \
+                "${PAGE_URI}" \
+                "${PAGE_CANONICAL_URI}" \
+                "${PAGE_FIRST_URI}" \
+                '' \
+                "${PAGE_NEXT_URI}" \
+                "${PAGE_LAST_URI}" \
+                "${PAGE_HREF}" \
+                "${PAGE_CANONICAL_HREF}" \
+                "${PAGE_FIRST_HREF}" \
+                '' \
+                "${PAGE_NEXT_HREF}" \
+                "${PAGE_LAST_HREF}" \
+                "${#PAGE_DOCUMENTS[@]}" \
+                "${PAGE_DOCUMENTS[@]}" \
+                "${PAGE_DOCUMENT_URIS[@]}" \
+                "${PAGE_DOCUMENT_ABSPATHS[@]}" || return 1
             ARCHIVE_PAGES+=("${PAGE_ALIAS_DEST}")
         fi
     done

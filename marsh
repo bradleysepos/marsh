@@ -2213,6 +2213,10 @@ function marsh_get_relative_path {  # marsh_get_relative_path base_dir target_pa
         RESULT=$(marsh_normalize_directory_path "${RESULT}") || return 1
     fi
 
+    if [[ "${RESULT}" != "./" ]]; then
+        RESULT="${RESULT#./}"
+    fi
+
     printf '%s\n' "${RESULT}"
 }
 

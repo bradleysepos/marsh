@@ -1209,8 +1209,8 @@ function marsh_resolve_tag_metadata {  # marsh_resolve_tag_metadata tag_name pre
             TAG_VAR="ARCHIVE_ABSPATH"
             TAG_TYPE="string"
             ;;
-        navigation)
-            TAG_VAR="TEMPLATE_ADVNAV"
+        target.sitemap)
+            TAG_VAR="TARGET_SITEMAP"
             TAG_TYPE="string"
             ;;
         template.assets.fonts)
@@ -1257,7 +1257,7 @@ function marsh_resolve_tag_metadata {  # marsh_resolve_tag_metadata tag_name pre
             TAG_VAR="${PREFIX}URI"
             TAG_TYPE="string"
             ;;
-        document)
+        document.content)
             TAG_VAR="${PREFIX}CONTENT"
             TAG_TYPE="file"
             ;;
@@ -1597,17 +1597,17 @@ function marsh_get_archive_manifest {  # marsh_get_archive_manifest target_dir
     return 0
 }
 
-# finds the closest generated advanced navigation file for a document
-function marsh_find_advanced_nav {  # marsh_find_advanced_nav target_dir document navigation_file
-    local TARGET_DIR DOCUMENT NAV_FILE DOCUMENT_DIR SEARCH_DIR NAV_PATH
+# finds the closest generated sitemap file for a document
+function marsh_find_sitemap {  # marsh_find_sitemap target_dir document sitemap_file
+    local TARGET_DIR DOCUMENT SITEMAP_FILE DOCUMENT_DIR SEARCH_DIR SITEMAP_PATH
 
     # init
     TARGET_DIR="${1:-}"
     DOCUMENT="${2:-}"
-    NAV_FILE="${3:-}"
+    SITEMAP_FILE="${3:-}"
     [[ "${TARGET_DIR}" == "" ]] && return 1
     [[ "${DOCUMENT}" == "" ]] && return 1
-    [[ "${NAV_FILE}" == "" ]] && return 1
+    [[ "${SITEMAP_FILE}" == "" ]] && return 1
 
     # set up document path and search directory
     if [[ "${DOCUMENT#${TARGET_DIR}/}" != "${DOCUMENT}" ]]; then
@@ -1620,14 +1620,14 @@ function marsh_find_advanced_nav {  # marsh_find_advanced_nav target_dir documen
     DOCUMENT_DIR="${DOCUMENT_DIR:-.}"
     SEARCH_DIR="${DOCUMENT_DIR}"
 
-    # search for advanced nav file in document directory and parent directories
+    # search for sitemap file in document directory and parent directories
     while true; do
-        NAV_PATH="${NAV_FILE#\./}.${MARSH_UID}.advanced-nav.html"
+        SITEMAP_PATH="${SITEMAP_FILE#\./}.${MARSH_UID}.sitemap.html"
         if [[ "${SEARCH_DIR}" != "." ]]; then
-            NAV_PATH="${SEARCH_DIR}/${NAV_PATH}"
+            SITEMAP_PATH="${SEARCH_DIR}/${SITEMAP_PATH}"
         fi
-        if [[ -f "${TARGET_DIR}/${NAV_PATH}" ]] && [[ -r "${TARGET_DIR}/${NAV_PATH}" ]]; then
-            printf '%s\n' "${NAV_PATH}"
+        if [[ -f "${TARGET_DIR}/${SITEMAP_PATH}" ]] && [[ -r "${TARGET_DIR}/${SITEMAP_PATH}" ]]; then
+            printf '%s\n' "${SITEMAP_PATH}"
             return 0
         fi
         [[ "${SEARCH_DIR}" == "." ]] && break
@@ -1893,7 +1893,7 @@ function marsh_get_template_metadata {  # marsh_get_template_metadata prefix tem
 # loads target metadata into convenience variables
 function marsh_get_target_metadata {  # marsh_get_target_metadata source_prefix prefix
     local SOURCE_PREFIX PREFIX
-    local TARGET_PATH TARGET_NAME TARGET_SOURCE TARGET_FORCE TARGET_NAV
+    local TARGET_PATH TARGET_NAME TARGET_SOURCE TARGET_FORCE TARGET_SITEMAP
     local II TEMPLATE_SOURCE TEMPLATE_ASSETS_PATH TEMPLATE_OVERRIDE TEMPLATE_OVERRIDES
     local ARCHIVE ARCHIVE_NAME ARCHIVE_ENCODING ARCHIVE_LANGUAGE ARCHIVE_LANGUAGE_CODE ARCHIVE_ROOT_PATH
     local ARCHIVE_COUNT ARCHIVE_PAGE_SIZE ARCHIVE_CONTENT ARCHIVE_TYPES ARCHIVE_EXCLUDED_STATES
@@ -1910,11 +1910,11 @@ function marsh_get_target_metadata {  # marsh_get_target_metadata source_prefix 
     TARGET_NAME="${SOURCE_PREFIX}Name"
     TARGET_SOURCE="${SOURCE_PREFIX}Source"
     TARGET_FORCE="${SOURCE_PREFIX}Force"
-    TARGET_NAV="${SOURCE_PREFIX}Navigation"
+    TARGET_SITEMAP="${SOURCE_PREFIX}Sitemap"
     [[ "${!TARGET_PATH:-}"   != "" ]] && echo "${PREFIX}PATH=\"${!TARGET_PATH//\"/\\\"}\""
     [[ "${!TARGET_NAME:-}"   != "" ]] && echo "${PREFIX}NAME=\"${!TARGET_NAME//\"/\\\"}\""
     [[ "${!TARGET_SOURCE:-}" != "" ]] && echo "${PREFIX}SOURCE=\"${!TARGET_SOURCE//\"/\\\"}\""
-    [[ "${!TARGET_NAV:-}"    != "" ]] && echo "${PREFIX}NAV=\"${!TARGET_NAV//\"/\\\"}\""
+    [[ "${!TARGET_SITEMAP:-}" != "" ]] && echo "${PREFIX}SITEMAP=\"${!TARGET_SITEMAP//\"/\\\"}\""
     [[ "${!TARGET_FORCE:-}"  != "" ]] && echo "${PREFIX}FORCE=\"${!TARGET_FORCE//\"/\\\"}\""
 
     # template
@@ -2790,49 +2790,49 @@ function marsh_build_archive {  # marsh_build_archive encoding target_dir dest_f
     return 0
 }
 
-# builds advanced navigation
-function marsh_build_advanced_nav {  # marsh_build_advanced_nav target_dir navigation_file markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links
-    local TARGET_DIR NAV_FILE MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_REWRITE_LINKS
-    local NAV_TARGETS_LIST NAV_TARGET NAV_DEST TEXT_TRANSFORM
+# builds a sitemap
+function marsh_build_sitemap {  # marsh_build_sitemap target_dir sitemap_file markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links
+    local TARGET_DIR SITEMAP_FILE MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_REWRITE_LINKS
+    local SITEMAP_TARGETS_LIST SITEMAP_TARGET SITEMAP_DEST TEXT_TRANSFORM
 
     # init
     TARGET_DIR="${1:-}"
-    NAV_FILE="${2:-}"
+    SITEMAP_FILE="${2:-}"
     MARKDOWN_COMMAND="${3:-}"
     MARKDOWN_OPTIONS_CSV="${4:-}"
     MARKDOWN_FILEEXT_CSV="${5:-}"
     MARKDOWN_REWRITE_LINKS="${6:-}"
     [[ "${TARGET_DIR}" == "" ]] && return 1
-    [[ "${NAV_FILE}" == "" ]]   && return 1
+    [[ "${SITEMAP_FILE}" == "" ]]   && return 1
     [[ "${MARKDOWN_COMMAND}" == "" ]] && return 1
     [[ "${MARKDOWN_FILEEXT_CSV}" == "" ]] && return 1
     [[ "${MARKDOWN_REWRITE_LINKS}" == "" ]] && return 1
 
-    NAV_TARGETS_LIST=$(cd "${TARGET_DIR}" && find . -name "${NAV_FILE#\./}")
-    while IFS= read -r NAV_TARGET; do
-        [[ "${NAV_TARGET}" == "" ]] && continue
-        NAV_TARGET="${TARGET_DIR}/${NAV_TARGET}"
-        NAV_DEST="${NAV_TARGET}.${MARSH_UID}.advanced-nav.html"
-        if marsh_has_frontmatter "${NAV_TARGET}"; then
-            marsh_extract_frontmatter "${NAV_TARGET}" "${NAV_DEST}.meta.yaml" "${NAV_DEST}.temp" || {
-                echo "Unable to extract navigation frontmatter: ${NAV_TARGET}" >&2
+    SITEMAP_TARGETS_LIST=$(cd "${TARGET_DIR}" && find . -name "${SITEMAP_FILE#\./}")
+    while IFS= read -r SITEMAP_TARGET; do
+        [[ "${SITEMAP_TARGET}" == "" ]] && continue
+        SITEMAP_TARGET="${TARGET_DIR}/${SITEMAP_TARGET}"
+        SITEMAP_DEST="${SITEMAP_TARGET}.${MARSH_UID}.sitemap.html"
+        if marsh_has_frontmatter "${SITEMAP_TARGET}"; then
+            marsh_extract_frontmatter "${SITEMAP_TARGET}" "${SITEMAP_DEST}.meta.yaml" "${SITEMAP_DEST}.temp" || {
+                echo "Unable to extract sitemap frontmatter: ${SITEMAP_TARGET}" >&2
                 return 1
             }
         else
-            cp "${NAV_TARGET}" "${NAV_DEST}.temp"
+            cp "${SITEMAP_TARGET}" "${SITEMAP_DEST}.temp"
         fi
         TEXT_TRANSFORM=
         if [[ "${MARKDOWN_REWRITE_LINKS}" == true ]]; then
             TEXT_TRANSFORM="links:replace-ext:${MARKDOWN_FILEEXT_CSV}:html"
         fi
-        <"${NAV_DEST}.temp" marsh_text_transform ${TEXT_TRANSFORM} | marsh_process_markdown "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" > "${NAV_DEST}"
-        rm -f "${NAV_DEST}.meta.yaml" 2>/dev/null || true
-        rm -f "${NAV_DEST}.temp"
-    done <<< "${NAV_TARGETS_LIST}"
+        <"${SITEMAP_DEST}.temp" marsh_text_transform ${TEXT_TRANSFORM} | marsh_process_markdown "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" > "${SITEMAP_DEST}"
+        rm -f "${SITEMAP_DEST}.meta.yaml" 2>/dev/null || true
+        rm -f "${SITEMAP_DEST}.temp"
+    done <<< "${SITEMAP_TARGETS_LIST}"
 }
 
 # builds a template and applies it to a document
-function marsh_build_template {  # marsh_build_template dest_dir target_dir document advanced_nav templates_dir template markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links #template_overrides[@] template_overrides[@] template_assets_path
+function marsh_build_template {  # marsh_build_template dest_dir target_dir document sitemap templates_dir template markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links #template_overrides[@] template_overrides[@] template_assets_path
     function process_conditionals {  # process_conditionals file tag list[@]
         local FILE TAG LIST_SEP LIST_RAW
         local FILE_TEMP
@@ -3130,7 +3130,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
         return "${RES}"
     }
 
-    local DEST_DIR TARGET_DIR TARGET_PATH ADVANCED_NAV
+    local DEST_DIR TARGET_DIR TARGET_PATH SITEMAP_SOURCE TARGET_SITEMAP
     local DOCUMENT DOCUMENT_EXT DOCUMENT_DIR DOCUMENT_HREF DOCUMENT_URI DOCUMENT_OUTPUT_PATH DOCUMENT_BASE_PATH DOCUMENT_ABSPATH ARCHIVE_OUTPUT_PATH
     local SITE_ROOTPATH SITE_ABSPATH TARGET_ROOTPATH TARGET_ABSPATH ARCHIVE_ROOTPATH ARCHIVE_ABSPATH
     local DEST DEST_NAME DEST_PRINT
@@ -3140,12 +3140,12 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
     local TEMPLATE_RENDER
     local TEMPLATE_BASE_FILE TEMPLATE_HEAD_FILE TEMPLATE_BODY_FILE TEMPLATE_DOCUMENT_FILE TEMPLATE_HEADER_FILE TEMPLATE_FOOTER_FILE TEMPLATE_NAV_FILE TEMPLATE_NOTICE_FILE
     local TEMPLATE_BASE_TEMPLATE TEMPLATE_HEAD_TEMPLATE TEMPLATE_BODY_TEMPLATE TEMPLATE_DOCUMENT_TEMPLATE TEMPLATE_HEADER_TEMPLATE TEMPLATE_FOOTER_TEMPLATE
-    local TEMPLATE_NAV_TEMPLATE TEMPLATE_NOTICE_TEMPLATE TEMPLATE_ADVNAV
+    local TEMPLATE_NAV_TEMPLATE TEMPLATE_NOTICE_TEMPLATE
     local TEMPLATE_ASSET_TYPES TEMPLATE_ASSET_TYPE ASSET ASSET_PATH ASSET_QUERY ASSET_HREF
     local TEMPLATE_TAG_ASSETS_FONTS TEMPLATE_TAG_ASSETS_STYLES TEMPLATE_TAG_ASSETS_SCRIPTS TEMPLATE_TAG_ASSETS_IMAGES
     local TEMPLATE_TAG_ASSETS_AUDIO TEMPLATE_TAG_ASSETS_VIDEO TEMPLATE_TAG_ASSETS_DOCUMENTS TEMPLATE_TAG_ASSETS_BINARIES TEMPLATE_TAG_ASSETS_OTHER
     local TEMPLATE_HEAD_ESC TEMPLATE_BODY_ESC TEMPLATE_DOCUMENT_ESC TEMPLATE_HEADER_ESC TEMPLATE_FOOTER_ESC
-    local TEMPLATE_NAV_ESC TEMPLATE_NOTICE_ESC TEMPLATE_ADVNAV_ESC
+    local TEMPLATE_NAV_ESC TEMPLATE_NOTICE_ESC
     local DOCUMENT_META DOCUMENT_META_VARS DOCUMENT_CONTENT
     local SUBDOCUMENTS_LIST SUBDOCUMENTS SUBDOCUMENT_URIS SUBDOCUMENT_ABSPATHS NUM_SUBDOCUMENTS
     local SUBDOCUMENT SUBDOCUMENT_SOURCE SUBDOCUMENT_CONTENT SUBDOCUMENT_CONTENT_ESC SUBDOCUMENT_META SUBDOCUMENT_META_VARS
@@ -3156,13 +3156,13 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
     local CONDITIONAL_TAG CONDITIONAL_VALUES
     local DOCUMENT_State
     local PARTIAL_CONDITIONAL_TAGS
-    local NAV NAV_DIR NAV_NAME NAV_RELPATH
+    local SITEMAP SITEMAP_DIR SITEMAP_NAME SITEMAP_RELPATH
 
     # init
     DEST_DIR="${1:-.}"
     TARGET_DIR="${2:-.}"
     DOCUMENT="${3:-}"
-    ADVANCED_NAV="${4:-}"
+    SITEMAP_SOURCE="${4:-}"
     TEMPLATE_DIR="${5:-}"
     TEMPLATE="${6:-}"
     MARKDOWN_COMMAND="${7:-}"
@@ -3461,32 +3461,32 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
         TEMPLATE_TAG_ASSETS_BINARIES=()
         TEMPLATE_TAG_ASSETS_OTHER=()
 
-        # advanced navigation
-        TEMPLATE_ADVNAV=""
-        if [[ "${ADVANCED_NAV}" != "" ]]; then
-            NAV=$(marsh_find_advanced_nav "${DEST_DIR}/${TARGET_DIR}" "${DOCUMENT}" "${ADVANCED_NAV}")
-            if [[ "${NAV:-}" != "" ]]; then
-                NAV_NAME="${ADVANCED_NAV}.html"
-                NAV_NAME=$(echo "${NAV_NAME}" | sed -E -e "s/\.(${MARKDOWN_FILEEXT_REGEX})(.html)$/\2/")
-                if [[ "${NAV}" =~ / ]]; then
-                    NAV_DIR="${NAV%/*}"
+        # sitemap
+        TARGET_SITEMAP=""
+        if [[ "${SITEMAP_SOURCE}" != "" ]]; then
+            SITEMAP=$(marsh_find_sitemap "${DEST_DIR}/${TARGET_DIR}" "${DOCUMENT}" "${SITEMAP_SOURCE}")
+            if [[ "${SITEMAP:-}" != "" ]]; then
+                SITEMAP_NAME="${SITEMAP_SOURCE}.html"
+                SITEMAP_NAME=$(echo "${SITEMAP_NAME}" | sed -E -e "s/\.(${MARKDOWN_FILEEXT_REGEX})(.html)$/\2/")
+                if [[ "${SITEMAP}" =~ / ]]; then
+                    SITEMAP_DIR="${SITEMAP%/*}"
                 else
-                    NAV_DIR="."
+                    SITEMAP_DIR="."
                 fi
-                if [[ "${NAV_DIR}" == "." ]]; then
-                    NAV_RELPATH="${DOCUMENT_DIR}"
+                if [[ "${SITEMAP_DIR}" == "." ]]; then
+                    SITEMAP_RELPATH="${DOCUMENT_DIR}"
                 else
-                    NAV_RELPATH="${DOCUMENT_DIR#$NAV_DIR}"
+                    SITEMAP_RELPATH="${DOCUMENT_DIR#$SITEMAP_DIR}"
                 fi
-                NAV_RELPATH="${NAV_RELPATH//[^\/]/}"     # leave only slashes
-                NAV_RELPATH="${NAV_RELPATH//[\/]/../}"  # slashes to dirs
-                NAV_RELPATH="${NAV_RELPATH:-.}"         # empty to current dir
-                NAV_RELPATH="${NAV_RELPATH%/}"          # drop trailing slash
-                TEMPLATE_ADVNAV=$(<"${DEST_DIR}/${TARGET_DIR}/${NAV}" sed -E \
-                -e 's|<h1>([^<]+)</h1>|<h1><a href="'"${NAV_RELPATH}/${NAV_NAME}"'">\1</a></h1>|' \
-                -e 's|(<a href=")([^.])|\1'"${NAV_RELPATH}/"'\2|g' | \
+                SITEMAP_RELPATH="${SITEMAP_RELPATH//[^\/]/}"         # leave only slashes
+                SITEMAP_RELPATH="${SITEMAP_RELPATH//[\/]/../}"      # slashes to dirs
+                SITEMAP_RELPATH="${SITEMAP_RELPATH:-.}"             # empty to current dir
+                SITEMAP_RELPATH="${SITEMAP_RELPATH%/}"              # drop trailing slash
+                TARGET_SITEMAP=$(<"${DEST_DIR}/${TARGET_DIR}/${SITEMAP}" sed -E \
+                -e 's|<h1>([^<]+)</h1>|<h1><a href="'"${SITEMAP_RELPATH}/${SITEMAP_NAME}"'">\1</a></h1>|' \
+                -e 's|(<a href=")([^.])|\1'"${SITEMAP_RELPATH}/"'\2|g' | \
                 sed -E \
-                -e 's|<a (href="[^"]*'"${NAV_RELPATH}/${DEST_NAME}.html"'"[^>]*)>([^<>]+)</a>|<a \1 class="selected">\2</a>|g')
+                -e 's|<a (href="[^"]*'"${SITEMAP_RELPATH}/${DEST_NAME}.html"'[^>]*)>([^<>]+)</a>|<a \1 class="selected">\2</a>|g')
             fi
         fi
 
@@ -3498,7 +3498,6 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
         TEMPLATE_FOOTER_ESC=$(printf '%s' "${TEMPLATE_FOOTER_TEMPLATE}" | marsh_escape_substitution)
         TEMPLATE_NAV_ESC=$(printf '%s' "${TEMPLATE_NAV_TEMPLATE}" | marsh_escape_substitution)
         TEMPLATE_NOTICE_ESC=$(printf '%s' "${TEMPLATE_NOTICE_TEMPLATE}" | marsh_escape_substitution)
-        TEMPLATE_ADVNAV_ESC=$(printf '%s' "${TEMPLATE_ADVNAV}" | marsh_escape_substitution)
 
         TEMPLATE_RENDER=$(printf '%s' "${TEMPLATE_BASE_TEMPLATE}" | sed -E \
         -e "/\{\{[ ]*template\.head[ ]*\}\}/s//${TEMPLATE_HEAD_ESC:-}/g" \
@@ -3706,7 +3705,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                 SUBDOCUMENT_CONTENT_ESC=$(<"${SUBDOCUMENT_CONTENT}" marsh_escape_substitution)
                 SUBDOCUMENT_TEMPLATE="${TEMPLATE_DOCUMENT_TEMPLATE}"
                 SUBDOCUMENT_RENDER=$(printf '%s' "${SUBDOCUMENT_TEMPLATE}" | sed -E \
-                    -e "/\{\{[ ]*document[ ]*\}\}/s//${SUBDOCUMENT_CONTENT_ESC}/g" \
+                    -e "/\{\{[ ]*document\.content[ ]*\}\}/s//${SUBDOCUMENT_CONTENT_ESC}/g" \
                     -e 's/\{\{[ ]*subdocuments[ ]*\}\}//g')
                 # template tags
                 if [[ "${DOCUMENT_Type}" == "archive-json" ]] && [[ "${J}" -eq $((NUM_SUBDOCUMENTS - 1)) ]]; then
@@ -3927,8 +3926,8 @@ function marsh_build_document {  # marsh_build_document dest_dir target_dir docu
 }
 
 # builds a target, parallel if possible
-function marsh_build_target {  # marsh_build_target dest_dir target jobs advanced_nav templates_dir template markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links #template_overrides[@] template_overrides[@] skip_template_assets template_assets_path
-    local DEST_DIR TARGET JOBS ADVANCED_NAV TEMPLATES_DIR TEMPLATE
+function marsh_build_target {  # marsh_build_target dest_dir target jobs sitemap templates_dir template markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links #template_overrides[@] template_overrides[@] skip_template_assets template_assets_path
+    local DEST_DIR TARGET JOBS SITEMAP TEMPLATES_DIR TEMPLATE
     local MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_FILEEXT_REGEX MARKDOWN_REWRITE_LINKS
     local NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDES SKIP_TEMPLATE_ASSETS TEMPLATE_ASSETS_PATH
     local TARGET_DIR TEMPLATE_PREFIX DOCUMENTS_LIST DOCUMENTS DOCUMENTS_DIR DOCUMENTS_FIND_ARGS FILTERED_DOCUMENTS DOCUMENT
@@ -3943,7 +3942,7 @@ function marsh_build_target {  # marsh_build_target dest_dir target jobs advance
     TARGET_DIR="${TARGET_DIR:-.}"
     TARGET="${TARGET:-*}"
     JOBS="${3:-1}"
-    ADVANCED_NAV="${4:-}"
+    SITEMAP="${4:-}"
     TEMPLATES_DIR="${5:-}"
     TEMPLATE="${6:-}"
     MARKDOWN_COMMAND="${7:-}"
@@ -4013,7 +4012,7 @@ function marsh_build_target {  # marsh_build_target dest_dir target jobs advance
         fi
         if [[ "${TEMPLATES_DIR}" != "" ]] && [[ "${TEMPLATE}" != "" ]]; then
             export -f marsh_build_template
-            if ! "${PARALLEL}" --halt now,fail=1 --quote --no-notice --env marsh_text_transform --env marsh_process_markdown --env marsh_build_template --jobs="${JOBS:-1}" "${SELF_DIR}/${SELF_NAME}" build-template --markdown="${PARALLEL_MARKDOWN}" --markdown-options="${MARKDOWN_OPTIONS_CSV}" --markdown-file-extensions="${MARKDOWN_FILEEXT_CSV}" --markdown-rewrite-links="${MARKDOWN_REWRITE_LINKS}" --marsh-uid="${MARSH_UID}" --marsh-temp="${MARSH_TEMP}" --marsh-config-file="${MARSH_CONFIG_FILE}" --marsh-config-file-dir="${MARSH_CONFIG_FILE_DIR}" --marsh-config-path="${MARSH_CONFIG_PATH}" --marsh-config-url="${MARSH_CONFIG_URL}" "${DEST_DIR}" "${TARGET_DIR}" {} "${ADVANCED_NAV}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_ASSETS_PATH}" ::: "${DOCUMENTS[@]}"; then
+            if ! "${PARALLEL}" --halt now,fail=1 --quote --no-notice --env marsh_text_transform --env marsh_process_markdown --env marsh_build_template --jobs="${JOBS:-1}" "${SELF_DIR}/${SELF_NAME}" build-template --markdown="${PARALLEL_MARKDOWN}" --markdown-options="${MARKDOWN_OPTIONS_CSV}" --markdown-file-extensions="${MARKDOWN_FILEEXT_CSV}" --markdown-rewrite-links="${MARKDOWN_REWRITE_LINKS}" --marsh-uid="${MARSH_UID}" --marsh-temp="${MARSH_TEMP}" --marsh-config-file="${MARSH_CONFIG_FILE}" --marsh-config-file-dir="${MARSH_CONFIG_FILE_DIR}" --marsh-config-path="${MARSH_CONFIG_PATH}" --marsh-config-url="${MARSH_CONFIG_URL}" "${DEST_DIR}" "${TARGET_DIR}" {} "${SITEMAP}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_ASSETS_PATH}" ::: "${DOCUMENTS[@]}"; then
                 echo "Unable to build template: ${TEMPLATE}" >&2
                 return 1
             fi
@@ -4026,7 +4025,7 @@ function marsh_build_target {  # marsh_build_target dest_dir target jobs advance
                 return 1
             fi
             if [[ "${TEMPLATES_DIR}" != "" ]] && [[ "${TEMPLATE}" != "" ]]; then
-                if ! marsh_build_template "${DEST_DIR}" "${TARGET_DIR}" "${DOCUMENT}" "${ADVANCED_NAV}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_FILEEXT_CSV}" "${MARKDOWN_REWRITE_LINKS}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_ASSETS_PATH}"; then
+                if ! marsh_build_template "${DEST_DIR}" "${TARGET_DIR}" "${DOCUMENT}" "${SITEMAP}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_FILEEXT_CSV}" "${MARKDOWN_REWRITE_LINKS}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_ASSETS_PATH}"; then
                     echo "Unable to build template: ${TEMPLATE}" >&2
                     return 1
                 fi
@@ -4063,7 +4062,7 @@ function marsh_cli {
     local GENERATED_ARCHIVES GENERATED_ARCHIVE
     local TARGET_ARCHIVE_TYPES TARGET_ARCHIVE_EXCLUDED_STATES TARGET_ARCHIVE_MANIFEST
     local TARGET_ARCHIVE_TEMPLATE TARGET_ARCHIVE_TEMPLATE_SOURCE TARGET_ARCHIVE_TEMPLATE_ASSETS_PATH TARGET_ARCHIVE_TEMPLATE_OVERRIDES
-    local BUILD_DEST_DIR BUILD_TARGET_DIR BUILD_DOCUMENT BUILD_ADVANCED_NAV
+    local BUILD_DEST_DIR BUILD_TARGET_DIR BUILD_DOCUMENT BUILD_SITEMAP
     local BUILD_TEMPLATES_DIR BUILD_TEMPLATE BUILD_NUM_TEMPLATE_OVERRIDES BUILD_TEMPLATE_OVERRIDES BUILD_TEMPLATE_ASSETS_PATH
     local BUILD_TEMPLATE_OVERRIDE_INDEX
 
@@ -4378,7 +4377,7 @@ function marsh_cli {
     BUILD_DEST_DIR="${1:-}"
     BUILD_TARGET_DIR="${2:-}"
     BUILD_DOCUMENT="${3:-}"
-    BUILD_ADVANCED_NAV="${4:-}"
+    BUILD_SITEMAP="${4:-}"
     BUILD_TEMPLATES_DIR="${5:-}"
     BUILD_TEMPLATE="${6:-}"
     BUILD_NUM_TEMPLATE_OVERRIDES="${7:-0}"
@@ -4543,10 +4542,10 @@ function marsh_cli {
                         "${TARGET_FORCE}" || die_gracefully
             fi
 
-            # build advanced navigation
-            if [[ "${TARGET_NAV}" != "" ]]; then
-                marsh_build_advanced_nav "${MARSH_CONFIG_PATH}/${TARGET_PATH}" \
-                                "${TARGET_NAV}" \
+            # build sitemap
+            if [[ "${TARGET_SITEMAP}" != "" ]]; then
+                marsh_build_sitemap "${MARSH_CONFIG_PATH}/${TARGET_PATH}" \
+                                "${TARGET_SITEMAP}" \
                                 "${MARKDOWN_COMMAND}" \
                                 "${MARKDOWN_OPTIONS_CSV}" \
                                 "${MARKDOWN_FILEEXT_CSV}" \
@@ -4557,7 +4556,7 @@ function marsh_cli {
             marsh_build_target "${MARSH_CONFIG_PATH}" \
                         "${TARGET_PATH}" \
                         "${JOBS}" \
-                        "${TARGET_NAV}" \
+                        "${TARGET_SITEMAP}" \
                         "${TEMPLATES_DIR}" \
                         "${TARGET_TEMPLATE:-}" \
                         "${MARKDOWN_COMMAND}" \
@@ -4692,7 +4691,7 @@ function marsh_cli {
         marsh_build_document "${BUILD_DEST_DIR}" "${BUILD_TARGET_DIR}" "${BUILD_DOCUMENT}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_FILEEXT_CSV}" "${MARKDOWN_REWRITE_LINKS}"
     elif [[ "${COMMAND}" == "build-template" ]]; then
         # build template for document
-        marsh_build_template "${BUILD_DEST_DIR}" "${BUILD_TARGET_DIR}" "${BUILD_DOCUMENT}" "${BUILD_ADVANCED_NAV}" "${BUILD_TEMPLATES_DIR}" "${BUILD_TEMPLATE}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_FILEEXT_CSV}" "${MARKDOWN_REWRITE_LINKS}" "${#BUILD_TEMPLATE_OVERRIDES[@]}" "${BUILD_TEMPLATE_OVERRIDES[@]}" "${BUILD_TEMPLATE_ASSETS_PATH}"
+        marsh_build_template "${BUILD_DEST_DIR}" "${BUILD_TARGET_DIR}" "${BUILD_DOCUMENT}" "${BUILD_SITEMAP}" "${BUILD_TEMPLATES_DIR}" "${BUILD_TEMPLATE}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_FILEEXT_CSV}" "${MARKDOWN_REWRITE_LINKS}" "${#BUILD_TEMPLATE_OVERRIDES[@]}" "${BUILD_TEMPLATE_OVERRIDES[@]}" "${BUILD_TEMPLATE_ASSETS_PATH}"
     fi
 
     # done

@@ -185,7 +185,7 @@ function marsh_test_create_minimal_template {
         '...' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/template.yaml" || return 1
     printf '%s\n' '<!DOCTYPE html>'$'\n''<html><head>{{ template.head }}</head><body>{{ template.body }}</body></html>' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/partials/base.html" || return 1
     printf '%s\n' '<title>{{ document.title }}</title>{{ template.assets.styles }}' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/partials/head.html" || return 1
-    printf '%s\n' '{{ document }}' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/partials/body.html" || return 1
+    printf '%s\n' '{{ document.content }}' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/partials/body.html" || return 1
     printf '%s\n' 'body { color: black; }' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/css/site.css" || return 1
     printf '%s\n' 'console.log("sample");' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/js/site.js" || return 1
     printf '%s\n' 'logo' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/images/logo.png" || return 1
@@ -271,7 +271,7 @@ function marsh_test_create_archive_template {
                 '</html>' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/partials/archive-base.html" || return 1
             printf '%s\n' '<meta name="template-head" content="archive" />' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/partials/archive-head.html" || return 1
             printf '%s\n' 'archive-body'$'\n''{{ subdocuments }}' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/partials/archive-body.html" || return 1
-            printf '%s\n' 'archive-document'$'\n''{{ document }}' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/partials/archive-document.html" || return 1
+            printf '%s\n' 'archive-document'$'\n''{{ document.content }}' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/partials/archive-document.html" || return 1
             printf '%s\n' '<header>archive-header</header>' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/partials/archive-header.html" || return 1
             printf '%s\n' '<footer>archive-footer</footer>' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/partials/archive-footer.html" || return 1
             printf '%s\n' '<nav>archive-nav</nav>' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/partials/archive-nav.html" || return 1
@@ -302,7 +302,7 @@ function marsh_test_create_archive_template {
             '</html>' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/partials/base.html" || return 1
         printf '%s\n' '<meta name="template-head" content="fallback" />' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/partials/head.html" || return 1
         printf '%s\n' 'target-body'$'\n''{{ subdocuments }}' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/partials/body.html" || return 1
-        printf '%s\n' 'target-document'$'\n''{{ document }}' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/partials/document.html" || return 1
+        printf '%s\n' 'target-document'$'\n''{{ document.content }}' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/partials/document.html" || return 1
         printf '%s\n' '<header>target-header</header>' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/partials/header.html" || return 1
         printf '%s\n' '<footer>target-footer</footer>' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/partials/footer.html" || return 1
         printf '%s\n' '<nav>target-nav</nav>' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/partials/nav.html" || return 1
@@ -782,7 +782,7 @@ function marsh_test {
             marsh_test_set_env "${MARSH_UID:-targetuid}" true false
             mkdir -p "${TARGET_DIR}/about"
             marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
-            printf '%s\n' '{{ template.assets.styles }}'$'\n''{{ template.assets.scripts }}'$'\n''{{ document }}' > "${TEMPLATE_DIR}/sample/partials/body.html"
+            printf '%s\n' '{{ template.assets.styles }}'$'\n''{{ template.assets.scripts }}'$'\n''{{ document.content }}' > "${TEMPLATE_DIR}/sample/partials/body.html"
             printf '%s\n' '---'$'\n''Title: Home'$'\n''...'$'\n'''$'\n''# Example' > "${TARGET_DIR}/index.markdown"
             printf '%s\n' '---'$'\n''Title: About'$'\n''...'$'\n'''$'\n''# About' > "${TARGET_DIR}/about/index.markdown"
             marsh_build_target "${TARGET_DIR}" "./index.markdown" "1" "" "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
@@ -830,7 +830,7 @@ function marsh_test {
             marsh_test_set_env "${MARSH_UID:-targetuid}" true false
             mkdir -p "${TARGET_DIR}"
             marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
-            printf '%s\n' '{{ template.assets.styles }}'$'\n''{{ template.assets.scripts }}'$'\n''{{ document }}' > "${TEMPLATE_DIR}/sample/partials/body.html"
+            printf '%s\n' '{{ template.assets.styles }}'$'\n''{{ template.assets.scripts }}'$'\n''{{ document.content }}' > "${TEMPLATE_DIR}/sample/partials/body.html"
             printf '%s\n' '---'$'\n''Title: Example'$'\n''...'$'\n'''$'\n''# Example' > "${TARGET_DIR}/index.markdown"
             marsh_build_target "${TARGET_DIR}" "./index.markdown" "1" "" "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 false "assets/site" >/dev/null 2>&1
             ACTUAL=$?
@@ -1097,7 +1097,7 @@ function marsh_test {
                 '<title>{{ document.project }} - {{ document.title }}</title>' \
                 '{% endif %}' \
                 '</head><body>{{ template.body }}</body></html>' > "${TEMPLATE_DIR}/sample/partials/base.html"
-            printf '%s\n' '{{ document }}' > "${TEMPLATE_DIR}/sample/partials/body.html"
+            printf '%s\n' '{{ document.content }}' > "${TEMPLATE_DIR}/sample/partials/body.html"
             printf '%s\n' '<p>Home</p>' > "${TARGET_DIR}/index.markdown.${MARSH_UID}.document"
             printf '%s\n' \
                 '---' \
@@ -1935,14 +1935,14 @@ function marsh_test {
             marsh_test_restore_env
             ;;
         marsh_build_template:17)
-            TEST_NAME+=":navigation_transforms"
+            TEST_NAME+=":sitemap_transforms"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
             marsh_test_set_env "navtransformuid" true true
             mkdir -p "${TARGET_DIR}" "${TEMPLATE_DIR}/sample/partials"
             marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
-            printf '%s\n' '{{ navigation | headings:shift }}' > "${TEMPLATE_DIR}/sample/partials/body.html"
-            printf '%s\n' '<h1><a href="./site-map.html">Site Map</a></h1>' > "${TARGET_DIR}/nav.markdown.${MARSH_UID}.advanced-nav.html"
+            printf '%s\n' '{{ target.sitemap | headings:shift }}' > "${TEMPLATE_DIR}/sample/partials/body.html"
+            printf '%s\n' '<h1><a href="./site-map.html">Site Map</a></h1>' > "${TARGET_DIR}/nav.markdown.${MARSH_UID}.sitemap.html"
             printf '%s\n' 'Example' > "${TARGET_DIR}/index.markdown.${MARSH_UID}.document"
             printf '%s\n' '---'$'\n''Title: Example'$'\n''...' > "${TARGET_DIR}/index.markdown.${MARSH_UID}.meta.yaml"
             marsh_build_template "${TARGET_DIR}" "." "index.markdown" "nav.markdown" "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
@@ -1954,7 +1954,7 @@ function marsh_test {
                 ASSERTION="not-contains"
                 EXPECTED='<h1><a href="./site-map.html">Site Map</a></h1>'
                 if ! printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
-                    EXPECTED='{{ navigation | headings:shift }}'
+                    EXPECTED='{{ target.sitemap | headings:shift }}'
                     if ! printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
                         RES="[PASS]"
                     fi
@@ -2065,7 +2065,7 @@ function marsh_test {
             marsh_test_set_env "cleantest" false false
             mkdir -p "${TARGET_DIR}/nested/deeper"
             : > "${TARGET_DIR}/nested/article.markdown"
-            : > "${TARGET_DIR}/nested/deeper/nav.${MARSH_UID}.advanced-nav.html"
+            : > "${TARGET_DIR}/nested/deeper/nav.${MARSH_UID}.sitemap.html"
             : > "${TARGET_DIR}/nested/deeper/keep.png"
             marsh_clean_target "${TARGET_DIR}" "markdown,md"
             ACTUAL=$?
@@ -2074,7 +2074,7 @@ function marsh_test {
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 {
                     [[ ! -e "${TARGET_DIR}/nested/article.markdown" ]] \
-                        && [[ ! -e "${TARGET_DIR}/nested/deeper/nav.${MARSH_UID}.advanced-nav.html" ]] \
+                        && [[ ! -e "${TARGET_DIR}/nested/deeper/nav.${MARSH_UID}.sitemap.html" ]] \
                         && [[ -e "${TARGET_DIR}/nested/deeper/keep.png" ]]
                 }
                 ACTUAL=$?
@@ -2224,14 +2224,14 @@ function marsh_test {
             fi
             rm -f "${SOURCE_FILE}" "${META_FILE}" "${CONTENT_FILE}"
             ;;
-        marsh_find_advanced_nav:0)
+        marsh_find_sitemap:0)
             TEST_NAME+=":same_dir"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
             marsh_test_set_env "navtest" false false
             mkdir -p "${TARGET_DIR}/news"
-            : > "${TARGET_DIR}/news/nav.html.${MARSH_UID}.advanced-nav.html"
-            ACTUAL=$(marsh_find_advanced_nav "${TARGET_DIR}" "news/article.markdown" "nav.html")
-            EXPECTED="news/nav.html.${MARSH_UID}.advanced-nav.html"
+            : > "${TARGET_DIR}/news/nav.html.${MARSH_UID}.sitemap.html"
+            ACTUAL=$(marsh_find_sitemap "${TARGET_DIR}" "news/article.markdown" "nav.html")
+            EXPECTED="news/nav.html.${MARSH_UID}.sitemap.html"
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -2239,14 +2239,14 @@ function marsh_test {
             rm -rf "${TARGET_DIR}"
             marsh_test_restore_env
             ;;
-        marsh_find_advanced_nav:1)
+        marsh_find_sitemap:1)
             TEST_NAME+=":parent_dir"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
             marsh_test_set_env "navtest" false false
             mkdir -p "${TARGET_DIR}/news/world"
-            : > "${TARGET_DIR}/nav.html.${MARSH_UID}.advanced-nav.html"
-            ACTUAL=$(marsh_find_advanced_nav "${TARGET_DIR}" "news/world/article.markdown" "nav.html")
-            EXPECTED="nav.html.${MARSH_UID}.advanced-nav.html"
+            : > "${TARGET_DIR}/nav.html.${MARSH_UID}.sitemap.html"
+            ACTUAL=$(marsh_find_sitemap "${TARGET_DIR}" "news/world/article.markdown" "nav.html")
+            EXPECTED="nav.html.${MARSH_UID}.sitemap.html"
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -2254,12 +2254,12 @@ function marsh_test {
             rm -rf "${TARGET_DIR}"
             marsh_test_restore_env
             ;;
-        marsh_find_advanced_nav:2)
+        marsh_find_sitemap:2)
             TEST_NAME+=":missing"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
             marsh_test_set_env "navtest" false false
             mkdir -p "${TARGET_DIR}/news"
-            marsh_find_advanced_nav "${TARGET_DIR}" "news/article.markdown" "nav.html" 2>/dev/null
+            marsh_find_sitemap "${TARGET_DIR}" "news/article.markdown" "nav.html" 2>/dev/null
             ACTUAL=$?
             EXPECTED=1
             ASSERTION="equals"
@@ -2640,7 +2640,7 @@ function marsh_test {
             MARSH_TEST_TARGET_Source="source"
             MARSH_TEST_TARGET_Type="page"
             MARSH_TEST_TARGET_Force="true"
-            MARSH_TEST_TARGET_Navigation="nav.markdown"
+            MARSH_TEST_TARGET_Sitemap="nav.markdown"
             MARSH_TEST_TARGET_Template_Source="templates/default"
             MARSH_TEST_TARGET_Template_Assets_Path="assets/site"
             MARSH_TEST_TARGET_Template_Overrides_0="foo=foo"
@@ -2667,7 +2667,7 @@ function marsh_test {
                 'TARGET_PATH="/site/output"' \
                 'TARGET_NAME="Main Site"' \
                 'TARGET_SOURCE="source"' \
-                'TARGET_NAV="nav.markdown"' \
+                'TARGET_SITEMAP="nav.markdown"' \
                 'TARGET_FORCE="true"' \
                 'TARGET_TEMPLATE_SOURCE="templates/default"' \
                 'TARGET_TEMPLATE_ASSETS_PATH="assets/site"' \
@@ -2710,7 +2710,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             unset MARSH_TEST_TARGET_Path MARSH_TEST_TARGET_Name MARSH_TEST_TARGET_Source MARSH_TEST_TARGET_Type
-            unset MARSH_TEST_TARGET_Force MARSH_TEST_TARGET_Navigation MARSH_TEST_TARGET_Template_Source
+            unset MARSH_TEST_TARGET_Force MARSH_TEST_TARGET_Sitemap MARSH_TEST_TARGET_Template_Source
             unset MARSH_TEST_TARGET_Template_Assets_Path
             unset MARSH_TEST_TARGET_Template_Overrides_0 MARSH_TEST_TARGET_Template_Overrides_1
             unset MARSH_TEST_TARGET_Archives_0_Path MARSH_TEST_TARGET_Archives_0_Encoding MARSH_TEST_TARGET_Archives_0_Name
@@ -3177,6 +3177,15 @@ function marsh_test {
             ;;
         marsh_resolve_tag_metadata:4)
             TEST_NAME+=":generated"
+            ACTUAL=$(marsh_resolve_tag_metadata "target.sitemap" "DOCUMENT_")
+            EXPECTED='TAG_VAR=TARGET_SITEMAP'$'\n''TAG_TYPE=string'
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_resolve_tag_metadata:5)
+            TEST_NAME+=":generated"
             ACTUAL=$(marsh_resolve_tag_metadata "archive.rootpath" "DOCUMENT_")
             EXPECTED='TAG_VAR=ARCHIVE_ROOTPATH'$'\n''TAG_TYPE=string'
             ASSERTION="equals"
@@ -3184,7 +3193,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_resolve_tag_metadata:5)
+        marsh_resolve_tag_metadata:6)
             TEST_NAME+=":generated"
             ACTUAL=$(marsh_resolve_tag_metadata "archive.abspath" "DOCUMENT_")
             EXPECTED='TAG_VAR=ARCHIVE_ABSPATH'$'\n''TAG_TYPE=string'
@@ -3193,7 +3202,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_resolve_tag_metadata:6)
+        marsh_resolve_tag_metadata:7)
             TEST_NAME+=":generated"
             ACTUAL=$(marsh_resolve_tag_metadata "document.href" "DOCUMENT_")
             EXPECTED='TAG_VAR=DOCUMENT_HREF'$'\n''TAG_TYPE=string'
@@ -3202,7 +3211,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_resolve_tag_metadata:7)
+        marsh_resolve_tag_metadata:8)
             TEST_NAME+=":generated"
             ACTUAL=$(marsh_resolve_tag_metadata "document.uri" "DOCUMENT_")
             EXPECTED='TAG_VAR=DOCUMENT_URI'$'\n''TAG_TYPE=string'
@@ -3211,7 +3220,16 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_resolve_tag_metadata:8)
+        marsh_resolve_tag_metadata:9)
+            TEST_NAME+=":generated"
+            ACTUAL=$(marsh_resolve_tag_metadata "document.content" "DOCUMENT_")
+            EXPECTED='TAG_VAR=DOCUMENT_CONTENT'$'\n''TAG_TYPE=file'
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_resolve_tag_metadata:10)
             TEST_NAME+=":generated"
             ACTUAL=$(marsh_resolve_tag_metadata "document.page-next-href" "DOCUMENT_" "DOCUMENT_Page_Next_Href")
             EXPECTED='TAG_VAR=DOCUMENT_Page_Next_Href'$'\n''TAG_TYPE=string'
@@ -3220,7 +3238,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_resolve_tag_metadata:9)
+        marsh_resolve_tag_metadata:11)
             TEST_NAME+=":known"
             ACTUAL=$(marsh_resolve_tag_metadata "document.title" "DOCUMENT_")
             EXPECTED='TAG_VAR=DOCUMENT_Title'$'\n''TAG_TYPE=string'
@@ -3229,7 +3247,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_resolve_tag_metadata:10)
+        marsh_resolve_tag_metadata:12)
             TEST_NAME+=":known"
             ACTUAL=$(marsh_resolve_tag_metadata "document.project-version" "DOCUMENT_" "DOCUMENT_Title"$'\n'"DOCUMENT_Project_Version")
             EXPECTED='TAG_VAR=DOCUMENT_Project_Version'$'\n''TAG_TYPE=string'
@@ -3238,7 +3256,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_resolve_tag_metadata:11)
+        marsh_resolve_tag_metadata:13)
             TEST_NAME+=":known"
             ACTUAL=$(marsh_resolve_tag_metadata "document.authors" "SUBDOCUMENT_")
             EXPECTED='TAG_VAR=SUBDOCUMENT_Authors_'$'\n''TAG_TYPE=array'
@@ -3247,7 +3265,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_resolve_tag_metadata:12)
+        marsh_resolve_tag_metadata:14)
             TEST_NAME+=":custom"
             ACTUAL=$(marsh_resolve_tag_metadata "document.custom-thing" "DOCUMENT_" "DOCUMENT_Custom_Thing")
             EXPECTED='TAG_VAR=DOCUMENT_Custom_Thing'$'\n''TAG_TYPE=string'
@@ -3256,7 +3274,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_resolve_tag_metadata:13)
+        marsh_resolve_tag_metadata:15)
             TEST_NAME+=":nonexistent"
             marsh_resolve_tag_metadata "document.foo" "DOCUMENT_" 2>/dev/null
             ACTUAL=$?
@@ -3266,7 +3284,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_resolve_tag_metadata:14)
+        marsh_resolve_tag_metadata:16)
             TEST_NAME+=":ambiguous"
             marsh_resolve_tag_metadata "document.foo-bar" "DOCUMENT_" "DOCUMENT_Foo_Bar"$'\n'"DOCUMENT_FOO_BAR" 2>/dev/null
             ACTUAL=$?

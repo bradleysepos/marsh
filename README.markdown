@@ -418,8 +418,10 @@ Generated metadata is created by `marsh` itself. The names of these template tag
 - `site.abspath`: Absolute path or URL for the site root.
 - `target.rootpath`: Relative link from the current rendered page to the target root.
 - `target.abspath`: Absolute path or URL for the target root.
+- `target.sitemap`: Rendered sitemap markup for the current target. Empty where no sitemap document is configured or found.
 - `archive.rootpath`: Relative link from the current archive page to the archive root directory. Empty for non-archive pages.
 - `archive.abspath`: Absolute path or URL for the archive root directory. Empty for non-archive pages.
+- `document.content`: Rendered content for the current page itself, or for archive pages, the embedded archive subdocument content.
 - `document.href`: Relative link from the current rendered page to the current page itself, or for archive pages, the embedded archive subdocument.
 - `document.uri`: Absolute path or URL for the current rendered page or archive subdocument. For directory-style page paths ending in `index.html`, `document.uri` is normalized to the directory form, e.g., `/news/index.html` becomes `/news/`.
 - `document.page-uri`: Absolute path or URL for the current archive page.
@@ -435,7 +437,7 @@ Generated metadata is created by `marsh` itself. The names of these template tag
 - `document.page-next-href`: Relative link to the next archive page.
 - `document.page-last-href`: Relative link to the last archive page.
 
-Generated metadata tags are useful for rendering calculated paths, links, and archive navigation. In general, use the `*-href` forms for HTML links inside rendered pages, and use the `*-uri` forms for canonical metadata, embedding in syndication feeds, and wherever absolute references are most appropriate.
+Generated metadata tags are useful for rendering calculated paths, links, archive navigation, and embedded sitemap navigation. In general, use the `*-href` forms for HTML links inside rendered pages, and use the `*-uri` forms for canonical metadata, embedding in syndication feeds, and wherever absolute references are most appropriate.
 
 #### Recognized document metadata tags
 
@@ -529,7 +531,7 @@ Examples:
 {{ document.title | trim | slug }}
 {{ document.date | date:rfc3339 }}
 {{ document.authors | items:join-type:oxford }}
-{{ document | excerpt:300:2 }}
+{{ document.content | excerpt:300:2 }}
 {{ template.assets.scripts | items:wrap-type:html-script-src }}
 ```
 
@@ -545,7 +547,7 @@ These features are useful when you want to:
 
 - Split a template into logical, modular components for ease of management and reuse
 - Add stylesheets, scripts, fonts, images, or other assets to a template
-- Embed a table of contents document on other pages for use as an advanced navigation section
+- Embed a sitemap document on other pages for use as a reusable navigation section
 - Customize an existing template using override files, instead of creating a new template from scratch
 - Render specific archives using different templates and overrides
 - Select specific document types or exclude specific document states from generated archives
@@ -673,7 +675,7 @@ The following example partial:
 </head>
 <body>
     <img class="logo" src="{{ site.rootpath }}images/logo.png" />
-    {{ document }}
+    {{ document.content }}
     {{ template.assets.scripts | items:wrap-type:html-script-src }}
 </body>
 </html>
@@ -695,11 +697,11 @@ Combined with the template configuration with assets above, this example partial
 </html>
 ```
 
-### Advanced navigation
+### Sitemap
 
-Targets may define a `Navigation` source document in the site build configuration that `marsh` builds and makes available to templates using the tag `{{ navigation }}`. Marsh rewrites relative link paths in the advanced navigation to work consistently across all pages where it is used.
+Targets may define a `Sitemap` source document in the site build configuration that `marsh` builds and makes available to templates using the tag `{{ target.sitemap }}`. Marsh rewrites relative link paths in the sitemap to work consistently across all pages where it is used.
 
-Advanced navigation is useful when you want a navigation structure to be derived from a source document and made reusable across multiple pages in the same target.
+The sitemap feature is useful when you want a navigation structure to be derived from a source document and made reusable across multiple pages in the same target.
 
 ### Template overrides
 

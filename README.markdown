@@ -416,8 +416,10 @@ Generated metadata is created by `marsh` itself. The names of these template tag
 
 - `site.rootpath`: Relative link from the current rendered page to the site root.
 - `site.abspath`: Absolute path or URL for the site root.
-- `base.rootpath`: Relative link from the current rendered page to the target root.
-- `base.abspath`: Absolute path or URL for the directory containing the current rendered page.
+- `target.rootpath`: Relative link from the current rendered page to the target root.
+- `target.abspath`: Absolute path or URL for the target root.
+- `archive.rootpath`: Relative link from the current archive page to the archive root directory. Empty for non-archive pages.
+- `archive.abspath`: Absolute path or URL for the archive root directory. Empty for non-archive pages.
 - `document.href`: Relative link from the current rendered page to the current page itself, or for archive pages, the embedded archive subdocument.
 - `document.uri`: Absolute path or URL for the current rendered page or archive subdocument. For directory-style page paths ending in `index.html`, `document.uri` is normalized to the directory form, e.g., `/news/index.html` becomes `/news/`.
 - `document.page-uri`: Absolute path or URL for the current archive page.
@@ -765,20 +767,28 @@ Build:
       Archives:
         - Name: Latest News
           Path: index.markdown
+          Root_Path: .
           Encoding: html
+          Types: [ news ]
+          Exclude_States: [ draft ]
           Template:
             Source: templates/archive-html
             Overrides:
               - templates/archive-html/custom.yaml
         - Name: News Feed
           Path: feed.xml
+          Root_Path: .
           Encoding: atom
+          Types: [ news ]
+          Exclude_States: [ draft ]
 ...
 ```
 
 In this example, the `Latest News` HTML archive uses its own archive template and override file separate from the target template.
 
 Where an archive does not specify its own template, like the `News Feed` Atom syndication feed in this example, `marsh` uses the target template.
+
+Values for `archive.rootpath` and `archive.abspath` template tags are derived from related archives as a group. Multiple archives that define the same `Types` and `Excluded_States` are considered related. Individual archives can override this behavior by specifying `Root_Path`. Archive root paths are relative to the target path.
 
 Archive-specific template configuration is useful when you want to:
 

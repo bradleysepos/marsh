@@ -1398,7 +1398,6 @@ function marsh_test {
             TEST_NAME+=":generated_target_tags"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
-            local ROOT_TEST NESTED_TEST
             marsh_test_set_env "basetaguid" true true
             mkdir -p "${TARGET_DIR}/news/2026"
             marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
@@ -1416,12 +1415,10 @@ function marsh_test {
             EXPECTED=0
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                ROOT_TEST=$(<"${TARGET_DIR}/index.html")
-                NESTED_TEST=$(<"${TARGET_DIR}/news/2026/index.html")
-                ACTUAL="${ROOT_TEST}"
+                ACTUAL=$(<"${TARGET_DIR}/index.html")
                 EXPECTED='<!DOCTYPE html>'$'\n''<html><body>target-root=./;target-abs=https://example.test/</body></html>'
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    ACTUAL="${NESTED_TEST}"
+                    ACTUAL=$(<"${TARGET_DIR}/news/2026/index.html")
                     EXPECTED='<!DOCTYPE html>'$'\n''<html><body>target-root=../../;target-abs=https://example.test/</body></html>'
                     if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                         RES="[PASS]"
@@ -1438,7 +1435,8 @@ function marsh_test {
             marsh_test_set_env "sitetaguid" true true
             mkdir -p "${TARGET_DIR}/news"
             marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
-            printf '%s\n' '{{ site.rootpath }}'$'\n''{{ site.abspath }}'$'\n''{{ target.rootpath }}'$'\n''{{ target.abspath }}' > "${TEMPLATE_DIR}/sample/partials/body.html"
+            printf '%s\n' '<!DOCTYPE html>'$'\n''<html><body>{{ template.body }}</body></html>' > "${TEMPLATE_DIR}/sample/partials/base.html"
+            printf '%s\n' 'site-root={{ site.rootpath }};site-abs={{ site.abspath }};target-root={{ target.rootpath }};target-abs={{ target.abspath }}' > "${TEMPLATE_DIR}/sample/partials/body.html"
             printf '%s\n' 'Example' > "${TARGET_DIR}/news/index.markdown.${MARSH_UID}.document"
             printf '%s\n' '---'$'\n''Title: Example'$'\n''...' > "${TARGET_DIR}/news/index.markdown.${MARSH_UID}.meta.yaml"
             marsh_build_template "${TARGET_DIR}" "news" "index.markdown" "" "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
@@ -1447,19 +1445,9 @@ function marsh_test {
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 ACTUAL=$(<"${TARGET_DIR}/news/index.html")
-                ASSERTION="contains"
-                EXPECTED='../'
-                if printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
-                    EXPECTED='https://example.test/'
-                    if printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
-                        EXPECTED='./'
-                        if printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
-                            EXPECTED='https://example.test/news/'
-                            if printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
-                                RES="[PASS]"
-                            fi
-                        fi
-                    fi
+                EXPECTED='<!DOCTYPE html>'$'\n''<html><body>site-root=../;site-abs=https://example.test/;target-root=./;target-abs=https://example.test/news/</body></html>'
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
                 fi
             fi
             rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}"
@@ -1469,11 +1457,11 @@ function marsh_test {
             TEST_NAME+=":generated_document_tags"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
-            local ABOUT_TEST INDEX_TEST
             marsh_test_set_env "doctaguid" true true
             mkdir -p "${TARGET_DIR}/news/2026"
             marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
-            printf '%s\n' '{{ document.href }}'$'\n''{{ document.uri }}' > "${TEMPLATE_DIR}/sample/partials/body.html"
+            printf '%s\n' '<!DOCTYPE html>'$'\n''<html><body>{{ template.body }}</body></html>' > "${TEMPLATE_DIR}/sample/partials/base.html"
+            printf '%s\n' 'document-href={{ document.href }};document-uri={{ document.uri }}' > "${TEMPLATE_DIR}/sample/partials/body.html"
             printf '%s\n' 'Example' > "${TARGET_DIR}/about.markdown.${MARSH_UID}.document"
             printf '%s\n' '---'$'\n''Title: Example'$'\n''...' > "${TARGET_DIR}/about.markdown.${MARSH_UID}.meta.yaml"
             printf '%s\n' 'Example' > "${TARGET_DIR}/news/2026/index.markdown.${MARSH_UID}.document"
@@ -1486,22 +1474,13 @@ function marsh_test {
             EXPECTED=0
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                ABOUT_TEST=$(<"${TARGET_DIR}/about.html")
-                INDEX_TEST=$(<"${TARGET_DIR}/news/2026/index.html")
-                ACTUAL="${ABOUT_TEST}"
-                ASSERTION="contains"
-                EXPECTED='about.html'
-                if printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
-                    EXPECTED='https://example.test/about.html'
-                    if printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
-                        ACTUAL="${INDEX_TEST}"
-                        EXPECTED='./'
-                        if printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
-                            EXPECTED='https://example.test/news/2026/'
-                            if printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
-                                RES="[PASS]"
-                            fi
-                        fi
+                ACTUAL=$(<"${TARGET_DIR}/about.html")
+                EXPECTED='<!DOCTYPE html>'$'\n''<html><body>document-href=about.html;document-uri=https://example.test/about.html</body></html>'
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    ACTUAL=$(<"${TARGET_DIR}/news/2026/index.html")
+                    EXPECTED='<!DOCTYPE html>'$'\n''<html><body>document-href=./;document-uri=https://example.test/news/2026/</body></html>'
+                    if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                        RES="[PASS]"
                     fi
                 fi
             fi
@@ -1990,7 +1969,8 @@ function marsh_test {
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
             marsh_test_set_env "archiveroottaguid" true true
             marsh_test_create_archive_template "${TEMPLATE_DIR}" "sample" "html" true
-            printf '%s\n' '{{ archive.rootpath }}'$'\n''{{ archive.abspath }}' > "${TEMPLATE_DIR}/sample/partials/archive-body.html"
+            printf '%s\n' '<!DOCTYPE html>'$'\n''<html><body>{{ template.body }}</body></html>' > "${TEMPLATE_DIR}/sample/partials/archive-base.html"
+            printf '%s\n' 'archive-root={{ archive.rootpath }};archive-abs={{ archive.abspath }}' > "${TEMPLATE_DIR}/sample/partials/archive-body.html"
             marsh_test_create_archive_document "${TARGET_DIR}" "news/2026/01/02/02-second.markdown" "${MARSH_UID}" "post" "Second" "2026-01-02"
             ACTUAL=$(marsh_build_archive "html" "${TARGET_DIR}" "news/all/index.markdown" "Archive" "English" "en" "" "" "1" "post" "0" "" "news" 2>/dev/null)
             EXPECTED='news/all/index.markdown'
@@ -2007,13 +1987,9 @@ function marsh_test {
                     ASSERTION="equals"
                     if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                         ACTUAL=$(<"${TARGET_DIR}/news/all/index.html")
-                        ASSERTION="contains"
-                        EXPECTED='../'
-                        if printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
-                            EXPECTED='https://example.test/news/'
-                            if printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
-                                RES="[PASS]"
-                            fi
+                        EXPECTED='<!DOCTYPE html>'$'\n''<html><body>archive-root=../;archive-abs=https://example.test/news/</body></html>'
+                        if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                            RES="[PASS]"
                         fi
                     fi
                 fi

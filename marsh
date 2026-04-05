@@ -2574,9 +2574,8 @@ function marsh_get_archive_page_uri {  # marsh_get_archive_page_uri target_dir a
     [[ "${ARCHIVE_SOURCE}" == "" ]] && return 1
 
     TARGET_PATH="${TARGET_DIR#$MARSH_CONFIG_PATH}"
-    TARGET_PATH="${TARGET_PATH#./}"
     TARGET_PATH="${TARGET_PATH#/}"
-    TARGET_PATH="${TARGET_PATH%/.}"
+    TARGET_PATH=$(marsh_normalize_internal_path "${TARGET_PATH}") || return 1
     if [[ "${TARGET_PATH}" == "." ]]; then
         TARGET_PATH=""
     fi
@@ -3461,15 +3460,10 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
     DOCUMENT="${DEST_DIR}/${TARGET_DIR}/${DOCUMENT}"
 
     # normalized document base path
-    DOCUMENT_BASE_PATH="${TARGET_DIR}/${DOCUMENT_DIR}"
-    DOCUMENT_BASE_PATH="${DOCUMENT_BASE_PATH#./}"
-    DOCUMENT_BASE_PATH="${DOCUMENT_BASE_PATH%/.}"
-    DOCUMENT_BASE_PATH="${DOCUMENT_BASE_PATH:-.}"
-    DOCUMENT_BASE_PATH=$(marsh_normalize_path "${DOCUMENT_BASE_PATH}" "directory") || return 1
+    DOCUMENT_BASE_PATH=$(marsh_normalize_internal_path "${TARGET_DIR}/${DOCUMENT_DIR}" "directory") || return 1
 
     # absolute path to document directory
-    DOCUMENT_ABSPATH="${DOCUMENT_BASE_PATH#./}"
-    DOCUMENT_ABSPATH="${DOCUMENT_ABSPATH%/.}"
+    DOCUMENT_ABSPATH=$(marsh_normalize_internal_path "${DOCUMENT_BASE_PATH}") || return 1
     [[ "${DOCUMENT_ABSPATH}" == "." ]] && DOCUMENT_ABSPATH=""
     if [[ "${MARSH_CONFIG_URL:-}" != "" ]]; then
         DOCUMENT_ABSPATH="${MARSH_CONFIG_URL%/}/${DOCUMENT_ABSPATH}"
@@ -3482,8 +3476,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
     # target root path and absolute target path
     TARGET_ROOTPATH=$(marsh_normalize_path "${TARGET_DIR:-.}" "directory") || return 1
     TARGET_ROOTPATH=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "${TARGET_ROOTPATH}") || return 1
-    TARGET_ABSPATH="${TARGET_DIR#./}"
-    TARGET_ABSPATH="${TARGET_ABSPATH%/.}"
+    TARGET_ABSPATH=$(marsh_normalize_internal_path "${TARGET_DIR}") || return 1
     [[ "${TARGET_ABSPATH}" == "." ]] && TARGET_ABSPATH=""
     if [[ "${MARSH_CONFIG_URL:-}" != "" ]]; then
         TARGET_ABSPATH="${MARSH_CONFIG_URL%/}/${TARGET_ABSPATH}"
@@ -3543,9 +3536,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
     ARCHIVE_ROOTPATH="${DOCUMENT_Archive_Root_Href:-}"
     ARCHIVE_ABSPATH=""
     if [[ "${DOCUMENT_Archive_Root_Path:-}" != "" ]]; then
-        ARCHIVE_OUTPUT_PATH="${DOCUMENT_Archive_Root_Path}"
-        ARCHIVE_OUTPUT_PATH="${ARCHIVE_OUTPUT_PATH#./}"
-        ARCHIVE_OUTPUT_PATH="${ARCHIVE_OUTPUT_PATH%/.}"
+        ARCHIVE_OUTPUT_PATH=$(marsh_normalize_internal_path "${DOCUMENT_Archive_Root_Path}") || return 1
         [[ "${ARCHIVE_OUTPUT_PATH}" == "." ]] && ARCHIVE_OUTPUT_PATH=""
         if [[ "${ARCHIVE_OUTPUT_PATH}" != "" ]]; then
             ARCHIVE_ABSPATH="${TARGET_ABSPATH}${ARCHIVE_OUTPUT_PATH}"
@@ -3711,17 +3702,12 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
         if [[ "${SITEMAP_SOURCE}" != "" ]]; then
             SITEMAP=$(marsh_find_sitemap "${DEST_DIR}/${TARGET_DIR}" "${DOCUMENT}" "${SITEMAP_SOURCE}")
             if [[ "${SITEMAP:-}" != "" ]]; then
-                SITEMAP_OUTPUT_PATH="${TARGET_DIR}/${SITEMAP_SOURCE}"
-                SITEMAP_OUTPUT_PATH="${SITEMAP_OUTPUT_PATH#./}"
-                SITEMAP_OUTPUT_PATH="${SITEMAP_OUTPUT_PATH%/.}"
+                SITEMAP_OUTPUT_PATH=$(marsh_normalize_internal_path "${TARGET_DIR}/${SITEMAP_SOURCE}") || return 1
                 if marsh_is_markdown_extension "${SITEMAP_OUTPUT_PATH##*.}" "${MARKDOWN_FILEEXT_CSV}"; then
                     SITEMAP_OUTPUT_PATH="${SITEMAP_OUTPUT_PATH%.*}.html"
                 fi
                 SITEMAP_NAME="${SITEMAP_OUTPUT_PATH##*/}"
-                SITEMAP_DIR="./${SITEMAP_OUTPUT_PATH}"
-                SITEMAP_DIR="${SITEMAP_DIR%/*}"
-                SITEMAP_DIR="${SITEMAP_DIR#./}"
-                SITEMAP_DIR="${SITEMAP_DIR:-.}"
+                SITEMAP_DIR=$(marsh_normalize_internal_path "${SITEMAP_OUTPUT_PATH%/*}") || return 1
                 SITEMAP_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "${SITEMAP_OUTPUT_PATH}") || return 1
                 SITEMAP_TEMP=$(mktemp "${MARSH_TEMP}/sitemap-render-XXXXXX") || return 1
                 cp "${DEST_DIR}/${TARGET_DIR}/${SITEMAP}" "${SITEMAP_TEMP}" || {

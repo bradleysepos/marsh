@@ -2677,6 +2677,19 @@ function marsh_test {
             fi
             marsh_test_restore_env
             ;;
+        marsh_get_archive_page_uri:1)
+            TEST_NAME+=":nested_target"
+            marsh_test_set_env "archiveuriuid" false false
+            MARSH_CONFIG_PATH="/tmp/example-site/public"
+            MARSH_CONFIG_URL="https://example.test/site"
+            ACTUAL=$(marsh_get_archive_page_uri "/tmp/example-site/public/./blog" "news/index.markdown")
+            EXPECTED="https://example.test/site/blog/news/"
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            marsh_test_restore_env
+            ;;
         marsh_get_subdocuments:0)
             TEST_NAME+=":ordered"
             DOCUMENT_FILE="${TEST_TEMP_PREFIX}.document"

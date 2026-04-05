@@ -1480,7 +1480,7 @@ function marsh_extract_frontmatter {  # marsh_extract_frontmatter source meta_de
 # loads cached archive metadata for a document
 function marsh_get_archive_metadata {  # marsh_get_archive_metadata target_dir document
     local TARGET_DIR DOCUMENT
-    local INDEX META DOCUMENT_SOURCE META_PREFIX META_ASSIGNMENTS META_VARS
+    local INDEX META DOCUMENT_SOURCE META_PREFIX META_ASSIGNMENTS META_VARS TARGET_PATH
     local TYPE_VAR TYPE URI ABSPATH STATE VALUE_ESC
 
     # init
@@ -1515,9 +1515,17 @@ function marsh_get_archive_metadata {  # marsh_get_archive_metadata target_dir d
     # reconstruct public paths here so archive generation does not need to repeat it
     TYPE_VAR="${META_PREFIX}Type"
     TYPE="${!TYPE_VAR:-}"
-    URI="${TARGET_DIR#$MARSH_CONFIG_PATH}"
-    URI="${MARSH_CONFIG_URL%/}/${URI#/}/${DOCUMENT_SOURCE}"
+    TARGET_PATH="${TARGET_DIR#$MARSH_CONFIG_PATH}"
+    TARGET_PATH="${TARGET_PATH#/}"
+    TARGET_PATH="${TARGET_PATH:-.}"
+    TARGET_PATH=$(marsh_normalize_internal_path "${TARGET_PATH}") || return 1
+    if [[ "${TARGET_PATH}" == "." ]]; then
+        URI="${MARSH_CONFIG_URL%/}/${DOCUMENT_SOURCE}"
+    else
+        URI="${MARSH_CONFIG_URL%/}/${TARGET_PATH}/${DOCUMENT_SOURCE}"
+    fi
     URI="${URI%.markdown}.html"
+    URI=$(marsh_normalize_path "${URI}" "document") || return 1
     ABSPATH=""
     [[ "${URI}" =~ / ]] && ABSPATH="${URI%/*}"
 
@@ -4011,6 +4019,8 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                 if marsh_is_markdown_extension "${SUBDOCUMENT_OUTPUT_EXT}" "${MARKDOWN_FILEEXT_CSV}"; then
                     SUBDOCUMENT_OUTPUT_PATH="${SUBDOCUMENT_OUTPUT_PATH%.*}.html"
                 fi
+                SUBDOCUMENT_OUTPUT_PATH="${SUBDOCUMENT_OUTPUT_PATH#./}"
+                SUBDOCUMENT_OUTPUT_PATH="${SUBDOCUMENT_OUTPUT_PATH#/}"
                 if [[ "${SUBDOCUMENT_URI:-}" == "" ]]; then
                     if [[ "${MARSH_CONFIG_URL:-}" != "" ]]; then
                         SUBDOCUMENT_URI="${MARSH_CONFIG_URL%/}/${SUBDOCUMENT_OUTPUT_PATH#./}"

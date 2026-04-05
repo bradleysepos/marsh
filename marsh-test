@@ -1524,7 +1524,11 @@ function marsh_test {
                                         if printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
                                             EXPECTED='<a href="../../2026/01/02/02-second.html">Second</a>'
                                             if printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
-                                                RES="[PASS]"
+                                                ASSERTION="not-contains"
+                                                EXPECTED='//news/'
+                                                if ! printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
+                                                    RES="[PASS]"
+                                                fi
                                             fi
                                         fi
                                     fi
@@ -2697,6 +2701,58 @@ function marsh_test {
             EXPECTED=1
             ASSERTION="equals"
             if [[ "${ACTUAL}" -eq "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            rm -rf "${TARGET_DIR}"
+            marsh_test_restore_env
+            ;;
+        marsh_get_archive_metadata:3)
+            TEST_NAME+=":root_target_trailing_slash"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            marsh_test_set_env "archiveuid" false true
+            META_FILE="${TARGET_DIR}/news/article.markdown.${MARSH_UID}.meta.yaml"
+            mkdir -p "${TARGET_DIR}/news"
+            printf '%s\n' \
+                '---' \
+                'Type: post' \
+                'Title: Hello World' \
+                'Date: 2024-01-02' \
+                '...' > "${META_FILE}"
+            ACTUAL=$(marsh_get_archive_metadata "${TARGET_DIR}/" "news/article.markdown.${MARSH_UID}.document")
+            EXPECTED=$(printf '%s\n' \
+                'TYPE=post' \
+                "URI=https://example.test/$(basename "${TARGET_DIR}")/news/article.html" \
+                "ABSPATH=https://example.test/$(basename "${TARGET_DIR}")/news" \
+                'STATE=()')
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            rm -rf "${TARGET_DIR}"
+            marsh_test_restore_env
+            ;;
+        marsh_get_archive_metadata:4)
+            TEST_NAME+=":config_path_root"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            marsh_test_set_env "archiveuid" false false
+            MARSH_CONFIG_PATH="${TARGET_DIR}"
+            MARSH_CONFIG_URL="https://example.test/site"
+            META_FILE="${TARGET_DIR}/news/article.markdown.${MARSH_UID}.meta.yaml"
+            mkdir -p "${TARGET_DIR}/news"
+            printf '%s\n' \
+                '---' \
+                'Type: post' \
+                'Title: Hello World' \
+                'Date: 2024-01-02' \
+                '...' > "${META_FILE}"
+            ACTUAL=$(marsh_get_archive_metadata "${TARGET_DIR}" "news/article.markdown.${MARSH_UID}.document")
+            EXPECTED=$(printf '%s\n' \
+                'TYPE=post' \
+                'URI=https://example.test/site/news/article.html' \
+                'ABSPATH=https://example.test/site/news' \
+                'STATE=()')
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
             rm -rf "${TARGET_DIR}"

@@ -2252,20 +2252,22 @@ function marsh_resolve_template_asset_output_path {  # marsh_resolve_template_as
     printf '%s\n' "${OUTPUT_PATH}"
 }
 
-# copies template assets into the build output, optionally under an output prefix
-function marsh_copy_template_assets {  # marsh_copy_template_assets dest_dir templates_dir template #template_overrides[@] template_overrides[@] template_assets_path
-    local DEST_DIR TEMPLATES_DIR TEMPLATE NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDES TEMPLATE_ASSETS_PATH
+# copies template assets into the build output, resolving output paths relative to the target root
+function marsh_copy_template_assets {  # marsh_copy_template_assets dest_dir target_dir templates_dir template #template_overrides[@] template_overrides[@] template_assets_path
+    local DEST_DIR TARGET_DIR TEMPLATES_DIR TEMPLATE NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDES TEMPLATE_ASSETS_PATH
     local TEMPLATE_PREFIX TEMPLATE_META TEMPLATE_META_VARS TEMPLATE_ASSETS_ALL
     local ASSET ASSET_PATH ASSET_OUTPUT_PATH ASSET_SOURCE ASSET_DEST ASSET_CACHE_DIR ASSET_CACHE_KEY ASSET_CACHE_FILE
 
     # init
     DEST_DIR="${1:-}"
-    TEMPLATES_DIR="${2:-}"
-    TEMPLATE="${3:-}"
+    TARGET_DIR="${2:-}"
+    TEMPLATES_DIR="${3:-}"
+    TEMPLATE="${4:-}"
     [[ "${DEST_DIR}" == "" ]] && return 1
+    [[ "${TARGET_DIR}" == "" ]] && return 1
     [[ "${TEMPLATES_DIR}" == "" ]] && return 1
     [[ "${TEMPLATE}" == "" ]] && return 1
-    shift 3
+    shift 4
     NUM_TEMPLATE_OVERRIDES="${1:-0}"
     shift 1
     TEMPLATE_OVERRIDES=()
@@ -2277,6 +2279,7 @@ function marsh_copy_template_assets {  # marsh_copy_template_assets dest_dir tem
     TEMPLATE_ASSETS_PATH="${1:-}"
 
     DEST_DIR="${DEST_DIR%/}"
+    TARGET_DIR="${TARGET_DIR%/}"
     TEMPLATE_ASSETS_PATH="${TEMPLATE_ASSETS_PATH#./}"
     TEMPLATE_ASSETS_PATH="${TEMPLATE_ASSETS_PATH#/}"
     TEMPLATE_ASSETS_PATH="${TEMPLATE_ASSETS_PATH%/}"
@@ -2309,8 +2312,10 @@ function marsh_copy_template_assets {  # marsh_copy_template_assets dest_dir tem
 
     for ASSET in "${TEMPLATE_ASSETS_ALL[@]}"; do
         ASSET_PATH="${ASSET%\?*}"
-        ASSET_OUTPUT_PATH="${ASSET_PATH}"
-        [[ "${TEMPLATE_ASSETS_PATH}" != "" ]] && ASSET_OUTPUT_PATH="${TEMPLATE_ASSETS_PATH}/${ASSET_PATH}"
+        ASSET_OUTPUT_PATH=$(marsh_resolve_template_asset_output_path "${TARGET_DIR:-.}" "${ASSET_PATH}" "${TEMPLATE_ASSETS_PATH}") || {
+            echo "Invalid template asset output path: ${ASSET_PATH}" >&2
+            return 1
+        }
         ASSET_SOURCE="${TEMPLATES_DIR}/${TEMPLATE}/${ASSET_PATH}"
         ASSET_DEST="${DEST_DIR}/${ASSET_OUTPUT_PATH}"
         [[ -e "${ASSET_SOURCE}" ]] && [[ -r "${ASSET_SOURCE}" ]] || continue
@@ -3472,7 +3477,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
     local TEMPLATE_BASE_FILE TEMPLATE_HEAD_FILE TEMPLATE_BODY_FILE TEMPLATE_DOCUMENT_FILE TEMPLATE_HEADER_FILE TEMPLATE_FOOTER_FILE TEMPLATE_NAV_FILE TEMPLATE_NOTICE_FILE
     local TEMPLATE_BASE_TEMPLATE TEMPLATE_HEAD_TEMPLATE TEMPLATE_BODY_TEMPLATE TEMPLATE_DOCUMENT_TEMPLATE TEMPLATE_HEADER_TEMPLATE TEMPLATE_FOOTER_TEMPLATE
     local TEMPLATE_NAV_TEMPLATE TEMPLATE_NOTICE_TEMPLATE
-    local TEMPLATE_ASSET_TYPES TEMPLATE_ASSET_TYPE ASSET ASSET_PATH ASSET_QUERY ASSET_HREF
+    local TEMPLATE_ASSET_TYPES TEMPLATE_ASSET_TYPE ASSET ASSET_PATH ASSET_OUTPUT_PATH ASSET_QUERY ASSET_HREF
     local TEMPLATE_TAG_ASSETS_FONTS TEMPLATE_TAG_ASSETS_STYLES TEMPLATE_TAG_ASSETS_SCRIPTS TEMPLATE_TAG_ASSETS_IMAGES
     local TEMPLATE_TAG_ASSETS_AUDIO TEMPLATE_TAG_ASSETS_VIDEO TEMPLATE_TAG_ASSETS_DOCUMENTS TEMPLATE_TAG_ASSETS_BINARIES TEMPLATE_TAG_ASSETS_OTHER
     local TEMPLATE_HEAD_ESC TEMPLATE_BODY_ESC TEMPLATE_DOCUMENT_ESC TEMPLATE_HEADER_ESC TEMPLATE_FOOTER_ESC
@@ -3848,8 +3853,8 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                     for ASSET in "${TEMPLATE_ASSETS_FONTS[@]}"; do
                         ASSET_PATH="${ASSET%\?*}"
                         ASSET_QUERY="${ASSET#${ASSET_PATH}}"
-                        [[ "${TEMPLATE_ASSETS_PATH}" != "" ]] && ASSET_PATH="${TEMPLATE_ASSETS_PATH}/${ASSET_PATH}"
-                        ASSET_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "${ASSET_PATH}") || return 1
+                        ASSET_OUTPUT_PATH=$(marsh_resolve_template_asset_output_path "${TARGET_DIR:-.}" "${ASSET_PATH}" "${TEMPLATE_ASSETS_PATH}") || return 1
+                        ASSET_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "${ASSET_OUTPUT_PATH}") || return 1
                         TEMPLATE_TAG_ASSETS_FONTS+=("${ASSET_HREF}${ASSET_QUERY}")
                     done
                     ;;
@@ -3857,8 +3862,8 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                     for ASSET in "${TEMPLATE_ASSETS_STYLES[@]}"; do
                         ASSET_PATH="${ASSET%\?*}"
                         ASSET_QUERY="${ASSET#${ASSET_PATH}}"
-                        [[ "${TEMPLATE_ASSETS_PATH}" != "" ]] && ASSET_PATH="${TEMPLATE_ASSETS_PATH}/${ASSET_PATH}"
-                        ASSET_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "${ASSET_PATH}") || return 1
+                        ASSET_OUTPUT_PATH=$(marsh_resolve_template_asset_output_path "${TARGET_DIR:-.}" "${ASSET_PATH}" "${TEMPLATE_ASSETS_PATH}") || return 1
+                        ASSET_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "${ASSET_OUTPUT_PATH}") || return 1
                         TEMPLATE_TAG_ASSETS_STYLES+=("${ASSET_HREF}${ASSET_QUERY}")
                     done
                     ;;
@@ -3866,8 +3871,8 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                     for ASSET in "${TEMPLATE_ASSETS_SCRIPTS[@]}"; do
                         ASSET_PATH="${ASSET%\?*}"
                         ASSET_QUERY="${ASSET#${ASSET_PATH}}"
-                        [[ "${TEMPLATE_ASSETS_PATH}" != "" ]] && ASSET_PATH="${TEMPLATE_ASSETS_PATH}/${ASSET_PATH}"
-                        ASSET_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "${ASSET_PATH}") || return 1
+                        ASSET_OUTPUT_PATH=$(marsh_resolve_template_asset_output_path "${TARGET_DIR:-.}" "${ASSET_PATH}" "${TEMPLATE_ASSETS_PATH}") || return 1
+                        ASSET_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "${ASSET_OUTPUT_PATH}") || return 1
                         TEMPLATE_TAG_ASSETS_SCRIPTS+=("${ASSET_HREF}${ASSET_QUERY}")
                     done
                     ;;
@@ -3875,8 +3880,8 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                     for ASSET in "${TEMPLATE_ASSETS_IMAGES[@]}"; do
                         ASSET_PATH="${ASSET%\?*}"
                         ASSET_QUERY="${ASSET#${ASSET_PATH}}"
-                        [[ "${TEMPLATE_ASSETS_PATH}" != "" ]] && ASSET_PATH="${TEMPLATE_ASSETS_PATH}/${ASSET_PATH}"
-                        ASSET_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "${ASSET_PATH}") || return 1
+                        ASSET_OUTPUT_PATH=$(marsh_resolve_template_asset_output_path "${TARGET_DIR:-.}" "${ASSET_PATH}" "${TEMPLATE_ASSETS_PATH}") || return 1
+                        ASSET_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "${ASSET_OUTPUT_PATH}") || return 1
                         TEMPLATE_TAG_ASSETS_IMAGES+=("${ASSET_HREF}${ASSET_QUERY}")
                     done
                     ;;
@@ -3884,8 +3889,8 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                     for ASSET in "${TEMPLATE_ASSETS_AUDIO[@]}"; do
                         ASSET_PATH="${ASSET%\?*}"
                         ASSET_QUERY="${ASSET#${ASSET_PATH}}"
-                        [[ "${TEMPLATE_ASSETS_PATH}" != "" ]] && ASSET_PATH="${TEMPLATE_ASSETS_PATH}/${ASSET_PATH}"
-                        ASSET_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "${ASSET_PATH}") || return 1
+                        ASSET_OUTPUT_PATH=$(marsh_resolve_template_asset_output_path "${TARGET_DIR:-.}" "${ASSET_PATH}" "${TEMPLATE_ASSETS_PATH}") || return 1
+                        ASSET_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "${ASSET_OUTPUT_PATH}") || return 1
                         TEMPLATE_TAG_ASSETS_AUDIO+=("${ASSET_HREF}${ASSET_QUERY}")
                     done
                     ;;
@@ -3893,8 +3898,8 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                     for ASSET in "${TEMPLATE_ASSETS_VIDEO[@]}"; do
                         ASSET_PATH="${ASSET%\?*}"
                         ASSET_QUERY="${ASSET#${ASSET_PATH}}"
-                        [[ "${TEMPLATE_ASSETS_PATH}" != "" ]] && ASSET_PATH="${TEMPLATE_ASSETS_PATH}/${ASSET_PATH}"
-                        ASSET_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "${ASSET_PATH}") || return 1
+                        ASSET_OUTPUT_PATH=$(marsh_resolve_template_asset_output_path "${TARGET_DIR:-.}" "${ASSET_PATH}" "${TEMPLATE_ASSETS_PATH}") || return 1
+                        ASSET_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "${ASSET_OUTPUT_PATH}") || return 1
                         TEMPLATE_TAG_ASSETS_VIDEO+=("${ASSET_HREF}${ASSET_QUERY}")
                     done
                     ;;
@@ -3902,8 +3907,8 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                     for ASSET in "${TEMPLATE_ASSETS_DOCUMENTS[@]}"; do
                         ASSET_PATH="${ASSET%\?*}"
                         ASSET_QUERY="${ASSET#${ASSET_PATH}}"
-                        [[ "${TEMPLATE_ASSETS_PATH}" != "" ]] && ASSET_PATH="${TEMPLATE_ASSETS_PATH}/${ASSET_PATH}"
-                        ASSET_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "${ASSET_PATH}") || return 1
+                        ASSET_OUTPUT_PATH=$(marsh_resolve_template_asset_output_path "${TARGET_DIR:-.}" "${ASSET_PATH}" "${TEMPLATE_ASSETS_PATH}") || return 1
+                        ASSET_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "${ASSET_OUTPUT_PATH}") || return 1
                         TEMPLATE_TAG_ASSETS_DOCUMENTS+=("${ASSET_HREF}${ASSET_QUERY}")
                     done
                     ;;
@@ -3911,8 +3916,8 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                     for ASSET in "${TEMPLATE_ASSETS_BINARIES[@]}"; do
                         ASSET_PATH="${ASSET%\?*}"
                         ASSET_QUERY="${ASSET#${ASSET_PATH}}"
-                        [[ "${TEMPLATE_ASSETS_PATH}" != "" ]] && ASSET_PATH="${TEMPLATE_ASSETS_PATH}/${ASSET_PATH}"
-                        ASSET_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "${ASSET_PATH}") || return 1
+                        ASSET_OUTPUT_PATH=$(marsh_resolve_template_asset_output_path "${TARGET_DIR:-.}" "${ASSET_PATH}" "${TEMPLATE_ASSETS_PATH}") || return 1
+                        ASSET_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "${ASSET_OUTPUT_PATH}") || return 1
                         TEMPLATE_TAG_ASSETS_BINARIES+=("${ASSET_HREF}${ASSET_QUERY}")
                     done
                     ;;
@@ -3920,8 +3925,8 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                     for ASSET in "${TEMPLATE_ASSETS_OTHER[@]}"; do
                         ASSET_PATH="${ASSET%\?*}"
                         ASSET_QUERY="${ASSET#${ASSET_PATH}}"
-                        [[ "${TEMPLATE_ASSETS_PATH}" != "" ]] && ASSET_PATH="${TEMPLATE_ASSETS_PATH}/${ASSET_PATH}"
-                        ASSET_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "${ASSET_PATH}") || return 1
+                        ASSET_OUTPUT_PATH=$(marsh_resolve_template_asset_output_path "${TARGET_DIR:-.}" "${ASSET_PATH}" "${TEMPLATE_ASSETS_PATH}") || return 1
+                        ASSET_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "${ASSET_OUTPUT_PATH}") || return 1
                         TEMPLATE_TAG_ASSETS_OTHER+=("${ASSET_HREF}${ASSET_QUERY}")
                     done
                     ;;
@@ -4302,7 +4307,7 @@ function marsh_build_target {  # marsh_build_target dest_dir target jobs sitemap
 
     # copy template assets
     if [[ "${SKIP_TEMPLATE_ASSETS}" != true ]] && [[ "${TEMPLATES_DIR}" != "" ]] && [[ "${TEMPLATE}" != "" ]]; then
-        marsh_copy_template_assets "${DEST_DIR}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_ASSETS_PATH}" || return 1
+        marsh_copy_template_assets "${DEST_DIR}" "${TARGET_DIR}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_ASSETS_PATH}" || return 1
     fi
 
     # build target documents
@@ -4987,6 +4992,7 @@ function marsh_cli {
                                     false || die_gracefully
                         fi
                         marsh_copy_template_assets "${MARSH_CONFIG_PATH}" \
+                            "${TARGET_PATH}" \
                             "${TEMPLATES_DIR}" \
                             "${TARGET_ARCHIVE_TEMPLATE}" \
                             "${#TARGET_ARCHIVE_TEMPLATE_OVERRIDES[@]}" \

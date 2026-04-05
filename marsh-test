@@ -776,7 +776,7 @@ function marsh_test {
             marsh_test_restore_env
             ;;
         marsh_build_target:5)
-            TEST_NAME+=":shared_assets_across_targets"
+            TEST_NAME+=":target_scoped_assets_across_invocations"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
             marsh_test_set_env "${MARSH_UID:-targetuid}" true false
@@ -798,8 +798,8 @@ function marsh_test {
                     {
                         [[ -e "${TARGET_DIR}/css/site.css" ]] \
                             && [[ -e "${TARGET_DIR}/js/site.js" ]] \
-                            && [[ ! -e "${TARGET_DIR}/about/css/site.css" ]] \
-                            && [[ ! -e "${TARGET_DIR}/about/js/site.js" ]]
+                            && [[ -e "${TARGET_DIR}/about/css/site.css" ]] \
+                            && [[ -e "${TARGET_DIR}/about/js/site.js" ]]
                     }
                     ACTUAL=$?
                     EXPECTED=0
@@ -807,11 +807,11 @@ function marsh_test {
                     if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                         ACTUAL=$(<"${TARGET_DIR}/about/index.html")
                         ASSERTION="contains"
-                        EXPECTED='../css/site.css'
+                        EXPECTED='css/site.css'
                         if printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
-                            EXPECTED='../css/print.css'
+                            EXPECTED='css/print.css'
                             if printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
-                                EXPECTED='../js/site.js'
+                                EXPECTED='js/site.js'
                                 if printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
                                     RES="[PASS]"
                                 fi
@@ -1832,9 +1832,9 @@ function marsh_test {
                     if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                         ACTUAL=$(<"${TARGET_DIR}/news/page/1/index.html")
                         ASSERTION="contains"
-                        EXPECTED='<link rel="stylesheet" href="../../../css/site.css" /><link rel="stylesheet" href="../../../css/print.css" />'
+                        EXPECTED='<link rel="stylesheet" href="../../css/site.css" /><link rel="stylesheet" href="../../css/print.css" />'
                         if printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
-                            EXPECTED='<script src="../../../js/site.js"></script><script src="../../../js/feature.js"></script>'
+                            EXPECTED='<script src="../../js/site.js"></script><script src="../../js/feature.js"></script>'
                             if printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
                                 EXPECTED='<entry>Tagged Item</entry>'
                                 if printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
@@ -1894,7 +1894,7 @@ function marsh_test {
             EXPECTED='index.markdown'$'\n''page/1/index.markdown'
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                marsh_copy_template_assets "${TARGET_DIR}" "${TEMPLATE_DIR}" "sample" 0 "assets/archive" >/dev/null 2>&1
+                marsh_copy_template_assets "${TARGET_DIR}" "news" "${TEMPLATE_DIR}" "sample" 0 "assets/archive" >/dev/null 2>&1
                 ACTUAL=$?
                 EXPECTED=0
                 ASSERTION="equals"
@@ -1910,8 +1910,8 @@ function marsh_test {
                         ASSERTION="equals"
                         if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                             {
-                                [[ -e "${TARGET_DIR}/assets/archive/css/site.css" ]] \
-                                    && [[ -e "${TARGET_DIR}/assets/archive/js/site.js" ]]
+                                    [[ -e "${TARGET_DIR}/news/assets/archive/css/site.css" ]] \
+                                        && [[ -e "${TARGET_DIR}/news/assets/archive/js/site.js" ]]
                             }
                             ACTUAL=$?
                             EXPECTED=0
@@ -1919,9 +1919,9 @@ function marsh_test {
                             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                                 ACTUAL=$(<"${TARGET_DIR}/news/page/1/index.html")
                                 ASSERTION="contains"
-                                EXPECTED='<link rel="stylesheet" href="../../../assets/archive/css/site.css" /><link rel="stylesheet" href="../../../assets/archive/css/print.css" />'
+                                    EXPECTED='<link rel="stylesheet" href="../../assets/archive/css/site.css" /><link rel="stylesheet" href="../../assets/archive/css/print.css" />'
                                 if printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
-                                    EXPECTED='<script src="../../../assets/archive/js/site.js"></script><script src="../../../assets/archive/js/feature.js"></script>'
+                                        EXPECTED='<script src="../../assets/archive/js/site.js"></script><script src="../../assets/archive/js/feature.js"></script>'
                                     if printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
                                         RES="[PASS]"
                                     fi
@@ -2129,6 +2129,75 @@ function marsh_test {
                 fi
             fi
             rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}" "${SOURCE_DIR}"
+            marsh_test_restore_env
+            ;;
+        marsh_build_template:22)
+            TEST_NAME+=":target_asset_parent_path_within_site_root"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            marsh_test_set_env "assetparentuid" true true
+            mkdir -p "${TARGET_DIR}/docs/guides"
+            marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
+            printf '%s\n' '{{ template.assets.styles | items:wrap-type:html-style-link }}'$'\n''{{ template.assets.scripts | items:wrap-type:html-script-src }}' > "${TEMPLATE_DIR}/sample/partials/body.html"
+            printf '%s\n' '@media print { body { color: black; } }' > "${TEMPLATE_DIR}/sample/css/print.css"
+            printf '%s\n' 'Example' > "${TARGET_DIR}/docs/guides/index.markdown.${MARSH_UID}.document"
+            printf '%s\n' '---'$'\n''Title: Example'$'\n''...' > "${TARGET_DIR}/docs/guides/index.markdown.${MARSH_UID}.meta.yaml"
+            marsh_copy_template_assets "${TARGET_DIR}" "docs" "${TEMPLATE_DIR}" "sample" 0 "../shared" >/dev/null 2>&1
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                marsh_build_template "${TARGET_DIR}" "docs" "guides/index.markdown" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 "../shared" >/dev/null 2>&1
+                ACTUAL=$?
+                EXPECTED=0
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    {
+                        [[ -e "${TARGET_DIR}/shared/css/site.css" ]] \
+                            && [[ -e "${TARGET_DIR}/shared/js/site.js" ]]
+                    }
+                    ACTUAL=$?
+                    EXPECTED=0
+                    ASSERTION="equals"
+                    if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                        ACTUAL=$(<"${TARGET_DIR}/docs/guides/index.html")
+                        ASSERTION="contains"
+                        EXPECTED='<link rel="stylesheet" href="../../shared/css/site.css" /><link rel="stylesheet" href="../../shared/css/print.css" />'
+                        if printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
+                            EXPECTED='<script src="../../shared/js/site.js"></script>'
+                            if printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
+                                RES="[PASS]"
+                            fi
+                        fi
+                    fi
+                fi
+            fi
+            rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}"
+            marsh_test_restore_env
+            ;;
+        marsh_build_template:23)
+            TEST_NAME+=":target_asset_invalid_parent_path"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            marsh_test_set_env "assetinvaliduid" true true
+            mkdir -p "${TARGET_DIR}/docs/guides"
+            marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
+            printf '%s\n' 'Example' > "${TARGET_DIR}/docs/guides/index.markdown.${MARSH_UID}.document"
+            printf '%s\n' '---'$'\n''Title: Example'$'\n''...' > "${TARGET_DIR}/docs/guides/index.markdown.${MARSH_UID}.meta.yaml"
+            marsh_copy_template_assets "${TARGET_DIR}" "docs" "${TEMPLATE_DIR}" "sample" 0 "../../shared" >/dev/null 2>&1
+            ACTUAL=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                marsh_build_template "${TARGET_DIR}" "docs" "guides/index.markdown" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 "../../shared" >/dev/null 2>&1
+                ACTUAL=$?
+                EXPECTED=1
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}"
             marsh_test_restore_env
             ;;
         marsh_check_dependencies:0)

@@ -4898,7 +4898,7 @@ function marsh_cli {
                         marsh_build_template "${MARSH_CONFIG_PATH}" \
                             "${TARGET_PATH}" \
                             "${GENERATED_ARCHIVE}" \
-                            "" \
+                            "${TARGET_SITEMAP}" \
                             "${TEMPLATES_DIR}" \
                             "${TARGET_ARCHIVE_TEMPLATE:-}" \
                             "${MARKDOWN_COMMAND}" \

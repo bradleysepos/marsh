@@ -1597,9 +1597,9 @@ function marsh_get_archive_manifest {  # marsh_get_archive_manifest target_dir
     return 0
 }
 
-# finds the closest generated sitemap file for a document
+# finds the generated sitemap file for a target
 function marsh_find_sitemap {  # marsh_find_sitemap target_dir document sitemap_file
-    local TARGET_DIR DOCUMENT SITEMAP_FILE DOCUMENT_DIR SEARCH_DIR SITEMAP_PATH
+    local TARGET_DIR DOCUMENT SITEMAP_FILE SITEMAP_PATH
 
     # init
     TARGET_DIR="${1:-}"
@@ -1608,35 +1608,15 @@ function marsh_find_sitemap {  # marsh_find_sitemap target_dir document sitemap_
     [[ "${TARGET_DIR}" == "" ]] && return 1
     [[ "${DOCUMENT}" == "" ]] && return 1
     [[ "${SITEMAP_FILE}" == "" ]] && return 1
+    TARGET_DIR="${TARGET_DIR%/}"
+    TARGET_DIR="${TARGET_DIR%/.}"
+    TARGET_DIR="${TARGET_DIR:-.}"
 
-    # set up document path and search directory
-    if [[ "${DOCUMENT#${TARGET_DIR}/}" != "${DOCUMENT}" ]]; then
-        DOCUMENT="${DOCUMENT#${TARGET_DIR}/}"
+    SITEMAP_PATH=$(marsh_get_sitemap_render_path "${TARGET_DIR}" "${SITEMAP_FILE}") || return 1
+    if [[ -f "${SITEMAP_PATH}" ]] && [[ -r "${SITEMAP_PATH}" ]]; then
+        printf '%s\n' "${SITEMAP_PATH#${TARGET_DIR}/}"
+        return 0
     fi
-    DOCUMENT="${DOCUMENT#./}"
-    DOCUMENT_DIR="./${DOCUMENT}"
-    DOCUMENT_DIR="${DOCUMENT_DIR%/*}"
-    DOCUMENT_DIR="${DOCUMENT_DIR#./}"
-    DOCUMENT_DIR="${DOCUMENT_DIR:-.}"
-    SEARCH_DIR="${DOCUMENT_DIR}"
-
-    # search for sitemap file in document directory and parent directories
-    while true; do
-        SITEMAP_PATH="${SITEMAP_FILE#\./}.${MARSH_UID}.sitemap.html"
-        if [[ "${SEARCH_DIR}" != "." ]]; then
-            SITEMAP_PATH="${SEARCH_DIR}/${SITEMAP_PATH}"
-        fi
-        if [[ -f "${TARGET_DIR}/${SITEMAP_PATH}" ]] && [[ -r "${TARGET_DIR}/${SITEMAP_PATH}" ]]; then
-            printf '%s\n' "${SITEMAP_PATH}"
-            return 0
-        fi
-        [[ "${SEARCH_DIR}" == "." ]] && break
-        if [[ "${SEARCH_DIR}" =~ / ]]; then
-            SEARCH_DIR="${SEARCH_DIR%/*}"
-        else
-            SEARCH_DIR="."
-        fi
-    done
     return 1
 }
 
@@ -1893,7 +1873,7 @@ function marsh_get_template_metadata {  # marsh_get_template_metadata prefix tem
 # loads target metadata into convenience variables
 function marsh_get_target_metadata {  # marsh_get_target_metadata source_prefix prefix
     local SOURCE_PREFIX PREFIX
-    local TARGET_PATH TARGET_NAME TARGET_SOURCE TARGET_FORCE TARGET_SITEMAP
+    local TARGET_PATH TARGET_NAME TARGET_SOURCE TARGET_FORCE TARGET_SITEMAP TARGET_SITEMAP_SOURCE
     local II TEMPLATE_SOURCE TEMPLATE_ASSETS_PATH TEMPLATE_OVERRIDE TEMPLATE_OVERRIDES
     local ARCHIVE ARCHIVE_NAME ARCHIVE_ENCODING ARCHIVE_LANGUAGE ARCHIVE_LANGUAGE_CODE ARCHIVE_ROOT_PATH
     local ARCHIVE_COUNT ARCHIVE_PAGE_SIZE ARCHIVE_CONTENT ARCHIVE_TYPES ARCHIVE_EXCLUDED_STATES
@@ -1911,10 +1891,12 @@ function marsh_get_target_metadata {  # marsh_get_target_metadata source_prefix 
     TARGET_SOURCE="${SOURCE_PREFIX}Source"
     TARGET_FORCE="${SOURCE_PREFIX}Force"
     TARGET_SITEMAP="${SOURCE_PREFIX}Sitemap"
+    TARGET_SITEMAP_SOURCE="${SOURCE_PREFIX}Sitemap_Source"
     [[ "${!TARGET_PATH:-}"   != "" ]] && echo "${PREFIX}PATH=\"${!TARGET_PATH//\"/\\\"}\""
     [[ "${!TARGET_NAME:-}"   != "" ]] && echo "${PREFIX}NAME=\"${!TARGET_NAME//\"/\\\"}\""
     [[ "${!TARGET_SOURCE:-}" != "" ]] && echo "${PREFIX}SOURCE=\"${!TARGET_SOURCE//\"/\\\"}\""
     [[ "${!TARGET_SITEMAP:-}" != "" ]] && echo "${PREFIX}SITEMAP=\"${!TARGET_SITEMAP//\"/\\\"}\""
+    echo "${PREFIX}SITEMAP_SOURCE=\"${!TARGET_SITEMAP_SOURCE//\"/\\\"}\""
     [[ "${!TARGET_FORCE:-}"  != "" ]] && echo "${PREFIX}FORCE=\"${!TARGET_FORCE//\"/\\\"}\""
 
     # template
@@ -1995,6 +1977,127 @@ function marsh_get_target_metadata {  # marsh_get_target_metadata source_prefix 
     done
 
     return 0
+}
+
+# returns the base directory for a target source path
+function marsh_get_source_root_path {  # marsh_get_source_root_path source_path
+    local SOURCE_PATH SOURCE_ROOT
+
+    SOURCE_PATH="${1:-}"
+    [[ "${SOURCE_PATH}" == "" ]] && return 1
+    if [[ -d "${SOURCE_PATH}" ]]; then
+        SOURCE_ROOT="${SOURCE_PATH}"
+    else
+        SOURCE_ROOT="${SOURCE_PATH%/*}"
+        SOURCE_ROOT="${SOURCE_ROOT:-.}"
+    fi
+    [[ -d "${SOURCE_ROOT}" ]] || return 1
+    SOURCE_ROOT=$(cd "${SOURCE_ROOT}" && (pwd -P . 2>/dev/null || command pwd)) || return 1
+    printf '%s\n' "${SOURCE_ROOT}"
+}
+
+# returns the common directory for a list of paths
+function marsh_get_common_directory {  # marsh_get_common_directory paths...
+    local PATHS COMMON_DIR NEXT_DIR
+
+    PATHS=("${@}")
+    [[ "${#PATHS[@]}" -gt 0 ]] || return 1
+    COMMON_DIR="${PATHS[0]%/}"
+    [[ "${COMMON_DIR}" == "" ]] && COMMON_DIR='/'
+    for NEXT_DIR in "${PATHS[@]}"; do
+        NEXT_DIR="${NEXT_DIR%/}"
+        [[ "${NEXT_DIR}" == "" ]] && NEXT_DIR='/'
+        while [[ "${NEXT_DIR}" != "${COMMON_DIR}" ]] && [[ "${NEXT_DIR#${COMMON_DIR}/}" == "${NEXT_DIR}" ]]; do
+            if [[ "${COMMON_DIR}" == '/' ]]; then
+                break
+            fi
+            COMMON_DIR="${COMMON_DIR%/*}"
+            COMMON_DIR="${COMMON_DIR:-/}"
+        done
+    done
+    printf '%s\n' "${COMMON_DIR}"
+}
+
+# returns the common site source root for all configured targets
+function marsh_get_site_source_root_path {  # marsh_get_site_source_root_path config_file_dir
+    local CONFIG_FILE_DIR INDEX PREFIX META META_VARS TARGET_SOURCE_VALUE SOURCE_ROOT
+    local SOURCE_ROOTS
+
+    CONFIG_FILE_DIR="${1:-.}"
+    [[ -d "${CONFIG_FILE_DIR}" ]] || return 1
+    CONFIG_FILE_DIR=$(cd "${CONFIG_FILE_DIR}" && (pwd -P . 2>/dev/null || command pwd)) || return 1
+    SOURCE_ROOTS=()
+    INDEX=0
+    PREFIX="CONFIG_Build_Targets_${INDEX}_"
+    while META=$(marsh_get_target_metadata "${PREFIX}" "TARGET_"); do
+        META_VARS=$(echo "${META}" | marsh_get_variables)
+        eval "$(printf '%s\n' "${META_VARS}" | marsh_get_local_declarations)"
+        eval "${META}"
+        TARGET_SOURCE_VALUE="${TARGET_SOURCE:-}"
+        if [[ "${TARGET_SOURCE_VALUE}" != "" ]]; then
+            if [[ ! "${TARGET_SOURCE_VALUE}" =~ ^/ ]]; then
+                TARGET_SOURCE_VALUE="${CONFIG_FILE_DIR}/${TARGET_SOURCE_VALUE}"
+            fi
+            SOURCE_ROOT=$(marsh_get_source_root_path "${TARGET_SOURCE_VALUE}") || return 1
+            SOURCE_ROOTS+=("${SOURCE_ROOT}")
+        fi
+        INDEX=$((INDEX + 1))
+        PREFIX="CONFIG_Build_Targets_${INDEX}_"
+    done
+    [[ "${#SOURCE_ROOTS[@]}" -gt 0 ]] || return 1
+    marsh_get_common_directory "${SOURCE_ROOTS[@]}"
+}
+
+# returns the intermediate render path for a target sitemap
+function marsh_get_sitemap_render_path {  # marsh_get_sitemap_render_path target_dir sitemap_path
+    local TARGET_DIR SITEMAP_PATH CACHE_KEY
+
+    TARGET_DIR="${1:-}"
+    SITEMAP_PATH="${2:-}"
+    [[ "${TARGET_DIR}" == "" ]] && return 1
+    [[ "${SITEMAP_PATH}" == "" ]] && return 1
+    TARGET_DIR="${TARGET_DIR%/}"
+    TARGET_DIR="${TARGET_DIR%/.}"
+    TARGET_DIR="${TARGET_DIR:-.}"
+    CACHE_KEY=$(printf '%s\034%s\n' "${TARGET_DIR}" "${SITEMAP_PATH}" | marsh_text_transform hash:md5) || return 1
+    printf '%s\n' "${TARGET_DIR}/.marsh-sitemaps/${CACHE_KEY}.${MARSH_UID}.sitemap.html"
+}
+
+# resolves a target sitemap source path against the target source root and validates it stays inside the site source tree
+function marsh_resolve_sitemap_source_path {  # marsh_resolve_sitemap_source_path site_source_root source_root sitemap_path
+    local SITE_SOURCE_ROOT SOURCE_ROOT SITEMAP_PATH RESOLVED_PATH RESOLVED_DIR RESOLVED_NAME
+
+    SITE_SOURCE_ROOT="${1:-}"
+    SOURCE_ROOT="${2:-}"
+    SITEMAP_PATH="${3:-}"
+    [[ "${SITE_SOURCE_ROOT}" == "" ]] && return 1
+    [[ "${SOURCE_ROOT}" == "" ]] && return 1
+    [[ "${SITEMAP_PATH}" == "" ]] && return 1
+    [[ -d "${SITE_SOURCE_ROOT}" ]] || return 1
+    [[ -d "${SOURCE_ROOT}" ]] || return 1
+    SITE_SOURCE_ROOT=$(cd "${SITE_SOURCE_ROOT}" && (pwd -P . 2>/dev/null || command pwd)) || return 1
+    SOURCE_ROOT=$(cd "${SOURCE_ROOT}" && (pwd -P . 2>/dev/null || command pwd)) || return 1
+
+    if [[ "${SITEMAP_PATH}" =~ ^/ ]]; then
+        RESOLVED_PATH="${SITEMAP_PATH}"
+    else
+        RESOLVED_PATH="${SOURCE_ROOT}/${SITEMAP_PATH}"
+    fi
+    RESOLVED_DIR="${RESOLVED_PATH%/*}"
+    RESOLVED_NAME="${RESOLVED_PATH##*/}"
+    RESOLVED_DIR="${RESOLVED_DIR:-.}"
+    [[ -d "${RESOLVED_DIR}" ]] || return 1
+    RESOLVED_DIR=$(cd "${RESOLVED_DIR}" && (pwd -P . 2>/dev/null || command pwd)) || return 1
+    RESOLVED_PATH="${RESOLVED_DIR}/${RESOLVED_NAME}"
+    [[ -f "${RESOLVED_PATH}" ]] && [[ -r "${RESOLVED_PATH}" ]] || return 1
+    case "${RESOLVED_PATH}" in
+        "${SITE_SOURCE_ROOT}"|"${SITE_SOURCE_ROOT}"/*)
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+    printf '%s\n' "${RESOLVED_PATH}"
 }
 
 # copies files from local sources
@@ -2230,6 +2333,115 @@ function marsh_get_relative_path {  # marsh_get_relative_path base_dir target_pa
     fi
 
     printf '%s\n' "${RESULT}"
+}
+
+# resolves a relative path against a base directory path without touching the filesystem
+function marsh_resolve_relative_path {  # marsh_resolve_relative_path base_dir target_path
+    local BASE_DIR TARGET_PATH BASE_DIR_NORM BASE_PATH TARGET_IS_DIR
+    local RESULT_PARTS INPUT_PARTS PART RESULT LAST_INDEX
+
+    BASE_DIR="${1:-}"
+    TARGET_PATH="${2:-}"
+    [[ "${BASE_DIR}" == "" ]] && return 1
+    [[ "${TARGET_PATH}" == "" ]] && return 1
+
+    BASE_DIR_NORM=$(marsh_normalize_directory_path "${BASE_DIR}") || return 1
+    BASE_PATH="${BASE_DIR_NORM#./}"
+    BASE_PATH="${BASE_PATH%/}"
+    TARGET_IS_DIR=false
+    if [[ "${TARGET_PATH}" == */ ]] || [[ "${TARGET_PATH}" == "." ]] || [[ "${TARGET_PATH}" == "./" ]] || [[ "${TARGET_PATH}" == ".." ]] || [[ "${TARGET_PATH}" == "../" ]]; then
+        TARGET_IS_DIR=true
+    fi
+
+    RESULT_PARTS=()
+    if [[ "${BASE_PATH}" != "" ]]; then
+        IFS='/' read -r -a RESULT_PARTS <<< "${BASE_PATH}"
+    fi
+    IFS='/' read -r -a INPUT_PARTS <<< "${TARGET_PATH}"
+    for PART in "${INPUT_PARTS[@]}"; do
+        [[ "${PART}" == "" ]] && continue
+        if [[ "${PART}" == "." ]]; then
+            continue
+        elif [[ "${PART}" == ".." ]]; then
+            LAST_INDEX=$(( ${#RESULT_PARTS[@]} - 1 ))
+            if [[ "${#RESULT_PARTS[@]}" -gt 0 ]] && [[ "${RESULT_PARTS[$LAST_INDEX]}" != ".." ]]; then
+                unset 'RESULT_PARTS[$LAST_INDEX]'
+                RESULT_PARTS=("${RESULT_PARTS[@]}")
+            else
+                RESULT_PARTS+=("..")
+            fi
+        else
+            RESULT_PARTS+=("${PART}")
+        fi
+    done
+
+    RESULT=$(IFS=/; printf '%s' "${RESULT_PARTS[*]}")
+    RESULT="${RESULT:-.}"
+    if [[ "${TARGET_IS_DIR}" == true ]]; then
+        RESULT=$(marsh_normalize_directory_path "${RESULT}") || return 1
+    else
+        RESULT=$(marsh_normalize_document_path "${RESULT}") || return 1
+    fi
+    if [[ "${RESULT}" != "./" ]]; then
+        RESULT="${RESULT#./}"
+    fi
+    printf '%s\n' "${RESULT}"
+}
+
+# rewrites relative href values in a rendered sitemap for the destination document
+function marsh_rewrite_sitemap_links {  # marsh_rewrite_sitemap_links sitemap_file sitemap_dir document_base_path
+    local SITEMAP_FILE SITEMAP_DIR DOCUMENT_BASE_PATH
+    local HREFS HREF HREF_TARGET HREF_SUFFIX RESOLVED_HREF REWRITTEN_HREF
+    local SEARCH_ESC REPLACEMENT_ESC REPLACEMENTS RES
+
+    SITEMAP_FILE="${1:-}"
+    SITEMAP_DIR="${2:-}"
+    DOCUMENT_BASE_PATH="${3:-}"
+    [[ "${SITEMAP_FILE}" == "" ]] && return 1
+    [[ "${SITEMAP_DIR}" == "" ]] && return 1
+    [[ "${DOCUMENT_BASE_PATH}" == "" ]] && return 1
+
+    HREFS=()
+    while IFS= read -r HREF; do
+        [[ "${HREF}" == "" ]] && continue
+        HREFS+=("${HREF}")
+    done < <(grep -Eo 'href="[^"]+"' "${SITEMAP_FILE}" | sed -E 's/^href="([^"]+)"$/\1/' | sort -u)
+    [[ "${#HREFS[@]}" -eq 0 ]] && return 0
+
+    REPLACEMENTS=$(mktemp "${MARSH_TEMP}/sitemap-links-XXXXXX") || return 1
+    for HREF in "${HREFS[@]}"; do
+        case "${HREF}" in
+            \#*|/*|*://*|mailto:*|tel:*|javascript:*|data:*|//* )
+                continue
+                ;;
+        esac
+        HREF_TARGET="${HREF%%\#*}"
+        HREF_TARGET="${HREF_TARGET%%\?*}"
+        HREF_SUFFIX="${HREF#${HREF_TARGET}}"
+        RESOLVED_HREF=$(marsh_resolve_relative_path "${SITEMAP_DIR}" "${HREF_TARGET}") || {
+            rm -f "${REPLACEMENTS}"
+            return 1
+        }
+        REWRITTEN_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "${RESOLVED_HREF}") || {
+            rm -f "${REPLACEMENTS}"
+            return 1
+        }
+        REWRITTEN_HREF="${REWRITTEN_HREF}${HREF_SUFFIX}"
+        SEARCH_ESC=$(printf '%s' "href=\"${HREF}\"" | sed -e 's/[\\]/\\\\/g' -e 's/[][/.|$(){}?+*^]/\\&/g')
+        REPLACEMENT_ESC=$(printf '%s' "href=\"${REWRITTEN_HREF}\"" | marsh_escape_substitution)
+        printf 's/%s/%s/g\n' "${SEARCH_ESC}" "${REPLACEMENT_ESC}" >> "${REPLACEMENTS}" || {
+            rm -f "${REPLACEMENTS}"
+            return 1
+        }
+    done
+
+    RES=0
+    if [[ -s "${REPLACEMENTS}" ]]; then
+        sed -E -f "${REPLACEMENTS}" -i".${MARSH_UID}.backup" "${SITEMAP_FILE}" || RES=1
+    fi
+    rm -f "${REPLACEMENTS}"
+    rm -f "${SITEMAP_FILE}.${MARSH_UID}.backup"
+    return "${RES}"
 }
 
 # returns paginated archive root for an archive source path
@@ -2791,44 +3003,45 @@ function marsh_build_archive {  # marsh_build_archive encoding target_dir dest_f
 }
 
 # builds a sitemap
-function marsh_build_sitemap {  # marsh_build_sitemap target_dir sitemap_file markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links
-    local TARGET_DIR SITEMAP_FILE MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_REWRITE_LINKS
-    local SITEMAP_TARGETS_LIST SITEMAP_TARGET SITEMAP_DEST TEXT_TRANSFORM
+function marsh_build_sitemap {  # marsh_build_sitemap target_dir sitemap_file sitemap_source markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links
+    local TARGET_DIR SITEMAP_FILE SITEMAP_SOURCE MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_REWRITE_LINKS
+    local SITEMAP_DEST TEXT_TRANSFORM
 
     # init
     TARGET_DIR="${1:-}"
     SITEMAP_FILE="${2:-}"
-    MARKDOWN_COMMAND="${3:-}"
-    MARKDOWN_OPTIONS_CSV="${4:-}"
-    MARKDOWN_FILEEXT_CSV="${5:-}"
-    MARKDOWN_REWRITE_LINKS="${6:-}"
+    SITEMAP_SOURCE="${3:-}"
+    MARKDOWN_COMMAND="${4:-}"
+    MARKDOWN_OPTIONS_CSV="${5:-}"
+    MARKDOWN_FILEEXT_CSV="${6:-}"
+    MARKDOWN_REWRITE_LINKS="${7:-}"
     [[ "${TARGET_DIR}" == "" ]] && return 1
     [[ "${SITEMAP_FILE}" == "" ]]   && return 1
+    [[ "${SITEMAP_SOURCE}" == "" ]] && return 1
     [[ "${MARKDOWN_COMMAND}" == "" ]] && return 1
     [[ "${MARKDOWN_FILEEXT_CSV}" == "" ]] && return 1
     [[ "${MARKDOWN_REWRITE_LINKS}" == "" ]] && return 1
 
-    SITEMAP_TARGETS_LIST=$(cd "${TARGET_DIR}" && find . -name "${SITEMAP_FILE#\./}")
-    while IFS= read -r SITEMAP_TARGET; do
-        [[ "${SITEMAP_TARGET}" == "" ]] && continue
-        SITEMAP_TARGET="${TARGET_DIR}/${SITEMAP_TARGET}"
-        SITEMAP_DEST="${SITEMAP_TARGET}.${MARSH_UID}.sitemap.html"
-        if marsh_has_frontmatter "${SITEMAP_TARGET}"; then
-            marsh_extract_frontmatter "${SITEMAP_TARGET}" "${SITEMAP_DEST}.meta.yaml" "${SITEMAP_DEST}.temp" || {
-                echo "Unable to extract sitemap frontmatter: ${SITEMAP_TARGET}" >&2
-                return 1
-            }
-        else
-            cp "${SITEMAP_TARGET}" "${SITEMAP_DEST}.temp"
-        fi
-        TEXT_TRANSFORM=
-        if [[ "${MARKDOWN_REWRITE_LINKS}" == true ]]; then
-            TEXT_TRANSFORM="links:replace-ext:${MARKDOWN_FILEEXT_CSV}:html"
-        fi
-        <"${SITEMAP_DEST}.temp" marsh_text_transform ${TEXT_TRANSFORM} | marsh_process_markdown "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" > "${SITEMAP_DEST}"
-        rm -f "${SITEMAP_DEST}.meta.yaml" 2>/dev/null || true
-        rm -f "${SITEMAP_DEST}.temp"
-    done <<< "${SITEMAP_TARGETS_LIST}"
+    SITEMAP_DEST=$(marsh_get_sitemap_render_path "${TARGET_DIR}" "${SITEMAP_FILE}") || return 1
+    mkdir -p "${SITEMAP_DEST%/*}" >/dev/null 2>&1 || {
+        echo "Unable to create sitemap render path: ${SITEMAP_DEST%/*}" >&2
+        return 1
+    }
+    if marsh_has_frontmatter "${SITEMAP_SOURCE}"; then
+        marsh_extract_frontmatter "${SITEMAP_SOURCE}" "${SITEMAP_DEST}.meta.yaml" "${SITEMAP_DEST}.temp" || {
+            echo "Unable to extract sitemap frontmatter: ${SITEMAP_SOURCE}" >&2
+            return 1
+        }
+    else
+        cp "${SITEMAP_SOURCE}" "${SITEMAP_DEST}.temp"
+    fi
+    TEXT_TRANSFORM=
+    if [[ "${MARKDOWN_REWRITE_LINKS}" == true ]]; then
+        TEXT_TRANSFORM="links:replace-ext:${MARKDOWN_FILEEXT_CSV}:html"
+    fi
+    <"${SITEMAP_DEST}.temp" marsh_text_transform ${TEXT_TRANSFORM} | marsh_process_markdown "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" > "${SITEMAP_DEST}"
+    rm -f "${SITEMAP_DEST}.meta.yaml" 2>/dev/null || true
+    rm -f "${SITEMAP_DEST}.temp"
 }
 
 # builds a template and applies it to a document
@@ -3156,7 +3369,8 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
     local CONDITIONAL_TAG CONDITIONAL_VALUES
     local DOCUMENT_State
     local PARTIAL_CONDITIONAL_TAGS
-    local SITEMAP SITEMAP_DIR SITEMAP_NAME SITEMAP_RELPATH
+    local SITEMAP SITEMAP_DIR SITEMAP_NAME SITEMAP_RELPATH SITEMAP_OUTPUT_PATH SITEMAP_HREF SITEMAP_TEMP
+    local DOCUMENT_HREF_ESC
 
     # init
     DEST_DIR="${1:-.}"
@@ -3466,27 +3680,32 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
         if [[ "${SITEMAP_SOURCE}" != "" ]]; then
             SITEMAP=$(marsh_find_sitemap "${DEST_DIR}/${TARGET_DIR}" "${DOCUMENT}" "${SITEMAP_SOURCE}")
             if [[ "${SITEMAP:-}" != "" ]]; then
-                SITEMAP_NAME="${SITEMAP_SOURCE}.html"
-                SITEMAP_NAME=$(echo "${SITEMAP_NAME}" | sed -E -e "s/\.(${MARKDOWN_FILEEXT_REGEX})(.html)$/\2/")
-                if [[ "${SITEMAP}" =~ / ]]; then
-                    SITEMAP_DIR="${SITEMAP%/*}"
-                else
-                    SITEMAP_DIR="."
+                SITEMAP_OUTPUT_PATH="${TARGET_DIR}/${SITEMAP_SOURCE}"
+                SITEMAP_OUTPUT_PATH="${SITEMAP_OUTPUT_PATH#./}"
+                SITEMAP_OUTPUT_PATH="${SITEMAP_OUTPUT_PATH%/.}"
+                if marsh_is_markdown_extension "${SITEMAP_OUTPUT_PATH##*.}" "${MARKDOWN_FILEEXT_CSV}"; then
+                    SITEMAP_OUTPUT_PATH="${SITEMAP_OUTPUT_PATH%.*}.html"
                 fi
-                if [[ "${SITEMAP_DIR}" == "." ]]; then
-                    SITEMAP_RELPATH="${DOCUMENT_DIR}"
-                else
-                    SITEMAP_RELPATH="${DOCUMENT_DIR#$SITEMAP_DIR}"
-                fi
-                SITEMAP_RELPATH="${SITEMAP_RELPATH//[^\/]/}"         # leave only slashes
-                SITEMAP_RELPATH="${SITEMAP_RELPATH//[\/]/../}"      # slashes to dirs
-                SITEMAP_RELPATH="${SITEMAP_RELPATH:-.}"             # empty to current dir
-                SITEMAP_RELPATH="${SITEMAP_RELPATH%/}"              # drop trailing slash
-                TARGET_SITEMAP=$(<"${DEST_DIR}/${TARGET_DIR}/${SITEMAP}" sed -E \
-                -e 's|<h1>([^<]+)</h1>|<h1><a href="'"${SITEMAP_RELPATH}/${SITEMAP_NAME}"'">\1</a></h1>|' \
-                -e 's|(<a href=")([^.])|\1'"${SITEMAP_RELPATH}/"'\2|g' | \
-                sed -E \
-                -e 's|<a (href="[^"]*'"${SITEMAP_RELPATH}/${DEST_NAME}.html"'[^>]*)>([^<>]+)</a>|<a \1 class="selected">\2</a>|g')
+                SITEMAP_NAME="${SITEMAP_OUTPUT_PATH##*/}"
+                SITEMAP_DIR="./${SITEMAP_OUTPUT_PATH}"
+                SITEMAP_DIR="${SITEMAP_DIR%/*}"
+                SITEMAP_DIR="${SITEMAP_DIR#./}"
+                SITEMAP_DIR="${SITEMAP_DIR:-.}"
+                SITEMAP_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "${SITEMAP_OUTPUT_PATH}") || return 1
+                SITEMAP_TEMP=$(mktemp "${MARSH_TEMP}/sitemap-render-XXXXXX") || return 1
+                cp "${DEST_DIR}/${TARGET_DIR}/${SITEMAP}" "${SITEMAP_TEMP}" || {
+                    rm -f "${SITEMAP_TEMP}"
+                    return 1
+                }
+                marsh_rewrite_sitemap_links "${SITEMAP_TEMP}" "${SITEMAP_DIR}" "${DOCUMENT_BASE_PATH}" || {
+                    rm -f "${SITEMAP_TEMP}"
+                    return 1
+                }
+                DOCUMENT_HREF_ESC=$(printf '%s' "${DOCUMENT_HREF}" | sed -e 's/[\\]/\\\\/g' -e 's/[][/.|$(){}?+*^]/\\&/g')
+                TARGET_SITEMAP=$(<"${SITEMAP_TEMP}" sed -E \
+                -e 's|<h1>([^<]+)</h1>|<h1><a href="'"${SITEMAP_HREF}"'">\1</a></h1>|' \
+                -e 's|<a (href="'"${DOCUMENT_HREF_ESC}"'"[^>]*)>([^<>]+)</a>|<a \1 class="selected">\2</a>|g')
+                rm -f "${SITEMAP_TEMP}"
             fi
         fi
 
@@ -4062,6 +4281,7 @@ function marsh_cli {
     local GENERATED_ARCHIVES GENERATED_ARCHIVE
     local TARGET_ARCHIVE_TYPES TARGET_ARCHIVE_EXCLUDED_STATES TARGET_ARCHIVE_MANIFEST
     local TARGET_ARCHIVE_TEMPLATE TARGET_ARCHIVE_TEMPLATE_SOURCE TARGET_ARCHIVE_TEMPLATE_ASSETS_PATH TARGET_ARCHIVE_TEMPLATE_OVERRIDES
+    local SITE_SOURCE_ROOT TARGET_SOURCE_ROOT TARGET_SITEMAP_RESOLVED
     local BUILD_DEST_DIR BUILD_TARGET_DIR BUILD_DOCUMENT BUILD_SITEMAP
     local BUILD_TEMPLATES_DIR BUILD_TEMPLATE BUILD_NUM_TEMPLATE_OVERRIDES BUILD_TEMPLATE_OVERRIDES BUILD_TEMPLATE_ASSETS_PATH
     local BUILD_TEMPLATE_OVERRIDE_INDEX
@@ -4501,6 +4721,11 @@ function marsh_cli {
         echo "${CONFIG_Build_Name:-No Name} (${MARSH_CONFIG_FILE#$SELF_DIR/})"
         echo "${CONFIG_Build_Path%/} -> ${CONFIG_Build_URL%/}"
 
+        SITE_SOURCE_ROOT=$(marsh_get_site_source_root_path "${MARSH_CONFIG_FILE_DIR:-.}") || {
+            echo "Unable to resolve site source root from target sources" >&2
+            die_gracefully
+        }
+
         # build
         INDEX=0
         PREFIX="CONFIG_Build_Targets_${INDEX}_"
@@ -4544,8 +4769,18 @@ function marsh_cli {
 
             # build sitemap
             if [[ "${TARGET_SITEMAP}" != "" ]]; then
+                TARGET_SOURCE_ROOT=$(marsh_get_source_root_path "${TARGET_SOURCE}") || {
+                    echo "Unable to resolve target source root for sitemap: ${TARGET_SITEMAP}" >&2
+                    die_gracefully
+                }
+                TARGET_SITEMAP_RESOLVED=$(marsh_resolve_sitemap_source_path "${SITE_SOURCE_ROOT}" "${TARGET_SOURCE_ROOT}" "${TARGET_SITEMAP}") || {
+                    echo "Unable to resolve sitemap source path: ${TARGET_SITEMAP}" >&2
+                    die_gracefully
+                }
+                TARGET_SITEMAP_SOURCE="${TARGET_SITEMAP_RESOLVED}"
                 marsh_build_sitemap "${MARSH_CONFIG_PATH}/${TARGET_PATH}" \
                                 "${TARGET_SITEMAP}" \
+                                "${TARGET_SITEMAP_SOURCE}" \
                                 "${MARKDOWN_COMMAND}" \
                                 "${MARKDOWN_OPTIONS_CSV}" \
                                 "${MARKDOWN_FILEEXT_CSV}" \

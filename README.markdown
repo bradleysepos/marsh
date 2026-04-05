@@ -697,11 +697,28 @@ Combined with the template configuration with assets above, this example partial
 </html>
 ```
 
-### Sitemap
+### Site map
 
-Targets may define a `Sitemap` source document in the site build configuration that `marsh` builds and makes available to templates using the tag `{{ target.sitemap }}`. Marsh rewrites relative link paths in the sitemap to work consistently across all pages where it is used.
+Targets may define in the site build configuration a site map document, which is a normal document in your source tree that typically contains links to most or all of the other pages on your site, like a table of contents.
 
-The sitemap feature is useful when you want a navigation structure to be derived from a source document and made reusable across multiple pages in the same target.
+`marsh` builds a special version of the site map document and makes it available for embedding on other pages using the template tag `{{ target.sitemap }}`. Relative links are rewritten to be path-correct in relation to the individual pages on which the site map is embedded.
+
+This is useful where you want a navigation structure to be derived from a source document and made reusable across multiple pages in the same target.
+
+Example site build configuration specifying a site map source document using `Sitemap`:
+
+```yaml
+---
+Build:
+  Targets:
+    - Name: Example Site
+      Path: .
+      Source: source/*
+      Sitemap: site-map/index.markdown
+...
+```
+
+Note that the resolved path for a site map must remain inside the site source tree.
 
 ### Template overrides
 

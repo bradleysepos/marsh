@@ -3427,7 +3427,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
         return "${RES}"
     }
 
-    local DEST_DIR TARGET_DIR TARGET_PATH SITEMAP_SOURCE SITEMAP_SEARCH TARGET_SITEMAP
+    local DEST_DIR TARGET_DIR TARGET_PATH SITEMAP_SOURCE SITEMAP_SEARCH TARGET_SITEMAP DOCUMENT_REL_PATH
     local DOCUMENT DOCUMENT_EXT DOCUMENT_DIR DOCUMENT_HREF DOCUMENT_URI DOCUMENT_OUTPUT_PATH DOCUMENT_BASE_PATH DOCUMENT_ABSPATH ARCHIVE_OUTPUT_PATH
     local SITE_ROOTPATH SITE_ABSPATH TARGET_ROOTPATH TARGET_ABSPATH ARCHIVE_ROOTPATH ARCHIVE_ABSPATH
     local DEST DEST_NAME DEST_PRINT
@@ -3453,7 +3453,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
     local CONDITIONAL_TAG CONDITIONAL_VALUES
     local DOCUMENT_State
     local PARTIAL_CONDITIONAL_TAGS
-    local SITEMAP SITEMAP_DIR SITEMAP_NAME SITEMAP_RELPATH SITEMAP_OUTPUT_PATH SITEMAP_HREF SITEMAP_TEMP
+    local SITEMAP SITEMAP_DIR SITEMAP_NAME SITEMAP_RELPATH SITEMAP_OUTPUT_PATH SITEMAP_HREF SITEMAP_TEMP SITEMAP_RENDER_PATH
     local DOCUMENT_HREF_ESC
 
     # init
@@ -3504,6 +3504,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
 
     # document destination
     DEST="${DOCUMENT}"
+    DOCUMENT_REL_PATH="${DOCUMENT}"
     DEST_NAME="${DEST%.$DOCUMENT_EXT}"
     DEST_NAME="${DEST_NAME##*/}"
     if marsh_is_markdown_extension "${DOCUMENT_EXT}" "${MARKDOWN_FILEEXT_CSV}"; then
@@ -3757,9 +3758,14 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
         # sitemap
         TARGET_SITEMAP=""
         if [[ "${SITEMAP_SOURCE}" != "" ]]; then
-            SITEMAP_LOOKUP_PATH=$(marsh_get_sitemap_lookup_path "${DEST_DIR}/${TARGET_DIR}" "${DOCUMENT}" "${SITEMAP_SOURCE}" "${SITEMAP_SEARCH}" 2>/dev/null)
-            SITEMAP=$(marsh_find_sitemap "${DEST_DIR}/${TARGET_DIR}" "${DOCUMENT}" "${SITEMAP_SOURCE}" "${SITEMAP_SEARCH}")
-            if [[ "${SITEMAP:-}" != "" ]]; then
+            SITEMAP_LOOKUP_PATH=$(marsh_get_sitemap_lookup_path "${DEST_DIR}/${TARGET_DIR}" "${DOCUMENT_REL_PATH}" "${SITEMAP_SOURCE}" "${SITEMAP_SEARCH}" 2>/dev/null)
+            if [[ "${SITEMAP_LOOKUP_PATH:-}" != "" ]]; then
+                SITEMAP_RENDER_PATH=$(marsh_get_sitemap_render_path "${DEST_DIR}/${TARGET_DIR}" "${SITEMAP_LOOKUP_PATH}") || return 1
+                if [[ ! -f "${SITEMAP_RENDER_PATH}" ]] || [[ ! -r "${SITEMAP_RENDER_PATH}" ]]; then
+                    SITEMAP_RENDER_PATH=""
+                fi
+            fi
+            if [[ "${SITEMAP_RENDER_PATH:-}" != "" ]]; then
                 SITEMAP_OUTPUT_PATH=$(marsh_normalize_internal_path "${TARGET_DIR}/${SITEMAP_LOOKUP_PATH}") || return 1
                 if marsh_is_markdown_extension "${SITEMAP_OUTPUT_PATH##*.}" "${MARKDOWN_FILEEXT_CSV}"; then
                     SITEMAP_OUTPUT_PATH="${SITEMAP_OUTPUT_PATH%.*}.html"
@@ -3768,7 +3774,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                 SITEMAP_DIR=$(marsh_normalize_internal_path "${SITEMAP_OUTPUT_PATH%/*}") || return 1
                 SITEMAP_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "${SITEMAP_OUTPUT_PATH}") || return 1
                 SITEMAP_TEMP=$(mktemp "${MARSH_TEMP}/sitemap-render-XXXXXX") || return 1
-                cp "${DEST_DIR}/${TARGET_DIR}/${SITEMAP}" "${SITEMAP_TEMP}" || {
+                cp "${SITEMAP_RENDER_PATH}" "${SITEMAP_TEMP}" || {
                     rm -f "${SITEMAP_TEMP}"
                     return 1
                 }

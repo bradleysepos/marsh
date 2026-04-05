@@ -2091,6 +2091,46 @@ function marsh_test {
             rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}" "${SOURCE_DIR}"
             marsh_test_restore_env
             ;;
+        marsh_build_template:21)
+            TEST_NAME+=":sitemap_search_non_root_target"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            SOURCE_DIR="${TEST_TEMP_PREFIX}.source"
+            marsh_test_set_env "sitemaptargetsearchuid" true true
+            mkdir -p "${TARGET_DIR}/www/subdir1" "${SOURCE_DIR}/subdir1" "${TEMPLATE_DIR}/sample/partials"
+            marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
+            printf '%s\n' '{{ target.sitemap }}' > "${TEMPLATE_DIR}/sample/partials/body.html"
+            printf '%s\n' '<h1>Site Map</h1>' '<p><a href="../">Section Home</a></p>' > "${SOURCE_DIR}/subdir1/sitemap.markdown"
+            printf '%s\n' 'Example' > "${TARGET_DIR}/www/subdir1/index.markdown.${MARSH_UID}.document"
+            printf '%s\n' '---'$'\n''Title: Example'$'\n''...' > "${TARGET_DIR}/www/subdir1/index.markdown.${MARSH_UID}.meta.yaml"
+            marsh_build_sitemap "${TARGET_DIR}/www" "subdir1/sitemap.markdown" "${SOURCE_DIR}/subdir1/sitemap.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" >/dev/null 2>&1
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                marsh_build_template "${TARGET_DIR}" "www" "subdir1/index.markdown" "sitemap.markdown" true "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+                ACTUAL=$?
+                EXPECTED=0
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    ACTUAL=$(<"${TARGET_DIR}/www/subdir1/index.html")
+                    ASSERTION="contains"
+                    EXPECTED='<h1><a href="sitemap.html">Site Map</a></h1>'
+                    if printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
+                        EXPECTED='<a href="../">Section Home</a>'
+                        if printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
+                            ASSERTION="not-contains"
+                            EXPECTED='{{ target.sitemap }}'
+                            if ! printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
+                                RES="[PASS]"
+                            fi
+                        fi
+                    fi
+                fi
+            fi
+            rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}" "${SOURCE_DIR}"
+            marsh_test_restore_env
+            ;;
         marsh_check_dependencies:0)
             TEST_NAME+=":found"
             marsh_check_dependencies bash 2>/dev/null

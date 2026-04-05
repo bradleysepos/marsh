@@ -2225,6 +2225,33 @@ function marsh_get_files {  # marsh_get_files source dest force
     return 0
 }
 
+# resolves a template asset output path relative to the target root and rejects traversal beyond the site root
+function marsh_resolve_template_asset_output_path {  # marsh_resolve_template_asset_output_path target_dir asset_path [template_assets_path]
+    local TARGET_DIR ASSET_PATH TEMPLATE_ASSETS_PATH COMBINED_PATH OUTPUT_PATH
+
+    TARGET_DIR="${1:-}"
+    ASSET_PATH="${2:-}"
+    TEMPLATE_ASSETS_PATH="${3:-}"
+    [[ "${TARGET_DIR}" == "" ]] && return 1
+    [[ "${ASSET_PATH}" == "" ]] && return 1
+    [[ "${ASSET_PATH}" != /* ]] || return 1
+    [[ "${TEMPLATE_ASSETS_PATH}" != /* ]] || return 1
+
+    TARGET_DIR=$(marsh_normalize_internal_path "${TARGET_DIR}" "directory") || return 1
+    COMBINED_PATH="${ASSET_PATH}"
+    if [[ "${TEMPLATE_ASSETS_PATH}" != "" ]]; then
+        COMBINED_PATH="${TEMPLATE_ASSETS_PATH%/}/${ASSET_PATH}"
+    fi
+    OUTPUT_PATH=$(marsh_resolve_relative_path "${TARGET_DIR}" "${COMBINED_PATH}") || return 1
+    case "${OUTPUT_PATH}" in
+        ..|../*)
+            return 1
+            ;;
+    esac
+
+    printf '%s\n' "${OUTPUT_PATH}"
+}
+
 # copies template assets into the build output, optionally under an output prefix
 function marsh_copy_template_assets {  # marsh_copy_template_assets dest_dir templates_dir template #template_overrides[@] template_overrides[@] template_assets_path
     local DEST_DIR TEMPLATES_DIR TEMPLATE NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDES TEMPLATE_ASSETS_PATH

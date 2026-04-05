@@ -3554,6 +3554,63 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
+        marsh_resolve_template_asset_output_path:0)
+            TEST_NAME+=":target_relative_default"
+            ACTUAL=$(marsh_resolve_template_asset_output_path "docs" "assets/css/site.css")
+            EXPECTED="docs/assets/css/site.css"
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_resolve_template_asset_output_path:1)
+            TEST_NAME+=":allow_parent_within_site_root"
+            ACTUAL=$(marsh_resolve_template_asset_output_path "docs" "../assets/css/site.css")
+            EXPECTED="assets/css/site.css"
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_resolve_template_asset_output_path:2)
+            TEST_NAME+=":apply_assets_prefix"
+            ACTUAL=$(marsh_resolve_template_asset_output_path "docs/guides" "css/site.css" "../shared")
+            EXPECTED="docs/shared/css/site.css"
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_resolve_template_asset_output_path:3)
+            TEST_NAME+=":reject_escape_site_root"
+            ACTUAL=$(marsh_resolve_template_asset_output_path "docs" "../../assets/css/site.css" 2>/dev/null)
+            STATUS=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${STATUS}" -eq "${EXPECTED}" ]]; then
+                ACTUAL="${ACTUAL}"
+                EXPECTED=""
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            ;;
+        marsh_resolve_template_asset_output_path:4)
+            TEST_NAME+=":reject_absolute_output_path"
+            ACTUAL=$(marsh_resolve_template_asset_output_path "docs" "/assets/css/site.css" 2>/dev/null)
+            STATUS=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${STATUS}" -eq "${EXPECTED}" ]]; then
+                ACTUAL="${ACTUAL}"
+                EXPECTED=""
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            ;;
         marsh_rewrite_sitemap_links:0)
             TEST_NAME+=":root_page"
             SITEMAP_FILE="${TEST_TEMP_PREFIX}.sitemap.html"
@@ -4741,6 +4798,7 @@ KNOWN_FUNCTIONS=(
     marsh_resolve_relative_path
     marsh_resolve_sitemap_source_path
     marsh_resolve_tag_metadata
+    marsh_resolve_template_asset_output_path
     marsh_rewrite_sitemap_links
     marsh_text_transform
     marsh_text_transform_headings

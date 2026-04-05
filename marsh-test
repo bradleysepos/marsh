@@ -2199,7 +2199,6 @@ function marsh_test {
             marsh_test_set_env "cleantest" false false
             mkdir -p "${TARGET_DIR}/nested/deeper"
             : > "${TARGET_DIR}/nested/article.markdown"
-            : > "${TARGET_DIR}/nested/deeper/nav.${MARSH_UID}.sitemap.html"
             : > "${TARGET_DIR}/nested/deeper/keep.png"
             marsh_clean_target "${TARGET_DIR}" "markdown,md"
             ACTUAL=$?
@@ -2208,7 +2207,6 @@ function marsh_test {
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 {
                     [[ ! -e "${TARGET_DIR}/nested/article.markdown" ]] \
-                        && [[ ! -e "${TARGET_DIR}/nested/deeper/nav.${MARSH_UID}.sitemap.html" ]] \
                         && [[ -e "${TARGET_DIR}/nested/deeper/keep.png" ]]
                 }
                 ACTUAL=$?
@@ -2361,7 +2359,7 @@ function marsh_test {
         marsh_find_sitemap:0)
             TEST_NAME+=":target_level"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
-            marsh_test_set_env "navtest" false false
+            marsh_test_set_env "navtest" true false
             mkdir -p "${TARGET_DIR}"
             SITEMAP_RENDER=$(marsh_get_sitemap_render_path "${TARGET_DIR}" "nav.html")
             mkdir -p "${SITEMAP_RENDER%/*}"
@@ -2378,7 +2376,7 @@ function marsh_test {
         marsh_find_sitemap:1)
             TEST_NAME+=":relative_path_key"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
-            marsh_test_set_env "navtest" false false
+            marsh_test_set_env "navtest" true false
             mkdir -p "${TARGET_DIR}"
             SITEMAP_RENDER=$(marsh_get_sitemap_render_path "${TARGET_DIR}" "../site-map/index.markdown")
             mkdir -p "${SITEMAP_RENDER%/*}"
@@ -2395,7 +2393,7 @@ function marsh_test {
         marsh_find_sitemap:2)
             TEST_NAME+=":missing"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
-            marsh_test_set_env "navtest" false false
+            marsh_test_set_env "navtest" true false
             mkdir -p "${TARGET_DIR}/news"
             marsh_find_sitemap "${TARGET_DIR}" "news/article.markdown" "nav.html" 2>/dev/null
             ACTUAL=$?
@@ -2410,7 +2408,7 @@ function marsh_test {
         marsh_find_sitemap:3)
             TEST_NAME+=":search_nearest"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
-            marsh_test_set_env "navtest" false false
+            marsh_test_set_env "navtest" true false
             mkdir -p "${TARGET_DIR}"
             SITEMAP_RENDER=$(marsh_get_sitemap_render_path "${TARGET_DIR}" "news/world/sitemap.markdown")
             mkdir -p "${SITEMAP_RENDER%/*}"
@@ -2427,7 +2425,7 @@ function marsh_test {
         marsh_find_sitemap:4)
             TEST_NAME+=":search_parent"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
-            marsh_test_set_env "navtest" false false
+            marsh_test_set_env "navtest" true false
             mkdir -p "${TARGET_DIR}"
             SITEMAP_RENDER=$(marsh_get_sitemap_render_path "${TARGET_DIR}" "news/sitemap.markdown")
             mkdir -p "${SITEMAP_RENDER%/*}"
@@ -2444,7 +2442,7 @@ function marsh_test {
         marsh_get_sitemap_lookup_path:0)
             TEST_NAME+=":explicit"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
-            marsh_test_set_env "navlookupuid" false false
+            marsh_test_set_env "navlookupuid" true false
             mkdir -p "${TARGET_DIR}"
             SITEMAP_RENDER=$(marsh_get_sitemap_render_path "${TARGET_DIR}" "site-map/index.markdown")
             mkdir -p "${SITEMAP_RENDER%/*}"
@@ -2461,7 +2459,7 @@ function marsh_test {
         marsh_get_sitemap_lookup_path:1)
             TEST_NAME+=":search_nearest"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
-            marsh_test_set_env "navlookupuid" false false
+            marsh_test_set_env "navlookupuid" true false
             mkdir -p "${TARGET_DIR}"
             SITEMAP_RENDER=$(marsh_get_sitemap_render_path "${TARGET_DIR}" "news/world/sitemap.markdown")
             mkdir -p "${SITEMAP_RENDER%/*}"
@@ -2478,7 +2476,7 @@ function marsh_test {
         marsh_get_sitemap_lookup_path:2)
             TEST_NAME+=":search_parent"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
-            marsh_test_set_env "navlookupuid" false false
+            marsh_test_set_env "navlookupuid" true false
             mkdir -p "${TARGET_DIR}"
             SITEMAP_RENDER=$(marsh_get_sitemap_render_path "${TARGET_DIR}" "news/sitemap.markdown")
             mkdir -p "${SITEMAP_RENDER%/*}"
@@ -2495,7 +2493,7 @@ function marsh_test {
         marsh_get_sitemap_lookup_path:3)
             TEST_NAME+=":missing"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
-            marsh_test_set_env "navlookupuid" false false
+            marsh_test_set_env "navlookupuid" true false
             mkdir -p "${TARGET_DIR}"
             marsh_get_sitemap_lookup_path "${TARGET_DIR}" "news/article.markdown" "sitemap.markdown" true 2>/dev/null
             ACTUAL=$?

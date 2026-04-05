@@ -2104,7 +2104,7 @@ function marsh_get_site_source_root_path {  # marsh_get_site_source_root_path co
 
 # returns the intermediate render path for a target sitemap
 function marsh_get_sitemap_render_path {  # marsh_get_sitemap_render_path target_dir sitemap_path
-    local TARGET_DIR SITEMAP_PATH CACHE_KEY
+    local TARGET_DIR SITEMAP_PATH CACHE_DIR CACHE_KEY CACHE_FILE
 
     TARGET_DIR="${1:-}"
     SITEMAP_PATH="${2:-}"
@@ -2113,8 +2113,15 @@ function marsh_get_sitemap_render_path {  # marsh_get_sitemap_render_path target
     TARGET_DIR="${TARGET_DIR%/}"
     TARGET_DIR="${TARGET_DIR%/.}"
     TARGET_DIR="${TARGET_DIR:-.}"
+
+    CACHE_DIR="${MARSH_TEMP}/sitemap-render-cache"
+    mkdir -p "${CACHE_DIR}" >/dev/null 2>&1 || {
+        echo "Unable to create sitemap render cache directory: ${CACHE_DIR}" >&2
+        return 1
+    }
     CACHE_KEY=$(printf '%s\034%s\n' "${TARGET_DIR}" "${SITEMAP_PATH}" | marsh_text_transform hash:md5) || return 1
-    printf '%s\n' "${TARGET_DIR}/.marsh-sitemaps/${CACHE_KEY}.${MARSH_UID}.sitemap.html"
+    CACHE_FILE="${CACHE_DIR}/${CACHE_KEY}.sitemap.html"
+    printf '%s\n' "${CACHE_FILE}"
 }
 
 # resolves a target sitemap source path against the target source root and validates it stays inside the site source tree

@@ -719,7 +719,7 @@ function marsh_test {
             mkdir -p "${TARGET_DIR}"
             marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
             printf '%s\n' '---'$'\n''Title: Example'$'\n''...'$'\n'''$'\n''# Example' > "${TARGET_DIR}/index.markdown"
-            marsh_build_target "${TARGET_DIR}" "./index.markdown" "1" "" "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+            marsh_build_target "${TARGET_DIR}" "./index.markdown" "1" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
             ASSERTION="equals"
@@ -751,7 +751,7 @@ function marsh_test {
             mkdir -p "${TARGET_DIR}"
             marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
             printf '%s\n' '---'$'\n''Title: Example'$'\n''...'$'\n'''$'\n''# Example' > "${TARGET_DIR}/index.markdown"
-            marsh_build_target "${TARGET_DIR}" "./index.markdown" "1" "" "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 true >/dev/null 2>&1
+            marsh_build_target "${TARGET_DIR}" "./index.markdown" "1" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 true >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
             ASSERTION="equals"
@@ -785,12 +785,12 @@ function marsh_test {
             printf '%s\n' '{{ template.assets.styles }}'$'\n''{{ template.assets.scripts }}'$'\n''{{ document.content }}' > "${TEMPLATE_DIR}/sample/partials/body.html"
             printf '%s\n' '---'$'\n''Title: Home'$'\n''...'$'\n'''$'\n''# Example' > "${TARGET_DIR}/index.markdown"
             printf '%s\n' '---'$'\n''Title: About'$'\n''...'$'\n'''$'\n''# About' > "${TARGET_DIR}/about/index.markdown"
-            marsh_build_target "${TARGET_DIR}" "./index.markdown" "1" "" "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+            marsh_build_target "${TARGET_DIR}" "./index.markdown" "1" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                marsh_build_target "${TARGET_DIR}" "about/index.markdown" "1" "" "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+                marsh_build_target "${TARGET_DIR}" "about/index.markdown" "1" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
                 ACTUAL=$?
                 EXPECTED=0
                 ASSERTION="equals"
@@ -832,7 +832,7 @@ function marsh_test {
             marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
             printf '%s\n' '{{ template.assets.styles }}'$'\n''{{ template.assets.scripts }}'$'\n''{{ document.content }}' > "${TEMPLATE_DIR}/sample/partials/body.html"
             printf '%s\n' '---'$'\n''Title: Example'$'\n''...'$'\n'''$'\n''# Example' > "${TARGET_DIR}/index.markdown"
-            marsh_build_target "${TARGET_DIR}" "./index.markdown" "1" "" "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 false "assets/site" >/dev/null 2>&1
+            marsh_build_target "${TARGET_DIR}" "./index.markdown" "1" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 false "assets/site" >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
             ASSERTION="equals"
@@ -874,7 +874,7 @@ function marsh_test {
             printf '%s\n' '---'$'\n''Title: About'$'\n''...'$'\n'''$'\n''# About' > "${TARGET_DIR}/about/index.markdown"
             printf '%s\n' '---'$'\n''Title: Redirect Example'$'\n''Redirect_URL: ../'$'\n''...'$'\n'''$'\n''Redirect example.' > "${TARGET_DIR}/redirect-example/index.markdown"
             printf '%s\n' '---'$'\n''Title: News Item'$'\n''Type: news'$'\n''Date: 2026-01-01'$'\n''...'$'\n'''$'\n''# News Item' > "${TARGET_DIR}/news/2026/item.markdown"
-            marsh_build_target "${TARGET_DIR}" "." "1" "" "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+            marsh_build_target "${TARGET_DIR}" "." "1" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
             ASSERTION="equals"
@@ -905,7 +905,7 @@ function marsh_test {
             printf '%s\n' '---'$'\n''Title: Home'$'\n''...'$'\n'''$'\n''# Home' > "${TARGET_DIR}/index.markdown"
             printf '%s\n' '---'$'\n''Type: news'$'\n''Title: First Item'$'\n''Date: 2026-01-02'$'\n''...'$'\n'''$'\n''First' > "${TARGET_DIR}/news/2026/first.markdown"
             printf '%s\n' '---'$'\n''Type: news'$'\n''Title: Second Item'$'\n''Date: 2026-01-01'$'\n''...'$'\n'''$'\n''Second' > "${TARGET_DIR}/news/2026/second.markdown"
-            marsh_build_target "${TARGET_DIR}" "." "1" "" "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+            marsh_build_target "${TARGET_DIR}" "." "1" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
             ASSERTION="equals"
@@ -939,7 +939,7 @@ function marsh_test {
             printf '%s\n' 'archive-template-body' > "${TEMPLATE_DIR}/archive/partials/archive-body.html"
             printf '%s\n' '---'$'\n''Title: Home'$'\n''Type: page'$'\n''...'$'\n'''$'\n''Home' > "${TARGET_DIR}/index.markdown"
             marsh_test_create_archive_document "${TARGET_DIR}" "news/item.markdown" "${MARSH_UID}" "post" "Item" "2026-01-01"
-            marsh_build_target "${TARGET_DIR}" "./index.markdown" "1" "" "${TEMPLATE_DIR}" "target" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+            marsh_build_target "${TARGET_DIR}" "./index.markdown" "1" "" false "${TEMPLATE_DIR}" "target" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
             ASSERTION="equals"
@@ -948,7 +948,7 @@ function marsh_test {
                 EXPECTED="news/index.markdown"$'\n'"news/page/1/index.markdown"
                 ASSERTION="equals"
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    marsh_build_target "${TARGET_DIR}" "news/index.markdown" "1" "" "${TEMPLATE_DIR}" "archive" "marsh_test_markdown_command" "" "markdown,md" "true" 0 true >/dev/null 2>&1
+                    marsh_build_target "${TARGET_DIR}" "news/index.markdown" "1" "" false "${TEMPLATE_DIR}" "archive" "marsh_test_markdown_command" "" "markdown,md" "true" 0 true >/dev/null 2>&1
                     ACTUAL=$?
                     EXPECTED=0
                     ASSERTION="equals"
@@ -985,7 +985,7 @@ function marsh_test {
             printf '%s\n' 'inherited-archive-body' > "${TEMPLATE_DIR}/target/partials/archive-body.html"
             printf '%s\n' '---'$'\n''Title: Home'$'\n''Type: page'$'\n''...'$'\n'''$'\n''Home' > "${TARGET_DIR}/index.markdown"
             marsh_test_create_archive_document "${TARGET_DIR}" "news/item.markdown" "${MARSH_UID}" "post" "Item" "2026-01-01"
-            marsh_build_target "${TARGET_DIR}" "./index.markdown" "1" "" "${TEMPLATE_DIR}" "target" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+            marsh_build_target "${TARGET_DIR}" "./index.markdown" "1" "" false "${TEMPLATE_DIR}" "target" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
             ASSERTION="equals"
@@ -994,7 +994,7 @@ function marsh_test {
                 EXPECTED="news/index.markdown"$'\n'"news/page/1/index.markdown"
                 ASSERTION="equals"
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    marsh_build_target "${TARGET_DIR}" "news/index.markdown" "1" "" "${TEMPLATE_DIR}" "target" "marsh_test_markdown_command" "" "markdown,md" "true" 0 true >/dev/null 2>&1
+                    marsh_build_target "${TARGET_DIR}" "news/index.markdown" "1" "" false "${TEMPLATE_DIR}" "target" "marsh_test_markdown_command" "" "markdown,md" "true" 0 true >/dev/null 2>&1
                     ACTUAL=$?
                     EXPECTED=0
                     ASSERTION="equals"
@@ -1046,9 +1046,9 @@ function marsh_test {
             EXPECTED=0
             ASSERTION="equals"
             {
-                marsh_build_target "${TARGET_DIR}" "./index.markdown" "1" "" "${TEMPLATE_DIR}" "target" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+                marsh_build_target "${TARGET_DIR}" "./index.markdown" "1" "" false "${TEMPLATE_DIR}" "target" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
                 marsh_build_archive "html" "${TARGET_DIR}" "news/index.markdown" "News" "English" "en" "" "10" "1" "post" "0" >/dev/null 2>&1
-                marsh_build_target "${TARGET_DIR}" "news/index.markdown" "1" "" "${TEMPLATE_DIR}" "archive" "marsh_test_markdown_command" "" "markdown,md" "true" 0 true >/dev/null 2>&1
+                marsh_build_target "${TARGET_DIR}" "news/index.markdown" "1" "" false "${TEMPLATE_DIR}" "archive" "marsh_test_markdown_command" "" "markdown,md" "true" 0 true >/dev/null 2>&1
             }
             ACTUAL=$?
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -1105,7 +1105,7 @@ function marsh_test {
                 'Title: Home' \
                 'Project: Example Site' \
                 '...' > "${TARGET_DIR}/index.markdown.${MARSH_UID}.meta.yaml"
-            marsh_build_template "${TARGET_DIR}" "." "index.markdown" "" "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+            marsh_build_template "${TARGET_DIR}" "." "index.markdown" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
             ASSERTION="equals"
@@ -1153,7 +1153,7 @@ function marsh_test {
                 EXPECTED=0
                 ASSERTION="equals"
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    marsh_build_template "${TARGET_DIR}" "." "index.markdown" "" "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+                    marsh_build_template "${TARGET_DIR}" "." "index.markdown" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
                     ACTUAL=$?
                     EXPECTED=0
                     ASSERTION="equals"
@@ -1196,7 +1196,7 @@ function marsh_test {
                 EXPECTED=0
                 ASSERTION="equals"
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    marsh_build_template "${TARGET_DIR}" "." "index.markdown" "" "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+                    marsh_build_template "${TARGET_DIR}" "." "index.markdown" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
                     ACTUAL=$?
                     EXPECTED=0
                     ASSERTION="equals"
@@ -1263,7 +1263,7 @@ function marsh_test {
                 EXPECTED=0
                 ASSERTION="equals"
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    marsh_build_template "${TARGET_DIR}" "." "index.markdown" "" "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+                    marsh_build_template "${TARGET_DIR}" "." "index.markdown" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
                     ACTUAL=$?
                     EXPECTED=0
                     ASSERTION="equals"
@@ -1339,7 +1339,7 @@ function marsh_test {
             EXPECTED='feed.xml'
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                marsh_build_template "${TARGET_DIR}" "." "feed.xml" "" "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+                marsh_build_template "${TARGET_DIR}" "." "feed.xml" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
                 ACTUAL=$?
                 EXPECTED=0
                 ASSERTION="equals"
@@ -1372,7 +1372,7 @@ function marsh_test {
             EXPECTED='feed.json'
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                marsh_build_template "${TARGET_DIR}" "." "feed.json" "" "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+                marsh_build_template "${TARGET_DIR}" "." "feed.json" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
                 ACTUAL=$?
                 EXPECTED=0
                 ASSERTION="equals"
@@ -1408,8 +1408,8 @@ function marsh_test {
             printf '%s\n' 'Example' > "${TARGET_DIR}/news/2026/index.markdown.${MARSH_UID}.document"
             printf '%s\n' '---'$'\n''Title: Example'$'\n''...' > "${TARGET_DIR}/news/2026/index.markdown.${MARSH_UID}.meta.yaml"
             {
-                marsh_build_template "${TARGET_DIR}" "." "index.markdown" "" "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1 \
-                    && marsh_build_template "${TARGET_DIR}" "." "news/2026/index.markdown" "" "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+                marsh_build_template "${TARGET_DIR}" "." "index.markdown" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1 \
+                    && marsh_build_template "${TARGET_DIR}" "." "news/2026/index.markdown" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
             }
             ACTUAL=$?
             EXPECTED=0
@@ -1439,7 +1439,7 @@ function marsh_test {
             printf '%s\n' 'site-root={{ site.rootpath }};site-abs={{ site.abspath }};target-root={{ target.rootpath }};target-abs={{ target.abspath }}' > "${TEMPLATE_DIR}/sample/partials/body.html"
             printf '%s\n' 'Example' > "${TARGET_DIR}/news/index.markdown.${MARSH_UID}.document"
             printf '%s\n' '---'$'\n''Title: Example'$'\n''...' > "${TARGET_DIR}/news/index.markdown.${MARSH_UID}.meta.yaml"
-            marsh_build_template "${TARGET_DIR}" "news" "index.markdown" "" "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+            marsh_build_template "${TARGET_DIR}" "news" "index.markdown" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
             ASSERTION="equals"
@@ -1467,8 +1467,8 @@ function marsh_test {
             printf '%s\n' 'Example' > "${TARGET_DIR}/news/2026/index.markdown.${MARSH_UID}.document"
             printf '%s\n' '---'$'\n''Title: Example'$'\n''...' > "${TARGET_DIR}/news/2026/index.markdown.${MARSH_UID}.meta.yaml"
             {
-                marsh_build_template "${TARGET_DIR}" "." "about.markdown" "" "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1 \
-                    && marsh_build_template "${TARGET_DIR}" "." "news/2026/index.markdown" "" "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+                marsh_build_template "${TARGET_DIR}" "." "about.markdown" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1 \
+                    && marsh_build_template "${TARGET_DIR}" "." "news/2026/index.markdown" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
             }
             ACTUAL=$?
             EXPECTED=0
@@ -1505,7 +1505,7 @@ function marsh_test {
                 EXPECTED=0
                 ASSERTION="equals"
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    marsh_build_template "${TARGET_DIR}" "." "news/page/1/index.markdown" "" "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+                    marsh_build_template "${TARGET_DIR}" "." "news/page/1/index.markdown" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
                     ACTUAL=$?
                     EXPECTED=0
                     ASSERTION="equals"
@@ -1557,7 +1557,7 @@ function marsh_test {
                 EXPECTED=0
                 ASSERTION="equals"
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    marsh_build_template "${TARGET_DIR}" "." "news/page/1/index.markdown" "" "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+                    marsh_build_template "${TARGET_DIR}" "." "news/page/1/index.markdown" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
                     ACTUAL=$?
                     EXPECTED=0
                     ASSERTION="equals"
@@ -1594,7 +1594,7 @@ function marsh_test {
             printf '%s\n' '@media print { body { color: black; } }' > "${TEMPLATE_DIR}/sample/css/print.css"
             printf '%s\n' 'Example' > "${TARGET_DIR}/news/2026/index.markdown.${MARSH_UID}.document"
             printf '%s\n' '---'$'\n''Title: Example'$'\n''...' > "${TARGET_DIR}/news/2026/index.markdown.${MARSH_UID}.meta.yaml"
-            marsh_build_template "${TARGET_DIR}" "." "news/2026/index.markdown" "" "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+            marsh_build_template "${TARGET_DIR}" "." "news/2026/index.markdown" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
             ASSERTION="equals"
@@ -1633,7 +1633,7 @@ function marsh_test {
                 EXPECTED=0
                 ASSERTION="equals"
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    marsh_build_template "${TARGET_DIR}" "." "news/page/1/index.markdown" "" "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+                    marsh_build_template "${TARGET_DIR}" "." "news/page/1/index.markdown" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
                     ACTUAL=$?
                     EXPECTED=0
                     ASSERTION="equals"
@@ -1683,7 +1683,7 @@ function marsh_test {
                 '...' > "${TEMPLATE_DIR}/sample/template.yaml"
             printf '%s\n' 'Example' > "${TARGET_DIR}/news/2026/index.markdown.${MARSH_UID}.document"
             printf '%s\n' '---'$'\n''Title: Example'$'\n''...' > "${TARGET_DIR}/news/2026/index.markdown.${MARSH_UID}.meta.yaml"
-            marsh_build_template "${TARGET_DIR}" "." "news/2026/index.markdown" "" "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+            marsh_build_template "${TARGET_DIR}" "." "news/2026/index.markdown" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
             ASSERTION="equals"
@@ -1751,7 +1751,7 @@ function marsh_test {
                 EXPECTED=0
                 ASSERTION="equals"
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    marsh_build_template "${TARGET_DIR}" "." "news/page/1/index.markdown" "" "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+                    marsh_build_template "${TARGET_DIR}" "." "news/page/1/index.markdown" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
                     ACTUAL=$?
                     EXPECTED=0
                     ASSERTION="equals"
@@ -1825,7 +1825,7 @@ function marsh_test {
                 EXPECTED=0
                 ASSERTION="equals"
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    marsh_build_template "${TARGET_DIR}" "news" "page/1/index.markdown" "" "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+                    marsh_build_template "${TARGET_DIR}" "news" "page/1/index.markdown" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
                     ACTUAL=$?
                     EXPECTED=0
                     ASSERTION="equals"
@@ -1904,7 +1904,7 @@ function marsh_test {
                     EXPECTED=0
                     ASSERTION="equals"
                     if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                        marsh_build_template "${TARGET_DIR}" "news" "page/1/index.markdown" "" "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 "assets/archive" >/dev/null 2>&1
+                        marsh_build_template "${TARGET_DIR}" "news" "page/1/index.markdown" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 "assets/archive" >/dev/null 2>&1
                         ACTUAL=$?
                         EXPECTED=0
                         ASSERTION="equals"
@@ -1951,7 +1951,7 @@ function marsh_test {
             EXPECTED=0
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                marsh_build_template "${TARGET_DIR}" "about" "index.markdown" "../site-map/index.markdown" "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+                marsh_build_template "${TARGET_DIR}" "about" "index.markdown" "../site-map/index.markdown" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
                 ACTUAL=$?
                 EXPECTED=0
                 ASSERTION="equals"
@@ -1992,7 +1992,7 @@ function marsh_test {
                 EXPECTED=0
                 ASSERTION="equals"
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    marsh_build_template "${TARGET_DIR}" "." "news/all/index.markdown" "" "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+                    marsh_build_template "${TARGET_DIR}" "." "news/all/index.markdown" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
                     ACTUAL=$?
                     EXPECTED=0
                     ASSERTION="equals"
@@ -2025,7 +2025,7 @@ function marsh_test {
             EXPECTED=0
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                marsh_build_template "${TARGET_DIR}" "." "index.markdown" "site-map/index.markdown" "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+                marsh_build_template "${TARGET_DIR}" "." "index.markdown" "site-map/index.markdown" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
                 ACTUAL=$?
                 EXPECTED=0
                 ASSERTION="equals"
@@ -2070,7 +2070,7 @@ function marsh_test {
                     EXPECTED=0
                     ASSERTION="equals"
                     if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                        marsh_build_template "${TARGET_DIR}" "." "news/page/1/index.markdown" "site-map/index.markdown" "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+                        marsh_build_template "${TARGET_DIR}" "." "news/page/1/index.markdown" "site-map/index.markdown" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
                         ACTUAL=$?
                         EXPECTED=0
                         ASSERTION="equals"
@@ -2358,6 +2358,106 @@ function marsh_test {
             marsh_test_set_env "navtest" false false
             mkdir -p "${TARGET_DIR}/news"
             marsh_find_sitemap "${TARGET_DIR}" "news/article.markdown" "nav.html" 2>/dev/null
+            ACTUAL=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" -eq "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            rm -rf "${TARGET_DIR}"
+            marsh_test_restore_env
+            ;;
+        marsh_find_sitemap:3)
+            TEST_NAME+=":search_nearest"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            marsh_test_set_env "navtest" false false
+            mkdir -p "${TARGET_DIR}"
+            SITEMAP_RENDER=$(marsh_get_sitemap_render_path "${TARGET_DIR}" "news/world/sitemap.markdown")
+            mkdir -p "${SITEMAP_RENDER%/*}"
+            : > "${SITEMAP_RENDER}"
+            ACTUAL=$(marsh_find_sitemap "${TARGET_DIR}" "news/world/article.markdown" "sitemap.markdown" true)
+            EXPECTED="${SITEMAP_RENDER#${TARGET_DIR}/}"
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            rm -rf "${TARGET_DIR}"
+            marsh_test_restore_env
+            ;;
+        marsh_find_sitemap:4)
+            TEST_NAME+=":search_parent"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            marsh_test_set_env "navtest" false false
+            mkdir -p "${TARGET_DIR}"
+            SITEMAP_RENDER=$(marsh_get_sitemap_render_path "${TARGET_DIR}" "news/sitemap.markdown")
+            mkdir -p "${SITEMAP_RENDER%/*}"
+            : > "${SITEMAP_RENDER}"
+            ACTUAL=$(marsh_find_sitemap "${TARGET_DIR}" "news/world/article.markdown" "sitemap.markdown" true)
+            EXPECTED="${SITEMAP_RENDER#${TARGET_DIR}/}"
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            rm -rf "${TARGET_DIR}"
+            marsh_test_restore_env
+            ;;
+        marsh_get_sitemap_lookup_path:0)
+            TEST_NAME+=":explicit"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            marsh_test_set_env "navlookupuid" false false
+            mkdir -p "${TARGET_DIR}"
+            SITEMAP_RENDER=$(marsh_get_sitemap_render_path "${TARGET_DIR}" "site-map/index.markdown")
+            mkdir -p "${SITEMAP_RENDER%/*}"
+            : > "${SITEMAP_RENDER}"
+            ACTUAL=$(marsh_get_sitemap_lookup_path "${TARGET_DIR}" "news/article.markdown" "site-map/index.markdown")
+            EXPECTED="site-map/index.markdown"
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            rm -rf "${TARGET_DIR}"
+            marsh_test_restore_env
+            ;;
+        marsh_get_sitemap_lookup_path:1)
+            TEST_NAME+=":search_nearest"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            marsh_test_set_env "navlookupuid" false false
+            mkdir -p "${TARGET_DIR}"
+            SITEMAP_RENDER=$(marsh_get_sitemap_render_path "${TARGET_DIR}" "news/world/sitemap.markdown")
+            mkdir -p "${SITEMAP_RENDER%/*}"
+            : > "${SITEMAP_RENDER}"
+            ACTUAL=$(marsh_get_sitemap_lookup_path "${TARGET_DIR}" "news/world/article.markdown" "sitemap.markdown" true)
+            EXPECTED="news/world/sitemap.markdown"
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            rm -rf "${TARGET_DIR}"
+            marsh_test_restore_env
+            ;;
+        marsh_get_sitemap_lookup_path:2)
+            TEST_NAME+=":search_parent"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            marsh_test_set_env "navlookupuid" false false
+            mkdir -p "${TARGET_DIR}"
+            SITEMAP_RENDER=$(marsh_get_sitemap_render_path "${TARGET_DIR}" "news/sitemap.markdown")
+            mkdir -p "${SITEMAP_RENDER%/*}"
+            : > "${SITEMAP_RENDER}"
+            ACTUAL=$(marsh_get_sitemap_lookup_path "${TARGET_DIR}" "news/world/article.markdown" "sitemap.markdown" true)
+            EXPECTED="news/sitemap.markdown"
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            rm -rf "${TARGET_DIR}"
+            marsh_test_restore_env
+            ;;
+        marsh_get_sitemap_lookup_path:3)
+            TEST_NAME+=":missing"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            marsh_test_set_env "navlookupuid" false false
+            mkdir -p "${TARGET_DIR}"
+            marsh_get_sitemap_lookup_path "${TARGET_DIR}" "news/article.markdown" "sitemap.markdown" true 2>/dev/null
             ACTUAL=$?
             EXPECTED=1
             ASSERTION="equals"
@@ -2870,6 +2970,42 @@ function marsh_test {
             if [[ "${ACTUAL}" -eq "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
+            ;;
+        marsh_get_target_metadata:3)
+            TEST_NAME+=":sitemap_mapping"
+            MARSH_TEST_TARGET_Path="/site/output"
+            MARSH_TEST_TARGET_Source="source/www"
+            MARSH_TEST_TARGET_Sitemap_Source="sitemap.markdown"
+            MARSH_TEST_TARGET_Sitemap_Search="true"
+            ACTUAL=$(marsh_get_target_metadata "MARSH_TEST_TARGET_" "TARGET_")
+            EXPECTED=$(printf '%s\n' \
+                'TARGET_PATH="/site/output"' \
+                'TARGET_SOURCE="source/www"' \
+                'TARGET_SITEMAP="sitemap.markdown"' \
+                'TARGET_SITEMAP_SOURCE=""' \
+                'TARGET_SITEMAP_SEARCH="true"' \
+                'TARGET_TEMPLATE_ASSETS_PATH=""' \
+                'TARGET_TEMPLATE_OVERRIDES=()' \
+                'TARGET_ARCHIVES=()' \
+                'TARGET_ARCHIVES_ENCODING=()' \
+                'TARGET_ARCHIVES_NAME=()' \
+                'TARGET_ARCHIVES_LANGUAGE=()' \
+                'TARGET_ARCHIVES_LANGUAGE_CODE=()' \
+                'TARGET_ARCHIVES_ROOT_PATH=()' \
+                'TARGET_ARCHIVES_COUNT=()' \
+                'TARGET_ARCHIVES_PAGE_SIZE=()' \
+                'TARGET_ARCHIVES_CONTENT=()' \
+                'TARGET_ARCHIVES_TYPES=()' \
+                'TARGET_ARCHIVES_EXCLUDED_STATES=()' \
+                'TARGET_ARCHIVES_TEMPLATE_SOURCE=()' \
+                'TARGET_ARCHIVES_TEMPLATE_ASSETS_PATH=()' \
+                'TARGET_ARCHIVES_TEMPLATE_OVERRIDES=()' \
+                'TARGET_ARCHIVES_TEMPLATE=()')
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            unset MARSH_TEST_TARGET_Path MARSH_TEST_TARGET_Source MARSH_TEST_TARGET_Sitemap_Source MARSH_TEST_TARGET_Sitemap_Search
             ;;
         marsh_get_template_metadata:0)
             TEST_NAME+=":cached"
@@ -4549,6 +4685,7 @@ KNOWN_FUNCTIONS=(
     marsh_get_files
     marsh_get_local_declarations
     marsh_get_relative_path
+    marsh_get_sitemap_lookup_path
     marsh_get_site_source_root_path
     marsh_get_source_root_path
     marsh_get_subdocuments

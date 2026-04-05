@@ -705,7 +705,7 @@ Targets may define in the site build configuration a site map document, which is
 
 This is useful where you want a navigation structure to be derived from a source document and made reusable across multiple pages in the same target.
 
-Example site build configuration specifying a site map source document using `Sitemap`:
+Example site build configuration specifying a site map source document using `Sitemap.Source`:
 
 ```yaml
 ---
@@ -714,7 +714,25 @@ Build:
     - Name: Example Site
       Path: .
       Source: source/*
-      Sitemap: site-map/index.markdown
+      Sitemap:
+        Source: site-map/index.markdown
+...
+```
+
+You can also specify `Search: true` to treat the `Sitemap.Source` path as a lookup key, instead of an explicit path. With `Search: true`, `marsh` will find all documents in the target whose names match the lookup key, and for each document use the nearest matching site map within the target source tree. This essentially allows creating different site maps for different subdirectories, as long as the file names are the same.
+
+Example site build configuration specifying a site map lookup key using `Sitemap.Source` paired with `Sitemap.Search: true`.
+
+```yaml
+---
+Build:
+  Targets:
+    - Name: Example Site
+      Path: docs
+      Source: source/docs
+      Sitemap:
+        Source: sitemap.markdown
+        Search: true
 ...
 ```
 

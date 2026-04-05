@@ -1515,17 +1515,14 @@ function marsh_get_archive_metadata {  # marsh_get_archive_metadata target_dir d
     # reconstruct public paths here so archive generation does not need to repeat it
     TYPE_VAR="${META_PREFIX}Type"
     TYPE="${!TYPE_VAR:-}"
-    TARGET_PATH="${TARGET_DIR#$MARSH_CONFIG_PATH}"
-    TARGET_PATH="${TARGET_PATH#/}"
-    TARGET_PATH="${TARGET_PATH:-.}"
-    TARGET_PATH=$(marsh_normalize_internal_path "${TARGET_PATH}") || return 1
+    TARGET_PATH=$(marsh_get_target_output_path "${TARGET_DIR}") || return 1
     if [[ "${TARGET_PATH}" == "." ]]; then
-        URI="${MARSH_CONFIG_URL%/}/${DOCUMENT_SOURCE}"
+        URI="${DOCUMENT_SOURCE}"
     else
-        URI="${MARSH_CONFIG_URL%/}/${TARGET_PATH}/${DOCUMENT_SOURCE}"
+        URI="${TARGET_PATH}/${DOCUMENT_SOURCE}"
     fi
     URI="${URI%.markdown}.html"
-    URI=$(marsh_normalize_path "${URI}" "document") || return 1
+    URI=$(marsh_get_absolute_output_path "${URI}" "document") || return 1
     ABSPATH=""
     [[ "${URI}" =~ / ]] && ABSPATH="${URI%/*}"
 
@@ -1617,9 +1614,7 @@ function marsh_get_sitemap_lookup_path {  # marsh_get_sitemap_lookup_path target
     [[ "${TARGET_DIR}" == "" ]] && return 1
     [[ "${DOCUMENT}" == "" ]] && return 1
     [[ "${SITEMAP_FILE}" == "" ]] && return 1
-    TARGET_DIR="${TARGET_DIR%/}"
-    TARGET_DIR="${TARGET_DIR%/.}"
-    TARGET_DIR="${TARGET_DIR:-.}"
+    TARGET_DIR=$(marsh_get_target_directory_path "${TARGET_DIR}") || return 1
 
     if [[ "${SITEMAP_SEARCH}" != true ]]; then
         SITEMAP_PATH=$(marsh_get_sitemap_render_path "${TARGET_DIR}" "${SITEMAP_FILE}") || return 1
@@ -1628,10 +1623,7 @@ function marsh_get_sitemap_lookup_path {  # marsh_get_sitemap_lookup_path target
         return 0
     fi
 
-    CURRENT_DIR="./${DOCUMENT}"
-    CURRENT_DIR="${CURRENT_DIR%/*}"
-    CURRENT_DIR="${CURRENT_DIR#./}"
-    CURRENT_DIR="${CURRENT_DIR:-.}"
+    CURRENT_DIR=$(marsh_get_internal_parent_directory "${DOCUMENT}") || return 1
     while true; do
         CURRENT_BASE=$(marsh_normalize_internal_path "${CURRENT_DIR}" "directory") || return 1
         CANDIDATE=$(marsh_resolve_relative_path "${CURRENT_BASE}" "${SITEMAP_FILE}") || return 1
@@ -1663,9 +1655,7 @@ function marsh_find_sitemap {  # marsh_find_sitemap target_dir document sitemap_
     [[ "${TARGET_DIR}" == "" ]] && return 1
     [[ "${DOCUMENT}" == "" ]] && return 1
     [[ "${SITEMAP_FILE}" == "" ]] && return 1
-    TARGET_DIR="${TARGET_DIR%/}"
-    TARGET_DIR="${TARGET_DIR%/.}"
-    TARGET_DIR="${TARGET_DIR:-.}"
+    TARGET_DIR=$(marsh_get_target_directory_path "${TARGET_DIR}") || return 1
 
     SITEMAP_LOOKUP_PATH=$(marsh_get_sitemap_lookup_path "${TARGET_DIR}" "${DOCUMENT}" "${SITEMAP_FILE}" "${SITEMAP_SEARCH}") || return 1
     SITEMAP_PATH=$(marsh_get_sitemap_render_path "${TARGET_DIR}" "${SITEMAP_LOOKUP_PATH}") || return 1
@@ -2118,9 +2108,7 @@ function marsh_get_sitemap_render_path {  # marsh_get_sitemap_render_path target
     SITEMAP_PATH="${2:-}"
     [[ "${TARGET_DIR}" == "" ]] && return 1
     [[ "${SITEMAP_PATH}" == "" ]] && return 1
-    TARGET_DIR="${TARGET_DIR%/}"
-    TARGET_DIR="${TARGET_DIR%/.}"
-    TARGET_DIR="${TARGET_DIR:-.}"
+    TARGET_DIR=$(marsh_get_target_directory_path "${TARGET_DIR}") || return 1
 
     CACHE_DIR="${MARSH_TEMP}/sitemap-render-cache"
     mkdir -p "${CACHE_DIR}" >/dev/null 2>&1 || {
@@ -2520,6 +2508,119 @@ function marsh_resolve_relative_path {  # marsh_resolve_relative_path base_dir t
     printf '%s\n' "${RESULT}"
 }
 
+# derives normalized target/document path values shared by document and template builds
+function marsh_get_target_document_paths {  # marsh_get_target_document_paths document dest_dir target_dir markdown_fileext_csv
+    local DOCUMENT DEST_DIR TARGET_DIR MARKDOWN_FILEEXT_CSV
+    local DOCUMENT_EXT DOCUMENT_DIR TARGET_PATH DOCUMENT_OUTPUT_PATH DOCUMENT_SOURCE_PATH DOCUMENT_BASE_PATH
+
+    DOCUMENT="${1:-}"
+    DEST_DIR="${2:-.}"
+    TARGET_DIR="${3:-.}"
+    MARKDOWN_FILEEXT_CSV="${4:-}"
+    [[ "${DOCUMENT}" == "" ]] && return 1
+    [[ "${MARKDOWN_FILEEXT_CSV}" == "" ]] && return 1
+
+    DEST_DIR="${DEST_DIR%/}"
+    TARGET_DIR="${TARGET_DIR%/}"
+    TARGET_PATH="${DEST_DIR}/${TARGET_DIR}"
+    TARGET_PATH="${TARGET_PATH%/.}"
+
+    DOCUMENT_EXT="${DOCUMENT##*.}"
+    DOCUMENT_DIR=$(marsh_get_internal_parent_directory "${DOCUMENT}") || return 1
+
+    DOCUMENT_OUTPUT_PATH="${DOCUMENT}"
+    if marsh_is_markdown_extension "${DOCUMENT_EXT}" "${MARKDOWN_FILEEXT_CSV}"; then
+        DOCUMENT_OUTPUT_PATH="${DOCUMENT_OUTPUT_PATH%.*}.html"
+    fi
+    if [[ "${TARGET_DIR}" != "." ]]; then
+        DOCUMENT_OUTPUT_PATH="${TARGET_DIR}/${DOCUMENT_OUTPUT_PATH}"
+    fi
+    DOCUMENT_OUTPUT_PATH="${DOCUMENT_OUTPUT_PATH#./}"
+
+    DOCUMENT_SOURCE_PATH="${TARGET_PATH}/${DOCUMENT}"
+    DOCUMENT_BASE_PATH=$(marsh_normalize_internal_path "${TARGET_DIR}/${DOCUMENT_DIR}" "directory") || return 1
+
+    printf 'TARGET_PATH=%q\n' "${TARGET_PATH}"
+    printf 'DOCUMENT_DIR=%q\n' "${DOCUMENT_DIR}"
+    printf 'DOCUMENT_EXT=%q\n' "${DOCUMENT_EXT}"
+    printf 'DOCUMENT_OUTPUT_PATH=%q\n' "${DOCUMENT_OUTPUT_PATH}"
+    printf 'DOCUMENT_SOURCE_PATH=%q\n' "${DOCUMENT_SOURCE_PATH}"
+    printf 'DOCUMENT_BASE_PATH=%q\n' "${DOCUMENT_BASE_PATH}"
+}
+
+# returns the normalized target directory path
+function marsh_get_target_directory_path {  # marsh_get_target_directory_path target_dir
+    local TARGET_DIR
+
+    TARGET_DIR="${1:-}"
+    [[ "${TARGET_DIR}" == "" ]] && return 1
+
+    TARGET_DIR="${TARGET_DIR%/}"
+    TARGET_DIR="${TARGET_DIR%/.}"
+    printf '%s\n' "${TARGET_DIR:-.}"
+}
+
+# returns the normalized target path relative to the site output root
+function marsh_get_target_output_path {  # marsh_get_target_output_path target_dir
+    local TARGET_DIR TARGET_PATH
+
+    TARGET_DIR=$(marsh_get_target_directory_path "${1:-}") || return 1
+
+    TARGET_PATH="${TARGET_DIR#$MARSH_CONFIG_PATH}"
+    TARGET_PATH="${TARGET_PATH#/}"
+    TARGET_PATH="${TARGET_PATH:-.}"
+    marsh_normalize_internal_path "${TARGET_PATH}"
+}
+
+# returns a site-relative output path as either an absolute public URL or a normalized relative path
+function marsh_get_absolute_output_path {  # marsh_get_absolute_output_path output_path [path_kind]
+    local OUTPUT_PATH PATH_KIND NORMALIZED_PATH RELATIVE_PATH ABSOLUTE_PATH
+
+    OUTPUT_PATH="${1:-}"
+    PATH_KIND="${2:-path}"
+    [[ "${OUTPUT_PATH}" == "" ]] && return 1
+    [[ "${PATH_KIND}" == "path" || "${PATH_KIND}" == "directory" || "${PATH_KIND}" == "document" ]] || return 1
+
+    NORMALIZED_PATH=$(marsh_normalize_path "${OUTPUT_PATH}" "${PATH_KIND}") || return 1
+    if [[ "${MARSH_CONFIG_URL:-}" == "" ]]; then
+        printf '%s\n' "${NORMALIZED_PATH}"
+        return 0
+    fi
+
+    RELATIVE_PATH="${NORMALIZED_PATH}"
+    [[ "${RELATIVE_PATH}" == "./" ]] && RELATIVE_PATH=""
+    RELATIVE_PATH="${RELATIVE_PATH#./}"
+
+    ABSOLUTE_PATH="${MARSH_CONFIG_URL%/}"
+    if [[ "${RELATIVE_PATH}" != "" ]]; then
+        ABSOLUTE_PATH="${ABSOLUTE_PATH}/${RELATIVE_PATH}"
+    elif [[ "${PATH_KIND}" == "document" ]]; then
+        ABSOLUTE_PATH="${ABSOLUTE_PATH}/"
+    fi
+
+    marsh_normalize_path "${ABSOLUTE_PATH}" "${PATH_KIND}"
+}
+
+# returns the normalized parent directory for an internal relative path
+function marsh_get_internal_parent_directory {  # marsh_get_internal_parent_directory path
+    local PATH_VALUE PARENT_DIR
+
+    PATH_VALUE="${1:-}"
+    [[ "${PATH_VALUE}" == "" ]] && return 1
+
+    PATH_VALUE=$(marsh_normalize_internal_path "${PATH_VALUE}") || return 1
+    if [[ "${PATH_VALUE}" == "." ]]; then
+        printf '%s\n' '.'
+        return 0
+    fi
+    if [[ "${PATH_VALUE}" == */* ]]; then
+        PARENT_DIR="${PATH_VALUE%/*}"
+    else
+        PARENT_DIR='.'
+    fi
+    printf '%s\n' "${PARENT_DIR}"
+}
+
 # rewrites relative href values in a rendered sitemap for the destination document
 function marsh_rewrite_sitemap_links {  # marsh_rewrite_sitemap_links sitemap_file sitemap_dir document_base_path
     local SITEMAP_FILE SITEMAP_DIR DOCUMENT_BASE_PATH
@@ -2582,11 +2683,7 @@ function marsh_get_archive_page_root {  # marsh_get_archive_page_root archive_so
 
     ARCHIVE_SOURCE="${1:-}"
     [[ "${ARCHIVE_SOURCE}" == "" ]] && return 1
-    if [[ "${ARCHIVE_SOURCE}" == */* ]]; then
-        ARCHIVE_DIR="${ARCHIVE_SOURCE%/*}"
-    else
-        ARCHIVE_DIR='.'
-    fi
+    ARCHIVE_DIR=$(marsh_get_internal_parent_directory "${ARCHIVE_SOURCE}") || return 1
     ARCHIVE_NAME="${ARCHIVE_SOURCE##*/}"
     if [[ "${ARCHIVE_NAME%.*}" == "index" ]]; then
         PAGE_ROOT="${ARCHIVE_DIR}/page"
@@ -2605,25 +2702,11 @@ function marsh_get_archive_root_path {  # marsh_get_archive_root_path archive_pa
     [[ "${ARCHIVE_PATH}" == "" ]] && return 1
     shift 1
 
-    if [[ "${ARCHIVE_PATH}" == */* ]]; then
-        COMMON_DIR="${ARCHIVE_PATH%/*}"
-    else
-        COMMON_DIR="."
-    fi
-    COMMON_DIR="${COMMON_DIR#./}"
-    COMMON_DIR="${COMMON_DIR%/}"
-    COMMON_DIR="${COMMON_DIR:-.}"
+    COMMON_DIR=$(marsh_get_internal_parent_directory "${ARCHIVE_PATH}") || return 1
 
     for ARCHIVE_PATH in "$@"; do
         [[ "${ARCHIVE_PATH}" == "" ]] && continue
-        if [[ "${ARCHIVE_PATH}" == */* ]]; then
-            NEXT_DIR="${ARCHIVE_PATH%/*}"
-        else
-            NEXT_DIR="."
-        fi
-        NEXT_DIR="${NEXT_DIR#./}"
-        NEXT_DIR="${NEXT_DIR%/}"
-        NEXT_DIR="${NEXT_DIR:-.}"
+        NEXT_DIR=$(marsh_get_internal_parent_directory "${ARCHIVE_PATH}") || return 1
 
         COMMON_PARTS=()
         NEXT_PARTS=()
@@ -2674,19 +2757,14 @@ function marsh_get_archive_page_uri {  # marsh_get_archive_page_uri target_dir a
     [[ "${TARGET_DIR}" == "" ]] && return 1
     [[ "${ARCHIVE_SOURCE}" == "" ]] && return 1
 
-    TARGET_PATH="${TARGET_DIR#$MARSH_CONFIG_PATH}"
-    TARGET_PATH="${TARGET_PATH#/}"
-    TARGET_PATH=$(marsh_normalize_internal_path "${TARGET_PATH}") || return 1
+    TARGET_PATH=$(marsh_get_target_output_path "${TARGET_DIR}") || return 1
     if [[ "${TARGET_PATH}" == "." ]]; then
-        TARGET_PATH=""
+        URI="${ARCHIVE_SOURCE}"
+    else
+        URI="${TARGET_PATH}/${ARCHIVE_SOURCE}"
     fi
-    URI="${MARSH_CONFIG_URL%/}"
-    if [[ "${TARGET_PATH}" != "" ]]; then
-        URI="${URI}/${TARGET_PATH}"
-    fi
-    URI="${URI}/${ARCHIVE_SOURCE}"
     URI="${URI%.*}.html"
-    marsh_normalize_path "${URI}" "document"
+    marsh_get_absolute_output_path "${URI}" "document"
 }
 
 # writes a single archive source page and its page-local subdocuments
@@ -3475,7 +3553,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
     }
 
     local DEST_DIR TARGET_DIR TARGET_PATH SITEMAP_SOURCE SITEMAP_SEARCH TARGET_SITEMAP DOCUMENT_REL_PATH
-    local DOCUMENT DOCUMENT_EXT DOCUMENT_DIR DOCUMENT_HREF DOCUMENT_URI DOCUMENT_OUTPUT_PATH DOCUMENT_BASE_PATH DOCUMENT_ABSPATH ARCHIVE_OUTPUT_PATH
+    local DOCUMENT DOCUMENT_EXT DOCUMENT_DIR DOCUMENT_HREF DOCUMENT_URI DOCUMENT_OUTPUT_PATH DOCUMENT_BASE_PATH DOCUMENT_ABSPATH ARCHIVE_OUTPUT_PATH DOCUMENT_SOURCE_PATH
     local SITE_ROOTPATH SITE_ABSPATH TARGET_ROOTPATH TARGET_ABSPATH ARCHIVE_ROOTPATH ARCHIVE_ABSPATH
     local DEST DEST_NAME DEST_PRINT
     local TEMPLATE_DIR TEMPLATE MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_FILEEXT_REGEX MARKDOWN_REWRITE_LINKS TEMPLATE_ASSETS_PATH
@@ -3530,75 +3608,36 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
     done
     TEMPLATE_ASSETS_PATH="${1:-}"
 
-    # normalize template assets path
+    # normalize paths and evaluate document paths
     TEMPLATE_ASSETS_PATH="${TEMPLATE_ASSETS_PATH#./}"
     TEMPLATE_ASSETS_PATH="${TEMPLATE_ASSETS_PATH#/}"
     TEMPLATE_ASSETS_PATH="${TEMPLATE_ASSETS_PATH%/}"
-
-    # normalized directory paths
+    DOCUMENT_REL_PATH="${DOCUMENT}"
     DEST_DIR="${DEST_DIR%/}"
     TARGET_DIR="${TARGET_DIR%/}"
-    TARGET_PATH="${DEST_DIR}/${TARGET_DIR}"
-    TARGET_PATH="${TARGET_PATH%/.}"
-
-    # document file extension
-    DOCUMENT_EXT="${DOCUMENT##*.}"
-
-    # normalized document directory
-    DOCUMENT_DIR="./${DOCUMENT}"
-    DOCUMENT_DIR="${DOCUMENT_DIR%/*}"
-    DOCUMENT_DIR="${DOCUMENT_DIR#./}"
+    eval "$(marsh_get_target_document_paths "${DOCUMENT}" "${DEST_DIR}" "${TARGET_DIR}" "${MARKDOWN_FILEEXT_CSV}")" || return 1
 
     # document destination
     DEST="${DOCUMENT}"
-    DOCUMENT_REL_PATH="${DOCUMENT}"
     DEST_NAME="${DEST%.$DOCUMENT_EXT}"
     DEST_NAME="${DEST_NAME##*/}"
-    if marsh_is_markdown_extension "${DOCUMENT_EXT}" "${MARKDOWN_FILEEXT_CSV}"; then
-        DEST="${DEST%.*}.html"
-    fi
-    if [[ "${TARGET_DIR}" != "." ]]; then
-        DEST="${TARGET_DIR}/${DEST}"
-    fi
-    DOCUMENT_OUTPUT_PATH="${DEST#./}"
-    DEST="${DEST_DIR}/${DEST}"
-    DOCUMENT="${DEST_DIR}/${TARGET_DIR}/${DOCUMENT}"
-
-    # normalized document base path
-    DOCUMENT_BASE_PATH=$(marsh_normalize_internal_path "${TARGET_DIR}/${DOCUMENT_DIR}" "directory") || return 1
+    DEST="${DEST_DIR}/${DOCUMENT_OUTPUT_PATH}"
+    DOCUMENT="${DOCUMENT_SOURCE_PATH}"
 
     # absolute path to document directory
-    DOCUMENT_ABSPATH=$(marsh_normalize_internal_path "${DOCUMENT_BASE_PATH}") || return 1
-    [[ "${DOCUMENT_ABSPATH}" == "." ]] && DOCUMENT_ABSPATH=""
-    if [[ "${MARSH_CONFIG_URL:-}" != "" ]]; then
-        DOCUMENT_ABSPATH="${MARSH_CONFIG_URL%/}/${DOCUMENT_ABSPATH}"
-        DOCUMENT_ABSPATH="${DOCUMENT_ABSPATH%/}"
-    else
-        DOCUMENT_ABSPATH="${DOCUMENT_ABSPATH:-.}"
-    fi
-    DOCUMENT_ABSPATH=$(marsh_normalize_path "${DOCUMENT_ABSPATH}" "directory") || return 1
+    DOCUMENT_ABSPATH=$(marsh_get_absolute_output_path "${DOCUMENT_BASE_PATH}" "directory") || return 1
 
     # target root path and absolute target path
     TARGET_ROOTPATH=$(marsh_normalize_path "${TARGET_DIR:-.}" "directory") || return 1
     TARGET_ROOTPATH=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "${TARGET_ROOTPATH}") || return 1
-    TARGET_ABSPATH=$(marsh_normalize_internal_path "${TARGET_DIR}") || return 1
-    [[ "${TARGET_ABSPATH}" == "." ]] && TARGET_ABSPATH=""
-    if [[ "${MARSH_CONFIG_URL:-}" != "" ]]; then
-        TARGET_ABSPATH="${MARSH_CONFIG_URL%/}/${TARGET_ABSPATH}"
-        TARGET_ABSPATH="${TARGET_ABSPATH%/}"
-    else
-        TARGET_ABSPATH="${TARGET_ABSPATH:-.}"
-    fi
-    TARGET_ABSPATH=$(marsh_normalize_path "${TARGET_ABSPATH}" "directory") || return 1
+    TARGET_ABSPATH=$(marsh_get_absolute_output_path "${TARGET_DIR}" "directory") || return 1
 
     # site root path and absolute site path
     SITE_ROOTPATH=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "./") || return 1
-    SITE_ABSPATH="${MARSH_CONFIG_URL:-.}"
-    SITE_ABSPATH=$(marsh_normalize_path "${SITE_ABSPATH}" "directory") || return 1
+    SITE_ABSPATH=$(marsh_get_absolute_output_path "." "directory") || return 1
 
     # document uri (absolute link) and href (relative link)
-    DOCUMENT_URI="${DOCUMENT_ABSPATH}${DEST##*/}"
-    DOCUMENT_URI=$(marsh_normalize_path "${DOCUMENT_URI}" "document") || return 1
+    DOCUMENT_URI=$(marsh_get_absolute_output_path "${DOCUMENT_OUTPUT_PATH}" "document") || return 1
     DOCUMENT_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "${DOCUMENT_OUTPUT_PATH}") || return 1
 
     # markdown file extension regex
@@ -4022,11 +4061,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                 SUBDOCUMENT_OUTPUT_PATH="${SUBDOCUMENT_OUTPUT_PATH#./}"
                 SUBDOCUMENT_OUTPUT_PATH="${SUBDOCUMENT_OUTPUT_PATH#/}"
                 if [[ "${SUBDOCUMENT_URI:-}" == "" ]]; then
-                    if [[ "${MARSH_CONFIG_URL:-}" != "" ]]; then
-                        SUBDOCUMENT_URI="${MARSH_CONFIG_URL%/}/${SUBDOCUMENT_OUTPUT_PATH#./}"
-                    else
-                        SUBDOCUMENT_URI="${SUBDOCUMENT_OUTPUT_PATH}"
-                    fi
+                    SUBDOCUMENT_URI=$(marsh_get_absolute_output_path "${SUBDOCUMENT_OUTPUT_PATH}" "document") || return 1
                 fi
                 SUBDOCUMENT_URI=$(marsh_normalize_path "${SUBDOCUMENT_URI}" "document") || return 1
                 SUBDOCUMENT_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "${SUBDOCUMENT_OUTPUT_PATH}") || return 1
@@ -4155,7 +4190,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
 function marsh_build_document {  # marsh_build_document dest_dir target_dir document markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links
     local DEST_DIR TARGET_DIR DOCUMENT DOCUMENT_EXT DOCUMENT_DIR TEXT_TRANSFORM
     local MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_REWRITE_LINKS
-    local TARGET_PATH DOCUMENT_PATH DOCUMENT_META DOCUMENT_CONTENT ARCHIVE_META ARCHIVE_META_TEMP
+    local TARGET_PATH DOCUMENT_PATH DOCUMENT_META DOCUMENT_CONTENT ARCHIVE_META ARCHIVE_META_TEMP DOCUMENT_OUTPUT_PATH DOCUMENT_SOURCE_PATH DOCUMENT_BASE_PATH
 
     # init
     DEST_DIR="${1:-.}"
@@ -4171,12 +4206,8 @@ function marsh_build_document {  # marsh_build_document dest_dir target_dir docu
     [[ "${MARKDOWN_COMMAND}" == "" ]] && return 1
     [[ "${MARKDOWN_FILEEXT_CSV}" == "" ]] && return 1
     [[ "${MARKDOWN_REWRITE_LINKS}" == "" ]] && return 1
-    DOCUMENT_EXT="${DOCUMENT##*.}"
-    DOCUMENT_DIR="./${DOCUMENT}"
-    DOCUMENT_DIR="${DOCUMENT_DIR%/*}"
-    DOCUMENT_DIR="${DOCUMENT_DIR#./}"
-    TARGET_PATH="${DEST_DIR}/${TARGET_DIR}"
-    DOCUMENT_PATH="${TARGET_PATH}/${DOCUMENT}"
+    eval "$(marsh_get_target_document_paths "${DOCUMENT}" "${DEST_DIR}" "${TARGET_DIR}" "${MARKDOWN_FILEEXT_CSV}")" || return 1
+    DOCUMENT_PATH="${DOCUMENT_SOURCE_PATH}"
     DOCUMENT_META="${DOCUMENT_PATH}.${MARSH_UID}.meta.yaml"
     DOCUMENT_CONTENT="${DOCUMENT_PATH}.${MARSH_UID}.document"
     ARCHIVE_META="${DOCUMENT_PATH}.${MARSH_UID}.archive-meta"

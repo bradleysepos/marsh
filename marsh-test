@@ -2590,6 +2590,41 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
+        marsh_get_absolute_output_path:0)
+            TEST_NAME+=":directory_with_base_url"
+            marsh_test_set_env "absoutputuid" false false
+            MARSH_CONFIG_URL="https://example.test/site"
+            ACTUAL=$(marsh_get_absolute_output_path "news" "directory")
+            EXPECTED='https://example.test/site/news/'
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            marsh_test_restore_env
+            ;;
+        marsh_get_absolute_output_path:1)
+            TEST_NAME+=":document_index_with_base_url"
+            marsh_test_set_env "absoutputuid" false false
+            MARSH_CONFIG_URL="https://example.test/site"
+            ACTUAL=$(marsh_get_absolute_output_path "news/index.html" "document")
+            EXPECTED='https://example.test/site/news/'
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            marsh_test_restore_env
+            ;;
+        marsh_get_absolute_output_path:2)
+            TEST_NAME+=":directory_without_base_url"
+            marsh_test_set_env "absoutputuid" false false
+            ACTUAL=$(marsh_get_absolute_output_path "news" "directory")
+            EXPECTED='news/'
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            marsh_test_restore_env
+            ;;
         marsh_get_archive_manifest:0)
             TEST_NAME+=":built"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
@@ -2813,6 +2848,33 @@ function marsh_test {
             fi
             rm -rf "${SOURCE_FILE}" "${TARGET_DIR}"
             ;;
+        marsh_get_internal_parent_directory:0)
+            TEST_NAME+=":root_document"
+            ACTUAL=$(marsh_get_internal_parent_directory "index.markdown")
+            EXPECTED='.'
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_get_internal_parent_directory:1)
+            TEST_NAME+=":nested_document"
+            ACTUAL=$(marsh_get_internal_parent_directory "news/world/article.markdown")
+            EXPECTED='news/world'
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_get_internal_parent_directory:2)
+            TEST_NAME+=":directory_path"
+            ACTUAL=$(marsh_get_internal_parent_directory "news/world/")
+            EXPECTED='news'
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
         marsh_get_local_declarations:0)
             TEST_NAME+=":single"
             ACTUAL=$(printf '%s\n' 'FOO' | marsh_get_local_declarations)
@@ -3001,6 +3063,36 @@ function marsh_test {
             rm -f "${DOCUMENT_FILE}.${MARSH_UID}.subdocuments.manifest"
             marsh_test_restore_env
             ;;
+        marsh_get_target_document_paths:0)
+            TEST_NAME+=":nested_markdown"
+            ACTUAL=$(marsh_get_target_document_paths "guides/index.markdown" "/site/public" "docs" "markdown,md")
+            EXPECTED=$(printf '%s\n' \
+                'TARGET_PATH=/site/public/docs' \
+                'DOCUMENT_DIR=guides' \
+                'DOCUMENT_EXT=markdown' \
+                'DOCUMENT_OUTPUT_PATH=docs/guides/index.html' \
+                'DOCUMENT_SOURCE_PATH=/site/public/docs/guides/index.markdown' \
+                'DOCUMENT_BASE_PATH=docs/guides/')
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_get_target_document_paths:1)
+            TEST_NAME+=":root_markdown"
+            ACTUAL=$(marsh_get_target_document_paths "index.markdown" "/site/public" "." "markdown,md")
+            EXPECTED=$(printf '%s\n' \
+                'TARGET_PATH=/site/public' \
+                'DOCUMENT_DIR=.' \
+                'DOCUMENT_EXT=markdown' \
+                'DOCUMENT_OUTPUT_PATH=index.html' \
+                'DOCUMENT_SOURCE_PATH=/site/public/index.markdown' \
+                'DOCUMENT_BASE_PATH=./')
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
         marsh_get_target_metadata:0)
             TEST_NAME+=":minimal"
             MARSH_TEST_TARGET_MIN_Path="/site/minimal"
@@ -3169,6 +3261,69 @@ function marsh_test {
                 RES="[PASS]"
             fi
             unset MARSH_TEST_TARGET_Path MARSH_TEST_TARGET_Source MARSH_TEST_TARGET_Sitemap_Source MARSH_TEST_TARGET_Sitemap_Search
+            ;;
+        marsh_get_target_directory_path:0)
+            TEST_NAME+=":root_exact"
+            ACTUAL=$(marsh_get_target_directory_path ".")
+            EXPECTED='.'
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_get_target_directory_path:1)
+            TEST_NAME+=":root_trailing_slash"
+            ACTUAL=$(marsh_get_target_directory_path "/site/public/")
+            EXPECTED='/site/public'
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_get_target_directory_path:2)
+            TEST_NAME+=":root_dot_suffix"
+            ACTUAL=$(marsh_get_target_directory_path "/site/public/.")
+            EXPECTED='/site/public'
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_get_target_output_path:0)
+            TEST_NAME+=":root_exact"
+            marsh_test_set_env "targetpathuid" false false
+            MARSH_CONFIG_PATH="/site/public"
+            ACTUAL=$(marsh_get_target_output_path "/site/public")
+            EXPECTED='.'
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            marsh_test_restore_env
+            ;;
+        marsh_get_target_output_path:1)
+            TEST_NAME+=":root_trailing_slash"
+            marsh_test_set_env "targetpathuid" false false
+            MARSH_CONFIG_PATH="/site/public"
+            ACTUAL=$(marsh_get_target_output_path "/site/public/")
+            EXPECTED='.'
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            marsh_test_restore_env
+            ;;
+        marsh_get_target_output_path:2)
+            TEST_NAME+=":nested_target"
+            marsh_test_set_env "targetpathuid" false false
+            MARSH_CONFIG_PATH="/site/public"
+            ACTUAL=$(marsh_get_target_output_path "/site/public/docs/blog")
+            EXPECTED='docs/blog'
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            marsh_test_restore_env
             ;;
         marsh_get_template_metadata:0)
             TEST_NAME+=":cached"
@@ -4899,17 +5054,22 @@ KNOWN_FUNCTIONS=(
     marsh_extract_frontmatter
     marsh_find_sitemap
     marsh_flat_to_array
+    marsh_get_absolute_output_path
     marsh_get_archive_manifest
     marsh_get_archive_metadata
     marsh_get_common_directory
     marsh_get_files
+    marsh_get_internal_parent_directory
     marsh_get_local_declarations
     marsh_get_relative_path
     marsh_get_sitemap_lookup_path
     marsh_get_site_source_root_path
     marsh_get_source_root_path
     marsh_get_subdocuments
+    marsh_get_target_directory_path
+    marsh_get_target_document_paths
     marsh_get_target_metadata
+    marsh_get_target_output_path
     marsh_get_template_metadata
     marsh_get_variables
     marsh_has_frontmatter

@@ -313,6 +313,27 @@ function marsh_test_create_archive_template {
     fi
 }
 
+function marsh_test_write_document_artifacts {
+    local TARGET_DIR DOCUMENT ARTIFACT FILE
+
+    TARGET_DIR="${1:-}"
+    DOCUMENT="${2:-}"
+    ARTIFACT="${3:-}"
+    [[ "${TARGET_DIR}" == "" ]] && return 1
+    [[ "${DOCUMENT}" == "" ]] && return 1
+    if [[ "${ARTIFACT}" != "content" ]] \
+        && [[ "${ARTIFACT}" != "meta-yaml" ]] \
+        && [[ "${ARTIFACT}" != "meta" ]] \
+        && [[ "${ARTIFACT}" != "archive-yaml" ]]; then
+        return 1
+    fi
+    shift 3
+
+    FILE=$(marsh_get_document_temp_path "${TARGET_DIR}" "${DOCUMENT}" "${ARTIFACT}") || return 1
+    mkdir -p "${FILE%/*}" || return 1
+    printf '%s\n' "$@" > "${FILE}" || return 1
+}
+
 function marsh_test_set_env {
     local RUN_UID USE_TEMP USE_CONFIG
 
@@ -3140,6 +3161,30 @@ function marsh_test {
             rm -rf "${TARGET_DIR}"
             marsh_test_restore_env
             ;;
+        marsh_get_archive_temp_path:0)
+            TEST_NAME+=":root_source"
+            marsh_test_set_env "archivetempuid" true false
+            MARSH_CONFIG_PATH="/site/public"
+            ACTUAL=$(marsh_get_archive_temp_path "/site/public" "news/index.markdown" "source")
+            EXPECTED="${MARSH_TEST_TEMP}/build/${MARSH_UID}/targets/root/archives/news/index.markdown/source"
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            marsh_test_restore_env
+            ;;
+        marsh_get_archive_temp_path:1)
+            TEST_NAME+=":nested_manifest"
+            marsh_test_set_env "archivetempuid" true false
+            MARSH_CONFIG_PATH="/site/public"
+            ACTUAL=$(marsh_get_archive_temp_path "/site/public/blog" "feed/index.markdown" "subdocuments-manifest")
+            EXPECTED="${MARSH_TEST_TEMP}/build/${MARSH_UID}/targets/blog/archives/feed/index.markdown/subdocuments.manifest"
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            marsh_test_restore_env
+            ;;
         marsh_get_document_metadata:0)
             TEST_NAME+=":parsed"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
@@ -3205,6 +3250,30 @@ function marsh_test {
                 RES="[PASS]"
             fi
             rm -rf "${TARGET_DIR}"
+            ;;
+        marsh_get_document_temp_path:0)
+            TEST_NAME+=":root_content"
+            marsh_test_set_env "documenttempuid" true false
+            MARSH_CONFIG_PATH="/site/public"
+            ACTUAL=$(marsh_get_document_temp_path "/site/public" "news/item.markdown" "content")
+            EXPECTED="${MARSH_TEST_TEMP}/build/${MARSH_UID}/targets/root/documents/news/item.markdown/content"
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            marsh_test_restore_env
+            ;;
+        marsh_get_document_temp_path:1)
+            TEST_NAME+=":nested_meta_yaml"
+            marsh_test_set_env "documenttempuid" true false
+            MARSH_CONFIG_PATH="/site/public"
+            ACTUAL=$(marsh_get_document_temp_path "/site/public/blog" "guides/index.markdown" "meta-yaml")
+            EXPECTED="${MARSH_TEST_TEMP}/build/${MARSH_UID}/targets/blog/documents/guides/index.markdown/meta.yaml"
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            marsh_test_restore_env
             ;;
         marsh_get_files:0)
             TEST_NAME+=":file"
@@ -3369,6 +3438,30 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
+        marsh_get_render_temp_path:0)
+            TEST_NAME+=":root_target"
+            marsh_test_set_env "rendertempuid" true false
+            MARSH_CONFIG_PATH="/site/public"
+            ACTUAL=$(marsh_get_render_temp_path "/site/public" "news/item.html")
+            EXPECTED="${MARSH_TEST_TEMP}/build/${MARSH_UID}/targets/root/render/news/item.html"
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            marsh_test_restore_env
+            ;;
+        marsh_get_render_temp_path:1)
+            TEST_NAME+=":nested_target"
+            marsh_test_set_env "rendertempuid" true false
+            MARSH_CONFIG_PATH="/site/public"
+            ACTUAL=$(marsh_get_render_temp_path "/site/public/blog" "archive/feed.xml")
+            EXPECTED="${MARSH_TEST_TEMP}/build/${MARSH_UID}/targets/blog/render/archive/feed.xml"
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            marsh_test_restore_env
+            ;;
         marsh_get_relative_path:0)
             TEST_NAME+=":root_to_nested_index"
             ACTUAL=$(marsh_get_relative_path "./" "news/index.html")
@@ -3492,6 +3585,30 @@ function marsh_test {
             rm -rf "${TARGET_DIR}"
             marsh_test_restore_env
             ;;
+        marsh_get_sitemap_render_path:0)
+            TEST_NAME+=":root_target"
+            marsh_test_set_env "sitemaprendertempuid" true false
+            MARSH_CONFIG_PATH="/site/public"
+            ACTUAL=$(marsh_get_sitemap_render_path "/site/public" "site-map/index.markdown")
+            EXPECTED="${MARSH_TEST_TEMP}/build/targets/root/sitemaps/render/$(printf '%s\034%s\n' "/site/public" "site-map/index.markdown" | marsh_text_transform hash:md5).sitemap.html"
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            marsh_test_restore_env
+            ;;
+        marsh_get_sitemap_render_path:1)
+            TEST_NAME+=":nested_target"
+            marsh_test_set_env "sitemaprendertempuid" true false
+            MARSH_CONFIG_PATH="/site/public"
+            ACTUAL=$(marsh_get_sitemap_render_path "/site/public/blog" "news/sitemap.markdown")
+            EXPECTED="${MARSH_TEST_TEMP}/build/targets/blog/sitemaps/render/$(printf '%s\034%s\n' "/site/public/blog" "news/sitemap.markdown" | marsh_text_transform hash:md5).sitemap.html"
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            marsh_test_restore_env
+            ;;
         marsh_get_sitemap_rendered_path:0)
             TEST_NAME+=":target_level"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
@@ -3573,6 +3690,47 @@ function marsh_test {
                 RES="[PASS]"
             fi
             rm -rf "${TARGET_DIR}"
+            marsh_test_restore_env
+            ;;
+        marsh_get_sitemap_temp_path:0)
+            TEST_NAME+=":root_target_content"
+            marsh_test_set_env "sitemaptemptestuid" true false
+            MARSH_CONFIG_PATH="/site/public"
+            SITEMAP_RENDER=$(marsh_get_sitemap_render_path "/site/public" "site-map/index.markdown")
+            ACTUAL=$(marsh_get_sitemap_temp_path "/site/public" "site-map/index.markdown" "content")
+            EXPECTED="${SITEMAP_RENDER%/render/*}/work/${SITEMAP_RENDER##*/}"
+            EXPECTED="${EXPECTED%.sitemap.html}/content"
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            marsh_test_restore_env
+            ;;
+        marsh_get_sitemap_temp_path:1)
+            TEST_NAME+=":nested_target_meta_yaml"
+            marsh_test_set_env "sitemaptemptestuid" true false
+            MARSH_CONFIG_PATH="/site/public"
+            SITEMAP_RENDER=$(marsh_get_sitemap_render_path "/site/public/blog" "news/sitemap.markdown")
+            ACTUAL=$(marsh_get_sitemap_temp_path "/site/public/blog" "news/sitemap.markdown" "meta-yaml")
+            EXPECTED="${SITEMAP_RENDER%/render/*}/work/${SITEMAP_RENDER##*/}"
+            EXPECTED="${EXPECTED%.sitemap.html}/meta.yaml"
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            marsh_test_restore_env
+            ;;
+        marsh_get_sitemap_temp_path:2)
+            TEST_NAME+=":invalid_artifact"
+            marsh_test_set_env "sitemaptemptestuid" true false
+            MARSH_CONFIG_PATH="/site/public"
+            marsh_get_sitemap_temp_path "/site/public" "site-map/index.markdown" "bogus" 2>/dev/null
+            ACTUAL=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" -eq "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
             marsh_test_restore_env
             ;;
         marsh_get_source_root_path:0)
@@ -3935,6 +4093,30 @@ function marsh_test {
             MARSH_CONFIG_PATH="/site/public"
             ACTUAL=$(marsh_get_target_output_path "/site/public/docs/blog")
             EXPECTED='docs/blog'
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            marsh_test_restore_env
+            ;;
+        marsh_get_target_temp_root:0)
+            TEST_NAME+=":root_target"
+            marsh_test_set_env "targettempuid" true false
+            MARSH_CONFIG_PATH="/site/public"
+            ACTUAL=$(marsh_get_target_temp_root "/site/public")
+            EXPECTED="${MARSH_TEST_TEMP}/build/${MARSH_UID}/targets/root"
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            marsh_test_restore_env
+            ;;
+        marsh_get_target_temp_root:1)
+            TEST_NAME+=":nested_target"
+            marsh_test_set_env "targettempuid" true false
+            MARSH_CONFIG_PATH="/site/public"
+            ACTUAL=$(marsh_get_target_temp_root "/site/public/docs/blog")
+            EXPECTED="${MARSH_TEST_TEMP}/build/${MARSH_UID}/targets/docs/blog"
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -4381,6 +4563,27 @@ function marsh_test {
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
+            ;;
+        marsh_publish_processed_output:0)
+            TEST_NAME+=":copy_and_replace"
+            SOURCE_FILE="${TEST_TEMP_PREFIX}.source.txt"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            printf '%s\n' 'new content' > "${SOURCE_FILE}"
+            mkdir -p "${TARGET_DIR}/nested"
+            printf '%s\n' 'old content' > "${TARGET_DIR}/nested/output.html"
+            marsh_publish_processed_output "${SOURCE_FILE}" "${TARGET_DIR}/nested/output.html"
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                ACTUAL=$(<"${TARGET_DIR}/nested/output.html")
+                EXPECTED='new content'
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${SOURCE_FILE}" "${TARGET_DIR}"
             ;;
         marsh_process_markdown:0)
             TEST_NAME+=":options"
@@ -5674,22 +5877,28 @@ KNOWN_FUNCTIONS=(
     marsh_get_absolute_output_path
     marsh_get_archive_manifest
     marsh_get_archive_metadata
+    marsh_get_archive_temp_path
     marsh_get_common_directory
     marsh_get_document_metadata
+    marsh_get_document_temp_path
     marsh_get_files
     marsh_get_internal_parent_directory
     marsh_get_local_declarations
     marsh_get_processed_sitemap
+    marsh_get_render_temp_path
     marsh_get_relative_path
     marsh_get_site_source_root_path
     marsh_get_sitemap_lookup_path
+    marsh_get_sitemap_render_path
     marsh_get_sitemap_rendered_path
+    marsh_get_sitemap_temp_path
     marsh_get_source_root_path
     marsh_get_subdocuments
     marsh_get_target_directory_path
     marsh_get_target_document_paths
     marsh_get_target_metadata
     marsh_get_target_output_path
+    marsh_get_target_temp_root
     marsh_get_template_metadata
     marsh_get_variables
     marsh_has_frontmatter
@@ -5699,6 +5908,7 @@ KNOWN_FUNCTIONS=(
     marsh_normalize_path
     marsh_parse_template_metadata
     marsh_parse_yaml
+    marsh_publish_processed_output
     marsh_process_markdown
     marsh_resolve_relative_path
     marsh_resolve_sitemap_source_path

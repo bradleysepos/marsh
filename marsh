@@ -2168,6 +2168,39 @@ function marsh_get_sitemap_render_path {  # marsh_get_sitemap_render_path target
     printf '%s\n' "${CACHE_FILE}"
 }
 
+# resolves a sitemap temp artifact path under the target temp work tree
+function marsh_get_sitemap_temp_path {  # marsh_get_sitemap_temp_path target_dir sitemap_path artifact
+    local TARGET_DIR SITEMAP_PATH ARTIFACT SITEMAP_RENDER_PATH SITEMAP_RENDER_DIR SITEMAP_KEY SITEMAP_ROOT
+
+    TARGET_DIR="${1:-}"
+    SITEMAP_PATH="${2:-}"
+    ARTIFACT="${3:-}"
+    [[ "${TARGET_DIR}" == "" ]] && return 1
+    [[ "${SITEMAP_PATH}" == "" ]] && return 1
+    [[ "${ARTIFACT}" == "" ]] && return 1
+
+    SITEMAP_RENDER_PATH=$(marsh_get_sitemap_render_path "${TARGET_DIR}" "${SITEMAP_PATH}") || return 1
+    SITEMAP_RENDER_DIR="${SITEMAP_RENDER_PATH%/*}"
+    SITEMAP_KEY="${SITEMAP_RENDER_PATH##*/}"
+    SITEMAP_KEY="${SITEMAP_KEY%.sitemap.html}"
+    SITEMAP_ROOT="${SITEMAP_RENDER_DIR%/render}/work/${SITEMAP_KEY}"
+
+    case "${ARTIFACT}" in
+        root)
+            printf '%s\n' "${SITEMAP_ROOT}"
+            ;;
+        content)
+            printf '%s\n' "${SITEMAP_ROOT}/content"
+            ;;
+        meta-yaml)
+            printf '%s\n' "${SITEMAP_ROOT}/meta.yaml"
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
 # resolves a target sitemap source path against the target source root and validates it stays inside the site source tree
 function marsh_resolve_sitemap_source_path {  # marsh_resolve_sitemap_source_path site_source_root source_root sitemap_path
     local SITE_SOURCE_ROOT SOURCE_ROOT SITEMAP_PATH RESOLVED_PATH RESOLVED_DIR RESOLVED_NAME
@@ -2618,6 +2651,132 @@ function marsh_get_target_output_path {  # marsh_get_target_output_path target_d
     TARGET_PATH="${TARGET_PATH#/}"
     TARGET_PATH="${TARGET_PATH:-.}"
     marsh_normalize_internal_path "${TARGET_PATH}"
+}
+
+# returns the temp work root for a target under MARSH_TEMP
+function marsh_get_target_temp_root {  # marsh_get_target_temp_root target_dir
+    local TARGET_DIR TARGET_OUTPUT_PATH TARGET_KEY
+
+    TARGET_DIR="${1:-}"
+    [[ "${TARGET_DIR}" == "" ]] && return 1
+    [[ "${MARSH_TEMP:-}" != "" ]] || return 1
+    [[ "${MARSH_UID:-}" != "" ]] || return 1
+
+    TARGET_OUTPUT_PATH=$(marsh_get_target_output_path "${TARGET_DIR}") || return 1
+    TARGET_KEY="${TARGET_OUTPUT_PATH#./}"
+    [[ "${TARGET_KEY}" == "." ]] && TARGET_KEY=""
+    TARGET_KEY="${TARGET_KEY:-root}"
+
+    printf '%s\n' "${MARSH_TEMP}/build/${MARSH_UID}/targets/${TARGET_KEY}"
+}
+
+# resolves a document temp artifact path under the target temp work tree
+function marsh_get_document_temp_path {  # marsh_get_document_temp_path target_dir document artifact
+    local TARGET_DIR DOCUMENT ARTIFACT TARGET_TEMP_ROOT DOCUMENT_KEY DOCUMENT_ROOT
+
+    TARGET_DIR="${1:-}"
+    DOCUMENT="${2:-}"
+    ARTIFACT="${3:-}"
+    [[ "${TARGET_DIR}" == "" ]] && return 1
+    [[ "${DOCUMENT}" == "" ]] && return 1
+    [[ "${ARTIFACT}" == "" ]] && return 1
+    [[ "${DOCUMENT}" != /* ]] || return 1
+
+    TARGET_TEMP_ROOT=$(marsh_get_target_temp_root "${TARGET_DIR}") || return 1
+    DOCUMENT_KEY=$(marsh_normalize_internal_path "${DOCUMENT}") || return 1
+    [[ "${DOCUMENT_KEY}" == "." ]] && return 1
+    DOCUMENT_ROOT="${TARGET_TEMP_ROOT}/documents/${DOCUMENT_KEY}"
+
+    case "${ARTIFACT}" in
+        root)
+            printf '%s\n' "${DOCUMENT_ROOT}"
+            ;;
+        content)
+            printf '%s\n' "${DOCUMENT_ROOT}/content"
+            ;;
+        meta-yaml)
+            printf '%s\n' "${DOCUMENT_ROOT}/meta.yaml"
+            ;;
+        meta)
+            printf '%s\n' "${DOCUMENT_ROOT}/meta"
+            ;;
+        archive-meta)
+            printf '%s\n' "${DOCUMENT_ROOT}/archive-meta"
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+# resolves an archive temp artifact path under the target temp work tree
+function marsh_get_archive_temp_path {  # marsh_get_archive_temp_path target_dir archive_source artifact
+    local TARGET_DIR ARCHIVE_SOURCE ARTIFACT TARGET_TEMP_ROOT ARCHIVE_KEY ARCHIVE_ROOT
+
+    TARGET_DIR="${1:-}"
+    ARCHIVE_SOURCE="${2:-}"
+    ARTIFACT="${3:-}"
+    [[ "${TARGET_DIR}" == "" ]] && return 1
+    [[ "${ARCHIVE_SOURCE}" == "" ]] && return 1
+    [[ "${ARTIFACT}" == "" ]] && return 1
+    [[ "${ARCHIVE_SOURCE}" != /* ]] || return 1
+
+    TARGET_TEMP_ROOT=$(marsh_get_target_temp_root "${TARGET_DIR}") || return 1
+    ARCHIVE_KEY=$(marsh_normalize_internal_path "${ARCHIVE_SOURCE}") || return 1
+    [[ "${ARCHIVE_KEY}" == "." ]] && return 1
+    ARCHIVE_ROOT="${TARGET_TEMP_ROOT}/archives/${ARCHIVE_KEY}"
+
+    case "${ARTIFACT}" in
+        root)
+            printf '%s\n' "${ARCHIVE_ROOT}"
+            ;;
+        source)
+            printf '%s\n' "${ARCHIVE_ROOT}/source"
+            ;;
+        subdocuments)
+            printf '%s\n' "${ARCHIVE_ROOT}/subdocuments"
+            ;;
+        subdocuments-manifest)
+            printf '%s\n' "${ARCHIVE_ROOT}/subdocuments.manifest"
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+# resolves the temp render path for a processed output file under the target temp work tree
+function marsh_get_render_temp_path {  # marsh_get_render_temp_path target_dir output_path
+    local TARGET_DIR OUTPUT_PATH TARGET_TEMP_ROOT OUTPUT_KEY
+
+    TARGET_DIR="${1:-}"
+    OUTPUT_PATH="${2:-}"
+    [[ "${TARGET_DIR}" == "" ]] && return 1
+    [[ "${OUTPUT_PATH}" == "" ]] && return 1
+    [[ "${OUTPUT_PATH}" != /* ]] || return 1
+
+    TARGET_TEMP_ROOT=$(marsh_get_target_temp_root "${TARGET_DIR}") || return 1
+    OUTPUT_KEY=$(marsh_normalize_internal_path "${OUTPUT_PATH}") || return 1
+    [[ "${OUTPUT_KEY}" == "." ]] && return 1
+
+    printf '%s\n' "${TARGET_TEMP_ROOT}/render/${OUTPUT_KEY}"
+}
+
+# publishes a completed processed output file to its final destination
+function marsh_publish_processed_output {  # marsh_publish_processed_output source_file dest_file
+    local SOURCE_FILE DEST_FILE DEST_DIR
+
+    SOURCE_FILE="${1:-}"
+    DEST_FILE="${2:-}"
+    [[ "${SOURCE_FILE}" == "" ]] && return 1
+    [[ "${DEST_FILE}" == "" ]] && return 1
+    [[ -f "${SOURCE_FILE}" ]] && [[ -r "${SOURCE_FILE}" ]] || return 1
+
+    DEST_DIR="${DEST_FILE%/*}"
+    [[ "${DEST_DIR}" == "${DEST_FILE}" ]] && DEST_DIR='.'
+    mkdir -p "${DEST_DIR}" >/dev/null 2>&1 || return 1
+    rm -f "${DEST_FILE}" || return 1
+    cp "${SOURCE_FILE}" "${DEST_FILE}" || return 1
 }
 
 # returns a site-relative output path as either an absolute public URL or a normalized relative path

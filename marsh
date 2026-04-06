@@ -2725,6 +2725,56 @@ function marsh_rewrite_sitemap_links {  # marsh_rewrite_sitemap_links sitemap_fi
     return "${RES}"
 }
 
+# returns a cached processed sitemap for a document base path
+function marsh_get_processed_sitemap {  # marsh_get_processed_sitemap sitemap_render_path sitemap_dir document_base_path
+    local SITEMAP_RENDER_PATH SITEMAP_DIR DOCUMENT_BASE_PATH
+    local CACHE_DIR CACHE_KEY CACHE_FILE CACHE_TEMP RENDER_HASH
+
+    SITEMAP_RENDER_PATH="${1:-}"
+    SITEMAP_DIR="${2:-}"
+    DOCUMENT_BASE_PATH="${3:-}"
+    [[ "${SITEMAP_RENDER_PATH}" == "" ]] && return 1
+    [[ "${SITEMAP_DIR}" == "" ]] && return 1
+    [[ "${DOCUMENT_BASE_PATH}" == "" ]] && return 1
+    [[ -f "${SITEMAP_RENDER_PATH}" ]] && [[ -r "${SITEMAP_RENDER_PATH}" ]] || return 1
+
+    CACHE_DIR="${MARSH_TEMP}/processed-sitemap-cache"
+    mkdir -p "${CACHE_DIR}" >/dev/null 2>&1 || {
+        echo "Unable to create processed sitemap cache directory: ${CACHE_DIR}" >&2
+        return 1
+    }
+    RENDER_HASH=$(<"${SITEMAP_RENDER_PATH}" marsh_text_transform hash:md5) || return 1
+    CACHE_KEY=$(printf '%s\034%s\034%s\034%s\n' "${SITEMAP_RENDER_PATH}" "${SITEMAP_DIR}" "${DOCUMENT_BASE_PATH}" "${RENDER_HASH}" | marsh_text_transform hash:md5) || return 1
+    CACHE_FILE="${CACHE_DIR}/${CACHE_KEY}.html"
+    if [[ -f "${CACHE_FILE}" ]] && [[ -r "${CACHE_FILE}" ]]; then
+        printf '%s\n' "${CACHE_FILE}"
+        return 0
+    fi
+
+    CACHE_TEMP=$(mktemp "${CACHE_DIR}/processed-XXXXXX") || {
+        echo "Unable to create processed sitemap cache file: ${CACHE_DIR}/processed-XXXXXX" >&2
+        return 1
+    }
+    cp "${SITEMAP_RENDER_PATH}" "${CACHE_TEMP}" || {
+        rm -f "${CACHE_TEMP}"
+        return 1
+    }
+    marsh_rewrite_sitemap_links "${CACHE_TEMP}" "${SITEMAP_DIR}" "${DOCUMENT_BASE_PATH}" || {
+        rm -f "${CACHE_TEMP}"
+        return 1
+    }
+    mv "${CACHE_TEMP}" "${CACHE_FILE}" 2>/dev/null || {
+        if [[ ! -f "${CACHE_FILE}" ]]; then
+            rm -f "${CACHE_TEMP}"
+            return 1
+        fi
+        rm -f "${CACHE_TEMP}"
+    }
+
+    printf '%s\n' "${CACHE_FILE}"
+    return 0
+}
+
 # returns paginated archive root for an archive source path
 function marsh_get_archive_page_root {  # marsh_get_archive_page_root archive_source
     local ARCHIVE_SOURCE ARCHIVE_DIR ARCHIVE_NAME PAGE_ROOT
@@ -3761,7 +3811,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
     local CONDITIONAL_TAG CONDITIONAL_VALUES
     local DOCUMENT_State
     local PARTIAL_CONDITIONAL_TAGS
-    local SITEMAP SITEMAP_DIR SITEMAP_NAME SITEMAP_RELPATH SITEMAP_OUTPUT_PATH SITEMAP_HREF SITEMAP_TEMP SITEMAP_RENDER_PATH
+    local SITEMAP SITEMAP_DIR SITEMAP_NAME SITEMAP_RELPATH SITEMAP_OUTPUT_PATH SITEMAP_HREF SITEMAP_RENDER_PATH PROCESSED_SITEMAP_PATH
     local DOCUMENT_HREF_ESC
 
     # init
@@ -4011,20 +4061,11 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                 SITEMAP_NAME="${SITEMAP_OUTPUT_PATH##*/}"
                 SITEMAP_DIR=$(marsh_normalize_internal_path "${SITEMAP_OUTPUT_PATH%/*}") || return 1
                 SITEMAP_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "${SITEMAP_OUTPUT_PATH}") || return 1
-                SITEMAP_TEMP=$(mktemp "${MARSH_TEMP}/sitemap-render-XXXXXX") || return 1
-                cp "${SITEMAP_RENDER_PATH}" "${SITEMAP_TEMP}" || {
-                    rm -f "${SITEMAP_TEMP}"
-                    return 1
-                }
-                marsh_rewrite_sitemap_links "${SITEMAP_TEMP}" "${SITEMAP_DIR}" "${DOCUMENT_BASE_PATH}" || {
-                    rm -f "${SITEMAP_TEMP}"
-                    return 1
-                }
+                PROCESSED_SITEMAP_PATH=$(marsh_get_processed_sitemap "${SITEMAP_RENDER_PATH}" "${SITEMAP_DIR}" "${DOCUMENT_BASE_PATH}") || return 1
                 DOCUMENT_HREF_ESC=$(printf '%s' "${DOCUMENT_HREF}" | sed -e 's/[\\]/\\\\/g' -e 's/[][/.|$(){}?+*^]/\\&/g')
-                TARGET_SITEMAP=$(<"${SITEMAP_TEMP}" sed -E \
+                TARGET_SITEMAP=$(<"${PROCESSED_SITEMAP_PATH}" sed -E \
                 -e 's|<h1>([^<]+)</h1>|<h1><a href="'"${SITEMAP_HREF}"'">\1</a></h1>|' \
                 -e 's|<a (href="'"${DOCUMENT_HREF_ESC}"'"[^>]*)>([^<>]+)</a>|<a \1 class="selected">\2</a>|g')
-                rm -f "${SITEMAP_TEMP}"
             fi
         fi
 

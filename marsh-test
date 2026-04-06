@@ -2457,6 +2457,63 @@ function marsh_test {
             rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}" "${MARSH_TEST_TEMP}/conditional-partial-cache" "${MARSH_TEST_TEMP}/conditional-tag-cache"
             marsh_test_restore_env
             ;;
+        marsh_build_template:28)
+            TEST_NAME+=":processed_sitemap_cache_selected_link"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            SOURCE_DIR="${TEST_TEMP_PREFIX}.source"
+            marsh_test_set_env "sitemapvariantuid" true true
+            rm -rf "${MARSH_TEST_TEMP}/processed-sitemap-cache"
+            mkdir -p "${TARGET_DIR}/docs" "${SOURCE_DIR}/site-map" "${TEMPLATE_DIR}/sample/partials"
+            marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
+            printf '%s\n' '{{ target.sitemap }}' > "${TEMPLATE_DIR}/sample/partials/body.html"
+            printf '%s\n' '<h1>Site Map</h1>' '<p><a href="../docs/one.html">One</a></p>' '<p><a href="../docs/two.html">Two</a></p>' > "${SOURCE_DIR}/site-map/index.markdown"
+            printf '%s\n' 'Example' > "${TARGET_DIR}/docs/one.markdown.${MARSH_UID}.document"
+            printf '%s\n' '---'$'\n''Title: One'$'\n''...' > "${TARGET_DIR}/docs/one.markdown.${MARSH_UID}.meta.yaml"
+            printf '%s\n' 'Example' > "${TARGET_DIR}/docs/two.markdown.${MARSH_UID}.document"
+            printf '%s\n' '---'$'\n''Title: Two'$'\n''...' > "${TARGET_DIR}/docs/two.markdown.${MARSH_UID}.meta.yaml"
+            marsh_build_sitemap "${TARGET_DIR}" "site-map/index.markdown" "${SOURCE_DIR}/site-map/index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" >/dev/null 2>&1
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                {
+                    marsh_build_template "${TARGET_DIR}" "." "docs/one.markdown" "site-map/index.markdown" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1 \
+                        && marsh_build_template "${TARGET_DIR}" "." "docs/two.markdown" "site-map/index.markdown" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+                }
+                ACTUAL=$?
+                EXPECTED=0
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    ACTUAL=$(find "${MARSH_TEST_TEMP}/processed-sitemap-cache" -maxdepth 1 -name '*.html' 2>/dev/null | marsh_text_transform items:count)
+                    EXPECTED='1'
+                    ASSERTION="equals"
+                    if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                        ACTUAL=$(<"${TARGET_DIR}/docs/one.html")
+                        ASSERTION="contains"
+                        EXPECTED='<a href="one.html" class="selected">One</a>'
+                        if printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
+                            ASSERTION="not-contains"
+                            EXPECTED='<a href="two.html" class="selected">Two</a>'
+                            if ! printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
+                                ACTUAL=$(<"${TARGET_DIR}/docs/two.html")
+                                ASSERTION="contains"
+                                EXPECTED='<a href="two.html" class="selected">Two</a>'
+                                if printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
+                                    ASSERTION="not-contains"
+                                    EXPECTED='<a href="one.html" class="selected">One</a>'
+                                    if ! printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
+                                        RES="[PASS]"
+                                    fi
+                                fi
+                            fi
+                        fi
+                    fi
+                fi
+            fi
+            rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}" "${SOURCE_DIR}" "${MARSH_TEST_TEMP}/processed-sitemap-cache"
+            marsh_test_restore_env
+            ;;
         marsh_check_dependencies:0)
             TEST_NAME+=":found"
             marsh_check_dependencies bash 2>/dev/null
@@ -3095,6 +3152,60 @@ function marsh_test {
             EXPECTED='local FOO'$'\n''local BAR'
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_get_processed_sitemap:0)
+            TEST_NAME+=":built"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            SITEMAP_FILE="${TARGET_DIR}/rendered.sitemap.html"
+            marsh_test_set_env "sitemapvariantuid" true false
+            mkdir -p "${TARGET_DIR}"
+            printf '%s\n' '<h1><a href="./">Site Map</a></h1>' '<p><a href="../news/">News</a></p>' > "${SITEMAP_FILE}"
+            ACTUAL=$(marsh_get_processed_sitemap "${SITEMAP_FILE}" "site-map" "docs/")
+            EXPECTED="${MARSH_TEST_TEMP}/processed-sitemap-cache/$(printf '%s\034%s\034%s\034%s\n' "${SITEMAP_FILE}" "site-map" "docs/" "$(<"${SITEMAP_FILE}" marsh_text_transform hash:md5)" | marsh_text_transform hash:md5).html"
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                ACTUAL=$(<"${EXPECTED}")
+                EXPECTED=$(printf '%s\n' '<h1><a href="../site-map/">Site Map</a></h1>' '<p><a href="../news/">News</a></p>')
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${TARGET_DIR}" "${MARSH_TEST_TEMP}/processed-sitemap-cache"
+            marsh_test_restore_env
+            ;;
+        marsh_get_processed_sitemap:1)
+            TEST_NAME+=":cached"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            SITEMAP_FILE="${TARGET_DIR}/rendered.sitemap.html"
+            marsh_test_set_env "sitemapvariantuid" true false
+            mkdir -p "${TARGET_DIR}" "${MARSH_TEST_TEMP}/processed-sitemap-cache"
+            printf '%s\n' '<p><a href="../news/">News</a></p>' > "${SITEMAP_FILE}"
+            CACHE_FILE="${MARSH_TEST_TEMP}/processed-sitemap-cache/$(printf '%s\034%s\034%s\034%s\n' "${SITEMAP_FILE}" "site-map" "docs/" "$(<"${SITEMAP_FILE}" marsh_text_transform hash:md5)" | marsh_text_transform hash:md5).html"
+            printf '%s\n' 'sentinel' > "${CACHE_FILE}"
+            ACTUAL=$(marsh_get_processed_sitemap "${SITEMAP_FILE}" "site-map" "docs/")
+            EXPECTED="${CACHE_FILE}"
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                ACTUAL=$(<"${CACHE_FILE}")
+                EXPECTED='sentinel'
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${TARGET_DIR}" "${MARSH_TEST_TEMP}/processed-sitemap-cache"
+            marsh_test_restore_env
+            ;;
+        marsh_get_processed_sitemap:2)
+            TEST_NAME+=":missing"
+            marsh_get_processed_sitemap "" "site-map" "docs/" 2>/dev/null
+            ACTUAL=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" -eq "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
             ;;
@@ -5407,6 +5518,7 @@ KNOWN_FUNCTIONS=(
     marsh_get_files
     marsh_get_internal_parent_directory
     marsh_get_local_declarations
+    marsh_get_processed_sitemap
     marsh_get_relative_path
     marsh_get_site_source_root_path
     marsh_get_sitemap_lookup_path

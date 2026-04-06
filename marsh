@@ -1477,6 +1477,54 @@ function marsh_extract_frontmatter {  # marsh_extract_frontmatter source meta_de
     return 0
 }
 
+# loads cached document metadata assignments where available, creating the cache from yaml when needed
+function marsh_get_document_metadata {  # marsh_get_document_metadata meta_file [prefix]
+    local META_FILE PREFIX CACHE_FILE CACHE_TEMP META_ASSIGNMENTS META_ASSIGNMENT
+    local META_NAME META_VALUE
+
+    META_FILE="${1:-}"
+    PREFIX="${2:-}"
+    [[ "${META_FILE}" == "" ]] && return 1
+
+    CACHE_FILE="${META_FILE%.yaml}"
+    if [[ ! -f "${CACHE_FILE}" ]] || [[ ! -r "${CACHE_FILE}" ]]; then
+        [[ -f "${META_FILE}" ]] && [[ -r "${META_FILE}" ]] || return 1
+        META_ASSIGNMENTS=$(marsh_parse_yaml "${META_FILE}" "")
+        [[ $? -ne 0 ]] && return 1
+        CACHE_TEMP=$(mktemp "${CACHE_FILE}.XXXXXX") || {
+            echo "Unable to create document metadata cache file: ${CACHE_FILE}.XXXXXX" >&2
+            return 1
+        }
+        while IFS= read -r META_ASSIGNMENT; do
+            [[ "${META_ASSIGNMENT}" == "" ]] && continue
+            META_NAME="${META_ASSIGNMENT%%=*}"
+            META_VALUE="${META_ASSIGNMENT#*=}"
+            printf '%s=%s\n' "${META_NAME#_}" "${META_VALUE}" >> "${CACHE_TEMP}" || {
+                rm -f "${CACHE_TEMP}"
+                return 1
+            }
+        done <<< "${META_ASSIGNMENTS}"
+        mv "${CACHE_TEMP}" "${CACHE_FILE}" 2>/dev/null || {
+            rm -f "${CACHE_TEMP}"
+            return 1
+        }
+    fi
+
+    if [[ "${PREFIX}" == "" ]]; then
+        cat "${CACHE_FILE}"
+        return 0
+    fi
+
+    while IFS= read -r META_ASSIGNMENT; do
+        [[ "${META_ASSIGNMENT}" == "" ]] && continue
+        META_NAME="${META_ASSIGNMENT%%=*}"
+        META_VALUE="${META_ASSIGNMENT#*=}"
+        printf '%s%s=%s\n' "${PREFIX}" "${META_NAME}" "${META_VALUE}"
+    done < "${CACHE_FILE}"
+
+    return 0
+}
+
 # loads cached archive metadata for a document
 function marsh_get_archive_metadata {  # marsh_get_archive_metadata target_dir document
     local TARGET_DIR DOCUMENT
@@ -1505,7 +1553,7 @@ function marsh_get_archive_metadata {  # marsh_get_archive_metadata target_dir d
     # parse
     META_PREFIX=$(echo "marsh_archive_${META}_" | sed -E -e 's/[^A-Za-z0-9_]/_/g')
     META_PREFIX=$(echo "${META_PREFIX}" | sed -E -e 's/_{2,}/_/g')
-    META_ASSIGNMENTS=$(marsh_parse_yaml "${META}" "${META_PREFIX}")
+    META_ASSIGNMENTS=$(marsh_get_document_metadata "${META}" "${META_PREFIX}")
     [[ $? -ne 0 ]] && return 1
     META_VARS=$(echo "${META_ASSIGNMENTS}" | marsh_get_variables)
     eval "$(printf '%s\n' "${META_VARS}" | marsh_get_local_declarations)"
@@ -3669,7 +3717,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
     # document metadata
     if [[ -f "${DOCUMENT}.${MARSH_UID}.meta.yaml" ]] && [[ -r "${DOCUMENT}.${MARSH_UID}.meta.yaml" ]]; then
         # parse metadata
-        DOCUMENT_META=$(marsh_parse_yaml "${DOCUMENT}.${MARSH_UID}.meta.yaml" "DOCUMENT_")
+        DOCUMENT_META=$(marsh_get_document_metadata "${DOCUMENT}.${MARSH_UID}.meta.yaml" "DOCUMENT_")
         [[ $? -ne 0 ]] && echo "Unable to parse yaml file: ${DOCUMENT}.${MARSH_UID}.meta.yaml" >&2 && return 1
         DOCUMENT_META_VARS=$(echo "${DOCUMENT_META}" | sed -E -e 's/^([^=]+)=.*/\1/')
         eval "$(printf '%s\n' "${DOCUMENT_META_VARS}" | marsh_get_local_declarations)"
@@ -4034,7 +4082,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                 # document metadata
                 if [[ -f "${SUBDOCUMENT_SOURCE%.document}.meta.yaml" ]] && [[ -r "${SUBDOCUMENT_SOURCE%.document}.meta.yaml" ]]; then
                     # parse metadata
-                    SUBDOCUMENT_META=$(marsh_parse_yaml "${SUBDOCUMENT_SOURCE%.document}.meta.yaml" "SUBDOCUMENT_")
+                    SUBDOCUMENT_META=$(marsh_get_document_metadata "${SUBDOCUMENT_SOURCE%.document}.meta.yaml" "SUBDOCUMENT_")
                     [[ $? -ne 0 ]] && echo "Unable to parse yaml file: ${SUBDOCUMENT_SOURCE%.document}.meta.yaml" >&2 && return 1
                     SUBDOCUMENT_META_VARS=$(echo "${SUBDOCUMENT_META}" | sed -E -e 's/^([^=]+)=.*/\1/')
                     eval "$(printf '%s\n' "${SUBDOCUMENT_META_VARS}" | marsh_get_local_declarations)"
@@ -4190,7 +4238,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
 function marsh_build_document {  # marsh_build_document dest_dir target_dir document markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links
     local DEST_DIR TARGET_DIR DOCUMENT DOCUMENT_EXT DOCUMENT_DIR TEXT_TRANSFORM
     local MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_REWRITE_LINKS
-    local TARGET_PATH DOCUMENT_PATH DOCUMENT_META DOCUMENT_CONTENT ARCHIVE_META ARCHIVE_META_TEMP DOCUMENT_OUTPUT_PATH DOCUMENT_SOURCE_PATH DOCUMENT_BASE_PATH
+    local TARGET_PATH DOCUMENT_PATH DOCUMENT_META DOCUMENT_META_CACHE DOCUMENT_CONTENT ARCHIVE_META ARCHIVE_META_TEMP DOCUMENT_OUTPUT_PATH DOCUMENT_SOURCE_PATH DOCUMENT_BASE_PATH
 
     # init
     DEST_DIR="${1:-.}"
@@ -4209,6 +4257,7 @@ function marsh_build_document {  # marsh_build_document dest_dir target_dir docu
     eval "$(marsh_get_target_document_paths "${DOCUMENT}" "${DEST_DIR}" "${TARGET_DIR}" "${MARKDOWN_FILEEXT_CSV}")" || return 1
     DOCUMENT_PATH="${DOCUMENT_SOURCE_PATH}"
     DOCUMENT_META="${DOCUMENT_PATH}.${MARSH_UID}.meta.yaml"
+    DOCUMENT_META_CACHE="${DOCUMENT_PATH}.${MARSH_UID}.meta"
     DOCUMENT_CONTENT="${DOCUMENT_PATH}.${MARSH_UID}.document"
     ARCHIVE_META="${DOCUMENT_PATH}.${MARSH_UID}.archive-meta"
 
@@ -4217,13 +4266,17 @@ function marsh_build_document {  # marsh_build_document dest_dir target_dir docu
         DOCUMENT_EXT="markdown"
     fi
 
-    # remove stale archive metadata before rebuilding metadata outputs
-    rm -f "${ARCHIVE_META}"
+    # remove stale metadata caches before rebuilding metadata outputs
+    rm -f "${DOCUMENT_META}" "${DOCUMENT_META_CACHE}" "${ARCHIVE_META}"
 
     # extract frontmatter metadata and document content
     if marsh_has_frontmatter "${DOCUMENT_PATH}"; then
         marsh_extract_frontmatter "${DOCUMENT_PATH}" "${DOCUMENT_META}" "${DOCUMENT_CONTENT}" || {
             echo "Unable to extract document frontmatter: ${DOCUMENT_PATH}" >&2
+            return 1
+        }
+        marsh_get_document_metadata "${DOCUMENT_META}" "" >/dev/null || {
+            echo "Unable to build document metadata cache: ${DOCUMENT_META}" >&2
             return 1
         }
     fi

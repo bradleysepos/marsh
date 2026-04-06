@@ -754,6 +754,37 @@ function marsh_test {
             rm -rf "${TARGET_DIR}"
             marsh_test_restore_env
             ;;
+        marsh_build_document:1)
+            TEST_NAME+=":without_frontmatter"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            marsh_test_set_env "documentbuilduid" true true
+            mkdir -p "${TARGET_DIR}"
+            printf '%s\n' '# Example' > "${TARGET_DIR}/index.markdown"
+            marsh_build_document "${TARGET_DIR}" "." "index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" >/dev/null 2>&1
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                {
+                    [[ -f "${TARGET_DIR}/index.markdown.${MARSH_UID}.document" ]] \
+                        && [[ ! -f "${TARGET_DIR}/index.markdown.${MARSH_UID}.meta.yaml" ]] \
+                        && [[ ! -f "${TARGET_DIR}/index.markdown.${MARSH_UID}.meta" ]]
+                }
+                ACTUAL=$?
+                EXPECTED=0
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    ACTUAL=$(<"${TARGET_DIR}/index.markdown.${MARSH_UID}.document")
+                    EXPECTED='# Example'
+                    ASSERTION="equals"
+                    if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                        RES="[PASS]"
+                    fi
+                fi
+            fi
+            rm -rf "${TARGET_DIR}"
+            marsh_test_restore_env
+            ;;
         marsh_build_target:0)
             TEST_NAME+=":copy_assets"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"

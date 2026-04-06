@@ -4405,6 +4405,10 @@ function marsh_build_document {  # marsh_build_document dest_dir target_dir docu
     DOCUMENT_META_CACHE="${DOCUMENT_PATH}.${MARSH_UID}.meta"
     DOCUMENT_CONTENT="${DOCUMENT_PATH}.${MARSH_UID}.document"
     ARCHIVE_META="${DOCUMENT_PATH}.${MARSH_UID}.archive-meta"
+    [[ -f "${DOCUMENT_PATH}" ]] && [[ -r "${DOCUMENT_PATH}" ]] || {
+        echo "Document source not found: ${DOCUMENT_PATH}" >&2
+        return 1
+    }
 
     # normalize extensions
     if marsh_is_markdown_extension "${DOCUMENT_EXT}" "${MARKDOWN_FILEEXT_CSV}"; then
@@ -4424,6 +4428,11 @@ function marsh_build_document {  # marsh_build_document dest_dir target_dir docu
             echo "Unable to build document metadata cache: ${DOCUMENT_META}" >&2
             return 1
         }
+    else
+        cp "${DOCUMENT_PATH}" "${DOCUMENT_CONTENT}" || {
+            echo "Unable to copy document content: ${DOCUMENT_PATH}" >&2
+            return 1
+        }
     fi
 
     if [[ "${DOCUMENT_EXT}" == "markdown" ]]; then
@@ -4432,7 +4441,10 @@ function marsh_build_document {  # marsh_build_document dest_dir target_dir docu
         # convert preprocessed markdown to html
         # unwrap figures (remove p tag)
         # process images with multiple resolution assets
-        cp "${DOCUMENT_CONTENT}" "${DOCUMENT_CONTENT}.temp"
+        cp "${DOCUMENT_CONTENT}" "${DOCUMENT_CONTENT}.temp" || {
+            echo "Unable to prepare document content: ${DOCUMENT_CONTENT}" >&2
+            return 1
+        }
         TEXT_TRANSFORM=
         if [[ "${MARKDOWN_REWRITE_LINKS}" == true ]]; then
             TEXT_TRANSFORM="links:replace-ext:${MARKDOWN_FILEEXT_CSV}:html"
@@ -4484,7 +4496,12 @@ function marsh_build_document {  # marsh_build_document dest_dir target_dir docu
             } else {
                 print $0;
             }
-        }' > "${DOCUMENT_CONTENT}"
+        }' > "${DOCUMENT_CONTENT}" || {
+            echo "Unable to process document markdown: ${DOCUMENT_PATH}" >&2
+            rm -f "${DOCUMENT_CONTENT}.temp"
+            return 1
+        }
+        rm -f "${DOCUMENT_CONTENT}.temp"
     fi
 
     # build archive metadata from the document metadata

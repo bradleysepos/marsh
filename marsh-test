@@ -364,7 +364,7 @@ function marsh_test_group {
 function marsh_test {
     local TEST_NAME="${1}" EXISTS EXPECTED ACTUAL ASSERTION RES
     local TEST_TEMP_PREFIX SOURCE_FILE META_FILE CONTENT_FILE DOCUMENT_FILE TARGET_DIR HASH ARCHIVE_HASH SEP MANIFEST_FILE
-    local INDEX_FILE CACHE_FILE TEMPLATE_DIR TEMPLATE_OVERRIDE_FILE MARSH_OTEMP
+    local INDEX_FILE CACHE_FILE CACHE_COUNT TEMPLATE_DIR TEMPLATE_OVERRIDE_FILE MARSH_OTEMP
     local BASE_URI CANONICAL_META ALIAS_META PAGE_META
     EXISTS=true
     EXPECTED=""
@@ -2349,6 +2349,112 @@ function marsh_test {
                 fi
             fi
             rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}"
+            marsh_test_restore_env
+            ;;
+        marsh_build_template:26)
+            TEST_NAME+=":conditional_cache_reuse"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            marsh_test_set_env "conditionalcacheuid" true true
+            rm -rf "${MARSH_TEST_TEMP}/conditional-partial-cache" "${MARSH_TEST_TEMP}/conditional-tag-cache"
+            mkdir -p "${TARGET_DIR}" "${TEMPLATE_DIR}/sample/partials"
+            printf '%s\n' \
+                '---' \
+                'Template:' \
+                '  Partials:' \
+                '    Base: partials/base.html' \
+                '    Body: partials/body.html' \
+                '...' > "${TEMPLATE_DIR}/sample/template.yaml"
+            printf '%s\n' '<!DOCTYPE html>' '<html><body>{{ template.body }}</body></html>' > "${TEMPLATE_DIR}/sample/partials/base.html"
+            printf '%s\n' \
+                '{% if document.type is "page" %}' \
+                '<p>{{ document.title }}</p>' \
+                '{% else %}' \
+                '<p>Other</p>' \
+                '{% endif %}' > "${TEMPLATE_DIR}/sample/partials/body.html"
+            printf '%s\n' 'Alpha' > "${TARGET_DIR}/alpha.markdown.${MARSH_UID}.document"
+            printf '%s\n' '---' 'Type: page' 'Title: Alpha' '...' > "${TARGET_DIR}/alpha.markdown.${MARSH_UID}.meta.yaml"
+            printf '%s\n' 'Beta' > "${TARGET_DIR}/beta.markdown.${MARSH_UID}.document"
+            printf '%s\n' '---' 'Type: page' 'Title: Beta' '...' > "${TARGET_DIR}/beta.markdown.${MARSH_UID}.meta.yaml"
+            {
+                marsh_build_template "${TARGET_DIR}" "." "alpha.markdown" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1 \
+                    && marsh_build_template "${TARGET_DIR}" "." "beta.markdown" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+            }
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                ACTUAL=$(<"${TARGET_DIR}/alpha.html")
+                EXPECTED='<!DOCTYPE html>'$'\n''<html><body><p>Alpha</p></body></html>'
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    ACTUAL=$(<"${TARGET_DIR}/beta.html")
+                    EXPECTED='<!DOCTYPE html>'$'\n''<html><body><p>Beta</p></body></html>'
+                    ASSERTION="equals"
+                    if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                        ACTUAL=$(find "${MARSH_TEST_TEMP}/conditional-partial-cache" -maxdepth 1 -name '*.partial' 2>/dev/null | marsh_text_transform items:count)
+                        EXPECTED='1'
+                        ASSERTION="equals"
+                        if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                            RES="[PASS]"
+                        fi
+                    fi
+                fi
+            fi
+            rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}" "${MARSH_TEST_TEMP}/conditional-partial-cache" "${MARSH_TEST_TEMP}/conditional-tag-cache"
+            marsh_test_restore_env
+            ;;
+        marsh_build_template:27)
+            TEST_NAME+=":conditional_cache_distinct_outcomes"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            marsh_test_set_env "conditionalcacheuid" true true
+            rm -rf "${MARSH_TEST_TEMP}/conditional-partial-cache" "${MARSH_TEST_TEMP}/conditional-tag-cache"
+            mkdir -p "${TARGET_DIR}" "${TEMPLATE_DIR}/sample/partials"
+            printf '%s\n' \
+                '---' \
+                'Template:' \
+                '  Partials:' \
+                '    Base: partials/base.html' \
+                '    Body: partials/body.html' \
+                '...' > "${TEMPLATE_DIR}/sample/template.yaml"
+            printf '%s\n' '<!DOCTYPE html>' '<html><body>{{ template.body }}</body></html>' > "${TEMPLATE_DIR}/sample/partials/base.html"
+            printf '%s\n' \
+                '{% if document.type is "page" %}' \
+                '<p>Page</p>' \
+                '{% else %}' \
+                '<p>Other</p>' \
+                '{% endif %}' > "${TEMPLATE_DIR}/sample/partials/body.html"
+            printf '%s\n' 'Alpha' > "${TARGET_DIR}/alpha.markdown.${MARSH_UID}.document"
+            printf '%s\n' '---' 'Type: page' 'Title: Alpha' '...' > "${TARGET_DIR}/alpha.markdown.${MARSH_UID}.meta.yaml"
+            printf '%s\n' 'Beta' > "${TARGET_DIR}/beta.markdown.${MARSH_UID}.document"
+            printf '%s\n' '---' 'Type: post' 'Title: Beta' '...' > "${TARGET_DIR}/beta.markdown.${MARSH_UID}.meta.yaml"
+            {
+                marsh_build_template "${TARGET_DIR}" "." "alpha.markdown" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1 \
+                    && marsh_build_template "${TARGET_DIR}" "." "beta.markdown" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+            }
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                ACTUAL=$(<"${TARGET_DIR}/alpha.html")
+                EXPECTED='<!DOCTYPE html>'$'\n''<html><body><p>Page</p></body></html>'
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    ACTUAL=$(<"${TARGET_DIR}/beta.html")
+                    EXPECTED='<!DOCTYPE html>'$'\n''<html><body><p>Other</p></body></html>'
+                    ASSERTION="equals"
+                    if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                        ACTUAL=$(find "${MARSH_TEST_TEMP}/conditional-partial-cache" -maxdepth 1 -name '*.partial' 2>/dev/null | marsh_text_transform items:count)
+                        EXPECTED='2'
+                        ASSERTION="equals"
+                        if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                            RES="[PASS]"
+                        fi
+                    fi
+                fi
+            fi
+            rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}" "${MARSH_TEST_TEMP}/conditional-partial-cache" "${MARSH_TEST_TEMP}/conditional-tag-cache"
             marsh_test_restore_env
             ;;
         marsh_check_dependencies:0)

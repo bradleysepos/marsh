@@ -3454,6 +3454,141 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
         return 0
     }
 
+    function get_partial_conditional_tags {  # get_partial_conditional_tags file
+        local FILE CACHE_DIR CACHE_KEY CACHE_FILE CACHE_TEMP
+
+        FILE="${1:-}"
+        [[ "${FILE}" == "" ]] && return 1
+
+        CACHE_DIR="${MARSH_TEMP}/conditional-tag-cache"
+        mkdir -p "${CACHE_DIR}" >/dev/null 2>&1 || {
+            echo "Unable to create conditional tag cache directory: ${CACHE_DIR}" >&2
+            return 1
+        }
+        CACHE_KEY=$({ printf '%s\034' "${FILE}"; <"${FILE}" marsh_text_transform hash:md5; } | marsh_text_transform hash:md5) || return 1
+        CACHE_FILE="${CACHE_DIR}/${CACHE_KEY}.tags"
+        if [[ -f "${CACHE_FILE}" ]] && [[ -r "${CACHE_FILE}" ]]; then
+            cat "${CACHE_FILE}"
+            return 0
+        fi
+
+        CACHE_TEMP=$(mktemp "${CACHE_DIR}/tags-XXXXXX") || {
+            echo "Unable to create conditional tag cache file: ${CACHE_DIR}/tags-XXXXXX" >&2
+            return 1
+        }
+        awk '$0 ~ /^[ ]*\{%[ ]*if[ ]+[^ ]+.*%\}[ ]*$/ {
+            line = $0
+            sub(/^[ ]*\{%[ ]*if[ ]+/, "", line)
+            sub(/[ ].*$/, "", line)
+            print line
+        }' "${FILE}" | sort -u > "${CACHE_TEMP}" || {
+            rm -f "${CACHE_TEMP}"
+            return 1
+        }
+        mv "${CACHE_TEMP}" "${CACHE_FILE}" 2>/dev/null || {
+            if [[ ! -f "${CACHE_FILE}" ]]; then
+                rm -f "${CACHE_TEMP}"
+                return 1
+            fi
+            rm -f "${CACHE_TEMP}"
+        }
+        cat "${CACHE_FILE}"
+        return 0
+    }
+
+    function get_processed_conditional_partial {  # get_processed_conditional_partial file prefix metadata_vars
+        local FILE PREFIX METADATA_VARS TAGS TAG CACHE_DIR CACHE_KEY CACHE_FILE CACHE_TEMP
+        local TAG_VAR TAG_TYPE CONDITIONAL_VALUE CONDITIONAL_VALUES CONDITIONAL_KEY OIFS
+
+        FILE="${1:-}"
+        PREFIX="${2:-}"
+        METADATA_VARS="${3:-}"
+        [[ "${FILE}" == "" ]] && return 1
+
+        TAGS=$(get_partial_conditional_tags "${FILE}") || return 1
+        [[ "${TAGS}" != "" ]] || {
+            printf '%s\n' "${FILE}"
+            return 0
+        }
+
+        CONDITIONAL_KEY=""
+        while IFS= read -r TAG; do
+            [[ "${TAG}" == "" ]] && continue
+            TAG_VAR=""
+            TAG_TYPE=""
+            CONDITIONAL_VALUE=""
+            eval "$(marsh_resolve_tag_metadata "${TAG}" "${PREFIX}" "${METADATA_VARS}" 2>/dev/null)" || true
+            if [[ "${TAG_TYPE}" == "array" ]]; then
+                CONDITIONAL_VALUES=()
+                eval $(marsh_flat_to_array "CONDITIONAL_VALUES" "${TAG_VAR}")
+                OIFS="${IFS}"
+                IFS=$(printf '\034')
+                CONDITIONAL_VALUE="${CONDITIONAL_VALUES[*]}"
+                IFS="${OIFS}"
+            elif [[ "${TAG_TYPE}" == "string" ]]; then
+                CONDITIONAL_VALUE="${!TAG_VAR:-}"
+            else
+                TAG_TYPE="unsupported"
+            fi
+            CONDITIONAL_KEY+="${TAG}"$'\034'"${TAG_TYPE}"$'\034'"${CONDITIONAL_VALUE}"$'\035'
+        done <<< "${TAGS}"
+
+        CACHE_DIR="${MARSH_TEMP}/conditional-partial-cache"
+        mkdir -p "${CACHE_DIR}" >/dev/null 2>&1 || {
+            echo "Unable to create conditional partial cache directory: ${CACHE_DIR}" >&2
+            return 1
+        }
+        CACHE_KEY=$({ printf '%s\034' "${FILE}"; <"${FILE}" marsh_text_transform hash:md5; printf '%s' "${CONDITIONAL_KEY}"; } | marsh_text_transform hash:md5) || return 1
+        CACHE_FILE="${CACHE_DIR}/${CACHE_KEY}.partial"
+        if [[ -f "${CACHE_FILE}" ]] && [[ -r "${CACHE_FILE}" ]]; then
+            printf '%s\n' "${CACHE_FILE}"
+            return 0
+        fi
+
+        CACHE_TEMP=$(mktemp "${CACHE_DIR}/partial-XXXXXX") || {
+            echo "Unable to create conditional partial cache file: ${CACHE_DIR}/partial-XXXXXX" >&2
+            return 1
+        }
+        cp "${FILE}" "${CACHE_TEMP}" || {
+            rm -f "${CACHE_TEMP}"
+            return 1
+        }
+
+        while IFS= read -r TAG; do
+            [[ "${TAG}" == "" ]] && continue
+            TAG_VAR=""
+            TAG_TYPE=""
+            eval "$(marsh_resolve_tag_metadata "${TAG}" "${PREFIX}" "${METADATA_VARS}" 2>/dev/null)" || true
+            if [[ "${TAG_TYPE}" == "array" ]]; then
+                CONDITIONAL_VALUES=()
+                eval $(marsh_flat_to_array "CONDITIONAL_VALUES" "${TAG_VAR}")
+                process_conditionals "${CACHE_TEMP}" "${TAG}" "${CONDITIONAL_VALUES[@]}" || {
+                    rm -f "${CACHE_TEMP}"
+                    return 1
+                }
+            elif [[ "${TAG_TYPE}" == "string" ]]; then
+                process_conditionals "${CACHE_TEMP}" "${TAG}" "${!TAG_VAR:-}" || {
+                    rm -f "${CACHE_TEMP}"
+                    return 1
+                }
+            fi
+        done <<< "${TAGS}"
+        clean_conditionals "${CACHE_TEMP}" || {
+            rm -f "${CACHE_TEMP}"
+            return 1
+        }
+
+        mv "${CACHE_TEMP}" "${CACHE_FILE}" 2>/dev/null || {
+            if [[ ! -f "${CACHE_FILE}" ]]; then
+                rm -f "${CACHE_TEMP}"
+                return 1
+            fi
+            rm -f "${CACHE_TEMP}"
+        }
+        printf '%s\n' "${CACHE_FILE}"
+        return 0
+    }
+
     function parse_template_tag {  # parse_template_tag tag_string
         local TAG_STRING TAG_BODY TAG_CHAR TAG_CURRENT TAG_QUOTE TAG_ESCAPE TAG_INDEX TAG_PART TAG_NAME_VALUE
         local TAG_PARTS
@@ -3755,38 +3890,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
         # conditionals
         for J in "${!PARTIALS[@]}"; do
             [[ "${PARTIALS[$J]}" == "" ]] && continue
-            # first search for conditionals to avoid unnecessary processing
-            PARTIAL_CONDITIONAL_TAGS=()
-            while IFS= read -r PARTIAL_CONDITIONAL_TAG; do
-                PARTIAL_CONDITIONAL_TAGS+=("${PARTIAL_CONDITIONAL_TAG}")
-            done < <(awk '$0 ~ /^[ ]*\{%[ ]*if[ ]+[^ ]+.*%\}[ ]*$/ {
-                line = $0
-                sub(/^[ ]*\{%[ ]*if[ ]+/, "", line)
-                sub(/[ ].*$/, "", line)
-                print line
-            }' "${PARTIALS[$J]}" | sort -u)
-            if [[ "${#PARTIAL_CONDITIONAL_TAGS[@]}" -gt 0 ]]; then
-                # template contains conditionals, operate using a copy
-                TEMPLATE_TEMP=$(mktemp "${MARSH_TEMP}/template-XXXXXX")
-                cp "${PARTIALS[$J]}" "${TEMPLATE_TEMP}"
-                PARTIALS[$J]="${TEMPLATE_TEMP}"
-                # process known tags
-                for CONDITIONAL_TAG in "${PARTIAL_CONDITIONAL_TAGS[@]}"; do
-                    TAG_VAR=""
-                    TAG_TYPE=""
-                    eval "$(marsh_resolve_tag_metadata "${CONDITIONAL_TAG}" "DOCUMENT_" "${DOCUMENT_META_VARS:-}" 2>/dev/null)" || continue
-                    if [[ "${TAG_TYPE}" == "array" ]]; then
-                        CONDITIONAL_VALUES=()
-                        eval $(marsh_flat_to_array "CONDITIONAL_VALUES" "${TAG_VAR}")
-                        process_conditionals "${PARTIALS[$J]}" "${CONDITIONAL_TAG}" "${CONDITIONAL_VALUES[@]}" || return 1
-                    elif [[ "${TAG_TYPE}" == "string" ]]; then
-                        process_conditionals "${PARTIALS[$J]}" "${CONDITIONAL_TAG}" "${!TAG_VAR:-}" || return 1
-                    fi
-                done
-                # remove remaining conditionals
-                clean_conditionals "${PARTIALS[$J]}"
-            fi
-            unset PARTIAL_CONDITIONAL_TAGS
+            PARTIALS[$J]=$(get_processed_conditional_partial "${PARTIALS[$J]}" "DOCUMENT_" "${DOCUMENT_META_VARS:-}") || return 1
         done
         TEMPLATE_Template_Partials_Redirect="${PARTIALS[0]:-}"
         TEMPLATE_Template_Partials_Base="${PARTIALS[1]:-}"

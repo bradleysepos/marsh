@@ -785,6 +785,135 @@ function marsh_test {
             rm -rf "${TARGET_DIR}"
             marsh_test_restore_env
             ;;
+        marsh_build_document_and_template:0)
+            TEST_NAME+=":with_template"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            marsh_test_set_env "documentandtemplateuid" true true
+            mkdir -p "${TARGET_DIR}"
+            marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
+            printf '%s\n' \
+                '---' \
+                'Title: Example' \
+                '...' \
+                '' \
+                '# Example' > "${TARGET_DIR}/index.markdown"
+            marsh_build_document_and_template "${TARGET_DIR}" "." "index.markdown" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                {
+                    [[ -e "${TARGET_DIR}/index.markdown.${MARSH_UID}.document" ]] \
+                        && [[ -e "${TARGET_DIR}/index.markdown.${MARSH_UID}.meta" ]] \
+                        && [[ -e "${TARGET_DIR}/index.html" ]]
+                }
+                ACTUAL=$?
+                EXPECTED=0
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    ACTUAL=$(<"${TARGET_DIR}/index.html")
+                    EXPECTED='<title>Example</title>'
+                    ASSERTION="contains"
+                    if printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
+                        RES="[PASS]"
+                    fi
+                fi
+            fi
+            rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}"
+            marsh_test_restore_env
+            ;;
+        marsh_build_document_and_template:1)
+            TEST_NAME+=":without_template"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            marsh_test_set_env "documentandtemplateuid" true true
+            mkdir -p "${TARGET_DIR}"
+            printf '%s\n' \
+                '---' \
+                'Title: Example' \
+                '...' \
+                '' \
+                '# Example' > "${TARGET_DIR}/index.markdown"
+            marsh_build_document_and_template "${TARGET_DIR}" "." "index.markdown" "" false "" "" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                {
+                    [[ -e "${TARGET_DIR}/index.markdown.${MARSH_UID}.document" ]] \
+                        && [[ -e "${TARGET_DIR}/index.markdown.${MARSH_UID}.meta" ]] \
+                        && [[ ! -e "${TARGET_DIR}/index.html" ]]
+                }
+                ACTUAL=$?
+                EXPECTED=0
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    ACTUAL=$(<"${TARGET_DIR}/index.markdown.${MARSH_UID}.document")
+                    EXPECTED=$'\n''# Example'
+                    ASSERTION="equals"
+                    if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                        RES="[PASS]"
+                    fi
+                fi
+            fi
+            rm -rf "${TARGET_DIR}"
+            marsh_test_restore_env
+            ;;
+        marsh_build_document_and_template:2)
+            TEST_NAME+=":document_failure"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            marsh_test_set_env "documentandtemplateuid" true true
+            mkdir -p "${TARGET_DIR}"
+            marsh_build_document_and_template "${TARGET_DIR}" "." "missing.markdown" "" false "" "" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+            ACTUAL=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                {
+                    [[ ! -e "${TARGET_DIR}/missing.markdown.${MARSH_UID}.document" ]] \
+                        && [[ ! -e "${TARGET_DIR}/missing.html" ]]
+                }
+                ACTUAL=$?
+                EXPECTED=0
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${TARGET_DIR}"
+            marsh_test_restore_env
+            ;;
+        marsh_build_document_and_template:3)
+            TEST_NAME+=":template_failure"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            marsh_test_set_env "documentandtemplateuid" true true
+            mkdir -p "${TARGET_DIR}" "${TEMPLATE_DIR}"
+            printf '%s\n' \
+                '---' \
+                'Title: Example' \
+                '...' \
+                '' \
+                '# Example' > "${TARGET_DIR}/index.markdown"
+            marsh_build_document_and_template "${TARGET_DIR}" "." "index.markdown" "" false "${TEMPLATE_DIR}" "missing" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+            ACTUAL=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                {
+                    [[ -e "${TARGET_DIR}/index.markdown.${MARSH_UID}.document" ]] \
+                        && [[ ! -e "${TARGET_DIR}/index.html" ]]
+                }
+                ACTUAL=$?
+                EXPECTED=0
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}"
+            marsh_test_restore_env
+            ;;
         marsh_build_target:0)
             TEST_NAME+=":copy_assets"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
@@ -5534,6 +5663,7 @@ KNOWN_FUNCTIONS=(
     marsh_build_archive
     marsh_build_archive_manifest
     marsh_build_document
+    marsh_build_document_and_template
     marsh_build_target
     marsh_build_template
     marsh_check_dependencies

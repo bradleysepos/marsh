@@ -2429,155 +2429,6 @@ function marsh_test {
             fi
             rm -f "${SOURCE_FILE}" "${META_FILE}" "${CONTENT_FILE}"
             ;;
-        marsh_find_sitemap:0)
-            TEST_NAME+=":target_level"
-            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
-            marsh_test_set_env "navtest" true false
-            mkdir -p "${TARGET_DIR}"
-            SITEMAP_RENDER=$(marsh_get_sitemap_render_path "${TARGET_DIR}" "nav.html")
-            mkdir -p "${SITEMAP_RENDER%/*}"
-            : > "${SITEMAP_RENDER}"
-            ACTUAL=$(marsh_find_sitemap "${TARGET_DIR}" "news/article.markdown" "nav.html")
-            EXPECTED="${SITEMAP_RENDER#${TARGET_DIR}/}"
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                RES="[PASS]"
-            fi
-            rm -rf "${TARGET_DIR}"
-            marsh_test_restore_env
-            ;;
-        marsh_find_sitemap:1)
-            TEST_NAME+=":relative_path_key"
-            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
-            marsh_test_set_env "navtest" true false
-            mkdir -p "${TARGET_DIR}"
-            SITEMAP_RENDER=$(marsh_get_sitemap_render_path "${TARGET_DIR}" "../site-map/index.markdown")
-            mkdir -p "${SITEMAP_RENDER%/*}"
-            : > "${SITEMAP_RENDER}"
-            ACTUAL=$(marsh_find_sitemap "${TARGET_DIR}" "news/world/article.markdown" "../site-map/index.markdown")
-            EXPECTED="${SITEMAP_RENDER#${TARGET_DIR}/}"
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                RES="[PASS]"
-            fi
-            rm -rf "${TARGET_DIR}"
-            marsh_test_restore_env
-            ;;
-        marsh_find_sitemap:2)
-            TEST_NAME+=":missing"
-            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
-            marsh_test_set_env "navtest" true false
-            mkdir -p "${TARGET_DIR}/news"
-            marsh_find_sitemap "${TARGET_DIR}" "news/article.markdown" "nav.html" 2>/dev/null
-            ACTUAL=$?
-            EXPECTED=1
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" -eq "${EXPECTED}" ]]; then
-                RES="[PASS]"
-            fi
-            rm -rf "${TARGET_DIR}"
-            marsh_test_restore_env
-            ;;
-        marsh_find_sitemap:3)
-            TEST_NAME+=":search_nearest"
-            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
-            marsh_test_set_env "navtest" true false
-            mkdir -p "${TARGET_DIR}"
-            SITEMAP_RENDER=$(marsh_get_sitemap_render_path "${TARGET_DIR}" "news/world/sitemap.markdown")
-            mkdir -p "${SITEMAP_RENDER%/*}"
-            : > "${SITEMAP_RENDER}"
-            ACTUAL=$(marsh_find_sitemap "${TARGET_DIR}" "news/world/article.markdown" "sitemap.markdown" true)
-            EXPECTED="${SITEMAP_RENDER#${TARGET_DIR}/}"
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                RES="[PASS]"
-            fi
-            rm -rf "${TARGET_DIR}"
-            marsh_test_restore_env
-            ;;
-        marsh_find_sitemap:4)
-            TEST_NAME+=":search_parent"
-            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
-            marsh_test_set_env "navtest" true false
-            mkdir -p "${TARGET_DIR}"
-            SITEMAP_RENDER=$(marsh_get_sitemap_render_path "${TARGET_DIR}" "news/sitemap.markdown")
-            mkdir -p "${SITEMAP_RENDER%/*}"
-            : > "${SITEMAP_RENDER}"
-            ACTUAL=$(marsh_find_sitemap "${TARGET_DIR}" "news/world/article.markdown" "sitemap.markdown" true)
-            EXPECTED="${SITEMAP_RENDER#${TARGET_DIR}/}"
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                RES="[PASS]"
-            fi
-            rm -rf "${TARGET_DIR}"
-            marsh_test_restore_env
-            ;;
-        marsh_get_sitemap_lookup_path:0)
-            TEST_NAME+=":explicit"
-            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
-            marsh_test_set_env "navlookupuid" true false
-            mkdir -p "${TARGET_DIR}"
-            SITEMAP_RENDER=$(marsh_get_sitemap_render_path "${TARGET_DIR}" "site-map/index.markdown")
-            mkdir -p "${SITEMAP_RENDER%/*}"
-            : > "${SITEMAP_RENDER}"
-            ACTUAL=$(marsh_get_sitemap_lookup_path "${TARGET_DIR}" "news/article.markdown" "site-map/index.markdown")
-            EXPECTED="site-map/index.markdown"
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                RES="[PASS]"
-            fi
-            rm -rf "${TARGET_DIR}"
-            marsh_test_restore_env
-            ;;
-        marsh_get_sitemap_lookup_path:1)
-            TEST_NAME+=":search_nearest"
-            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
-            marsh_test_set_env "navlookupuid" true false
-            mkdir -p "${TARGET_DIR}"
-            SITEMAP_RENDER=$(marsh_get_sitemap_render_path "${TARGET_DIR}" "news/world/sitemap.markdown")
-            mkdir -p "${SITEMAP_RENDER%/*}"
-            : > "${SITEMAP_RENDER}"
-            ACTUAL=$(marsh_get_sitemap_lookup_path "${TARGET_DIR}" "news/world/article.markdown" "sitemap.markdown" true)
-            EXPECTED="news/world/sitemap.markdown"
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                RES="[PASS]"
-            fi
-            rm -rf "${TARGET_DIR}"
-            marsh_test_restore_env
-            ;;
-        marsh_get_sitemap_lookup_path:2)
-            TEST_NAME+=":search_parent"
-            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
-            marsh_test_set_env "navlookupuid" true false
-            mkdir -p "${TARGET_DIR}"
-            SITEMAP_RENDER=$(marsh_get_sitemap_render_path "${TARGET_DIR}" "news/sitemap.markdown")
-            mkdir -p "${SITEMAP_RENDER%/*}"
-            : > "${SITEMAP_RENDER}"
-            ACTUAL=$(marsh_get_sitemap_lookup_path "${TARGET_DIR}" "news/world/article.markdown" "sitemap.markdown" true)
-            EXPECTED="news/sitemap.markdown"
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                RES="[PASS]"
-            fi
-            rm -rf "${TARGET_DIR}"
-            marsh_test_restore_env
-            ;;
-        marsh_get_sitemap_lookup_path:3)
-            TEST_NAME+=":missing"
-            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
-            marsh_test_set_env "navlookupuid" true false
-            mkdir -p "${TARGET_DIR}"
-            marsh_get_sitemap_lookup_path "${TARGET_DIR}" "news/article.markdown" "sitemap.markdown" true 2>/dev/null
-            ACTUAL=$?
-            EXPECTED=1
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" -eq "${EXPECTED}" ]]; then
-                RES="[PASS]"
-            fi
-            rm -rf "${TARGET_DIR}"
-            marsh_test_restore_env
-            ;;
         marsh_flat_to_array:0)
             TEST_NAME+=":nested"
             ACTUAL=$(FOOBAR_0="foo" FOOBAR_1="bar" FOOBAR_X="x" marsh_flat_to_array "ARRAY" "FOOBAR_")
@@ -2947,11 +2798,11 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_get_source_root_path:0)
-            TEST_NAME+=":glob_parent"
+        marsh_get_site_source_root_path:0)
+            TEST_NAME+=":common_root"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
-            mkdir -p "${TARGET_DIR}/source/news"
-            ACTUAL=$(marsh_get_source_root_path "${TARGET_DIR}/source/*")
+            mkdir -p "${TARGET_DIR}/source/about" "${TARGET_DIR}/source/news"
+            ACTUAL=$(CONFIG_Build_Targets_0_Path='.' CONFIG_Build_Targets_0_Source='source/*' CONFIG_Build_Targets_1_Path='news' CONFIG_Build_Targets_1_Source='source/news' marsh_get_site_source_root_path "${TARGET_DIR}")
             EXPECTED="${TARGET_DIR}/source"
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -2959,11 +2810,160 @@ function marsh_test {
             fi
             rm -rf "${TARGET_DIR}"
             ;;
-        marsh_get_site_source_root_path:0)
-            TEST_NAME+=":common_root"
+        marsh_get_sitemap_lookup_path:0)
+            TEST_NAME+=":explicit"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
-            mkdir -p "${TARGET_DIR}/source/about" "${TARGET_DIR}/source/news"
-            ACTUAL=$(CONFIG_Build_Targets_0_Path='.' CONFIG_Build_Targets_0_Source='source/*' CONFIG_Build_Targets_1_Path='news' CONFIG_Build_Targets_1_Source='source/news' marsh_get_site_source_root_path "${TARGET_DIR}")
+            marsh_test_set_env "navlookupuid" true false
+            mkdir -p "${TARGET_DIR}"
+            SITEMAP_RENDER=$(marsh_get_sitemap_render_path "${TARGET_DIR}" "site-map/index.markdown")
+            mkdir -p "${SITEMAP_RENDER%/*}"
+            : > "${SITEMAP_RENDER}"
+            ACTUAL=$(marsh_get_sitemap_lookup_path "${TARGET_DIR}" "news/article.markdown" "site-map/index.markdown")
+            EXPECTED="site-map/index.markdown"
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            rm -rf "${TARGET_DIR}"
+            marsh_test_restore_env
+            ;;
+        marsh_get_sitemap_lookup_path:1)
+            TEST_NAME+=":search_nearest"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            marsh_test_set_env "navlookupuid" true false
+            mkdir -p "${TARGET_DIR}"
+            SITEMAP_RENDER=$(marsh_get_sitemap_render_path "${TARGET_DIR}" "news/world/sitemap.markdown")
+            mkdir -p "${SITEMAP_RENDER%/*}"
+            : > "${SITEMAP_RENDER}"
+            ACTUAL=$(marsh_get_sitemap_lookup_path "${TARGET_DIR}" "news/world/article.markdown" "sitemap.markdown" true)
+            EXPECTED="news/world/sitemap.markdown"
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            rm -rf "${TARGET_DIR}"
+            marsh_test_restore_env
+            ;;
+        marsh_get_sitemap_lookup_path:2)
+            TEST_NAME+=":search_parent"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            marsh_test_set_env "navlookupuid" true false
+            mkdir -p "${TARGET_DIR}"
+            SITEMAP_RENDER=$(marsh_get_sitemap_render_path "${TARGET_DIR}" "news/sitemap.markdown")
+            mkdir -p "${SITEMAP_RENDER%/*}"
+            : > "${SITEMAP_RENDER}"
+            ACTUAL=$(marsh_get_sitemap_lookup_path "${TARGET_DIR}" "news/world/article.markdown" "sitemap.markdown" true)
+            EXPECTED="news/sitemap.markdown"
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            rm -rf "${TARGET_DIR}"
+            marsh_test_restore_env
+            ;;
+        marsh_get_sitemap_lookup_path:3)
+            TEST_NAME+=":missing"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            marsh_test_set_env "navlookupuid" true false
+            mkdir -p "${TARGET_DIR}"
+            marsh_get_sitemap_lookup_path "${TARGET_DIR}" "news/article.markdown" "sitemap.markdown" true 2>/dev/null
+            ACTUAL=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" -eq "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            rm -rf "${TARGET_DIR}"
+            marsh_test_restore_env
+            ;;
+        marsh_get_sitemap_rendered_path:0)
+            TEST_NAME+=":target_level"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            marsh_test_set_env "navtest" true false
+            mkdir -p "${TARGET_DIR}"
+            SITEMAP_RENDER=$(marsh_get_sitemap_render_path "${TARGET_DIR}" "nav.html")
+            mkdir -p "${SITEMAP_RENDER%/*}"
+            : > "${SITEMAP_RENDER}"
+            ACTUAL=$(marsh_get_sitemap_rendered_path "${TARGET_DIR}" "news/article.markdown" "nav.html")
+            EXPECTED="${SITEMAP_RENDER#${TARGET_DIR}/}"
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            rm -rf "${TARGET_DIR}"
+            marsh_test_restore_env
+            ;;
+        marsh_get_sitemap_rendered_path:1)
+            TEST_NAME+=":relative_path_key"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            marsh_test_set_env "navtest" true false
+            mkdir -p "${TARGET_DIR}"
+            SITEMAP_RENDER=$(marsh_get_sitemap_render_path "${TARGET_DIR}" "../site-map/index.markdown")
+            mkdir -p "${SITEMAP_RENDER%/*}"
+            : > "${SITEMAP_RENDER}"
+            ACTUAL=$(marsh_get_sitemap_rendered_path "${TARGET_DIR}" "news/world/article.markdown" "../site-map/index.markdown")
+            EXPECTED="${SITEMAP_RENDER#${TARGET_DIR}/}"
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            rm -rf "${TARGET_DIR}"
+            marsh_test_restore_env
+            ;;
+        marsh_get_sitemap_rendered_path:2)
+            TEST_NAME+=":missing"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            marsh_test_set_env "navtest" true false
+            mkdir -p "${TARGET_DIR}/news"
+            marsh_get_sitemap_rendered_path "${TARGET_DIR}" "news/article.markdown" "nav.html" 2>/dev/null
+            ACTUAL=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" -eq "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            rm -rf "${TARGET_DIR}"
+            marsh_test_restore_env
+            ;;
+        marsh_get_sitemap_rendered_path:3)
+            TEST_NAME+=":search_nearest"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            marsh_test_set_env "navtest" true false
+            mkdir -p "${TARGET_DIR}"
+            SITEMAP_RENDER=$(marsh_get_sitemap_render_path "${TARGET_DIR}" "news/world/sitemap.markdown")
+            mkdir -p "${SITEMAP_RENDER%/*}"
+            : > "${SITEMAP_RENDER}"
+            ACTUAL=$(marsh_get_sitemap_rendered_path "${TARGET_DIR}" "news/world/article.markdown" "sitemap.markdown" true)
+            EXPECTED="${SITEMAP_RENDER#${TARGET_DIR}/}"
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            rm -rf "${TARGET_DIR}"
+            marsh_test_restore_env
+            ;;
+        marsh_get_sitemap_rendered_path:4)
+            TEST_NAME+=":search_parent"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            marsh_test_set_env "navtest" true false
+            mkdir -p "${TARGET_DIR}"
+            SITEMAP_RENDER=$(marsh_get_sitemap_render_path "${TARGET_DIR}" "news/sitemap.markdown")
+            mkdir -p "${SITEMAP_RENDER%/*}"
+            : > "${SITEMAP_RENDER}"
+            ACTUAL=$(marsh_get_sitemap_rendered_path "${TARGET_DIR}" "news/world/article.markdown" "sitemap.markdown" true)
+            EXPECTED="${SITEMAP_RENDER#${TARGET_DIR}/}"
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            rm -rf "${TARGET_DIR}"
+            marsh_test_restore_env
+            ;;
+        marsh_get_source_root_path:0)
+            TEST_NAME+=":glob_parent"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            mkdir -p "${TARGET_DIR}/source/news"
+            ACTUAL=$(marsh_get_source_root_path "${TARGET_DIR}/source/*")
             EXPECTED="${TARGET_DIR}/source"
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -5052,7 +5052,6 @@ KNOWN_FUNCTIONS=(
     marsh_clean_target
     marsh_escape_substitution
     marsh_extract_frontmatter
-    marsh_find_sitemap
     marsh_flat_to_array
     marsh_get_absolute_output_path
     marsh_get_archive_manifest
@@ -5062,8 +5061,9 @@ KNOWN_FUNCTIONS=(
     marsh_get_internal_parent_directory
     marsh_get_local_declarations
     marsh_get_relative_path
-    marsh_get_sitemap_lookup_path
     marsh_get_site_source_root_path
+    marsh_get_sitemap_lookup_path
+    marsh_get_sitemap_rendered_path
     marsh_get_source_root_path
     marsh_get_subdocuments
     marsh_get_target_directory_path

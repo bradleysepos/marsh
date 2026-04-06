@@ -1447,7 +1447,7 @@ function marsh_extract_frontmatter {  # marsh_extract_frontmatter source meta_de
         }
     }
     have_yaml && in_yaml {
-        if ($0 ~ /^---[ ]*(#.*)?$/) {
+        if ($0 ~ /^(---|\.\.\.)[ ]*(#.*)?$/) {
             in_yaml = 0
             next
         }

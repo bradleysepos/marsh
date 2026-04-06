@@ -2682,6 +2682,32 @@ function marsh_test {
             fi
             rm -f "${SOURCE_FILE}" "${META_FILE}" "${CONTENT_FILE}"
             ;;
+        marsh_extract_frontmatter:3)
+            TEST_NAME+=":yaml_end_marker_dots"
+            SOURCE_FILE="${TEST_TEMP_PREFIX}.source.markdown"
+            META_FILE="${TEST_TEMP_PREFIX}.meta.yaml"
+            CONTENT_FILE="${TEST_TEMP_PREFIX}.content.markdown"
+            printf '%s\n' \
+                '---' \
+                'Title: Example' \
+                'Tags: [one, two]' \
+                '...' \
+                '' \
+                'Body text' > "${SOURCE_FILE}"
+            marsh_extract_frontmatter "${SOURCE_FILE}" "${META_FILE}" "${CONTENT_FILE}"
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" -eq "${EXPECTED}" ]]; then
+                ACTUAL="$(<"${META_FILE}")"$'\001'"$(<"${CONTENT_FILE}")"
+                EXPECTED='---'$'\n''Title: Example'$'\n''Tags: [one, two]'$'\n''...'$'\001'$'\n''Body text'
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -f "${SOURCE_FILE}" "${META_FILE}" "${CONTENT_FILE}"
+            ;;
         marsh_flat_to_array:0)
             TEST_NAME+=":nested"
             ACTUAL=$(FOOBAR_0="foo" FOOBAR_1="bar" FOOBAR_X="x" marsh_flat_to_array "ARRAY" "FOOBAR_")

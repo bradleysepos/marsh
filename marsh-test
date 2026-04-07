@@ -465,9 +465,12 @@ function marsh_test {
                                     && [[ ! -e "${TARGET_DIR}/index.markdown" ]] \
                                     && [[ ! -e "${TARGET_DIR}/page/1/index.markdown" ]] \
                                     && [[ ! -e "${TARGET_DIR}/page/2/index.markdown" ]] \
-                                    && [[ -e "${TARGET_DIR}/index.markdown.${MARSH_UID}.subdocuments.manifest" ]] \
-                                    && [[ -e "${TARGET_DIR}/page/1/index.markdown.${MARSH_UID}.subdocuments.manifest" ]] \
-                                    && [[ -e "${TARGET_DIR}/page/2/index.markdown.${MARSH_UID}.subdocuments.manifest" ]] \
+                                    && [[ -e "$(marsh_get_archive_temp_path "${TARGET_DIR}" "index.markdown" "subdocuments-manifest")" ]] \
+                                    && [[ -e "$(marsh_get_archive_temp_path "${TARGET_DIR}" "page/1/index.markdown" "subdocuments-manifest")" ]] \
+                                    && [[ -e "$(marsh_get_archive_temp_path "${TARGET_DIR}" "page/2/index.markdown" "subdocuments-manifest")" ]] \
+                                    && [[ ! -e "${TARGET_DIR}/index.markdown.${MARSH_UID}.subdocuments.manifest" ]] \
+                                    && [[ ! -e "${TARGET_DIR}/page/1/index.markdown.${MARSH_UID}.subdocuments.manifest" ]] \
+                                    && [[ ! -e "${TARGET_DIR}/page/2/index.markdown.${MARSH_UID}.subdocuments.manifest" ]] \
                                     && [[ ! -e "${TARGET_DIR}/index.markdown.${MARSH_UID}.subdocuments.0.document" ]] \
                                     && [[ ! -e "${TARGET_DIR}/page/2/index.markdown.${MARSH_UID}.subdocuments.0.document" ]]
                             }
@@ -548,6 +551,7 @@ function marsh_test {
                         [[ -e "${META_FILE}" ]] \
                             && [[ ! -e "${TARGET_DIR}/index.markdown" ]] \
                             && [[ ! -e "${TARGET_DIR}/page/1/index.markdown" ]] \
+                            && [[ ! -e "$(marsh_get_archive_temp_path "${TARGET_DIR}" "index.markdown" "subdocuments-manifest")" ]] \
                             && [[ ! -e "${TARGET_DIR}/index.markdown.${MARSH_UID}.subdocuments.manifest" ]] \
                             && [[ ! -e "${TARGET_DIR}/index.markdown.${MARSH_UID}.subdocuments.0.document" ]]
                     }
@@ -1188,7 +1192,7 @@ function marsh_test {
                 EXPECTED='news/index.markdown'$'\n''news/page/1/index.markdown'
                 ASSERTION="equals"
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    [[ -e "${TARGET_DIR}/news/index.markdown.${MARSH_UID}.subdocuments.manifest" ]]
+                    [[ -e "$(marsh_get_archive_temp_path "${TARGET_DIR}" "news/index.markdown" "subdocuments-manifest")" ]]
                     ACTUAL=$?
                     EXPECTED=0
                     ASSERTION="equals"

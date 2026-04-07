@@ -1137,8 +1137,7 @@ function marsh_get_subdocuments {  # marsh_get_subdocuments document
     DOCUMENT="${1:-}"
     [[ "${DOCUMENT}" == "" ]] && return 1
 
-    # TODO: remove when archive page subdocument manifests move under MARSH_TEMP and
-    # marsh_build_template stops reading output-adjacent subdocument lists
+    # TODO: remove when archive template rendering stops reading legacy output-adjacent subdocument lists
     MANIFEST="${DOCUMENT}.${MARSH_UID}.subdocuments.manifest"
     if [[ -f "${MANIFEST}" ]] && [[ -r "${MANIFEST}" ]]; then
         while IFS=$'\t' read -r DOCUMENT_ESC URI_ESC ABSPATH_ESC; do
@@ -3051,7 +3050,7 @@ function marsh_write_archive_page {  # marsh_write_archive_page encoding target_
     local PAGE_URI PAGE_CANONICAL_URI PAGE_FIRST_URI PAGE_PREV_URI PAGE_NEXT_URI PAGE_LAST_URI
     local PAGE_HREF PAGE_CANONICAL_HREF PAGE_FIRST_HREF PAGE_PREV_HREF PAGE_NEXT_HREF PAGE_LAST_HREF
     local ARCHIVE_ROOT_PATH ARCHIVE_ROOT_HREF
-    local NUM_DOCUMENTS DOCUMENTS DOCUMENT_URIS DOCUMENT_ABSPATHS DOCUMENT INDEX URI ABSPATH MANIFEST_FILE
+    local NUM_DOCUMENTS DOCUMENTS DOCUMENT_URIS DOCUMENT_ABSPATHS DOCUMENT INDEX URI ABSPATH MANIFEST_FILE MANIFEST_OUTPUT_FILE
     local PAGE_IS_FIRST PAGE_IS_LAST PAGE_HAS_PREV PAGE_HAS_NEXT PAGE_HAS_SUBDOCUMENTS
 
     ENCODING="${1:-}"
@@ -3110,7 +3109,7 @@ function marsh_write_archive_page {  # marsh_write_archive_page encoding target_
     # page metadata
     DEST="${TARGET_DIR}/${ARCHIVE_SOURCE}"
     DEST_SOURCE=$(marsh_get_archive_temp_path "${TARGET_DIR}" "${ARCHIVE_SOURCE}" "source") || return 1
-    # TODO: remove DEST_SUB_PREFIX output path usage when archive page subdocument manifests move under MARSH_TEMP
+    # TODO: remove DEST_SUB_PREFIX output path usage when archive page subdocument aggregation moves into MARSH_TEMP
     DEST_SUB_PREFIX="${DEST}.${MARSH_UID}.subdocuments"
     PAGE_IS_FIRST=false
     PAGE_IS_LAST=false
@@ -3123,7 +3122,7 @@ function marsh_write_archive_page {  # marsh_write_archive_page encoding target_
     [[ "${PAGE_NEXT_URI}" != "" ]] && PAGE_HAS_NEXT=true
     [[ "${PAGE_SUBDOCUMENTS_TOTAL}" -gt 0 ]] && PAGE_HAS_SUBDOCUMENTS=true
 
-    # TODO: remove this output path dependency when archive page manifests move into MARSH_TEMP
+    # TODO: remove this output path dependency when archive page subdocument aggregation moves into MARSH_TEMP
     mkdir -p "${DEST%/*}" >/dev/null 2>&1 || {
         echo "Unable to create archive output directory: ${DEST%/*}" >&2
         return 1
@@ -3183,8 +3182,17 @@ function marsh_write_archive_page {  # marsh_write_archive_page encoding target_
     echo "---" >> "${DEST_SOURCE}"
 
     # create manifest of the subdocuments for this page
+    MANIFEST_OUTPUT_FILE="${DEST_SUB_PREFIX}.manifest"
+    rm -f "${MANIFEST_OUTPUT_FILE}" >/dev/null 2>&1 || {
+        echo "Unable to remove stale archive subdocument manifest: ${MANIFEST_OUTPUT_FILE}" >&2
+        return 1
+    }
     if [[ "${#DOCUMENTS[@]}" -gt 0 ]]; then
-        MANIFEST_FILE="${DEST_SUB_PREFIX}.manifest"
+        MANIFEST_FILE=$(marsh_get_archive_temp_path "${TARGET_DIR}" "${ARCHIVE_SOURCE}" "subdocuments-manifest") || return 1
+        mkdir -p "${MANIFEST_FILE%/*}" >/dev/null 2>&1 || {
+            echo "Unable to create archive manifest temp directory: ${MANIFEST_FILE%/*}" >&2
+            return 1
+        }
         {
             INDEX=0
             for DOCUMENT in "${DOCUMENTS[@]}"; do
@@ -3998,7 +4006,9 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
     local SUBDOCUMENT SUBDOCUMENT_SOURCE SUBDOCUMENT_CONTENT SUBDOCUMENT_CONTENT_ESC SUBDOCUMENT_META SUBDOCUMENT_META_VARS SUBDOCUMENT_REL_TO_SITE SUBDOCUMENT_META_FILE SUBDOCUMENT_CONTENT_FILE
     local SUBDOCUMENT_RENDER SUBDOCUMENT_TEMPLATE SUBDOCUMENT_RENDER_FILE SUBDOCUMENT_URI SUBDOCUMENT_ABSPATH SUBDOCUMENT_HREF
     local SUBDOCUMENT_OUTPUT_PATH SUBDOCUMENT_OUTPUT_EXT
-    local SUBDOCUMENT_URI_FROM_MANIFEST SUBDOCUMENT_ABSPATH_FROM_MANIFEST SUBDOCUMENT_DOCUMENT_ESC SUBDOCUMENT_URI_ESC SUBDOCUMENT_ABSPATH_ESC SUBDOCUMENTS_MANIFEST
+    local SUBDOCUMENTS_MANIFEST SUBDOCUMENT_URI_FROM_MANIFEST SUBDOCUMENT_ABSPATH_FROM_MANIFEST
+    local SUBDOCUMENT_DOCUMENT_ESC SUBDOCUMENT_URI_ESC SUBDOCUMENT_ABSPATH_ESC
+    local SUBDOCUMENTS_FILE SUBDOCUMENTS_OUTPUT_FILE
     local TEXT_TRANSFORM UTIL_JSON_SEPARATOR I J
     local CONDITIONAL_TAG CONDITIONAL_VALUES
     local DOCUMENT_State
@@ -4390,8 +4400,11 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
         SUBDOCUMENTS=()
         SUBDOCUMENT_URIS=()
         SUBDOCUMENT_ABSPATHS=()
-        # TODO: remove when archive page subdocument manifests move under MARSH_TEMP
-        SUBDOCUMENTS_MANIFEST="${DOCUMENT}.${MARSH_UID}.subdocuments.manifest"
+        SUBDOCUMENTS_MANIFEST=$(marsh_get_archive_temp_path "${DEST_DIR}" "${DOCUMENT_REL_TO_SITE}" "subdocuments-manifest" 2>/dev/null) || SUBDOCUMENTS_MANIFEST=""
+        # TODO: remove output-adjacent manifest fallback when archive page subdocument manifest readers use only MARSH_TEMP
+        if [[ ! -f "${SUBDOCUMENTS_MANIFEST}" ]] || [[ ! -r "${SUBDOCUMENTS_MANIFEST}" ]]; then
+            SUBDOCUMENTS_MANIFEST="${DOCUMENT}.${MARSH_UID}.subdocuments.manifest"
+        fi
         if [[ -f "${SUBDOCUMENTS_MANIFEST}" ]] && [[ -r "${SUBDOCUMENTS_MANIFEST}" ]]; then
             SUBDOCUMENTS_LIST=$(<"${SUBDOCUMENTS_MANIFEST}")
             while IFS=$'\t' read -r SUBDOCUMENT_DOCUMENT_ESC SUBDOCUMENT_URI_ESC SUBDOCUMENT_ABSPATH_ESC; do
@@ -4417,10 +4430,19 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
             done <<< "${SUBDOCUMENTS_LIST}"
         fi
         NUM_SUBDOCUMENTS="${#SUBDOCUMENTS[@]}"
+        SUBDOCUMENTS_OUTPUT_FILE="${DOCUMENT}.${MARSH_UID}.subdocuments"
+        rm -f "${SUBDOCUMENTS_OUTPUT_FILE}" >/dev/null 2>&1 || {
+            echo "Unable to remove stale subdocuments file: ${SUBDOCUMENTS_OUTPUT_FILE}" >&2
+            return 1
+        }
         if [[ "${NUM_SUBDOCUMENTS}" -gt 0 ]]; then
-            # TODO: remove when archive page subdocument aggregation is rendered under MARSH_TEMP
-            : > "${DOCUMENT}.${MARSH_UID}.subdocuments" || {
-                echo "Unable to create subdocuments file: ${DOCUMENT}.${MARSH_UID}.subdocuments" >&2
+            SUBDOCUMENTS_FILE=$(marsh_get_archive_temp_path "${DEST_DIR}" "${DOCUMENT_REL_TO_SITE}" "subdocuments") || return 1
+            mkdir -p "${SUBDOCUMENTS_FILE%/*}" >/dev/null 2>&1 || {
+                echo "Unable to create subdocuments temp directory: ${SUBDOCUMENTS_FILE%/*}" >&2
+                return 1
+            }
+            : > "${SUBDOCUMENTS_FILE}" || {
+                echo "Unable to create subdocuments file: ${SUBDOCUMENTS_FILE}" >&2
                 return 1
             }
             for J in "${!SUBDOCUMENTS[@]}"; do
@@ -4556,11 +4578,11 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                     return 1
                 }
                 # combine with previous subdocuments
-                cat "${SUBDOCUMENT_RENDER_FILE}" >> "${DOCUMENT}.${MARSH_UID}.subdocuments"
+                cat "${SUBDOCUMENT_RENDER_FILE}" >> "${SUBDOCUMENTS_FILE}"
                 [[ "${DOCUMENT_Type}" != "archive-atom" ]] && [[ "${DOCUMENT_Type}" != "archive-json" ]] && rm -f "${SUBDOCUMENT_CONTENT}"
                 rm -f "${SUBDOCUMENT_RENDER_FILE}"
             done
-            awk -v subdocuments_file="${DOCUMENT}.${MARSH_UID}.subdocuments" '
+            awk -v subdocuments_file="${SUBDOCUMENTS_FILE}" '
             function emit_subdocuments(prefix, suffix, line, first, previous) {
                 first = 1
                 previous = ""

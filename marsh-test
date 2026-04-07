@@ -409,9 +409,12 @@ function marsh_test {
                 'page/2/index.markdown')
             ASSERTION="equals"
             BASE_URI="https://example.test/$(basename "${TARGET_DIR}")"
-            CANONICAL_META=$(sed -n -e '/^Page:/p' -e '/^Page_Total:/p' -e '/^Page_Size:/p' -e '/^Page_Subdocuments_Total:/p' -e '/^Archive_Subdocuments_Total:/p' -e '/^Page_URI:/p' -e '/^Page_Canonical_URI:/p' -e '/^Page_Next_URI:/p' -e '/^Page_Last_URI:/p' -e '/^Page_Href:/p' -e '/^Page_Canonical_Href:/p' -e '/^Page_Next_Href:/p' -e '/^Page_Last_Href:/p' "${TARGET_DIR}/index.markdown")
-            ALIAS_META=$(sed -n -e '/^Page:/p' -e '/^Page_URI:/p' -e '/^Page_Canonical_URI:/p' -e '/^Page_Next_URI:/p' -e '/^Page_Href:/p' -e '/^Page_Canonical_Href:/p' -e '/^Page_Next_Href:/p' -e '/^Page_Last_Href:/p' "${TARGET_DIR}/page/1/index.markdown")
-            PAGE_META=$(sed -n -e '/^Page:/p' -e '/^Page_Total:/p' -e '/^Page_Subdocuments_Total:/p' -e '/^Archive_Subdocuments_Total:/p' -e '/^Page_Prev_URI:/p' -e '/^Page_Last_URI:/p' -e '/^Page_Href:/p' -e '/^Page_Prev_Href:/p' -e '/^Page_Last_Href:/p' "${TARGET_DIR}/page/2/index.markdown")
+            SOURCE_FILE=$(marsh_get_archive_temp_path "${TARGET_DIR}" "index.markdown" "source")
+            META_FILE=$(marsh_get_archive_temp_path "${TARGET_DIR}" "page/1/index.markdown" "source")
+            CONTENT_FILE=$(marsh_get_archive_temp_path "${TARGET_DIR}" "page/2/index.markdown" "source")
+            CANONICAL_META=$(sed -n -e '/^Page:/p' -e '/^Page_Total:/p' -e '/^Page_Size:/p' -e '/^Page_Subdocuments_Total:/p' -e '/^Archive_Subdocuments_Total:/p' -e '/^Page_URI:/p' -e '/^Page_Canonical_URI:/p' -e '/^Page_Next_URI:/p' -e '/^Page_Last_URI:/p' -e '/^Page_Href:/p' -e '/^Page_Canonical_Href:/p' -e '/^Page_Next_Href:/p' -e '/^Page_Last_Href:/p' "${SOURCE_FILE}")
+            ALIAS_META=$(sed -n -e '/^Page:/p' -e '/^Page_URI:/p' -e '/^Page_Canonical_URI:/p' -e '/^Page_Next_URI:/p' -e '/^Page_Href:/p' -e '/^Page_Canonical_Href:/p' -e '/^Page_Next_Href:/p' -e '/^Page_Last_Href:/p' "${META_FILE}")
+            PAGE_META=$(sed -n -e '/^Page:/p' -e '/^Page_Total:/p' -e '/^Page_Subdocuments_Total:/p' -e '/^Archive_Subdocuments_Total:/p' -e '/^Page_Prev_URI:/p' -e '/^Page_Last_URI:/p' -e '/^Page_Href:/p' -e '/^Page_Prev_Href:/p' -e '/^Page_Last_Href:/p' "${CONTENT_FILE}")
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 ACTUAL="${CANONICAL_META}"
                 EXPECTED=$(printf '%s\n' \
@@ -456,7 +459,13 @@ function marsh_test {
                         ASSERTION="equals"
                         if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                             {
-                                [[ -e "${TARGET_DIR}/index.markdown.${MARSH_UID}.subdocuments.manifest" ]] \
+                                [[ -e "${SOURCE_FILE}" ]] \
+                                    && [[ -e "${META_FILE}" ]] \
+                                    && [[ -e "${CONTENT_FILE}" ]] \
+                                    && [[ ! -e "${TARGET_DIR}/index.markdown" ]] \
+                                    && [[ ! -e "${TARGET_DIR}/page/1/index.markdown" ]] \
+                                    && [[ ! -e "${TARGET_DIR}/page/2/index.markdown" ]] \
+                                    && [[ -e "${TARGET_DIR}/index.markdown.${MARSH_UID}.subdocuments.manifest" ]] \
                                     && [[ -e "${TARGET_DIR}/page/1/index.markdown.${MARSH_UID}.subdocuments.manifest" ]] \
                                     && [[ -e "${TARGET_DIR}/page/2/index.markdown.${MARSH_UID}.subdocuments.manifest" ]] \
                                     && [[ ! -e "${TARGET_DIR}/index.markdown.${MARSH_UID}.subdocuments.0.document" ]] \
@@ -489,7 +498,8 @@ function marsh_test {
                 'page/1/index.markdown' \
                 'page/2/index.markdown')
             ASSERTION="equals"
-            PAGE_META=$(sed -n -e '/^Page:/p' -e '/^Page_Total:/p' -e '/^Page_Subdocuments_Total:/p' -e '/^Archive_Subdocuments_Total:/p' "${TARGET_DIR}/page/2/index.markdown")
+            SOURCE_FILE=$(marsh_get_archive_temp_path "${TARGET_DIR}" "page/2/index.markdown" "source")
+            PAGE_META=$(sed -n -e '/^Page:/p' -e '/^Page_Total:/p' -e '/^Page_Subdocuments_Total:/p' -e '/^Archive_Subdocuments_Total:/p' "${SOURCE_FILE}")
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 ACTUAL="${PAGE_META}"
                 EXPECTED=$(printf '%s\n' \
@@ -499,7 +509,7 @@ function marsh_test {
                     'Archive_Subdocuments_Total: 3')
                 ASSERTION="equals"
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    [[ ! -e "${TARGET_DIR}/page/3/index.markdown" ]]
+                    [[ ! -e "$(marsh_get_archive_temp_path "${TARGET_DIR}" "page/3/index.markdown" "source")" ]]
                     ACTUAL=$?
                     EXPECTED=0
                     ASSERTION="equals"
@@ -521,7 +531,9 @@ function marsh_test {
                 'index.markdown' \
                 'page/1/index.markdown')
             ASSERTION="equals"
-            CANONICAL_META=$(sed -n -e '/^Page:/p' -e '/^Page_Total:/p' -e '/^Page_Subdocuments_Total:/p' -e '/^Archive_Subdocuments_Total:/p' -e '/^Page_Has_Subdocuments:/p' "${TARGET_DIR}/index.markdown")
+            SOURCE_FILE=$(marsh_get_archive_temp_path "${TARGET_DIR}" "index.markdown" "source")
+            META_FILE=$(marsh_get_archive_temp_path "${TARGET_DIR}" "page/1/index.markdown" "source")
+            CANONICAL_META=$(sed -n -e '/^Page:/p' -e '/^Page_Total:/p' -e '/^Page_Subdocuments_Total:/p' -e '/^Archive_Subdocuments_Total:/p' -e '/^Page_Has_Subdocuments:/p' "${SOURCE_FILE}")
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 ACTUAL="${CANONICAL_META}"
                 EXPECTED=$(printf '%s\n' \
@@ -533,7 +545,9 @@ function marsh_test {
                 ASSERTION="equals"
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                     {
-                        [[ -e "${TARGET_DIR}/page/1/index.markdown" ]] \
+                        [[ -e "${META_FILE}" ]] \
+                            && [[ ! -e "${TARGET_DIR}/index.markdown" ]] \
+                            && [[ ! -e "${TARGET_DIR}/page/1/index.markdown" ]] \
                             && [[ ! -e "${TARGET_DIR}/index.markdown.${MARSH_UID}.subdocuments.manifest" ]] \
                             && [[ ! -e "${TARGET_DIR}/index.markdown.${MARSH_UID}.subdocuments.0.document" ]]
                     }
@@ -562,7 +576,10 @@ function marsh_test {
                 'blog/page/2/index.markdown')
             ASSERTION="equals"
             BASE_URI="https://example.test/$(basename "${TARGET_DIR}")"
-            ALIAS_META=$(sed -n -e '/^Archive_Root_Path:/p' -e '/^Archive_Root_Href:/p' -e '/^Page_URI:/p' -e '/^Page_Canonical_URI:/p' -e '/^Page_Href:/p' -e '/^Page_Canonical_Href:/p' "${TARGET_DIR}/blog/page/1/index.markdown")
+            SOURCE_FILE=$(marsh_get_archive_temp_path "${TARGET_DIR}" "blog.markdown" "source")
+            META_FILE=$(marsh_get_archive_temp_path "${TARGET_DIR}" "blog/page/1/index.markdown" "source")
+            CONTENT_FILE=$(marsh_get_archive_temp_path "${TARGET_DIR}" "blog/page/2/index.markdown" "source")
+            ALIAS_META=$(sed -n -e '/^Archive_Root_Path:/p' -e '/^Archive_Root_Href:/p' -e '/^Page_URI:/p' -e '/^Page_Canonical_URI:/p' -e '/^Page_Href:/p' -e '/^Page_Canonical_Href:/p' "${META_FILE}")
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 ACTUAL="${ALIAS_META}"
                 EXPECTED=$(printf '%s\n' \
@@ -575,9 +592,12 @@ function marsh_test {
                 ASSERTION="equals"
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                     {
-                        [[ -e "${TARGET_DIR}/blog.markdown" ]] \
-                            && [[ -e "${TARGET_DIR}/blog/page/1/index.markdown" ]] \
-                            && [[ -e "${TARGET_DIR}/blog/page/2/index.markdown" ]]
+                        [[ -e "${SOURCE_FILE}" ]] \
+                            && [[ -e "${META_FILE}" ]] \
+                            && [[ -e "${CONTENT_FILE}" ]] \
+                            && [[ ! -e "${TARGET_DIR}/blog.markdown" ]] \
+                            && [[ ! -e "${TARGET_DIR}/blog/page/1/index.markdown" ]] \
+                            && [[ ! -e "${TARGET_DIR}/blog/page/2/index.markdown" ]]
                     }
                     ACTUAL=$?
                     EXPECTED=0
@@ -610,8 +630,10 @@ function marsh_test {
                 {
                     [[ ! -e "${TARGET_DIR}/page/9/index.markdown" ]] \
                         && [[ -e "${TARGET_DIR}/all.markdown" ]] \
-                        && [[ -e "${TARGET_DIR}/page/1/index.markdown" ]] \
-                        && [[ -e "${TARGET_DIR}/page/2/index.markdown" ]]
+                        && [[ -e "$(marsh_get_archive_temp_path "${TARGET_DIR}" "page/1/index.markdown" "source")" ]] \
+                        && [[ -e "$(marsh_get_archive_temp_path "${TARGET_DIR}" "page/2/index.markdown" "source")" ]] \
+                        && [[ ! -e "${TARGET_DIR}/page/1/index.markdown" ]] \
+                        && [[ ! -e "${TARGET_DIR}/page/2/index.markdown" ]]
                 }
                 ACTUAL=$?
                 EXPECTED=0
@@ -633,15 +655,17 @@ function marsh_test {
             ACTUAL=$(marsh_build_archive "atom" "${TARGET_DIR}" "feed.xml" "Archive" "English" "en" "" "2" "1" "post" "0" 2>/dev/null)
             EXPECTED='feed.xml'
             ASSERTION="equals"
-            CANONICAL_META=$(sed -n -e '/^Type:/p' -e '/^Paginated:/p' "${TARGET_DIR}/feed.xml")
+            SOURCE_FILE=$(marsh_get_archive_temp_path "${TARGET_DIR}" "feed.xml" "source")
+            CANONICAL_META=$(sed -n -e '/^Type:/p' -e '/^Paginated:/p' "${SOURCE_FILE}")
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 ACTUAL="${CANONICAL_META}"
                 EXPECTED='Type: archive-atom'
                 ASSERTION="equals"
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                     {
-                        [[ -e "${TARGET_DIR}/feed.xml" ]] \
-                            && [[ ! -e "${TARGET_DIR}/page/1/index.xml" ]] \
+                        [[ -e "${SOURCE_FILE}" ]] \
+                            && [[ ! -e "${TARGET_DIR}/feed.xml" ]] \
+                            && [[ ! -e "$(marsh_get_archive_temp_path "${TARGET_DIR}" "page/1/index.xml" "source")" ]] \
                             && [[ ! -d "${TARGET_DIR}/page" ]]
                     }
                     ACTUAL=$?
@@ -670,7 +694,7 @@ function marsh_test {
                 'page/1/index.markdown' \
                 'page/2/index.markdown')
             ASSERTION="equals"
-            PAGE_META=$(sed -n -e '/^Page:/p' -e '/^Page_Total:/p' -e '/^Page_Subdocuments_Total:/p' -e '/^Archive_Subdocuments_Total:/p' "${TARGET_DIR}/page/2/index.markdown")
+            PAGE_META=$(sed -n -e '/^Page:/p' -e '/^Page_Total:/p' -e '/^Page_Subdocuments_Total:/p' -e '/^Archive_Subdocuments_Total:/p' "$(marsh_get_archive_temp_path "${TARGET_DIR}" "page/2/index.markdown" "source")")
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 ACTUAL="${PAGE_META}"
                 EXPECTED=$(printf '%s\n' \
@@ -705,7 +729,7 @@ function marsh_test {
                 'news/page/2/index.markdown')
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                ACTUAL=$(sed -n -e '/^Archive_Root_Path:/p' -e '/^Archive_Root_Href:/p' "${TARGET_DIR}/news/page/1/index.markdown")
+                ACTUAL=$(sed -n -e '/^Archive_Root_Path:/p' -e '/^Archive_Root_Href:/p' "$(marsh_get_archive_temp_path "${TARGET_DIR}" "news/page/1/index.markdown" "source")")
                 EXPECTED=$(printf '%s\n' \
                     'Archive_Root_Path: news/' \
                     'Archive_Root_Href: ../../')

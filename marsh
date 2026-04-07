@@ -3046,7 +3046,7 @@ function marsh_get_archive_page_uri {  # marsh_get_archive_page_uri target_dir a
 
 # writes a single archive source page and its page-local subdocuments
 function marsh_write_archive_page {  # marsh_write_archive_page encoding target_dir archive_source title language langcode paginated page page_total page_size page_subdocuments_total archive_subdocuments_total current_uri canonical_uri first_uri prev_uri next_uri last_uri current_href canonical_href first_href prev_href next_href last_href archive_root_path archive_root_href #documents[@] documents[@] document_uris[@] document_abspaths[@]
-    local ENCODING TARGET_DIR DEST DEST_SUB_PREFIX DEST_TITLE LANGUAGE LANGCODE PAGINATED
+    local ENCODING TARGET_DIR ARCHIVE_SOURCE DEST DEST_SOURCE DEST_SUB_PREFIX DEST_TITLE LANGUAGE LANGCODE PAGINATED
     local PAGE PAGE_TOTAL PAGE_SIZE PAGE_SUBDOCUMENTS_TOTAL ARCHIVE_SUBDOCUMENTS_TOTAL
     local PAGE_URI PAGE_CANONICAL_URI PAGE_FIRST_URI PAGE_PREV_URI PAGE_NEXT_URI PAGE_LAST_URI
     local PAGE_HREF PAGE_CANONICAL_HREF PAGE_FIRST_HREF PAGE_PREV_HREF PAGE_NEXT_HREF PAGE_LAST_HREF
@@ -3056,9 +3056,9 @@ function marsh_write_archive_page {  # marsh_write_archive_page encoding target_
 
     ENCODING="${1:-}"
     TARGET_DIR="${2:-}"
-    DEST="${3:-}"
+    ARCHIVE_SOURCE="${3:-}"
     [[ "${TARGET_DIR}" == "" ]] && return 1
-    [[ "${DEST}" == "" ]] && return 1
+    [[ "${ARCHIVE_SOURCE}" == "" ]] && return 1
     shift 3
     DEST_TITLE="${1:-}"
     LANGUAGE="${2:-}"
@@ -3108,7 +3108,9 @@ function marsh_write_archive_page {  # marsh_write_archive_page encoding target_
     done
 
     # page metadata
-    DEST="${TARGET_DIR}/${DEST}"
+    DEST="${TARGET_DIR}/${ARCHIVE_SOURCE}"
+    DEST_SOURCE=$(marsh_get_archive_temp_path "${TARGET_DIR}" "${ARCHIVE_SOURCE}" "source") || return 1
+    # TODO: remove DEST_SUB_PREFIX output path usage when archive page subdocument manifests move under MARSH_TEMP
     DEST_SUB_PREFIX="${DEST}.${MARSH_UID}.subdocuments"
     PAGE_IS_FIRST=false
     PAGE_IS_LAST=false
@@ -3121,55 +3123,64 @@ function marsh_write_archive_page {  # marsh_write_archive_page encoding target_
     [[ "${PAGE_NEXT_URI}" != "" ]] && PAGE_HAS_NEXT=true
     [[ "${PAGE_SUBDOCUMENTS_TOTAL}" -gt 0 ]] && PAGE_HAS_SUBDOCUMENTS=true
 
-    # create output directory and remove old page-local subdocuments
+    # TODO: remove this output path dependency when archive page manifests move into MARSH_TEMP
     mkdir -p "${DEST%/*}" >/dev/null 2>&1 || {
         echo "Unable to create archive output directory: ${DEST%/*}" >&2
         return 1
     }
     rm -f "${DEST}.${MARSH_UID}.subdocuments"* >/dev/null 2>&1
 
+    mkdir -p "${DEST_SOURCE%/*}" >/dev/null 2>&1 || {
+        echo "Unable to create archive temp directory: ${DEST_SOURCE%/*}" >&2
+        return 1
+    }
+    rm -f "${DEST}" >/dev/null 2>&1 || {
+        echo "Unable to remove stale archive file: ${DEST}" >&2
+        return 1
+    }
+
     # write the generated archive source with page metadata
-    echo "---" > "${DEST}" 2>/dev/null || {
-        echo "Unable to write archive file: ${DEST}" >&2
+    echo "---" > "${DEST_SOURCE}" 2>/dev/null || {
+        echo "Unable to write archive file: ${DEST_SOURCE}" >&2
         return 1
     }
     if [[ "${ENCODING}" == "html" ]]; then
-        echo "Type: archive" >> "${DEST}"
+        echo "Type: archive" >> "${DEST_SOURCE}"
     else
-        echo "Type: archive-${ENCODING}" >> "${DEST}"
+        echo "Type: archive-${ENCODING}" >> "${DEST_SOURCE}"
     fi
-    echo "Date: $(date -u '+%Y-%m-%d %H:%M:%S')" >> "${DEST}"
-    echo "Title: ${DEST_TITLE}" >> "${DEST}"
-    echo "Language: ${LANGUAGE}" >> "${DEST}"
-    echo "Language_Code: ${LANGCODE}" >> "${DEST}"
-    echo "Archive_Root_Path: ${ARCHIVE_ROOT_PATH}" >> "${DEST}"
-    echo "Archive_Root_Href: ${ARCHIVE_ROOT_HREF}" >> "${DEST}"
+    echo "Date: $(date -u '+%Y-%m-%d %H:%M:%S')" >> "${DEST_SOURCE}"
+    echo "Title: ${DEST_TITLE}" >> "${DEST_SOURCE}"
+    echo "Language: ${LANGUAGE}" >> "${DEST_SOURCE}"
+    echo "Language_Code: ${LANGCODE}" >> "${DEST_SOURCE}"
+    echo "Archive_Root_Path: ${ARCHIVE_ROOT_PATH}" >> "${DEST_SOURCE}"
+    echo "Archive_Root_Href: ${ARCHIVE_ROOT_HREF}" >> "${DEST_SOURCE}"
     if [[ "${ENCODING}" == "html" ]]; then
-        echo "Paginated: ${PAGINATED}" >> "${DEST}"
-        echo "Page: ${PAGE}" >> "${DEST}"
-        echo "Page_Total: ${PAGE_TOTAL}" >> "${DEST}"
-        echo "Page_Size: ${PAGE_SIZE}" >> "${DEST}"
-        echo "Page_Subdocuments_Total: ${PAGE_SUBDOCUMENTS_TOTAL}" >> "${DEST}"
-        echo "Archive_Subdocuments_Total: ${ARCHIVE_SUBDOCUMENTS_TOTAL}" >> "${DEST}"
-        echo "Page_Is_First: ${PAGE_IS_FIRST}" >> "${DEST}"
-        echo "Page_Is_Last: ${PAGE_IS_LAST}" >> "${DEST}"
-        echo "Page_Has_Prev: ${PAGE_HAS_PREV}" >> "${DEST}"
-        echo "Page_Has_Next: ${PAGE_HAS_NEXT}" >> "${DEST}"
-        echo "Page_Has_Subdocuments: ${PAGE_HAS_SUBDOCUMENTS}" >> "${DEST}"
-        echo "Page_URI: ${PAGE_URI}" >> "${DEST}"
-        echo "Page_Canonical_URI: ${PAGE_CANONICAL_URI}" >> "${DEST}"
-        echo "Page_First_URI: ${PAGE_FIRST_URI}" >> "${DEST}"
-        echo "Page_Prev_URI: ${PAGE_PREV_URI}" >> "${DEST}"
-        echo "Page_Next_URI: ${PAGE_NEXT_URI}" >> "${DEST}"
-        echo "Page_Last_URI: ${PAGE_LAST_URI}" >> "${DEST}"
-        echo "Page_Href: ${PAGE_HREF}" >> "${DEST}"
-        echo "Page_Canonical_Href: ${PAGE_CANONICAL_HREF}" >> "${DEST}"
-        echo "Page_First_Href: ${PAGE_FIRST_HREF}" >> "${DEST}"
-        echo "Page_Prev_Href: ${PAGE_PREV_HREF}" >> "${DEST}"
-        echo "Page_Next_Href: ${PAGE_NEXT_HREF}" >> "${DEST}"
-        echo "Page_Last_Href: ${PAGE_LAST_HREF}" >> "${DEST}"
+        echo "Paginated: ${PAGINATED}" >> "${DEST_SOURCE}"
+        echo "Page: ${PAGE}" >> "${DEST_SOURCE}"
+        echo "Page_Total: ${PAGE_TOTAL}" >> "${DEST_SOURCE}"
+        echo "Page_Size: ${PAGE_SIZE}" >> "${DEST_SOURCE}"
+        echo "Page_Subdocuments_Total: ${PAGE_SUBDOCUMENTS_TOTAL}" >> "${DEST_SOURCE}"
+        echo "Archive_Subdocuments_Total: ${ARCHIVE_SUBDOCUMENTS_TOTAL}" >> "${DEST_SOURCE}"
+        echo "Page_Is_First: ${PAGE_IS_FIRST}" >> "${DEST_SOURCE}"
+        echo "Page_Is_Last: ${PAGE_IS_LAST}" >> "${DEST_SOURCE}"
+        echo "Page_Has_Prev: ${PAGE_HAS_PREV}" >> "${DEST_SOURCE}"
+        echo "Page_Has_Next: ${PAGE_HAS_NEXT}" >> "${DEST_SOURCE}"
+        echo "Page_Has_Subdocuments: ${PAGE_HAS_SUBDOCUMENTS}" >> "${DEST_SOURCE}"
+        echo "Page_URI: ${PAGE_URI}" >> "${DEST_SOURCE}"
+        echo "Page_Canonical_URI: ${PAGE_CANONICAL_URI}" >> "${DEST_SOURCE}"
+        echo "Page_First_URI: ${PAGE_FIRST_URI}" >> "${DEST_SOURCE}"
+        echo "Page_Prev_URI: ${PAGE_PREV_URI}" >> "${DEST_SOURCE}"
+        echo "Page_Next_URI: ${PAGE_NEXT_URI}" >> "${DEST_SOURCE}"
+        echo "Page_Last_URI: ${PAGE_LAST_URI}" >> "${DEST_SOURCE}"
+        echo "Page_Href: ${PAGE_HREF}" >> "${DEST_SOURCE}"
+        echo "Page_Canonical_Href: ${PAGE_CANONICAL_HREF}" >> "${DEST_SOURCE}"
+        echo "Page_First_Href: ${PAGE_FIRST_HREF}" >> "${DEST_SOURCE}"
+        echo "Page_Prev_Href: ${PAGE_PREV_HREF}" >> "${DEST_SOURCE}"
+        echo "Page_Next_Href: ${PAGE_NEXT_HREF}" >> "${DEST_SOURCE}"
+        echo "Page_Last_Href: ${PAGE_LAST_HREF}" >> "${DEST_SOURCE}"
     fi
-    echo "---" >> "${DEST}"
+    echo "---" >> "${DEST_SOURCE}"
 
     # create manifest of the subdocuments for this page
     if [[ "${#DOCUMENTS[@]}" -gt 0 ]]; then
@@ -3965,7 +3976,9 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
     }
 
     local DEST_DIR TARGET_DIR TARGET_PATH SITEMAP_SOURCE SITEMAP_SEARCH TARGET_SITEMAP DOCUMENT_REL_PATH DOCUMENT_REL_TO_SITE
-    local DOCUMENT DOCUMENT_EXT DOCUMENT_DIR DOCUMENT_HREF DOCUMENT_URI DOCUMENT_OUTPUT_PATH DOCUMENT_BASE_PATH DOCUMENT_ABSPATH ARCHIVE_OUTPUT_PATH DOCUMENT_SOURCE_PATH
+    local DOCUMENT DOCUMENT_EXT DOCUMENT_DIR DOCUMENT_HREF DOCUMENT_URI
+    local DOCUMENT_OUTPUT_PATH DOCUMENT_BASE_PATH DOCUMENT_ABSPATH DOCUMENT_SOURCE_PATH DOCUMENT_SOURCE_FILE
+    local ARCHIVE_SOURCE_PATH ARCHIVE_OUTPUT_PATH
     local SITE_ROOTPATH SITE_ABSPATH TARGET_ROOTPATH TARGET_ABSPATH ARCHIVE_ROOTPATH ARCHIVE_ABSPATH
     local DEST DEST_NAME DEST_PRINT
     local TEMPLATE_DIR TEMPLATE MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_FILEEXT_REGEX MARKDOWN_REWRITE_LINKS TEMPLATE_ASSETS_PATH
@@ -4036,6 +4049,14 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
     DEST_NAME="${DEST_NAME##*/}"
     DEST="${DEST_DIR}/${DOCUMENT_OUTPUT_PATH}"
     DOCUMENT="${DOCUMENT_SOURCE_PATH}"
+    DOCUMENT_SOURCE_FILE="${DOCUMENT_SOURCE_PATH}"
+    # TODO: remove this fallback branch once archive source consumers no longer probe output-adjacent document sources first
+    if [[ ! -f "${DOCUMENT_SOURCE_FILE}" ]] || [[ ! -r "${DOCUMENT_SOURCE_FILE}" ]]; then
+        ARCHIVE_SOURCE_PATH=$(marsh_get_archive_temp_path "${DEST_DIR}" "${DOCUMENT_REL_TO_SITE}" "source" 2>/dev/null) || ARCHIVE_SOURCE_PATH=""
+        if [[ -f "${ARCHIVE_SOURCE_PATH}" ]] && [[ -r "${ARCHIVE_SOURCE_PATH}" ]]; then
+            DOCUMENT_SOURCE_FILE="${ARCHIVE_SOURCE_PATH}"
+        fi
+    fi
 
     # absolute path to document directory
     DOCUMENT_ABSPATH=$(marsh_get_absolute_output_path "${DOCUMENT_BASE_PATH}" "directory") || return 1
@@ -4074,9 +4095,9 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
         DOCUMENT_META_PATH="${DOCUMENT}.${MARSH_UID}.meta.yaml"
     fi
     if [[ ! -e "${DOCUMENT_CONTENT}" ]]; then
-        if marsh_has_frontmatter "${DOCUMENT}"; then
-            marsh_extract_frontmatter "${DOCUMENT}" "${DOCUMENT_META_PATH}" "${DOCUMENT_CONTENT}" || {
-                echo "Unable to extract document frontmatter: ${DOCUMENT}" >&2
+        if marsh_has_frontmatter "${DOCUMENT_SOURCE_FILE}"; then
+            marsh_extract_frontmatter "${DOCUMENT_SOURCE_FILE}" "${DOCUMENT_META_PATH}" "${DOCUMENT_CONTENT}" || {
+                echo "Unable to extract document frontmatter: ${DOCUMENT_SOURCE_FILE}" >&2
                 return 1
             }
         else
@@ -4612,7 +4633,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
 function marsh_build_document {  # marsh_build_document dest_dir target_dir document markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links
     local DEST_DIR TARGET_DIR DOCUMENT DOCUMENT_EXT DOCUMENT_DIR TEXT_TRANSFORM
     local MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_REWRITE_LINKS
-    local TARGET_PATH DOCUMENT_PATH DOCUMENT_REL_TO_SITE DOCUMENT_ARTIFACT_ROOT DOCUMENT_META DOCUMENT_META_CACHE DOCUMENT_CONTENT ARCHIVE_META ARCHIVE_META_TEMP DOCUMENT_OUTPUT_PATH DOCUMENT_SOURCE_PATH DOCUMENT_BASE_PATH
+    local TARGET_PATH DOCUMENT_PATH ARCHIVE_SOURCE_PATH DOCUMENT_REL_TO_SITE DOCUMENT_ARTIFACT_ROOT DOCUMENT_META DOCUMENT_META_CACHE DOCUMENT_CONTENT ARCHIVE_META ARCHIVE_META_TEMP DOCUMENT_OUTPUT_PATH DOCUMENT_SOURCE_PATH DOCUMENT_BASE_PATH
 
     # init
     DEST_DIR="${1:-.}"
@@ -4631,6 +4652,13 @@ function marsh_build_document {  # marsh_build_document dest_dir target_dir docu
     eval "$(marsh_get_target_document_paths "${DOCUMENT}" "${DEST_DIR}" "${TARGET_DIR}" "${MARKDOWN_FILEEXT_CSV}")" || return 1
     DOCUMENT_PATH="${DOCUMENT_SOURCE_PATH}"
     DOCUMENT_REL_TO_SITE="${DOCUMENT_SOURCE_PATH#${DEST_DIR%/}/}"
+    # TODO: remove this fallback branch once archive source consumers no longer probe output-adjacent document sources first
+    if [[ ! -f "${DOCUMENT_PATH}" ]] || [[ ! -r "${DOCUMENT_PATH}" ]]; then
+        ARCHIVE_SOURCE_PATH=$(marsh_get_archive_temp_path "${DEST_DIR}" "${DOCUMENT_REL_TO_SITE}" "source" 2>/dev/null) || ARCHIVE_SOURCE_PATH=""
+        if [[ -f "${ARCHIVE_SOURCE_PATH}" ]] && [[ -r "${ARCHIVE_SOURCE_PATH}" ]]; then
+            DOCUMENT_PATH="${ARCHIVE_SOURCE_PATH}"
+        fi
+    fi
     DOCUMENT_ARTIFACT_ROOT=$(marsh_get_document_temp_path "${DEST_DIR}" "${DOCUMENT_REL_TO_SITE}" "root") || return 1
     DOCUMENT_META=$(marsh_get_document_temp_path "${DEST_DIR}" "${DOCUMENT_REL_TO_SITE}" "meta-yaml") || return 1
     DOCUMENT_META_CACHE=$(marsh_get_document_temp_path "${DEST_DIR}" "${DOCUMENT_REL_TO_SITE}" "meta") || return 1
@@ -4871,6 +4899,13 @@ function marsh_build_target {  # marsh_build_target dest_dir target jobs sitemap
         [[ "${DOCUMENT}" == "" ]] && continue
         DOCUMENTS+=("${DOCUMENT}")
     done <<< "${DOCUMENTS_LIST}"
+    # TODO: remove this fallback when archive source discovery comes only from temp-backed archive manifests and consumers stop using marsh_build_target for output-tree source probing.
+    if [[ "${#DOCUMENTS[@]}" -eq 0 ]] && [[ "${TARGET}" != '*' ]] && [[ ! -d "${DEST_DIR}/${TARGET}" ]]; then
+        DOCUMENT="${TARGET##*/}"
+        if [[ -f "$(marsh_get_archive_temp_path "${DEST_DIR}" "${TARGET#./}" "source" 2>/dev/null)" ]]; then
+            DOCUMENTS=("${DOCUMENT}")
+        fi
+    fi
     FILTERED_DOCUMENTS=()
     for DOCUMENT in "${DOCUMENTS[@]}"; do
         DOCUMENT="${DOCUMENT#./}"

@@ -136,23 +136,23 @@ function marsh_test_create_archive_document {
     [[ "${DOCUMENT}" == "" ]] && return 1
     [[ "${RUN_UID}" == "" ]] && return 1
     mkdir -p "${TARGET_DIR}/${DOCUMENT%/*}" || return 1
-    printf '%s\n' "# ${TITLE}" > "${TARGET_DIR}/${DOCUMENT}.${RUN_UID}.document" || return 1
+    marsh_test_write_document_artifacts "${TARGET_DIR}" "${DOCUMENT}" "content" "# ${TITLE}" || return 1
     if [[ "${STATE_VALUE}" != "" ]]; then
-        printf '%s\n' \
+        marsh_test_write_document_artifacts "${TARGET_DIR}" "${DOCUMENT}" "meta-yaml" \
             '---' \
             "Type: ${TYPE}" \
             "Title: ${TITLE}" \
             "Date: ${DATE_VALUE}" \
             'State:' \
             "  - ${STATE_VALUE}" \
-            '...' > "${TARGET_DIR}/${DOCUMENT}.${RUN_UID}.meta.yaml" || return 1
+            '...' || return 1
     else
-        printf '%s\n' \
+        marsh_test_write_document_artifacts "${TARGET_DIR}" "${DOCUMENT}" "meta-yaml" \
             '---' \
             "Type: ${TYPE}" \
             "Title: ${TITLE}" \
             "Date: ${DATE_VALUE}" \
-            '...' > "${TARGET_DIR}/${DOCUMENT}.${RUN_UID}.meta.yaml" || return 1
+            '...' || return 1
     fi
 }
 
@@ -321,10 +321,11 @@ function marsh_test_write_document_artifacts {
     ARTIFACT="${3:-}"
     [[ "${TARGET_DIR}" == "" ]] && return 1
     [[ "${DOCUMENT}" == "" ]] && return 1
+    [[ "${ARTIFACT}" == "archive-yaml" ]] && ARTIFACT="archive-meta"
     if [[ "${ARTIFACT}" != "content" ]] \
         && [[ "${ARTIFACT}" != "meta-yaml" ]] \
         && [[ "${ARTIFACT}" != "meta" ]] \
-        && [[ "${ARTIFACT}" != "archive-yaml" ]]; then
+        && [[ "${ARTIFACT}" != "archive-meta" ]]; then
         return 1
     fi
     shift 3
@@ -658,7 +659,7 @@ function marsh_test {
             TEST_NAME+=":manifest"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
             MANIFEST_FILE="${TEST_TEMP_PREFIX}.archive-manifest"
-            marsh_test_set_env "archiveuid" false true
+            marsh_test_set_env "archiveuid" true true
             marsh_test_create_archive_document "${TARGET_DIR}" "news/2026/01/03/03-third.markdown" "${MARSH_UID}" "post" "Third" "2026-01-03"
             marsh_test_create_archive_document "${TARGET_DIR}" "news/2026/01/02/02-second.markdown" "${MARSH_UID}" "post" "Second" "2026-01-02"
             marsh_test_create_archive_document "${TARGET_DIR}" "news/2026/01/01/01-first.markdown" "${MARSH_UID}" "post" "First" "2026-01-01"
@@ -719,12 +720,12 @@ function marsh_test {
         marsh_build_archive_manifest:0)
             TEST_NAME+=":build"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
-            marsh_test_set_env "archiveuid" false true
+            marsh_test_set_env "archiveuid" true true
             SEP=$(printf '\034')
             marsh_test_create_archive_document "${TARGET_DIR}" "news/2026/01/02/02-second.markdown" "${MARSH_UID}" "post" "Second" "2026-01-02" "published"
             marsh_test_create_archive_document "${TARGET_DIR}" "news/2026/01/01/01-first.markdown" "${MARSH_UID}" "note" "First" "2026-01-01"
             ACTUAL=$(marsh_build_archive_manifest "${TARGET_DIR}")
-            EXPECTED="$(printf '%q\t%q\t%q\t%q\t%q\n' "news/2026/01/02/02-second.markdown.${MARSH_UID}.document" "post" "https://example.test/$(basename "${TARGET_DIR}")/news/2026/01/02/02-second.html" "https://example.test/$(basename "${TARGET_DIR}")/news/2026/01/02" "published")"$'\n'"$(printf '%q\t%q\t%q\t%q\t%q\n' "news/2026/01/01/01-first.markdown.${MARSH_UID}.document" "note" "https://example.test/$(basename "${TARGET_DIR}")/news/2026/01/01/01-first.html" "https://example.test/$(basename "${TARGET_DIR}")/news/2026/01/01" "")"
+            EXPECTED="$(printf '%q\t%q\t%q\t%q\t%q\n' "news/2026/01/02/02-second.markdown" "post" "https://example.test/$(basename "${TARGET_DIR}")/news/2026/01/02/02-second.html" "https://example.test/$(basename "${TARGET_DIR}")/news/2026/01/02" "published")"$'\n'"$(printf '%q\t%q\t%q\t%q\t%q\n' "news/2026/01/01/01-first.markdown" "note" "https://example.test/$(basename "${TARGET_DIR}")/news/2026/01/01/01-first.html" "https://example.test/$(basename "${TARGET_DIR}")/news/2026/01/01" "")"
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -749,13 +750,20 @@ function marsh_test {
             ACTUAL=$?
             EXPECTED=0
             ASSERTION="equals"
-            CACHE_FILE="${TARGET_DIR}/index.markdown.${MARSH_UID}.meta"
+            CONTENT_FILE=$(marsh_get_document_temp_path "${TARGET_DIR}" "index.markdown" "content")
+            META_FILE=$(marsh_get_document_temp_path "${TARGET_DIR}" "index.markdown" "meta-yaml")
+            CACHE_FILE=$(marsh_get_document_temp_path "${TARGET_DIR}" "index.markdown" "meta")
+            INDEX_FILE=$(marsh_get_document_temp_path "${TARGET_DIR}" "index.markdown" "archive-meta")
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 {
-                    [[ -f "${TARGET_DIR}/index.markdown.${MARSH_UID}.document" ]] \
-                        && [[ -f "${TARGET_DIR}/index.markdown.${MARSH_UID}.meta.yaml" ]] \
+                    [[ -f "${CONTENT_FILE}" ]] \
+                        && [[ -f "${META_FILE}" ]] \
                         && [[ -f "${CACHE_FILE}" ]] \
-                        && [[ -f "${TARGET_DIR}/index.markdown.${MARSH_UID}.archive-meta" ]]
+                        && [[ -f "${INDEX_FILE}" ]] \
+                        && [[ ! -f "${TARGET_DIR}/index.markdown.${MARSH_UID}.document" ]] \
+                        && [[ ! -f "${TARGET_DIR}/index.markdown.${MARSH_UID}.meta.yaml" ]] \
+                        && [[ ! -f "${TARGET_DIR}/index.markdown.${MARSH_UID}.meta" ]] \
+                        && [[ ! -f "${TARGET_DIR}/index.markdown.${MARSH_UID}.archive-meta" ]]
                 }
                 ACTUAL=$?
                 EXPECTED=0
@@ -785,9 +793,15 @@ function marsh_test {
             ACTUAL=$?
             EXPECTED=0
             ASSERTION="equals"
+            CONTENT_FILE=$(marsh_get_document_temp_path "${TARGET_DIR}" "index.markdown" "content")
+            META_FILE=$(marsh_get_document_temp_path "${TARGET_DIR}" "index.markdown" "meta-yaml")
+            CACHE_FILE=$(marsh_get_document_temp_path "${TARGET_DIR}" "index.markdown" "meta")
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 {
-                    [[ -f "${TARGET_DIR}/index.markdown.${MARSH_UID}.document" ]] \
+                    [[ -f "${CONTENT_FILE}" ]] \
+                        && [[ ! -f "${META_FILE}" ]] \
+                        && [[ ! -f "${CACHE_FILE}" ]] \
+                        && [[ ! -f "${TARGET_DIR}/index.markdown.${MARSH_UID}.document" ]] \
                         && [[ ! -f "${TARGET_DIR}/index.markdown.${MARSH_UID}.meta.yaml" ]] \
                         && [[ ! -f "${TARGET_DIR}/index.markdown.${MARSH_UID}.meta" ]]
                 }
@@ -795,7 +809,7 @@ function marsh_test {
                 EXPECTED=0
                 ASSERTION="equals"
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    ACTUAL=$(<"${TARGET_DIR}/index.markdown.${MARSH_UID}.document")
+                    ACTUAL=$(<"${CONTENT_FILE}")
                     EXPECTED='# Example'
                     ASSERTION="equals"
                     if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -823,10 +837,14 @@ function marsh_test {
             ACTUAL=$?
             EXPECTED=0
             ASSERTION="equals"
+            CONTENT_FILE=$(marsh_get_document_temp_path "${TARGET_DIR}" "index.markdown" "content")
+            CACHE_FILE=$(marsh_get_document_temp_path "${TARGET_DIR}" "index.markdown" "meta")
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 {
-                    [[ -e "${TARGET_DIR}/index.markdown.${MARSH_UID}.document" ]] \
-                        && [[ -e "${TARGET_DIR}/index.markdown.${MARSH_UID}.meta" ]] \
+                    [[ -e "${CONTENT_FILE}" ]] \
+                        && [[ -e "${CACHE_FILE}" ]] \
+                        && [[ ! -e "${TARGET_DIR}/index.markdown.${MARSH_UID}.document" ]] \
+                        && [[ ! -e "${TARGET_DIR}/index.markdown.${MARSH_UID}.meta" ]] \
                         && [[ -e "${TARGET_DIR}/index.html" ]]
                 }
                 ACTUAL=$?
@@ -859,17 +877,21 @@ function marsh_test {
             ACTUAL=$?
             EXPECTED=0
             ASSERTION="equals"
+            CONTENT_FILE=$(marsh_get_document_temp_path "${TARGET_DIR}" "index.markdown" "content")
+            CACHE_FILE=$(marsh_get_document_temp_path "${TARGET_DIR}" "index.markdown" "meta")
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 {
-                    [[ -e "${TARGET_DIR}/index.markdown.${MARSH_UID}.document" ]] \
-                        && [[ -e "${TARGET_DIR}/index.markdown.${MARSH_UID}.meta" ]] \
+                    [[ -e "${CONTENT_FILE}" ]] \
+                        && [[ -e "${CACHE_FILE}" ]] \
+                        && [[ ! -e "${TARGET_DIR}/index.markdown.${MARSH_UID}.document" ]] \
+                        && [[ ! -e "${TARGET_DIR}/index.markdown.${MARSH_UID}.meta" ]] \
                         && [[ ! -e "${TARGET_DIR}/index.html" ]]
                 }
                 ACTUAL=$?
                 EXPECTED=0
                 ASSERTION="equals"
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    ACTUAL=$(<"${TARGET_DIR}/index.markdown.${MARSH_UID}.document")
+                    ACTUAL=$(<"${CONTENT_FILE}")
                     EXPECTED=$'\n''# Example'
                     ASSERTION="equals"
                     if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -889,9 +911,11 @@ function marsh_test {
             ACTUAL=$?
             EXPECTED=1
             ASSERTION="equals"
+            CONTENT_FILE=$(marsh_get_document_temp_path "${TARGET_DIR}" "missing.markdown" "content")
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 {
-                    [[ ! -e "${TARGET_DIR}/missing.markdown.${MARSH_UID}.document" ]] \
+                    [[ ! -e "${CONTENT_FILE}" ]] \
+                        && [[ ! -e "${TARGET_DIR}/missing.markdown.${MARSH_UID}.document" ]] \
                         && [[ ! -e "${TARGET_DIR}/missing.html" ]]
                 }
                 ACTUAL=$?
@@ -920,9 +944,11 @@ function marsh_test {
             ACTUAL=$?
             EXPECTED=1
             ASSERTION="equals"
+            CONTENT_FILE=$(marsh_get_document_temp_path "${TARGET_DIR}" "index.markdown" "content")
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 {
-                    [[ -e "${TARGET_DIR}/index.markdown.${MARSH_UID}.document" ]] \
+                    [[ -e "${CONTENT_FILE}" ]] \
+                        && [[ ! -e "${TARGET_DIR}/index.markdown.${MARSH_UID}.document" ]] \
                         && [[ ! -e "${TARGET_DIR}/index.html" ]]
                 }
                 ACTUAL=$?
@@ -1361,13 +1387,13 @@ function marsh_test {
             marsh_test_set_env "archiveuid" true true
             mkdir -p "${TARGET_DIR}/news"
             marsh_test_create_archive_template "${TEMPLATE_DIR}" "sample" "html" true
-            printf '%s\n' '{{ document.title }}'$'\n''{{ document.uri }}' > "${TARGET_DIR}/news/item.markdown.${MARSH_UID}.document"
-            printf '%s\n' \
+            marsh_test_write_document_artifacts "${TARGET_DIR}" "news/item.markdown" "content" '{{ document.title }}' '{{ document.uri }}'
+            marsh_test_write_document_artifacts "${TARGET_DIR}" "news/item.markdown" "meta-yaml" \
                 '---' \
                 'Type: post' \
                 'Title: Tagged Item' \
                 'Date: 2026-01-01' \
-                '...' > "${TARGET_DIR}/news/item.markdown.${MARSH_UID}.meta.yaml"
+                '...'
             ACTUAL=$(marsh_build_archive "html" "${TARGET_DIR}" "index.markdown" "Archive" "English" "en" "" "2" "1" "post" "0")
             EXPECTED='index.markdown'$'\n''page/1/index.markdown'
             ASSERTION="equals"
@@ -1404,13 +1430,13 @@ function marsh_test {
             marsh_test_set_env "archiveuid" true true
             mkdir -p "${TARGET_DIR}/news"
             marsh_test_create_archive_template "${TEMPLATE_DIR}" "sample" "html" true
-            printf '%s\n' '{{ document.title }}'$'\n''{{ document.uri }}' > "${TARGET_DIR}/news/item.markdown.${MARSH_UID}.document"
-            printf '%s\n' \
+            marsh_test_write_document_artifacts "${TARGET_DIR}" "news/item.markdown" "content" '{{ document.title }}' '{{ document.uri }}'
+            marsh_test_write_document_artifacts "${TARGET_DIR}" "news/item.markdown" "meta-yaml" \
                 '---' \
                 'Type: post' \
                 'Title: Tagged Item' \
                 'Date: 2026-01-01' \
-                '...' > "${TARGET_DIR}/news/item.markdown.${MARSH_UID}.meta.yaml"
+                '...'
             ACTUAL=$(marsh_build_archive "html" "${TARGET_DIR}" "index.markdown" "Archive" "English" "en" "" "2" "1" "post" "0")
             EXPECTED='index.markdown'$'\n''page/1/index.markdown'
             ASSERTION="equals"
@@ -1471,13 +1497,13 @@ function marsh_test {
             marsh_test_set_env "archiveuid" true true
             mkdir -p "${TARGET_DIR}/news"
             marsh_test_create_archive_template "${TEMPLATE_DIR}" "sample" "html" false
-            printf '%s\n' '{{ document.title }}' > "${TARGET_DIR}/news/item.markdown.${MARSH_UID}.document"
-            printf '%s\n' \
+            marsh_test_write_document_artifacts "${TARGET_DIR}" "news/item.markdown" "content" '{{ document.title }}'
+            marsh_test_write_document_artifacts "${TARGET_DIR}" "news/item.markdown" "meta-yaml" \
                 '---' \
                 'Type: post' \
                 'Title: Tagged Item' \
                 'Date: 2026-01-01' \
-                '...' > "${TARGET_DIR}/news/item.markdown.${MARSH_UID}.meta.yaml"
+                '...'
             ACTUAL=$(marsh_build_archive "html" "${TARGET_DIR}" "index.markdown" "Archive" "English" "en" "" "2" "1" "post" "0")
             EXPECTED='index.markdown'$'\n''page/1/index.markdown'
             ASSERTION="equals"
@@ -2043,9 +2069,9 @@ function marsh_test {
                 '      - js/site.js' \
                 '      - js/feature.js' \
                 '...' > "${TEMPLATE_DIR}/sample/template.yaml"
-            marsh_test_create_archive_document "${TARGET_DIR}/news" "item.markdown" "${MARSH_UID}" "post" "Tagged Item" "2026-01-01"
-            ACTUAL=$(marsh_build_archive "html" "${TARGET_DIR}/news" "index.markdown" "Archive" "English" "en" "" "1" "1" "post" "0" 2>/dev/null)
-            EXPECTED='index.markdown'$'\n''page/1/index.markdown'
+            marsh_test_create_archive_document "${TARGET_DIR}" "news/item.markdown" "${MARSH_UID}" "post" "Tagged Item" "2026-01-01"
+            ACTUAL=$(marsh_build_archive "html" "${TARGET_DIR}" "news/index.markdown" "Archive" "English" "en" "" "1" "1" "post" "0" 2>/dev/null)
+            EXPECTED='news/index.markdown'$'\n''news/page/1/index.markdown'
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 marsh_build_document "${TARGET_DIR}" "news" "page/1/index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" >/dev/null 2>&1
@@ -2117,9 +2143,9 @@ function marsh_test {
                 '      - js/site.js' \
                 '      - js/feature.js' \
                 '...' > "${TEMPLATE_DIR}/sample/template.yaml"
-            marsh_test_create_archive_document "${TARGET_DIR}/news" "item.markdown" "${MARSH_UID}" "post" "Tagged Item" "2026-01-01"
-            ACTUAL=$(marsh_build_archive "html" "${TARGET_DIR}/news" "index.markdown" "Archive" "English" "en" "" "1" "1" "post" "0" 2>/dev/null)
-            EXPECTED='index.markdown'$'\n''page/1/index.markdown'
+            marsh_test_create_archive_document "${TARGET_DIR}" "news/item.markdown" "${MARSH_UID}" "post" "Tagged Item" "2026-01-01"
+            ACTUAL=$(marsh_build_archive "html" "${TARGET_DIR}" "news/index.markdown" "Archive" "English" "en" "" "1" "1" "post" "0" 2>/dev/null)
+            EXPECTED='news/index.markdown'$'\n''news/page/1/index.markdown'
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 marsh_copy_template_assets "${TARGET_DIR}" "news" "${TEMPLATE_DIR}" "sample" 0 "assets/archive" >/dev/null 2>&1
@@ -2453,14 +2479,14 @@ function marsh_test {
             ACTUAL=$?
             EXPECTED=0
             ASSERTION="equals"
-            CACHE_FILE="${TARGET_DIR}/index.markdown.${MARSH_UID}.meta"
+            CACHE_FILE=$(marsh_get_document_temp_path "${TARGET_DIR}" "index.markdown" "meta")
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 [[ -f "${CACHE_FILE}" ]]
                 ACTUAL=$?
                 EXPECTED=0
                 ASSERTION="equals"
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    printf '%s\n' '---' 'Title: Broken Title' '...' > "${TARGET_DIR}/index.markdown.${MARSH_UID}.meta.yaml"
+                    marsh_test_write_document_artifacts "${TARGET_DIR}" "index.markdown" "meta-yaml" '---' 'Title: Broken Title' '...'
                     marsh_build_template "${TARGET_DIR}" "." "index.markdown" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
                     ACTUAL=$?
                     EXPECTED=0
@@ -2500,7 +2526,7 @@ function marsh_test {
             EXPECTED=0
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                printf '%s\n' '---' 'Type: post' 'Title: Broken Item' 'Date: 2026-01-01' '...' > "${TARGET_DIR}/news/item.markdown.${MARSH_UID}.meta.yaml"
+                marsh_test_write_document_artifacts "${TARGET_DIR}" "news/item.markdown" "meta-yaml" '---' 'Type: post' 'Title: Broken Item' 'Date: 2026-01-01' '...'
                 ACTUAL=$(marsh_build_archive "html" "${TARGET_DIR}" "index.markdown" "Archive" "English" "en" "" "" "1" "post" "0" 2>/dev/null)
                 EXPECTED='index.markdown'
                 ASSERTION="equals"
@@ -3037,10 +3063,9 @@ function marsh_test {
         marsh_get_archive_metadata:0)
             TEST_NAME+=":parsed"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
-            marsh_test_set_env "archiveuid" false true
-            META_FILE="${TARGET_DIR}/news/article.markdown.${MARSH_UID}.meta.yaml"
+            marsh_test_set_env "archiveuid" true true
             mkdir -p "${TARGET_DIR}/news"
-            printf '%s\n' \
+            marsh_test_write_document_artifacts "${TARGET_DIR}" "news/article.markdown" "meta-yaml" \
                 '---' \
                 'Type: post' \
                 'Title: Hello World' \
@@ -3048,7 +3073,7 @@ function marsh_test {
                 'State:' \
                 '  - published' \
                 '  - featured' \
-                '...' > "${META_FILE}"
+                '...'
             ACTUAL=$(marsh_get_archive_metadata "${TARGET_DIR}" "news/article.markdown.${MARSH_UID}.document")
             EXPECTED=$(printf '%s\n' \
                 'TYPE=post' \
@@ -3067,17 +3092,16 @@ function marsh_test {
         marsh_get_archive_metadata:1)
             TEST_NAME+=":cache"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
-            marsh_test_set_env "archiveuid" false false
-            INDEX_FILE="${TARGET_DIR}/news/article.markdown.${MARSH_UID}.archive-meta"
+            marsh_test_set_env "archiveuid" true true
             mkdir -p "${TARGET_DIR}/news"
-            printf '%s\n' \
+            marsh_test_write_document_artifacts "${TARGET_DIR}" "news/article.markdown" "archive-meta" \
                 'TYPE=cached' \
                 'TITLE=Cached\ Title' \
                 'DATE=2024-05-06' \
                 'URI=https://cached.example/article.html' \
                 'ABSPATH=https://cached.example' \
                 'STATE=()' \
-                'STATE+=(cached)' > "${INDEX_FILE}"
+                'STATE+=(cached)'
             ACTUAL=$(marsh_get_archive_metadata "${TARGET_DIR}" "news/article.markdown.${MARSH_UID}.document")
             EXPECTED=$(printf '%s\n' \
                 'TYPE=cached' \
@@ -3112,15 +3136,14 @@ function marsh_test {
         marsh_get_archive_metadata:3)
             TEST_NAME+=":root_target_trailing_slash"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
-            marsh_test_set_env "archiveuid" false true
-            META_FILE="${TARGET_DIR}/news/article.markdown.${MARSH_UID}.meta.yaml"
+            marsh_test_set_env "archiveuid" true true
             mkdir -p "${TARGET_DIR}/news"
-            printf '%s\n' \
+            marsh_test_write_document_artifacts "${TARGET_DIR}" "news/article.markdown" "meta-yaml" \
                 '---' \
                 'Type: post' \
                 'Title: Hello World' \
                 'Date: 2024-01-02' \
-                '...' > "${META_FILE}"
+                '...'
             ACTUAL=$(marsh_get_archive_metadata "${TARGET_DIR}/" "news/article.markdown.${MARSH_UID}.document")
             EXPECTED=$(printf '%s\n' \
                 'TYPE=post' \
@@ -3137,17 +3160,16 @@ function marsh_test {
         marsh_get_archive_metadata:4)
             TEST_NAME+=":config_path_root"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
-            marsh_test_set_env "archiveuid" false false
+            marsh_test_set_env "archiveuid" true false
             MARSH_CONFIG_PATH="${TARGET_DIR}"
             MARSH_CONFIG_URL="https://example.test/site"
-            META_FILE="${TARGET_DIR}/news/article.markdown.${MARSH_UID}.meta.yaml"
             mkdir -p "${TARGET_DIR}/news"
-            printf '%s\n' \
+            marsh_test_write_document_artifacts "${TARGET_DIR}" "news/article.markdown" "meta-yaml" \
                 '---' \
                 'Type: post' \
                 'Title: Hello World' \
                 'Date: 2024-01-02' \
-                '...' > "${META_FILE}"
+                '...'
             ACTUAL=$(marsh_get_archive_metadata "${TARGET_DIR}" "news/article.markdown.${MARSH_UID}.document")
             EXPECTED=$(printf '%s\n' \
                 'TYPE=post' \
@@ -3166,7 +3188,7 @@ function marsh_test {
             marsh_test_set_env "archivetempuid" true false
             MARSH_CONFIG_PATH="/site/public"
             ACTUAL=$(marsh_get_archive_temp_path "/site/public" "news/index.markdown" "source")
-            EXPECTED="${MARSH_TEST_TEMP}/build/${MARSH_UID}/targets/root/archives/news/index.markdown/source"
+            EXPECTED="${MARSH_TEST_TEMP}/build/targets/root/archives/news/index.markdown/source"
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -3178,7 +3200,7 @@ function marsh_test {
             marsh_test_set_env "archivetempuid" true false
             MARSH_CONFIG_PATH="/site/public"
             ACTUAL=$(marsh_get_archive_temp_path "/site/public/blog" "feed/index.markdown" "subdocuments-manifest")
-            EXPECTED="${MARSH_TEST_TEMP}/build/${MARSH_UID}/targets/blog/archives/feed/index.markdown/subdocuments.manifest"
+            EXPECTED="${MARSH_TEST_TEMP}/build/targets/blog/archives/feed/index.markdown/subdocuments.manifest"
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -3188,14 +3210,15 @@ function marsh_test {
         marsh_get_document_metadata:0)
             TEST_NAME+=":parsed"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
-            META_FILE="${TARGET_DIR}/news/article.markdown.${MARSH_UID}.meta.yaml"
-            CACHE_FILE="${TARGET_DIR}/news/article.markdown.${MARSH_UID}.meta"
+            marsh_test_set_env "documentmetadatauid" true true
             mkdir -p "${TARGET_DIR}/news"
-            printf '%s\n' \
+            META_FILE=$(marsh_get_document_temp_path "${TARGET_DIR}" "news/article.markdown" "meta-yaml")
+            CACHE_FILE=$(marsh_get_document_temp_path "${TARGET_DIR}" "news/article.markdown" "meta")
+            marsh_test_write_document_artifacts "${TARGET_DIR}" "news/article.markdown" "meta-yaml" \
                 '---' \
                 'Type: post' \
                 'Title: Hello World' \
-                '...' > "${META_FILE}"
+                '...'
             ACTUAL=$(marsh_get_document_metadata "${META_FILE}" "DOCUMENT_")
             EXPECTED=$(printf '%s\n' \
                 'DOCUMENT_Type="post"' \
@@ -3218,15 +3241,17 @@ function marsh_test {
                 fi
             fi
             rm -rf "${TARGET_DIR}"
+            marsh_test_restore_env
             ;;
         marsh_get_document_metadata:1)
             TEST_NAME+=":cached"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
-            META_FILE="${TARGET_DIR}/news/article.markdown.${MARSH_UID}.meta.yaml"
-            CACHE_FILE="${TARGET_DIR}/news/article.markdown.${MARSH_UID}.meta"
+            marsh_test_set_env "documentmetadatauid" true true
             mkdir -p "${TARGET_DIR}/news"
-            printf '%s\n' '---' 'Title: Broken' '...' > "${META_FILE}"
-            printf '%s\n' 'Title="Cached Title"' 'Project="Cached Project"' > "${CACHE_FILE}"
+            META_FILE=$(marsh_get_document_temp_path "${TARGET_DIR}" "news/article.markdown" "meta-yaml")
+            CACHE_FILE=$(marsh_get_document_temp_path "${TARGET_DIR}" "news/article.markdown" "meta")
+            marsh_test_write_document_artifacts "${TARGET_DIR}" "news/article.markdown" "meta-yaml" '---' 'Title: Broken' '...'
+            marsh_test_write_document_artifacts "${TARGET_DIR}" "news/article.markdown" "meta" 'Title="Cached Title"' 'Project="Cached Project"'
             ACTUAL=$(marsh_get_document_metadata "${META_FILE}" "DOCUMENT_")
             EXPECTED=$(printf '%s\n' \
                 'DOCUMENT_Title="Cached Title"' \
@@ -3236,12 +3261,14 @@ function marsh_test {
                 RES="[PASS]"
             fi
             rm -rf "${TARGET_DIR}"
+            marsh_test_restore_env
             ;;
         marsh_get_document_metadata:2)
             TEST_NAME+=":missing"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
-            META_FILE="${TARGET_DIR}/news/article.markdown.${MARSH_UID}.meta.yaml"
+            marsh_test_set_env "documentmetadatauid" true true
             mkdir -p "${TARGET_DIR}/news"
+            META_FILE=$(marsh_get_document_temp_path "${TARGET_DIR}" "news/article.markdown" "meta-yaml")
             marsh_get_document_metadata "${META_FILE}" "DOCUMENT_" 2>/dev/null
             ACTUAL=$?
             EXPECTED=1
@@ -3250,13 +3277,14 @@ function marsh_test {
                 RES="[PASS]"
             fi
             rm -rf "${TARGET_DIR}"
+            marsh_test_restore_env
             ;;
         marsh_get_document_temp_path:0)
             TEST_NAME+=":root_content"
             marsh_test_set_env "documenttempuid" true false
             MARSH_CONFIG_PATH="/site/public"
             ACTUAL=$(marsh_get_document_temp_path "/site/public" "news/item.markdown" "content")
-            EXPECTED="${MARSH_TEST_TEMP}/build/${MARSH_UID}/targets/root/documents/news/item.markdown/content"
+            EXPECTED="${MARSH_TEST_TEMP}/build/targets/root/documents/news/item.markdown/content"
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -3268,7 +3296,7 @@ function marsh_test {
             marsh_test_set_env "documenttempuid" true false
             MARSH_CONFIG_PATH="/site/public"
             ACTUAL=$(marsh_get_document_temp_path "/site/public/blog" "guides/index.markdown" "meta-yaml")
-            EXPECTED="${MARSH_TEST_TEMP}/build/${MARSH_UID}/targets/blog/documents/guides/index.markdown/meta.yaml"
+            EXPECTED="${MARSH_TEST_TEMP}/build/targets/blog/documents/guides/index.markdown/meta.yaml"
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -3443,7 +3471,7 @@ function marsh_test {
             marsh_test_set_env "rendertempuid" true false
             MARSH_CONFIG_PATH="/site/public"
             ACTUAL=$(marsh_get_render_temp_path "/site/public" "news/item.html")
-            EXPECTED="${MARSH_TEST_TEMP}/build/${MARSH_UID}/targets/root/render/news/item.html"
+            EXPECTED="${MARSH_TEST_TEMP}/build/targets/root/render/news/item.html"
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -3455,7 +3483,7 @@ function marsh_test {
             marsh_test_set_env "rendertempuid" true false
             MARSH_CONFIG_PATH="/site/public"
             ACTUAL=$(marsh_get_render_temp_path "/site/public/blog" "archive/feed.xml")
-            EXPECTED="${MARSH_TEST_TEMP}/build/${MARSH_UID}/targets/blog/render/archive/feed.xml"
+            EXPECTED="${MARSH_TEST_TEMP}/build/targets/blog/render/archive/feed.xml"
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -4104,7 +4132,7 @@ function marsh_test {
             marsh_test_set_env "targettempuid" true false
             MARSH_CONFIG_PATH="/site/public"
             ACTUAL=$(marsh_get_target_temp_root "/site/public")
-            EXPECTED="${MARSH_TEST_TEMP}/build/${MARSH_UID}/targets/root"
+            EXPECTED="${MARSH_TEST_TEMP}/build/targets/root"
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -4116,7 +4144,7 @@ function marsh_test {
             marsh_test_set_env "targettempuid" true false
             MARSH_CONFIG_PATH="/site/public"
             ACTUAL=$(marsh_get_target_temp_root "/site/public/docs/blog")
-            EXPECTED="${MARSH_TEST_TEMP}/build/${MARSH_UID}/targets/docs/blog"
+            EXPECTED="${MARSH_TEST_TEMP}/build/targets/docs/blog"
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"

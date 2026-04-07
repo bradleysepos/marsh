@@ -1137,6 +1137,8 @@ function marsh_get_subdocuments {  # marsh_get_subdocuments document
     DOCUMENT="${1:-}"
     [[ "${DOCUMENT}" == "" ]] && return 1
 
+    # TODO: remove when archive page subdocument manifests move under MARSH_TEMP and
+    # marsh_build_template stops reading output-adjacent subdocument lists
     MANIFEST="${DOCUMENT}.${MARSH_UID}.subdocuments.manifest"
     if [[ -f "${MANIFEST}" ]] && [[ -r "${MANIFEST}" ]]; then
         while IFS=$'\t' read -r DOCUMENT_ESC URI_ESC ABSPATH_ESC; do
@@ -1148,6 +1150,7 @@ function marsh_get_subdocuments {  # marsh_get_subdocuments document
         return 0
     fi
 
+    # TODO: remove when legacy numbered output-adjacent subdocument files are no longer emitted
     INDEX=0
     while [[ -f "${DOCUMENT}.${MARSH_UID}.subdocuments.${INDEX}.document" ]]; do
         printf '%s\n' "${DOCUMENT}.${MARSH_UID}.subdocuments.${INDEX}.document"
@@ -1528,7 +1531,7 @@ function marsh_get_document_metadata {  # marsh_get_document_metadata meta_file 
 # loads cached archive metadata for a document
 function marsh_get_archive_metadata {  # marsh_get_archive_metadata target_dir document
     local TARGET_DIR DOCUMENT
-    local INDEX META DOCUMENT_SOURCE META_PREFIX META_ASSIGNMENTS META_VARS TARGET_PATH
+    local INDEX META DOCUMENT_REL_TO_SITE META_PREFIX META_ASSIGNMENTS META_VARS TARGET_PATH
     local TYPE_VAR TYPE URI ABSPATH STATE VALUE_ESC
 
     # init
@@ -1536,18 +1539,26 @@ function marsh_get_archive_metadata {  # marsh_get_archive_metadata target_dir d
     DOCUMENT="${2:-}"
     [[ "${TARGET_DIR}" == "" ]] && return 1
     [[ "${DOCUMENT}" == "" ]] && return 1
+    TARGET_DIR=$(marsh_get_target_directory_path "${TARGET_DIR}") || return 1
+
+    # accept either site-relative document id or the older output-adjacent form
+    # TODO: remove when all callers pass only site-relative document ids
+    DOCUMENT_REL_TO_SITE="${DOCUMENT%.${MARSH_UID}.document}"
+    [[ "${DOCUMENT_REL_TO_SITE}" == "${DOCUMENT}" ]] && DOCUMENT_REL_TO_SITE="${DOCUMENT%.document}"
 
     # use cache where available
-    INDEX="${TARGET_DIR}/${DOCUMENT%.document}.archive-meta"
+    INDEX=$(marsh_get_document_temp_path "${TARGET_DIR}" "${DOCUMENT_REL_TO_SITE}" "archive-meta" 2>/dev/null) || INDEX=""
+    # TODO: remove when archive metadata files are no longer read from the output tree
+    [[ "${INDEX}" == "" ]] && INDEX="${TARGET_DIR}/${DOCUMENT%.document}.archive-meta"
     if [[ -f "${INDEX}" ]] && [[ -r "${INDEX}" ]]; then
         cat "${INDEX}"
         return 0
     fi
 
     # get archive metadata from the document metadata
-    META="${TARGET_DIR}/${DOCUMENT%.document}.meta.yaml"
-    DOCUMENT_SOURCE="${DOCUMENT%.${MARSH_UID}.document}"
-    [[ "${DOCUMENT_SOURCE}" == "${DOCUMENT}" ]] && DOCUMENT_SOURCE="${DOCUMENT%.document}"
+    META=$(marsh_get_document_temp_path "${TARGET_DIR}" "${DOCUMENT_REL_TO_SITE}" "meta-yaml" 2>/dev/null) || META=""
+    # TODO: remove when document metadata files are no longer read from the output tree
+    [[ "${META}" == "" ]] && META="${TARGET_DIR}/${DOCUMENT%.document}.meta.yaml"
     [[ -f "${META}" ]] && [[ -r "${META}" ]] || return 1
 
     # parse
@@ -1565,9 +1576,9 @@ function marsh_get_archive_metadata {  # marsh_get_archive_metadata target_dir d
     TYPE="${!TYPE_VAR:-}"
     TARGET_PATH=$(marsh_get_target_output_path "${TARGET_DIR}") || return 1
     if [[ "${TARGET_PATH}" == "." ]]; then
-        URI="${DOCUMENT_SOURCE}"
+        URI="${DOCUMENT_REL_TO_SITE}"
     else
-        URI="${TARGET_PATH}/${DOCUMENT_SOURCE}"
+        URI="${TARGET_PATH}/${DOCUMENT_REL_TO_SITE}"
     fi
     URI="${URI%.markdown}.html"
     URI=$(marsh_get_absolute_output_path "${URI}" "document") || return 1
@@ -1592,21 +1603,29 @@ function marsh_get_archive_metadata {  # marsh_get_archive_metadata target_dir d
 
 # builds a sorted archive manifest from cached archive metadata
 function marsh_build_archive_manifest {  # marsh_build_archive_manifest target_dir
-    local TARGET_DIR DOCUMENTS_LIST DOCUMENT TYPE URI ABSPATH STATE
+    local TARGET_DIR TARGET_TEMP_ROOT DOCUMENTS_ROOT DOCUMENTS_LIST DOCUMENT DOCUMENT_SOURCE TYPE URI ABSPATH STATE
     local ARCHIVE_META STATE_JOINED OIFS
 
     TARGET_DIR="${1:-}"
     [[ "${TARGET_DIR}" == "" ]] && return 1
+    TARGET_DIR=$(marsh_get_target_directory_path "${TARGET_DIR}") || return 1
 
-    DOCUMENTS_LIST=$(cd "${TARGET_DIR}" && find . -name '*.'"${MARSH_UID}"'.document' | sed 's/^\.\///' | sort -nr -t/)
+    TARGET_TEMP_ROOT=$(marsh_get_target_temp_root "${TARGET_DIR}") || return 1
+    DOCUMENTS_ROOT="${TARGET_TEMP_ROOT}/documents"
+    [[ -d "${DOCUMENTS_ROOT}" ]] || return 0
+
+    DOCUMENTS_LIST=$(cd "${DOCUMENTS_ROOT}" && find . -name 'content' | sed 's/^\.\///' | sort -nr -t/)
     while IFS= read -r DOCUMENT; do
         [[ "${DOCUMENT}" == "" ]] && continue
+        DOCUMENT_SOURCE="${DOCUMENT%/content}"
+        [[ "${DOCUMENT_SOURCE}" == "${DOCUMENT}" ]] && continue
+        DOCUMENT="${DOCUMENT_SOURCE}"
         TYPE=""
         URI=""
         ABSPATH=""
         STATE=()
         ARCHIVE_META=$(marsh_get_archive_metadata "${TARGET_DIR}" "${DOCUMENT}")
-        [[ $? -ne 0 ]] && echo "Unable to load archive metadata: ${TARGET_DIR}/${DOCUMENT%.document}.meta.yaml" >&2 && return 1
+        [[ $? -ne 0 ]] && echo "Unable to load archive metadata: ${DOCUMENT_SOURCE}" >&2 && return 1
         eval "${ARCHIVE_META}"
         OIFS="${IFS}"
         IFS=$(printf '\034')
@@ -2660,14 +2679,14 @@ function marsh_get_target_temp_root {  # marsh_get_target_temp_root target_dir
     TARGET_DIR="${1:-}"
     [[ "${TARGET_DIR}" == "" ]] && return 1
     [[ "${MARSH_TEMP:-}" != "" ]] || return 1
-    [[ "${MARSH_UID:-}" != "" ]] || return 1
 
     TARGET_OUTPUT_PATH=$(marsh_get_target_output_path "${TARGET_DIR}") || return 1
     TARGET_KEY="${TARGET_OUTPUT_PATH#./}"
     [[ "${TARGET_KEY}" == "." ]] && TARGET_KEY=""
     TARGET_KEY="${TARGET_KEY:-root}"
 
-    printf '%s\n' "${MARSH_TEMP}/build/${MARSH_UID}/targets/${TARGET_KEY}"
+    # MARSH_TEMP is unique per run, so path only requires a stable target-relative key
+    printf '%s\n' "${MARSH_TEMP}/build/targets/${TARGET_KEY}"
 }
 
 # resolves a document temp artifact path under the target temp work tree
@@ -2683,6 +2702,7 @@ function marsh_get_document_temp_path {  # marsh_get_document_temp_path target_d
     [[ "${DOCUMENT}" != /* ]] || return 1
 
     TARGET_TEMP_ROOT=$(marsh_get_target_temp_root "${TARGET_DIR}") || return 1
+    # Document temp artifacts are keyed by site-relative document path so nested target builds share them.
     DOCUMENT_KEY=$(marsh_normalize_internal_path "${DOCUMENT}") || return 1
     [[ "${DOCUMENT_KEY}" == "." ]] && return 1
     DOCUMENT_ROOT="${TARGET_TEMP_ROOT}/documents/${DOCUMENT_KEY}"
@@ -3159,7 +3179,7 @@ function marsh_write_archive_page {  # marsh_write_archive_page encoding target_
             for DOCUMENT in "${DOCUMENTS[@]}"; do
                 URI="${DOCUMENT_URIS[$INDEX]:-}"
                 ABSPATH="${DOCUMENT_ABSPATHS[$INDEX]:-}"
-                printf '%q\t%q\t%q\n' "${TARGET_DIR}/${DOCUMENT}" "${URI}" "${ABSPATH}" || {
+                printf '%q\t%q\t%q\n' "${DOCUMENT}" "${URI}" "${ABSPATH}" || {
                     echo "Unable to write archive subdocument manifest: ${MANIFEST_FILE}" >&2
                     return 1
                 }
@@ -3944,7 +3964,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
         return "${RES}"
     }
 
-    local DEST_DIR TARGET_DIR TARGET_PATH SITEMAP_SOURCE SITEMAP_SEARCH TARGET_SITEMAP DOCUMENT_REL_PATH
+    local DEST_DIR TARGET_DIR TARGET_PATH SITEMAP_SOURCE SITEMAP_SEARCH TARGET_SITEMAP DOCUMENT_REL_PATH DOCUMENT_REL_TO_SITE
     local DOCUMENT DOCUMENT_EXT DOCUMENT_DIR DOCUMENT_HREF DOCUMENT_URI DOCUMENT_OUTPUT_PATH DOCUMENT_BASE_PATH DOCUMENT_ABSPATH ARCHIVE_OUTPUT_PATH DOCUMENT_SOURCE_PATH
     local SITE_ROOTPATH SITE_ABSPATH TARGET_ROOTPATH TARGET_ABSPATH ARCHIVE_ROOTPATH ARCHIVE_ABSPATH
     local DEST DEST_NAME DEST_PRINT
@@ -3960,9 +3980,9 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
     local TEMPLATE_TAG_ASSETS_AUDIO TEMPLATE_TAG_ASSETS_VIDEO TEMPLATE_TAG_ASSETS_DOCUMENTS TEMPLATE_TAG_ASSETS_BINARIES TEMPLATE_TAG_ASSETS_OTHER
     local TEMPLATE_HEAD_ESC TEMPLATE_BODY_ESC TEMPLATE_DOCUMENT_ESC TEMPLATE_HEADER_ESC TEMPLATE_FOOTER_ESC
     local TEMPLATE_NAV_ESC TEMPLATE_NOTICE_ESC
-    local DOCUMENT_META DOCUMENT_META_VARS DOCUMENT_CONTENT
+    local DOCUMENT_META DOCUMENT_META_VARS DOCUMENT_META_PATH DOCUMENT_CONTENT
     local SUBDOCUMENTS_LIST SUBDOCUMENTS SUBDOCUMENT_URIS SUBDOCUMENT_ABSPATHS NUM_SUBDOCUMENTS
-    local SUBDOCUMENT SUBDOCUMENT_SOURCE SUBDOCUMENT_CONTENT SUBDOCUMENT_CONTENT_ESC SUBDOCUMENT_META SUBDOCUMENT_META_VARS
+    local SUBDOCUMENT SUBDOCUMENT_SOURCE SUBDOCUMENT_CONTENT SUBDOCUMENT_CONTENT_ESC SUBDOCUMENT_META SUBDOCUMENT_META_VARS SUBDOCUMENT_REL_TO_SITE SUBDOCUMENT_META_FILE SUBDOCUMENT_CONTENT_FILE
     local SUBDOCUMENT_RENDER SUBDOCUMENT_TEMPLATE SUBDOCUMENT_RENDER_FILE SUBDOCUMENT_URI SUBDOCUMENT_ABSPATH SUBDOCUMENT_HREF
     local SUBDOCUMENT_OUTPUT_PATH SUBDOCUMENT_OUTPUT_EXT
     local SUBDOCUMENT_URI_FROM_MANIFEST SUBDOCUMENT_ABSPATH_FROM_MANIFEST SUBDOCUMENT_DOCUMENT_ESC SUBDOCUMENT_URI_ESC SUBDOCUMENT_ABSPATH_ESC SUBDOCUMENTS_MANIFEST
@@ -4008,6 +4028,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
     DEST_DIR="${DEST_DIR%/}"
     TARGET_DIR="${TARGET_DIR%/}"
     eval "$(marsh_get_target_document_paths "${DOCUMENT}" "${DEST_DIR}" "${TARGET_DIR}" "${MARKDOWN_FILEEXT_CSV}")" || return 1
+    DOCUMENT_REL_TO_SITE="${DOCUMENT_SOURCE_PATH#${DEST_DIR%/}/}"
 
     # document destination
     DEST="${DOCUMENT}"
@@ -4044,11 +4065,17 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
     DEST_PRINT="${DEST_PRINT#./}"
     echo "  ${DEST_PRINT}"
 
-    # document
-    DOCUMENT_CONTENT="${DOCUMENT}.${MARSH_UID}.document"
+    # document content and metadata
+    # TODO: remove output-adjacent fallback when template builds always get document artifacts from MARSH_TEMP
+    DOCUMENT_CONTENT=$(marsh_get_document_temp_path "${DEST_DIR}" "${DOCUMENT_REL_TO_SITE}" "content" 2>/dev/null) || DOCUMENT_CONTENT=""
+    DOCUMENT_META_PATH=$(marsh_get_document_temp_path "${DEST_DIR}" "${DOCUMENT_REL_TO_SITE}" "meta-yaml" 2>/dev/null) || DOCUMENT_META_PATH=""
+    if [[ ! -f "${DOCUMENT_CONTENT}" ]] || [[ ! -r "${DOCUMENT_CONTENT}" ]]; then
+        DOCUMENT_CONTENT="${DOCUMENT}.${MARSH_UID}.document"
+        DOCUMENT_META_PATH="${DOCUMENT}.${MARSH_UID}.meta.yaml"
+    fi
     if [[ ! -e "${DOCUMENT_CONTENT}" ]]; then
         if marsh_has_frontmatter "${DOCUMENT}"; then
-            marsh_extract_frontmatter "${DOCUMENT}" "${DOCUMENT}.${MARSH_UID}.meta.yaml" "${DOCUMENT_CONTENT}" || {
+            marsh_extract_frontmatter "${DOCUMENT}" "${DOCUMENT_META_PATH}" "${DOCUMENT_CONTENT}" || {
                 echo "Unable to extract document frontmatter: ${DOCUMENT}" >&2
                 return 1
             }
@@ -4057,12 +4084,10 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
             return 1
         fi
     fi
-
-    # document metadata
-    if [[ -f "${DOCUMENT}.${MARSH_UID}.meta.yaml" ]] && [[ -r "${DOCUMENT}.${MARSH_UID}.meta.yaml" ]]; then
+    if [[ -f "${DOCUMENT_META_PATH}" ]] && [[ -r "${DOCUMENT_META_PATH}" ]]; then
         # parse metadata
-        DOCUMENT_META=$(marsh_get_document_metadata "${DOCUMENT}.${MARSH_UID}.meta.yaml" "DOCUMENT_")
-        [[ $? -ne 0 ]] && echo "Unable to parse yaml file: ${DOCUMENT}.${MARSH_UID}.meta.yaml" >&2 && return 1
+        DOCUMENT_META=$(marsh_get_document_metadata "${DOCUMENT_META_PATH}" "DOCUMENT_")
+        [[ $? -ne 0 ]] && echo "Unable to parse yaml file: ${DOCUMENT_META_PATH}" >&2 && return 1
         DOCUMENT_META_VARS=$(echo "${DOCUMENT_META}" | sed -E -e 's/^([^=]+)=.*/\1/')
         eval "$(printf '%s\n' "${DOCUMENT_META_VARS}" | marsh_get_local_declarations)"
         eval "${DOCUMENT_META}"
@@ -4344,6 +4369,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
         SUBDOCUMENTS=()
         SUBDOCUMENT_URIS=()
         SUBDOCUMENT_ABSPATHS=()
+        # TODO: remove when archive page subdocument manifests move under MARSH_TEMP
         SUBDOCUMENTS_MANIFEST="${DOCUMENT}.${MARSH_UID}.subdocuments.manifest"
         if [[ -f "${SUBDOCUMENTS_MANIFEST}" ]] && [[ -r "${SUBDOCUMENTS_MANIFEST}" ]]; then
             SUBDOCUMENTS_LIST=$(<"${SUBDOCUMENTS_MANIFEST}")
@@ -4360,6 +4386,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                 SUBDOCUMENT_ABSPATHS+=("${SUBDOCUMENT_ABSPATH_FROM_MANIFEST}")
             done <<< "${SUBDOCUMENTS_LIST}"
         else
+            # TODO: remove when subdocument discovery comes only from archive manifests in MARSH_TEMP
             SUBDOCUMENTS_LIST=$(marsh_get_subdocuments "${DOCUMENT}")
             while IFS= read -r SUBDOCUMENT; do
                 [[ "${SUBDOCUMENT}" == "" ]] && continue
@@ -4370,41 +4397,84 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
         fi
         NUM_SUBDOCUMENTS="${#SUBDOCUMENTS[@]}"
         if [[ "${NUM_SUBDOCUMENTS}" -gt 0 ]]; then
+            # TODO: remove when archive page subdocument aggregation is rendered under MARSH_TEMP
             : > "${DOCUMENT}.${MARSH_UID}.subdocuments" || {
                 echo "Unable to create subdocuments file: ${DOCUMENT}.${MARSH_UID}.subdocuments" >&2
                 return 1
             }
             for J in "${!SUBDOCUMENTS[@]}"; do
-                # full path
+                # derive one normalized logical site-relative id from the raw manifest up front
+                # and reuse it for subsequent lookups and path reconstructions
+                # TODO: remove output-adjacent filename and absolute path cases when archive manifests
+                # contain only site-relative document ids
                 SUBDOCUMENT_SOURCE="${SUBDOCUMENTS[$J]}"
+                SUBDOCUMENT_REL_TO_SITE=""
+                SUBDOCUMENT_CONTENT_FILE="${SUBDOCUMENT_SOURCE}"
+                SUBDOCUMENT_META_FILE="${SUBDOCUMENT_SOURCE%.document}.meta.yaml"
                 SUBDOCUMENT_URI=""
                 SUBDOCUMENT_ABSPATH=""
                 SUBDOCUMENT_URI_FROM_MANIFEST="${SUBDOCUMENT_URIS[$J]:-}"
                 SUBDOCUMENT_ABSPATH_FROM_MANIFEST="${SUBDOCUMENT_ABSPATHS[$J]:-}"
                 SUBDOCUMENT_META=""
                 SUBDOCUMENT_META_VARS=""
+                if [[ "${SUBDOCUMENT_SOURCE}" == "${DEST_DIR%/}/"* ]]; then
+                    SUBDOCUMENT_REL_TO_SITE="${SUBDOCUMENT_SOURCE#${DEST_DIR%/}/}"
+                elif [[ "${SUBDOCUMENT_SOURCE}" != /* ]]; then
+                    SUBDOCUMENT_REL_TO_SITE="${SUBDOCUMENT_SOURCE}"
+                fi
+                # strip output-adjacent filename suffixes so MARSH_TEMP lookups use the plain document id
+                if [[ "${SUBDOCUMENT_REL_TO_SITE}" == *".${MARSH_UID}.document" ]]; then
+                    SUBDOCUMENT_REL_TO_SITE="${SUBDOCUMENT_REL_TO_SITE%.${MARSH_UID}.document}"
+                elif [[ "${SUBDOCUMENT_REL_TO_SITE}" == *.document ]]; then
+                    SUBDOCUMENT_REL_TO_SITE="${SUBDOCUMENT_REL_TO_SITE%.document}"
+                fi
+                if [[ "${SUBDOCUMENT_REL_TO_SITE}" != "" ]]; then
+                    SUBDOCUMENT_REL_TO_SITE=$(marsh_normalize_internal_path "${SUBDOCUMENT_REL_TO_SITE}" 2>/dev/null) || SUBDOCUMENT_REL_TO_SITE=""
+                    [[ "${SUBDOCUMENT_REL_TO_SITE}" == "." ]] && SUBDOCUMENT_REL_TO_SITE=""
+                fi
+                # where the raw source is not directly readable, load content and metadata from temporary artifacts
+                # TODO: remove the raw source fallback when output-adjacent subdocument artifacts are no longer used
+                if [[ ! -f "${SUBDOCUMENT_CONTENT_FILE}" ]] || [[ ! -r "${SUBDOCUMENT_CONTENT_FILE}" ]]; then
+                    if [[ "${SUBDOCUMENT_REL_TO_SITE}" != "" ]]; then
+                        SUBDOCUMENT_CONTENT_FILE=$(marsh_get_document_temp_path "${DEST_DIR}" "${SUBDOCUMENT_REL_TO_SITE}" "content" 2>/dev/null) || SUBDOCUMENT_CONTENT_FILE="${SUBDOCUMENT_SOURCE}"
+                    fi
+                fi
+                if [[ ! -f "${SUBDOCUMENT_META_FILE}" ]] || [[ ! -r "${SUBDOCUMENT_META_FILE}" ]]; then
+                    if [[ "${SUBDOCUMENT_REL_TO_SITE}" != "" ]]; then
+                        SUBDOCUMENT_META_FILE=$(marsh_get_document_temp_path "${DEST_DIR}" "${SUBDOCUMENT_REL_TO_SITE}" "meta-yaml" 2>/dev/null) || SUBDOCUMENT_META_FILE="${SUBDOCUMENT_SOURCE%.document}.meta.yaml"
+                    fi
+                fi
                 # document metadata
-                if [[ -f "${SUBDOCUMENT_SOURCE%.document}.meta.yaml" ]] && [[ -r "${SUBDOCUMENT_SOURCE%.document}.meta.yaml" ]]; then
+                if [[ -f "${SUBDOCUMENT_META_FILE}" ]] && [[ -r "${SUBDOCUMENT_META_FILE}" ]]; then
                     # parse metadata
-                    SUBDOCUMENT_META=$(marsh_get_document_metadata "${SUBDOCUMENT_SOURCE%.document}.meta.yaml" "SUBDOCUMENT_")
-                    [[ $? -ne 0 ]] && echo "Unable to parse yaml file: ${SUBDOCUMENT_SOURCE%.document}.meta.yaml" >&2 && return 1
+                    SUBDOCUMENT_META=$(marsh_get_document_metadata "${SUBDOCUMENT_META_FILE}" "SUBDOCUMENT_")
+                    [[ $? -ne 0 ]] && echo "Unable to parse yaml file: ${SUBDOCUMENT_META_FILE}" >&2 && return 1
                     SUBDOCUMENT_META_VARS=$(echo "${SUBDOCUMENT_META}" | sed -E -e 's/^([^=]+)=.*/\1/')
                     eval "$(printf '%s\n' "${SUBDOCUMENT_META_VARS}" | marsh_get_local_declarations)"
                     eval "${SUBDOCUMENT_META}"
                 fi
+                [[ -f "${SUBDOCUMENT_CONTENT_FILE}" ]] && [[ -r "${SUBDOCUMENT_CONTENT_FILE}" ]] || {
+                    echo "Subdocument content not found: ${SUBDOCUMENT_SOURCE}" >&2
+                    return 1
+                }
                 [[ "${SUBDOCUMENT_URI_FROM_MANIFEST:-}" != "" ]] && SUBDOCUMENT_URI="${SUBDOCUMENT_URI_FROM_MANIFEST}"
                 [[ "${SUBDOCUMENT_ABSPATH_FROM_MANIFEST:-}" != "" ]] && SUBDOCUMENT_ABSPATH="${SUBDOCUMENT_ABSPATH_FROM_MANIFEST}"
-                SUBDOCUMENT_OUTPUT_PATH="${SUBDOCUMENT_SOURCE#${DEST_DIR%/}/}"
-                if [[ "${SUBDOCUMENT_OUTPUT_PATH}" == "${SUBDOCUMENT_SOURCE}" ]]; then
-                    SUBDOCUMENT_OUTPUT_PATH="${SUBDOCUMENT_SOURCE#${TARGET_PATH}/}"
-                    if [[ "${SUBDOCUMENT_OUTPUT_PATH}" != "${SUBDOCUMENT_SOURCE}" ]] && [[ "${TARGET_DIR}" != "." ]]; then
-                        SUBDOCUMENT_OUTPUT_PATH="${TARGET_DIR}/${SUBDOCUMENT_OUTPUT_PATH#./}"
+                # prefer the logical site-relative id for public path reconstruction
+                # TODO: remove the legacy path transforms when subdocument manifests contain only site-relative ids
+                SUBDOCUMENT_OUTPUT_PATH="${SUBDOCUMENT_REL_TO_SITE}"
+                if [[ "${SUBDOCUMENT_OUTPUT_PATH}" == "" ]]; then
+                    SUBDOCUMENT_OUTPUT_PATH="${SUBDOCUMENT_SOURCE#${DEST_DIR%/}/}"
+                    if [[ "${SUBDOCUMENT_OUTPUT_PATH}" == "${SUBDOCUMENT_SOURCE}" ]]; then
+                        SUBDOCUMENT_OUTPUT_PATH="${SUBDOCUMENT_SOURCE#${TARGET_PATH}/}"
+                        if [[ "${SUBDOCUMENT_OUTPUT_PATH}" != "${SUBDOCUMENT_SOURCE}" ]] && [[ "${TARGET_DIR}" != "." ]]; then
+                            SUBDOCUMENT_OUTPUT_PATH="${TARGET_DIR}/${SUBDOCUMENT_OUTPUT_PATH#./}"
+                        fi
                     fi
-                fi
-                if [[ "${SUBDOCUMENT_OUTPUT_PATH%.$MARSH_UID.document}" != "${SUBDOCUMENT_OUTPUT_PATH}" ]]; then
-                    SUBDOCUMENT_OUTPUT_PATH="${SUBDOCUMENT_OUTPUT_PATH%.$MARSH_UID.document}"
-                else
-                    SUBDOCUMENT_OUTPUT_PATH="${SUBDOCUMENT_OUTPUT_PATH%.document}"
+                    if [[ "${SUBDOCUMENT_OUTPUT_PATH%.$MARSH_UID.document}" != "${SUBDOCUMENT_OUTPUT_PATH}" ]]; then
+                        SUBDOCUMENT_OUTPUT_PATH="${SUBDOCUMENT_OUTPUT_PATH%.$MARSH_UID.document}"
+                    else
+                        SUBDOCUMENT_OUTPUT_PATH="${SUBDOCUMENT_OUTPUT_PATH%.document}"
+                    fi
                 fi
                 SUBDOCUMENT_OUTPUT_EXT="${SUBDOCUMENT_OUTPUT_PATH##*.}"
                 if marsh_is_markdown_extension "${SUBDOCUMENT_OUTPUT_EXT}" "${MARKDOWN_FILEEXT_CSV}"; then
@@ -4419,7 +4489,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                 SUBDOCUMENT_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "${SUBDOCUMENT_OUTPUT_PATH}") || return 1
                 # state
                 eval $(marsh_flat_to_array "SUBDOCUMENT_State" "SUBDOCUMENT_State_")
-                SUBDOCUMENT_TEMPLATE=$(<"${SUBDOCUMENT_SOURCE}")
+                SUBDOCUMENT_TEMPLATE=$(<"${SUBDOCUMENT_CONTENT_FILE}")
                 if [[ "${DOCUMENT_Type}" == "archive" ]]; then
                     # markdown to html
                     TEXT_TRANSFORM=
@@ -4430,13 +4500,13 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                         echo "Unable to create subdocument render file: ${MARSH_TEMP}/subdocument-content-XXXXXX" >&2
                         return 1
                     }
-                    <"${SUBDOCUMENT_SOURCE}" marsh_text_transform ${TEXT_TRANSFORM} | marsh_process_markdown "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" > "${SUBDOCUMENT_CONTENT}" || {
+                    <"${SUBDOCUMENT_CONTENT_FILE}" marsh_text_transform ${TEXT_TRANSFORM} | marsh_process_markdown "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" > "${SUBDOCUMENT_CONTENT}" || {
                         echo "Unable to process subdocument markdown: ${SUBDOCUMENT_SOURCE}" >&2
                         rm -f "${SUBDOCUMENT_CONTENT}"
                         return 1
                     }
                 else
-                    SUBDOCUMENT_CONTENT="${SUBDOCUMENT_SOURCE}"
+                    SUBDOCUMENT_CONTENT="${SUBDOCUMENT_CONTENT_FILE}"
                 fi
                 SUBDOCUMENT_CONTENT_ESC=$(<"${SUBDOCUMENT_CONTENT}" marsh_escape_substitution)
                 SUBDOCUMENT_TEMPLATE="${TEMPLATE_DOCUMENT_TEMPLATE}"
@@ -4542,7 +4612,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
 function marsh_build_document {  # marsh_build_document dest_dir target_dir document markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links
     local DEST_DIR TARGET_DIR DOCUMENT DOCUMENT_EXT DOCUMENT_DIR TEXT_TRANSFORM
     local MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_REWRITE_LINKS
-    local TARGET_PATH DOCUMENT_PATH DOCUMENT_META DOCUMENT_META_CACHE DOCUMENT_CONTENT ARCHIVE_META ARCHIVE_META_TEMP DOCUMENT_OUTPUT_PATH DOCUMENT_SOURCE_PATH DOCUMENT_BASE_PATH
+    local TARGET_PATH DOCUMENT_PATH DOCUMENT_REL_TO_SITE DOCUMENT_ARTIFACT_ROOT DOCUMENT_META DOCUMENT_META_CACHE DOCUMENT_CONTENT ARCHIVE_META ARCHIVE_META_TEMP DOCUMENT_OUTPUT_PATH DOCUMENT_SOURCE_PATH DOCUMENT_BASE_PATH
 
     # init
     DEST_DIR="${1:-.}"
@@ -4560,12 +4630,18 @@ function marsh_build_document {  # marsh_build_document dest_dir target_dir docu
     [[ "${MARKDOWN_REWRITE_LINKS}" == "" ]] && return 1
     eval "$(marsh_get_target_document_paths "${DOCUMENT}" "${DEST_DIR}" "${TARGET_DIR}" "${MARKDOWN_FILEEXT_CSV}")" || return 1
     DOCUMENT_PATH="${DOCUMENT_SOURCE_PATH}"
-    DOCUMENT_META="${DOCUMENT_PATH}.${MARSH_UID}.meta.yaml"
-    DOCUMENT_META_CACHE="${DOCUMENT_PATH}.${MARSH_UID}.meta"
-    DOCUMENT_CONTENT="${DOCUMENT_PATH}.${MARSH_UID}.document"
-    ARCHIVE_META="${DOCUMENT_PATH}.${MARSH_UID}.archive-meta"
+    DOCUMENT_REL_TO_SITE="${DOCUMENT_SOURCE_PATH#${DEST_DIR%/}/}"
+    DOCUMENT_ARTIFACT_ROOT=$(marsh_get_document_temp_path "${DEST_DIR}" "${DOCUMENT_REL_TO_SITE}" "root") || return 1
+    DOCUMENT_META=$(marsh_get_document_temp_path "${DEST_DIR}" "${DOCUMENT_REL_TO_SITE}" "meta-yaml") || return 1
+    DOCUMENT_META_CACHE=$(marsh_get_document_temp_path "${DEST_DIR}" "${DOCUMENT_REL_TO_SITE}" "meta") || return 1
+    DOCUMENT_CONTENT=$(marsh_get_document_temp_path "${DEST_DIR}" "${DOCUMENT_REL_TO_SITE}" "content") || return 1
+    ARCHIVE_META=$(marsh_get_document_temp_path "${DEST_DIR}" "${DOCUMENT_REL_TO_SITE}" "archive-meta") || return 1
     [[ -f "${DOCUMENT_PATH}" ]] && [[ -r "${DOCUMENT_PATH}" ]] || {
         echo "Document source not found: ${DOCUMENT_PATH}" >&2
+        return 1
+    }
+    mkdir -p "${DOCUMENT_ARTIFACT_ROOT}" >/dev/null 2>&1 || {
+        echo "Unable to create document temp directory: ${DOCUMENT_ARTIFACT_ROOT}" >&2
         return 1
     }
 
@@ -4669,7 +4745,7 @@ function marsh_build_document {  # marsh_build_document dest_dir target_dir docu
             echo "Unable to create archive metadata file: ${MARSH_TEMP}/archive-meta-XXXXXX" >&2
             return 1
         }
-        marsh_get_archive_metadata "${TARGET_PATH}" "${DOCUMENT}.${MARSH_UID}.document" > "${ARCHIVE_META_TEMP}" \
+        marsh_get_archive_metadata "${DEST_DIR}" "${DOCUMENT_REL_TO_SITE}" > "${ARCHIVE_META_TEMP}" \
             && mv "${ARCHIVE_META_TEMP}" "${ARCHIVE_META}" || {
                 echo "Unable to build archive metadata: ${DOCUMENT_PATH}" >&2
                 rm -f "${ARCHIVE_META_TEMP}"

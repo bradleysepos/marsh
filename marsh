@@ -1130,33 +1130,6 @@ function marsh_escape_substitution {  # marsh_escape_substitution
     sed -e ':a' -e '$!{N' -e 'ba' -e '}' -e 's/\n*$//' -e 's/[&/\]/\\&/g' -e 's/\n/\\&/g'
 }
 
-# lists archive subdocuments in numeric order
-function marsh_get_subdocuments {  # marsh_get_subdocuments document
-    local DOCUMENT INDEX MANIFEST DOCUMENT_ESC URI_ESC ABSPATH_ESC MANIFEST_DOCUMENT
-
-    DOCUMENT="${1:-}"
-    [[ "${DOCUMENT}" == "" ]] && return 1
-
-    # TODO: remove when archive template rendering stops reading legacy output-adjacent subdocument lists
-    MANIFEST="${DOCUMENT}.${MARSH_UID}.subdocuments.manifest"
-    if [[ -f "${MANIFEST}" ]] && [[ -r "${MANIFEST}" ]]; then
-        while IFS=$'\t' read -r DOCUMENT_ESC URI_ESC ABSPATH_ESC; do
-            [[ "${DOCUMENT_ESC}" == "" ]] && continue
-            MANIFEST_DOCUMENT=""
-            eval "MANIFEST_DOCUMENT=${DOCUMENT_ESC}"
-            printf '%s\n' "${MANIFEST_DOCUMENT}"
-        done < "${MANIFEST}"
-        return 0
-    fi
-
-    # TODO: remove when legacy numbered output-adjacent subdocument files are no longer emitted
-    INDEX=0
-    while [[ -f "${DOCUMENT}.${MARSH_UID}.subdocuments.${INDEX}.document" ]]; do
-        printf '%s\n' "${DOCUMENT}.${MARSH_UID}.subdocuments.${INDEX}.document"
-        INDEX=$((INDEX + 1))
-    done
-}
-
 # returns success when file extension is a markdown file extension
 function marsh_is_markdown_extension {  # marsh_is_markdown_extension file_ext markdown_fileext_csv
     local FILE_EXT MARKDOWN_FILEEXT_CSV MD_EXT
@@ -1539,11 +1512,8 @@ function marsh_get_archive_metadata {  # marsh_get_archive_metadata target_dir d
     [[ "${TARGET_DIR}" == "" ]] && return 1
     [[ "${DOCUMENT}" == "" ]] && return 1
     TARGET_DIR=$(marsh_get_target_directory_path "${TARGET_DIR}") || return 1
-
-    # accept either site-relative document id or the older output-adjacent form
-    # TODO: remove when all callers pass only site-relative document ids
-    DOCUMENT_REL_TO_SITE="${DOCUMENT%.${MARSH_UID}.document}"
-    [[ "${DOCUMENT_REL_TO_SITE}" == "${DOCUMENT}" ]] && DOCUMENT_REL_TO_SITE="${DOCUMENT%.document}"
+    DOCUMENT_REL_TO_SITE=$(marsh_normalize_internal_path "${DOCUMENT}" 2>/dev/null) || return 1
+    [[ "${DOCUMENT_REL_TO_SITE}" == "." ]] && return 1
 
     # use cache where available
     INDEX=$(marsh_get_document_temp_path "${TARGET_DIR}" "${DOCUMENT_REL_TO_SITE}" "archive-meta" 2>/dev/null) || INDEX=""
@@ -3045,12 +3015,12 @@ function marsh_get_archive_page_uri {  # marsh_get_archive_page_uri target_dir a
 
 # writes a single archive source page and its page-local subdocuments
 function marsh_write_archive_page {  # marsh_write_archive_page encoding target_dir archive_source title language langcode paginated page page_total page_size page_subdocuments_total archive_subdocuments_total current_uri canonical_uri first_uri prev_uri next_uri last_uri current_href canonical_href first_href prev_href next_href last_href archive_root_path archive_root_href #documents[@] documents[@] document_uris[@] document_abspaths[@]
-    local ENCODING TARGET_DIR ARCHIVE_SOURCE DEST DEST_SOURCE DEST_SUB_PREFIX DEST_TITLE LANGUAGE LANGCODE PAGINATED
+    local ENCODING TARGET_DIR ARCHIVE_SOURCE DEST DEST_SOURCE DEST_TITLE LANGUAGE LANGCODE PAGINATED
     local PAGE PAGE_TOTAL PAGE_SIZE PAGE_SUBDOCUMENTS_TOTAL ARCHIVE_SUBDOCUMENTS_TOTAL
     local PAGE_URI PAGE_CANONICAL_URI PAGE_FIRST_URI PAGE_PREV_URI PAGE_NEXT_URI PAGE_LAST_URI
     local PAGE_HREF PAGE_CANONICAL_HREF PAGE_FIRST_HREF PAGE_PREV_HREF PAGE_NEXT_HREF PAGE_LAST_HREF
     local ARCHIVE_ROOT_PATH ARCHIVE_ROOT_HREF
-    local NUM_DOCUMENTS DOCUMENTS DOCUMENT_URIS DOCUMENT_ABSPATHS DOCUMENT INDEX URI ABSPATH MANIFEST_FILE MANIFEST_OUTPUT_FILE
+    local NUM_DOCUMENTS DOCUMENTS DOCUMENT_URIS DOCUMENT_ABSPATHS DOCUMENT INDEX URI ABSPATH MANIFEST_FILE
     local PAGE_IS_FIRST PAGE_IS_LAST PAGE_HAS_PREV PAGE_HAS_NEXT PAGE_HAS_SUBDOCUMENTS
 
     ENCODING="${1:-}"
@@ -3109,8 +3079,6 @@ function marsh_write_archive_page {  # marsh_write_archive_page encoding target_
     # page metadata
     DEST="${TARGET_DIR}/${ARCHIVE_SOURCE}"
     DEST_SOURCE=$(marsh_get_archive_temp_path "${TARGET_DIR}" "${ARCHIVE_SOURCE}" "source") || return 1
-    # TODO: remove DEST_SUB_PREFIX output path usage when archive page subdocument aggregation moves into MARSH_TEMP
-    DEST_SUB_PREFIX="${DEST}.${MARSH_UID}.subdocuments"
     PAGE_IS_FIRST=false
     PAGE_IS_LAST=false
     PAGE_HAS_PREV=false
@@ -3122,12 +3090,11 @@ function marsh_write_archive_page {  # marsh_write_archive_page encoding target_
     [[ "${PAGE_NEXT_URI}" != "" ]] && PAGE_HAS_NEXT=true
     [[ "${PAGE_SUBDOCUMENTS_TOTAL}" -gt 0 ]] && PAGE_HAS_SUBDOCUMENTS=true
 
-    # TODO: remove this output path dependency when archive page subdocument aggregation moves into MARSH_TEMP
+    # Keep final output directories present for later archive page publication.
     mkdir -p "${DEST%/*}" >/dev/null 2>&1 || {
         echo "Unable to create archive output directory: ${DEST%/*}" >&2
         return 1
     }
-    rm -f "${DEST}.${MARSH_UID}.subdocuments"* >/dev/null 2>&1
 
     mkdir -p "${DEST_SOURCE%/*}" >/dev/null 2>&1 || {
         echo "Unable to create archive temp directory: ${DEST_SOURCE%/*}" >&2
@@ -3182,11 +3149,6 @@ function marsh_write_archive_page {  # marsh_write_archive_page encoding target_
     echo "---" >> "${DEST_SOURCE}"
 
     # create manifest of the subdocuments for this page
-    MANIFEST_OUTPUT_FILE="${DEST_SUB_PREFIX}.manifest"
-    rm -f "${MANIFEST_OUTPUT_FILE}" >/dev/null 2>&1 || {
-        echo "Unable to remove stale archive subdocument manifest: ${MANIFEST_OUTPUT_FILE}" >&2
-        return 1
-    }
     if [[ "${#DOCUMENTS[@]}" -gt 0 ]]; then
         MANIFEST_FILE=$(marsh_get_archive_temp_path "${TARGET_DIR}" "${ARCHIVE_SOURCE}" "subdocuments-manifest") || return 1
         mkdir -p "${MANIFEST_FILE%/*}" >/dev/null 2>&1 || {
@@ -4008,7 +3970,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
     local SUBDOCUMENT_OUTPUT_PATH SUBDOCUMENT_OUTPUT_EXT
     local SUBDOCUMENTS_MANIFEST SUBDOCUMENT_URI_FROM_MANIFEST SUBDOCUMENT_ABSPATH_FROM_MANIFEST
     local SUBDOCUMENT_DOCUMENT_ESC SUBDOCUMENT_URI_ESC SUBDOCUMENT_ABSPATH_ESC
-    local SUBDOCUMENTS_FILE SUBDOCUMENTS_OUTPUT_FILE
+    local SUBDOCUMENTS_FILE
     local TEXT_TRANSFORM UTIL_JSON_SEPARATOR I J
     local CONDITIONAL_TAG CONDITIONAL_VALUES
     local DOCUMENT_State
@@ -4401,10 +4363,6 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
         SUBDOCUMENT_URIS=()
         SUBDOCUMENT_ABSPATHS=()
         SUBDOCUMENTS_MANIFEST=$(marsh_get_archive_temp_path "${DEST_DIR}" "${DOCUMENT_REL_TO_SITE}" "subdocuments-manifest" 2>/dev/null) || SUBDOCUMENTS_MANIFEST=""
-        # TODO: remove output-adjacent manifest fallback when archive page subdocument manifest readers use only MARSH_TEMP
-        if [[ ! -f "${SUBDOCUMENTS_MANIFEST}" ]] || [[ ! -r "${SUBDOCUMENTS_MANIFEST}" ]]; then
-            SUBDOCUMENTS_MANIFEST="${DOCUMENT}.${MARSH_UID}.subdocuments.manifest"
-        fi
         if [[ -f "${SUBDOCUMENTS_MANIFEST}" ]] && [[ -r "${SUBDOCUMENTS_MANIFEST}" ]]; then
             SUBDOCUMENTS_LIST=$(<"${SUBDOCUMENTS_MANIFEST}")
             while IFS=$'\t' read -r SUBDOCUMENT_DOCUMENT_ESC SUBDOCUMENT_URI_ESC SUBDOCUMENT_ABSPATH_ESC; do
@@ -4419,22 +4377,8 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                 SUBDOCUMENT_URIS+=("${SUBDOCUMENT_URI_FROM_MANIFEST}")
                 SUBDOCUMENT_ABSPATHS+=("${SUBDOCUMENT_ABSPATH_FROM_MANIFEST}")
             done <<< "${SUBDOCUMENTS_LIST}"
-        else
-            # TODO: remove when subdocument discovery comes only from archive manifests in MARSH_TEMP
-            SUBDOCUMENTS_LIST=$(marsh_get_subdocuments "${DOCUMENT}")
-            while IFS= read -r SUBDOCUMENT; do
-                [[ "${SUBDOCUMENT}" == "" ]] && continue
-                SUBDOCUMENTS+=("${SUBDOCUMENT}")
-                SUBDOCUMENT_URIS+=("")
-                SUBDOCUMENT_ABSPATHS+=("")
-            done <<< "${SUBDOCUMENTS_LIST}"
         fi
         NUM_SUBDOCUMENTS="${#SUBDOCUMENTS[@]}"
-        SUBDOCUMENTS_OUTPUT_FILE="${DOCUMENT}.${MARSH_UID}.subdocuments"
-        rm -f "${SUBDOCUMENTS_OUTPUT_FILE}" >/dev/null 2>&1 || {
-            echo "Unable to remove stale subdocuments file: ${SUBDOCUMENTS_OUTPUT_FILE}" >&2
-            return 1
-        }
         if [[ "${NUM_SUBDOCUMENTS}" -gt 0 ]]; then
             SUBDOCUMENTS_FILE=$(marsh_get_archive_temp_path "${DEST_DIR}" "${DOCUMENT_REL_TO_SITE}" "subdocuments") || return 1
             mkdir -p "${SUBDOCUMENTS_FILE%/*}" >/dev/null 2>&1 || {
@@ -4448,10 +4392,15 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
             for J in "${!SUBDOCUMENTS[@]}"; do
                 # derive one normalized logical site-relative id from the raw manifest up front
                 # and reuse it for subsequent lookups and path reconstructions
-                # TODO: remove output-adjacent filename and absolute path cases when archive manifests
-                # contain only site-relative document ids
                 SUBDOCUMENT_SOURCE="${SUBDOCUMENTS[$J]}"
-                SUBDOCUMENT_REL_TO_SITE=""
+                SUBDOCUMENT_REL_TO_SITE=$(marsh_normalize_internal_path "${SUBDOCUMENT_SOURCE}" 2>/dev/null) || {
+                    echo "Invalid subdocument id: ${SUBDOCUMENT_SOURCE}" >&2
+                    return 1
+                }
+                [[ "${SUBDOCUMENT_REL_TO_SITE}" == "." ]] && {
+                    echo "Invalid subdocument id: ${SUBDOCUMENT_SOURCE}" >&2
+                    return 1
+                }
                 SUBDOCUMENT_CONTENT_FILE="${SUBDOCUMENT_SOURCE}"
                 SUBDOCUMENT_META_FILE="${SUBDOCUMENT_SOURCE%.document}.meta.yaml"
                 SUBDOCUMENT_URI=""
@@ -4460,32 +4409,13 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                 SUBDOCUMENT_ABSPATH_FROM_MANIFEST="${SUBDOCUMENT_ABSPATHS[$J]:-}"
                 SUBDOCUMENT_META=""
                 SUBDOCUMENT_META_VARS=""
-                if [[ "${SUBDOCUMENT_SOURCE}" == "${DEST_DIR%/}/"* ]]; then
-                    SUBDOCUMENT_REL_TO_SITE="${SUBDOCUMENT_SOURCE#${DEST_DIR%/}/}"
-                elif [[ "${SUBDOCUMENT_SOURCE}" != /* ]]; then
-                    SUBDOCUMENT_REL_TO_SITE="${SUBDOCUMENT_SOURCE}"
-                fi
-                # strip output-adjacent filename suffixes so MARSH_TEMP lookups use the plain document id
-                if [[ "${SUBDOCUMENT_REL_TO_SITE}" == *".${MARSH_UID}.document" ]]; then
-                    SUBDOCUMENT_REL_TO_SITE="${SUBDOCUMENT_REL_TO_SITE%.${MARSH_UID}.document}"
-                elif [[ "${SUBDOCUMENT_REL_TO_SITE}" == *.document ]]; then
-                    SUBDOCUMENT_REL_TO_SITE="${SUBDOCUMENT_REL_TO_SITE%.document}"
-                fi
-                if [[ "${SUBDOCUMENT_REL_TO_SITE}" != "" ]]; then
-                    SUBDOCUMENT_REL_TO_SITE=$(marsh_normalize_internal_path "${SUBDOCUMENT_REL_TO_SITE}" 2>/dev/null) || SUBDOCUMENT_REL_TO_SITE=""
-                    [[ "${SUBDOCUMENT_REL_TO_SITE}" == "." ]] && SUBDOCUMENT_REL_TO_SITE=""
-                fi
                 # where the raw source is not directly readable, load content and metadata from temporary artifacts
                 # TODO: remove the raw source fallback when output-adjacent subdocument artifacts are no longer used
                 if [[ ! -f "${SUBDOCUMENT_CONTENT_FILE}" ]] || [[ ! -r "${SUBDOCUMENT_CONTENT_FILE}" ]]; then
-                    if [[ "${SUBDOCUMENT_REL_TO_SITE}" != "" ]]; then
-                        SUBDOCUMENT_CONTENT_FILE=$(marsh_get_document_temp_path "${DEST_DIR}" "${SUBDOCUMENT_REL_TO_SITE}" "content" 2>/dev/null) || SUBDOCUMENT_CONTENT_FILE="${SUBDOCUMENT_SOURCE}"
-                    fi
+                    SUBDOCUMENT_CONTENT_FILE=$(marsh_get_document_temp_path "${DEST_DIR}" "${SUBDOCUMENT_REL_TO_SITE}" "content" 2>/dev/null) || SUBDOCUMENT_CONTENT_FILE="${SUBDOCUMENT_SOURCE}"
                 fi
                 if [[ ! -f "${SUBDOCUMENT_META_FILE}" ]] || [[ ! -r "${SUBDOCUMENT_META_FILE}" ]]; then
-                    if [[ "${SUBDOCUMENT_REL_TO_SITE}" != "" ]]; then
-                        SUBDOCUMENT_META_FILE=$(marsh_get_document_temp_path "${DEST_DIR}" "${SUBDOCUMENT_REL_TO_SITE}" "meta-yaml" 2>/dev/null) || SUBDOCUMENT_META_FILE="${SUBDOCUMENT_SOURCE%.document}.meta.yaml"
-                    fi
+                    SUBDOCUMENT_META_FILE=$(marsh_get_document_temp_path "${DEST_DIR}" "${SUBDOCUMENT_REL_TO_SITE}" "meta-yaml" 2>/dev/null) || SUBDOCUMENT_META_FILE="${SUBDOCUMENT_SOURCE%.document}.meta.yaml"
                 fi
                 # document metadata
                 if [[ -f "${SUBDOCUMENT_META_FILE}" ]] && [[ -r "${SUBDOCUMENT_META_FILE}" ]]; then

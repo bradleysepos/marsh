@@ -745,6 +745,35 @@ function marsh_test {
             rm -rf "${TARGET_DIR}"
             marsh_test_restore_env
             ;;
+        marsh_build_archive:8)
+            TEST_NAME+=":preserves_stale_legacy_subdocument_outputs"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            marsh_test_set_env "archiveuid" true true
+            marsh_test_create_archive_document "${TARGET_DIR}" "news/2026/01/02/02-second.markdown" "${MARSH_UID}" "post" "Second" "2026-01-02"
+            STALE_MANIFEST="${TARGET_DIR}/news/index.markdown.${MARSH_UID}.subdocuments.manifest"
+            STALE_SCRATCH="${TARGET_DIR}/news/index.markdown.${MARSH_UID}.subdocuments"
+            mkdir -p "${TARGET_DIR}/news"
+            printf '%s\n' 'stale-manifest' > "${STALE_MANIFEST}"
+            printf '%s\n' 'stale-subdocuments' > "${STALE_SCRATCH}"
+            ACTUAL=$(marsh_build_archive "html" "${TARGET_DIR}" "news/index.markdown" "Archive" "English" "en" "" "1" "1" "post" "0" 2>/dev/null)
+            EXPECTED='news/index.markdown'$'\n''news/page/1/index.markdown'
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                {
+                    [[ -e "${STALE_MANIFEST}" ]] \
+                        && [[ -e "${STALE_SCRATCH}" ]] \
+                        && [[ -e "$(marsh_get_archive_temp_path "${TARGET_DIR}" "news/index.markdown" "subdocuments-manifest")" ]]
+                }
+                ACTUAL=$?
+                EXPECTED=0
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${TARGET_DIR}"
+            marsh_test_restore_env
+            ;;
         marsh_build_archive_manifest:0)
             TEST_NAME+=":build"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
@@ -2749,6 +2778,168 @@ function marsh_test {
             rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}" "${SOURCE_DIR}" "${MARSH_TEST_TEMP}/processed-sitemap-cache"
             marsh_test_restore_env
             ;;
+        marsh_build_template:29)
+            TEST_NAME+=":preserves_stale_legacy_archive_subdocuments_file"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            marsh_test_set_env "archiveuid" true true
+            mkdir -p "${TARGET_DIR}/news"
+            marsh_test_create_archive_template "${TEMPLATE_DIR}" "sample" "html" true
+            marsh_test_create_archive_document "${TARGET_DIR}" "news/item.markdown" "${MARSH_UID}" "post" "Tagged Item" "2026-01-01"
+            STALE_SCRATCH="${TARGET_DIR}/news/page/1/index.markdown.${MARSH_UID}.subdocuments"
+            ACTUAL=$(marsh_build_archive "html" "${TARGET_DIR}" "news/index.markdown" "Archive" "English" "en" "" "1" "1" "post" "0" 2>/dev/null)
+            EXPECTED='news/index.markdown'$'\n''news/page/1/index.markdown'
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                marsh_build_document "${TARGET_DIR}" "." "news/page/1/index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" >/dev/null 2>&1
+                ACTUAL=$?
+                EXPECTED=0
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    mkdir -p "${STALE_SCRATCH%/*}"
+                    printf '%s\n' 'stale-subdocuments' > "${STALE_SCRATCH}"
+                    marsh_build_template "${TARGET_DIR}" "." "news/page/1/index.markdown" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+                    ACTUAL=$?
+                    EXPECTED=0
+                    ASSERTION="equals"
+                    if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                        {
+                            [[ -e "${STALE_SCRATCH}" ]] \
+                                && [[ -e "$(marsh_get_archive_temp_path "${TARGET_DIR}" "news/page/1/index.markdown" "subdocuments")" ]]
+                        }
+                        ACTUAL=$?
+                        EXPECTED=0
+                        ASSERTION="equals"
+                        if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                            RES="[PASS]"
+                        fi
+                    fi
+                fi
+            fi
+            rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}"
+            marsh_test_restore_env
+            ;;
+        marsh_build_template:30)
+            TEST_NAME+=":ignores_legacy_archive_manifest_fallback"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            marsh_test_set_env "archiveuid" true true
+            mkdir -p "${TARGET_DIR}/news"
+            marsh_test_create_archive_template "${TEMPLATE_DIR}" "sample" "html" true
+            printf '%s\n' '{{ subdocuments }}' > "${TEMPLATE_DIR}/sample/partials/archive-body.html"
+            printf '%s\n' '<entry>{{ document.title }}</entry>' > "${TEMPLATE_DIR}/sample/partials/archive-document.html"
+            marsh_test_create_archive_document "${TARGET_DIR}" "news/item.markdown" "${MARSH_UID}" "post" "Tagged Item" "2026-01-01"
+            ACTUAL=$(marsh_build_archive "html" "${TARGET_DIR}" "news/index.markdown" "Archive" "English" "en" "" "1" "1" "post" "0" 2>/dev/null)
+            EXPECTED='news/index.markdown'$'\n''news/page/1/index.markdown'
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                TEMP_MANIFEST=$(marsh_get_archive_temp_path "${TARGET_DIR}" "news/page/1/index.markdown" "subdocuments-manifest")
+                LEGACY_MANIFEST="${TARGET_DIR}/news/page/1/index.markdown.${MARSH_UID}.subdocuments.manifest"
+                marsh_build_document "${TARGET_DIR}" "." "news/page/1/index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" >/dev/null 2>&1
+                ACTUAL=$?
+                EXPECTED=0
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    rm -f "${TEMP_MANIFEST}"
+                    mkdir -p "${LEGACY_MANIFEST%/*}"
+                    printf '%q\t%q\t%q\n' 'legacy/item.markdown.document' 'https://example.test/legacy/item.html' 'https://example.test/legacy' > "${LEGACY_MANIFEST}"
+                    marsh_build_template "${TARGET_DIR}" "." "news/page/1/index.markdown" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+                    ACTUAL=$?
+                    EXPECTED=0
+                    ASSERTION="equals"
+                    if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                        ACTUAL=$(<"${TARGET_DIR}/news/page/1/index.html")
+                        ASSERTION="not-contains"
+                        EXPECTED='legacy/item'
+                        if ! printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
+                            EXPECTED='<entry>Tagged Item</entry>'
+                            if ! printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
+                                RES="[PASS]"
+                            fi
+                        fi
+                    fi
+                fi
+            fi
+            rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}"
+            marsh_test_restore_env
+            ;;
+        marsh_build_template:31)
+            TEST_NAME+=":ignores_numbered_legacy_subdocument_fallback"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            marsh_test_set_env "archiveuid" true true
+            mkdir -p "${TARGET_DIR}/news"
+            marsh_test_create_archive_template "${TEMPLATE_DIR}" "sample" "html" true
+            printf '%s\n' '{{ subdocuments }}' > "${TEMPLATE_DIR}/sample/partials/archive-body.html"
+            printf '%s\n' 'legacy-document'$'\n''{{ document.content }}' > "${TEMPLATE_DIR}/sample/partials/archive-document.html"
+            marsh_test_create_archive_document "${TARGET_DIR}" "news/item.markdown" "${MARSH_UID}" "post" "Tagged Item" "2026-01-01"
+            ACTUAL=$(marsh_build_archive "html" "${TARGET_DIR}" "news/index.markdown" "Archive" "English" "en" "" "1" "1" "post" "0" 2>/dev/null)
+            EXPECTED='news/index.markdown'$'\n''news/page/1/index.markdown'
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                TEMP_MANIFEST=$(marsh_get_archive_temp_path "${TARGET_DIR}" "news/page/1/index.markdown" "subdocuments-manifest")
+                LEGACY_SUBDOCUMENT="${TARGET_DIR}/news/page/1/index.markdown.${MARSH_UID}.subdocuments.0.document"
+                marsh_build_document "${TARGET_DIR}" "." "news/page/1/index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" >/dev/null 2>&1
+                ACTUAL=$?
+                EXPECTED=0
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    rm -f "${TEMP_MANIFEST}"
+                    mkdir -p "${LEGACY_SUBDOCUMENT%/*}"
+                    printf '%s\n' 'Legacy Item' > "${LEGACY_SUBDOCUMENT}"
+                    marsh_build_template "${TARGET_DIR}" "." "news/page/1/index.markdown" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+                    ACTUAL=$?
+                    EXPECTED=0
+                    ASSERTION="equals"
+                    if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                        ACTUAL=$(<"${TARGET_DIR}/news/page/1/index.html")
+                        ASSERTION="not-contains"
+                        EXPECTED='Legacy Item'
+                        if ! printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
+                            EXPECTED='legacy-document'
+                            if ! printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
+                                RES="[PASS]"
+                            fi
+                        fi
+                    fi
+                fi
+            fi
+            rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}"
+            marsh_test_restore_env
+            ;;
+        marsh_build_template:32)
+            TEST_NAME+=":rejects_legacy_manifest_document_id"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            marsh_test_set_env "archiveuid" true true
+            mkdir -p "${TARGET_DIR}/news"
+            marsh_test_create_archive_template "${TEMPLATE_DIR}" "sample" "html" true
+            printf '%s\n' '{{ subdocuments }}' > "${TEMPLATE_DIR}/sample/partials/archive-body.html"
+            printf '%s\n' '<entry>{{ document.title }}</entry>' > "${TEMPLATE_DIR}/sample/partials/archive-document.html"
+            marsh_test_create_archive_document "${TARGET_DIR}" "news/item.markdown" "${MARSH_UID}" "post" "Tagged Item" "2026-01-01"
+            ACTUAL=$(marsh_build_archive "html" "${TARGET_DIR}" "news/index.markdown" "Archive" "English" "en" "" "1" "1" "post" "0" 2>/dev/null)
+            EXPECTED='news/index.markdown'$'\n''news/page/1/index.markdown'
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                TEMP_MANIFEST=$(marsh_get_archive_temp_path "${TARGET_DIR}" "news/page/1/index.markdown" "subdocuments-manifest")
+                marsh_build_document "${TARGET_DIR}" "." "news/page/1/index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" >/dev/null 2>&1
+                ACTUAL=$?
+                EXPECTED=0
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    printf '%q\t%q\t%q\n' "news/item.markdown.${MARSH_UID}.document" 'https://example.test/news/item.html' 'https://example.test/news' > "${TEMP_MANIFEST}"
+                    marsh_build_template "${TARGET_DIR}" "." "news/page/1/index.markdown" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+                    ACTUAL=$?
+                    EXPECTED=1
+                    ASSERTION="equals"
+                    if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                        RES="[PASS]"
+                    fi
+                fi
+            fi
+            rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}"
+            marsh_test_restore_env
+            ;;
         marsh_check_dependencies:0)
             TEST_NAME+=":found"
             marsh_check_dependencies bash 2>/dev/null
@@ -3102,7 +3293,7 @@ function marsh_test {
                 '  - published' \
                 '  - featured' \
                 '...'
-            ACTUAL=$(marsh_get_archive_metadata "${TARGET_DIR}" "news/article.markdown.${MARSH_UID}.document")
+            ACTUAL=$(marsh_get_archive_metadata "${TARGET_DIR}" "news/article.markdown")
             EXPECTED=$(printf '%s\n' \
                 'TYPE=post' \
                 "URI=https://example.test/$(basename "${TARGET_DIR}")/news/article.html" \
@@ -3130,7 +3321,7 @@ function marsh_test {
                 'ABSPATH=https://cached.example' \
                 'STATE=()' \
                 'STATE+=(cached)'
-            ACTUAL=$(marsh_get_archive_metadata "${TARGET_DIR}" "news/article.markdown.${MARSH_UID}.document")
+            ACTUAL=$(marsh_get_archive_metadata "${TARGET_DIR}" "news/article.markdown")
             EXPECTED=$(printf '%s\n' \
                 'TYPE=cached' \
                 'TITLE=Cached\ Title' \
@@ -3151,7 +3342,7 @@ function marsh_test {
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
             marsh_test_set_env "archiveuid" false false
             mkdir -p "${TARGET_DIR}/news"
-            marsh_get_archive_metadata "${TARGET_DIR}" "news/article.markdown.${MARSH_UID}.document" 2>/dev/null
+            marsh_get_archive_metadata "${TARGET_DIR}" "news/article.markdown" 2>/dev/null
             ACTUAL=$?
             EXPECTED=1
             ASSERTION="equals"
@@ -3172,7 +3363,7 @@ function marsh_test {
                 'Title: Hello World' \
                 'Date: 2024-01-02' \
                 '...'
-            ACTUAL=$(marsh_get_archive_metadata "${TARGET_DIR}/" "news/article.markdown.${MARSH_UID}.document")
+            ACTUAL=$(marsh_get_archive_metadata "${TARGET_DIR}/" "news/article.markdown")
             EXPECTED=$(printf '%s\n' \
                 'TYPE=post' \
                 "URI=https://example.test/$(basename "${TARGET_DIR}")/news/article.html" \
@@ -3198,7 +3389,7 @@ function marsh_test {
                 'Title: Hello World' \
                 'Date: 2024-01-02' \
                 '...'
-            ACTUAL=$(marsh_get_archive_metadata "${TARGET_DIR}" "news/article.markdown.${MARSH_UID}.document")
+            ACTUAL=$(marsh_get_archive_metadata "${TARGET_DIR}" "news/article.markdown")
             EXPECTED=$(printf '%s\n' \
                 'TYPE=post' \
                 'URI=https://example.test/site/news/article.html' \
@@ -3206,6 +3397,27 @@ function marsh_test {
                 'STATE=()')
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            rm -rf "${TARGET_DIR}"
+            marsh_test_restore_env
+            ;;
+        marsh_get_archive_metadata:5)
+            TEST_NAME+=":rejects_legacy_pseudo_filename"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            marsh_test_set_env "archiveuid" true true
+            mkdir -p "${TARGET_DIR}/news"
+            marsh_test_write_document_artifacts "${TARGET_DIR}" "news/article.markdown" "meta-yaml" \
+                '---' \
+                'Type: post' \
+                'Title: Hello World' \
+                'Date: 2024-01-02' \
+                '...'
+            marsh_get_archive_metadata "${TARGET_DIR}" "news/article.markdown.${MARSH_UID}.document" 2>/dev/null
+            ACTUAL=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" -eq "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
             rm -rf "${TARGET_DIR}"
@@ -3843,54 +4055,6 @@ function marsh_test {
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
-            marsh_test_restore_env
-            ;;
-        marsh_get_subdocuments:0)
-            TEST_NAME+=":ordered"
-            DOCUMENT_FILE="${TEST_TEMP_PREFIX}.document"
-            marsh_test_set_env "testuid" false false
-            : > "${DOCUMENT_FILE}.${MARSH_UID}.subdocuments.0.document"
-            : > "${DOCUMENT_FILE}.${MARSH_UID}.subdocuments.1.document"
-            ACTUAL=$(marsh_get_subdocuments "${DOCUMENT_FILE}")
-            EXPECTED="${DOCUMENT_FILE}.${MARSH_UID}.subdocuments.0.document"$'\n'"${DOCUMENT_FILE}.${MARSH_UID}.subdocuments.1.document"
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                RES="[PASS]"
-            fi
-            rm -f "${DOCUMENT_FILE}.${MARSH_UID}.subdocuments.0.document" "${DOCUMENT_FILE}.${MARSH_UID}.subdocuments.1.document"
-            marsh_test_restore_env
-            ;;
-        marsh_get_subdocuments:1)
-            TEST_NAME+=":empty"
-            DOCUMENT_FILE="${TEST_TEMP_PREFIX}.document"
-            marsh_test_set_env "testuid" false false
-            ACTUAL=$(marsh_get_subdocuments "${DOCUMENT_FILE}")
-            EXPECTED=""
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                RES="[PASS]"
-            fi
-            marsh_test_restore_env
-            ;;
-        marsh_get_subdocuments:2)
-            TEST_NAME+=":manifest"
-            DOCUMENT_FILE="${TEST_TEMP_PREFIX}.document"
-            marsh_test_set_env "testuid" false false
-            printf '%q\t%q\t%q\n' \
-                '/tmp/source-1.document' \
-                'https://example.test/one' \
-                'https://example.test' > "${DOCUMENT_FILE}.${MARSH_UID}.subdocuments.manifest"
-            printf '%q\t%q\t%q\n' \
-                '/tmp/source-2.document' \
-                'https://example.test/two' \
-                'https://example.test' >> "${DOCUMENT_FILE}.${MARSH_UID}.subdocuments.manifest"
-            ACTUAL=$(marsh_get_subdocuments "${DOCUMENT_FILE}")
-            EXPECTED='/tmp/source-1.document'$'\n''/tmp/source-2.document'
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                RES="[PASS]"
-            fi
-            rm -f "${DOCUMENT_FILE}.${MARSH_UID}.subdocuments.manifest"
             marsh_test_restore_env
             ;;
         marsh_get_target_document_paths:0)
@@ -5949,7 +6113,6 @@ KNOWN_FUNCTIONS=(
     marsh_get_sitemap_rendered_path
     marsh_get_sitemap_temp_path
     marsh_get_source_root_path
-    marsh_get_subdocuments
     marsh_get_target_directory_path
     marsh_get_target_document_paths
     marsh_get_target_metadata

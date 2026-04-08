@@ -3867,7 +3867,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
         local DOCUMENT PREFIX METADATA_VARS
         local TAG_FRAGMENT_UNQUOTED TAG_FRAGMENT_DOUBLE TAG_FRAGMENT_SINGLE TAG_FRAGMENT TAG_REGEX
         local TAGS UNIQUE_TAGS REPLACEMENTS TAG_ESC TAG_NAME TAG_FILTERS TAG_VAR TAG_TYPE TAG_VALUE TAG_VALUES TAG_PARSE
-        local I RES
+        local I SCRATCH_FILE
 
         # init
         DOCUMENT="${1:-}"
@@ -3936,13 +3936,19 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
         done
 
         # perform replacements in a single pass
-        RES=0
         if [[ -s "${REPLACEMENTS}" ]]; then
-            sed -E -f "${REPLACEMENTS}" -i".${MARSH_UID}.backup" "${DOCUMENT}" || RES=1
+            SCRATCH_FILE="${DOCUMENT}.scratch"
+            <"${DOCUMENT}" sed -E -f "${REPLACEMENTS}" > "${SCRATCH_FILE}" || {
+                rm -f "${REPLACEMENTS}" "${SCRATCH_FILE}"
+                return 1
+            }
+            mv "${SCRATCH_FILE}" "${DOCUMENT}" 2>/dev/null || {
+                rm -f "${REPLACEMENTS}" "${SCRATCH_FILE}"
+                return 1
+            }
         fi
         rm -f "${REPLACEMENTS}"
-        rm -f "${DOCUMENT}.${MARSH_UID}.backup"
-        return "${RES}"
+        return 0
     }
 
     local DEST_DIR TARGET_DIR TARGET_PATH SITEMAP_SOURCE SITEMAP_SEARCH TARGET_SITEMAP DOCUMENT_REL_PATH DOCUMENT_REL_TO_SITE
@@ -3950,7 +3956,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
     local DOCUMENT_OUTPUT_PATH DOCUMENT_BASE_PATH DOCUMENT_ABSPATH DOCUMENT_SOURCE_PATH DOCUMENT_SOURCE_FILE
     local ARCHIVE_SOURCE_PATH ARCHIVE_OUTPUT_PATH
     local SITE_ROOTPATH SITE_ABSPATH TARGET_ROOTPATH TARGET_ABSPATH ARCHIVE_ROOTPATH ARCHIVE_ABSPATH
-    local DEST DEST_NAME DEST_PRINT
+    local DEST DEST_FINAL DEST_NAME DEST_PRINT DEST_RENDER_PATH
     local TEMPLATE_DIR TEMPLATE MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_FILEEXT_REGEX MARKDOWN_REWRITE_LINKS TEMPLATE_ASSETS_PATH
     local NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDES
     local TEMPLATE_PREFIX TEMPLATE_META TEMPLATE_META_VARS PARTIALS TEMPLATE_BASE TEMPLATE_TEMP
@@ -3971,6 +3977,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
     local SUBDOCUMENTS_MANIFEST SUBDOCUMENT_URI_FROM_MANIFEST SUBDOCUMENT_ABSPATH_FROM_MANIFEST
     local SUBDOCUMENT_DOCUMENT_ESC SUBDOCUMENT_URI_ESC SUBDOCUMENT_ABSPATH_ESC
     local SUBDOCUMENTS_FILE
+    local DEST_SCRATCH
     local TEXT_TRANSFORM UTIL_JSON_SEPARATOR I J
     local CONDITIONAL_TAG CONDITIONAL_VALUES
     local DOCUMENT_State
@@ -4020,6 +4027,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
     DEST_NAME="${DEST%.$DOCUMENT_EXT}"
     DEST_NAME="${DEST_NAME##*/}"
     DEST="${DEST_DIR}/${DOCUMENT_OUTPUT_PATH}"
+    DEST_FINAL="${DEST}"
     DOCUMENT="${DOCUMENT_SOURCE_PATH}"
     DOCUMENT_SOURCE_FILE="${DOCUMENT_SOURCE_PATH}"
     # TODO: remove this fallback branch once archive source consumers no longer probe output-adjacent document sources first
@@ -4102,6 +4110,16 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
 
     # state
     eval $(marsh_flat_to_array "DOCUMENT_State" "DOCUMENT_State_")
+
+    # render outputs to temp first, then publish at the final destination
+    DEST_RENDER_PATH="${DEST_FINAL#${TARGET_PATH%/}/}"
+    DEST_RENDER_PATH="${DEST_RENDER_PATH#./}"
+    DEST=$(marsh_get_render_temp_path "${TARGET_PATH}" "${DEST_RENDER_PATH}") || return 1
+    mkdir -p "${DEST%/*}" >/dev/null 2>&1 || {
+        echo "Unable to create render temp directory: ${DEST%/*}" >&2
+        return 1
+    }
+    DEST_SCRATCH="${DEST}.scratch"
 
     # template
     if [[ "${TEMPLATE_DIR}" != "" ]]; then
@@ -4539,17 +4557,30 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                 } else {
                     print
                 }
-            }' "${DEST}" > "${DEST}.${MARSH_UID}.temp" || return 1
-            mv "${DEST}.${MARSH_UID}.temp" "${DEST}" || return 1
+            }' "${DEST}" > "${DEST_SCRATCH}" || {
+                rm -f "${DEST_SCRATCH}"
+                return 1
+            }
+            mv "${DEST_SCRATCH}" "${DEST}" 2>/dev/null || {
+                rm -f "${DEST_SCRATCH}"
+                return 1
+            }
         else
-            sed -E -e 's/\{\{[ ]*subdocuments[ ]*\}\}//g' -i".${MARSH_UID}.backup" "${DEST}" && rm -f "${DEST}.${MARSH_UID}.backup"
+            <"${DEST}" sed -E -e 's/\{\{[ ]*subdocuments[ ]*\}\}//g' > "${DEST_SCRATCH}" || {
+                rm -f "${DEST_SCRATCH}"
+                return 1
+            }
+            mv "${DEST_SCRATCH}" "${DEST}" 2>/dev/null || {
+                rm -f "${DEST_SCRATCH}"
+                return 1
+            }
         fi
     else
         cp "${DOCUMENT_CONTENT}" "${DEST}"
     fi  # TEMPLATE_DIR != "" else
 
     # smart comment tags
-    sed -E \
+    <"${DEST}" sed -E \
     -e 's|<!--[ ]*([a-z]+)\.([^ ]*)([ ]+[^ ]+)[ ]*-->|<\1 class="\2"\3>|g' \
     -e 's|<!--[ ]*([a-z]+)\#([^ ]*)([ ]+[^ ]+)[ ]*-->|<\1 id="\2"\3>|g' \
     -e 's|<!--[ ]*([a-z]+)\.([^ ]*)[ ]*-->|<\1 class="\2">|g' \
@@ -4560,25 +4591,57 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
     -e 's|<!--[ ]*\.([^ ]*)[ ]*-->|<div class="\1">|g' \
     -e 's|<!--[ ]*\#([^ ]*)[ ]*-->|<div id="\1">|g' \
     -e 's|<!--[ ]*\/([.#])([^ ]*)[ ]*-->|</div><!-- end div\1\2 -->|g' \
-    -i".${MARSH_UID}.backup" "${DEST}" && rm -f "${DEST}.${MARSH_UID}.backup"
+    > "${DEST_SCRATCH}" || {
+        rm -f "${DEST_SCRATCH}"
+        return 1
+    }
+    mv "${DEST_SCRATCH}" "${DEST}" 2>/dev/null || {
+        rm -f "${DEST_SCRATCH}"
+        return 1
+    }
 
     # multiple classes foo.bar.baz to foo bar baz
-    sed -E \
+    <"${DEST}" sed -E \
     -e ':a' -e 's|class="([^."]+)\.([^"]+)"|class="\1 \2"|g' -e 'ta' \
-    -i".${MARSH_UID}.backup" "${DEST}" && rm -f "${DEST}.${MARSH_UID}.backup"
+    > "${DEST_SCRATCH}" || {
+        rm -f "${DEST_SCRATCH}"
+        return 1
+    }
+    mv "${DEST_SCRATCH}" "${DEST}" 2>/dev/null || {
+        rm -f "${DEST_SCRATCH}"
+        return 1
+    }
+
+    # unwrap figures
+    <"${DEST}" sed -E \
+    -e 's|<p><figure>|<figure>|' \
+    -e 's|</figure></p>|</figure>|' \
+    > "${DEST_SCRATCH}" || {
+        rm -f "${DEST_SCRATCH}"
+        return 1
+    }
+    mv "${DEST_SCRATCH}" "${DEST}" 2>/dev/null || {
+        rm -f "${DEST_SCRATCH}"
+        return 1
+    }
 
     # escape double quotes for JSON
     if [[ "${DOCUMENT_Type}" == "archive-json" ]]; then
-        sed -E \
+        <"${DEST}" sed -E \
         -e ':a' -e 's|class="([^"]+)"|class=\\"\1\\"|g' -e 'ta' \
-        -i".${MARSH_UID}.backup" "${DEST}" && rm -f "${DEST}.${MARSH_UID}.backup"
+        > "${DEST_SCRATCH}" || {
+            rm -f "${DEST_SCRATCH}"
+            return 1
+        }
+        mv "${DEST_SCRATCH}" "${DEST}" 2>/dev/null || {
+            rm -f "${DEST_SCRATCH}"
+            return 1
+        }
     fi
 
-    # unwrap figures
-    sed -E \
-    -e 's|<p><figure>|<figure>|' \
-    -e 's|</figure></p>|</figure>|' \
-    -i".${MARSH_UID}.backup" "${DEST}" && rm -f "${DEST}.${MARSH_UID}.backup"
+    if [[ "${DEST}" != "${DEST_FINAL}" ]]; then
+        marsh_publish_processed_output "${DEST}" "${DEST_FINAL}" || return 1
+    fi
 }
 
 # builds a document from a single file

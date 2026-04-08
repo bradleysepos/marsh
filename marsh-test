@@ -3252,7 +3252,7 @@ function marsh_test {
                 {
                     [[ ! -e "${TARGET_DIR}/post.${MARSH_UID}.markdown" ]] \
                         && [[ ! -e "${TARGET_DIR}/note.${MARSH_UID}.md" ]] \
-                        && [[ ! -e "${TARGET_DIR}/image.${MARSH_UID}.jpg" ]] \
+                        && [[ -e "${TARGET_DIR}/image.${MARSH_UID}.jpg" ]] \
                         && [[ ! -e "${TARGET_DIR}/keep.markdown" ]] \
                         && [[ -e "${TARGET_DIR}/keep.jpg" ]]
                 }
@@ -3340,6 +3340,97 @@ function marsh_test {
                 RES="[PASS]"
             fi
             rm -rf "${TARGET_DIR}"
+            ;;
+        marsh_clean_target:5)
+            TEST_NAME+=":preserves_markdown_named_directories"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            mkdir -p "${TARGET_DIR}/nested/notes.markdown"
+            : > "${TARGET_DIR}/nested/notes.markdown/keep.txt"
+            : > "${TARGET_DIR}/nested/remove.markdown"
+            marsh_clean_target "${TARGET_DIR}" "markdown,md"
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                {
+                    [[ -d "${TARGET_DIR}/nested/notes.markdown" ]] \
+                        && [[ -e "${TARGET_DIR}/nested/notes.markdown/keep.txt" ]] \
+                        && [[ ! -e "${TARGET_DIR}/nested/remove.markdown" ]]
+                }
+                ACTUAL=$?
+                EXPECTED=0
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${TARGET_DIR}"
+            ;;
+        marsh_clean_target_temp:0)
+            TEST_NAME+=":root_target"
+            marsh_test_set_env "cleantargettempuid" true false
+            MARSH_CONFIG_PATH="/site/public"
+            TARGET_DIR="/site/public"
+            TARGET_TEMP_ROOT=$(marsh_get_target_temp_root "${TARGET_DIR}")
+            mkdir -p "${TARGET_TEMP_ROOT}/documents/index.markdown" "${TARGET_DIR}"
+            : > "${TARGET_TEMP_ROOT}/documents/index.markdown/content"
+            : > "${TARGET_DIR}/index.html"
+            marsh_clean_target_temp "${TARGET_DIR}"
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                {
+                    [[ ! -e "${TARGET_TEMP_ROOT}" ]] \
+                        && [[ -e "${TARGET_DIR}/index.html" ]]
+                }
+                ACTUAL=$?
+                EXPECTED=0
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "/site"
+            marsh_test_restore_env
+            ;;
+        marsh_clean_target_temp:1)
+            TEST_NAME+=":nested_target"
+            marsh_test_set_env "cleantargettempuid" true false
+            MARSH_CONFIG_PATH="/site/public"
+            TARGET_DIR="/site/public/docs/blog"
+            TARGET_TEMP_ROOT=$(marsh_get_target_temp_root "${TARGET_DIR}")
+            mkdir -p "${TARGET_TEMP_ROOT}/render/news" "${TARGET_DIR}"
+            : > "${TARGET_TEMP_ROOT}/render/news/item.html"
+            : > "${TARGET_DIR}/item.html"
+            marsh_clean_target_temp "${TARGET_DIR}"
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                {
+                    [[ ! -e "${TARGET_TEMP_ROOT}" ]] \
+                        && [[ -e "${TARGET_DIR}/item.html" ]]
+                }
+                ACTUAL=$?
+                EXPECTED=0
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "/site"
+            marsh_test_restore_env
+            ;;
+        marsh_clean_target_temp:2)
+            TEST_NAME+=":missing_target"
+            marsh_clean_target_temp "" 2>/dev/null
+            ACTUAL=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" -eq "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
             ;;
         marsh_escape_substitution:0)
             TEST_NAME+=":plain"
@@ -6406,6 +6497,7 @@ KNOWN_FUNCTIONS=(
     marsh_build_template
     marsh_check_dependencies
     marsh_clean_target
+    marsh_clean_target_temp
     marsh_escape_substitution
     marsh_extract_frontmatter
     marsh_flat_to_array

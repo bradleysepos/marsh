@@ -2659,6 +2659,17 @@ function marsh_get_target_temp_root {  # marsh_get_target_temp_root target_dir
     printf '%s\n' "${MARSH_TEMP}/build/targets/${TARGET_KEY}"
 }
 
+# removes the temporary working directory for a target under MARSH_TEMP
+function marsh_clean_target_temp {  # marsh_clean_target_temp target_dir
+    local TARGET_DIR TARGET_TEMP_ROOT
+
+    TARGET_DIR="${1:-}"
+    [[ "${TARGET_DIR}" == "" ]] && return 1
+
+    TARGET_TEMP_ROOT=$(marsh_get_target_temp_root "${TARGET_DIR}") || return 1
+    rm -rf "${TARGET_TEMP_ROOT}"
+}
+
 # resolves a document temp artifact path under the target temp work tree
 function marsh_get_document_temp_path {  # marsh_get_document_temp_path target_dir document artifact
     local TARGET_DIR DOCUMENT ARTIFACT TARGET_TEMP_ROOT DOCUMENT_KEY DOCUMENT_ROOT
@@ -4969,7 +4980,7 @@ function marsh_build_target {  # marsh_build_target dest_dir target jobs sitemap
     fi
 }
 
-# removes temporary files used during target builds
+# removes generated markdown source files from a built target tree
 function marsh_clean_target {  # marsh_clean_target target markdown_fileext_csv
     local TARGET MARKDOWN_FILEEXT_CSV CLEAN_FILTERS EXT
     TARGET="${1:-}"; [[ "${TARGET}" == "" ]] && return 1
@@ -4982,7 +4993,7 @@ function marsh_clean_target {  # marsh_clean_target target markdown_fileext_csv
         fi
         CLEAN_FILTERS+=("-iname" "*.${EXT}")
     done
-    find "${TARGET}" \( -name '*.'"${MARSH_UID}"'.*' -or \( "${CLEAN_FILTERS[@]}" \) \) -delete
+    find "${TARGET}" -type f \( "${CLEAN_FILTERS[@]}" \) -delete
 }
 
 # main function, entry point for command line interface
@@ -5655,8 +5666,9 @@ function marsh_cli {
                 fi
             done
 
-            # clean build files
-            marsh_clean_target "${MARSH_CONFIG_PATH}/${TARGET_PATH}" "${MARKDOWN_FILEEXT_CSV}"
+            # clean build files in the output tree and temporary directory
+            marsh_clean_target "${MARSH_CONFIG_PATH}/${TARGET_PATH}" "${MARKDOWN_FILEEXT_CSV}" || die_gracefully
+            marsh_clean_target_temp "${MARSH_CONFIG_PATH}/${TARGET_PATH}" || die_gracefully
             INDEX=$((INDEX+1))
             PREFIX="CONFIG_Build_Targets_${INDEX}_"
         done

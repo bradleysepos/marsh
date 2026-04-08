@@ -2138,15 +2138,16 @@ function marsh_get_site_source_root_path {  # marsh_get_site_source_root_path co
 
 # returns the intermediate render path for a target sitemap
 function marsh_get_sitemap_render_path {  # marsh_get_sitemap_render_path target_dir sitemap_path
-    local TARGET_DIR SITEMAP_PATH CACHE_DIR CACHE_KEY CACHE_FILE
+    local TARGET_DIR SITEMAP_PATH TARGET_TEMP_ROOT CACHE_DIR CACHE_KEY CACHE_FILE
 
     TARGET_DIR="${1:-}"
     SITEMAP_PATH="${2:-}"
     [[ "${TARGET_DIR}" == "" ]] && return 1
     [[ "${SITEMAP_PATH}" == "" ]] && return 1
     TARGET_DIR=$(marsh_get_target_directory_path "${TARGET_DIR}") || return 1
+    TARGET_TEMP_ROOT=$(marsh_get_target_temp_root "${TARGET_DIR}") || return 1
 
-    CACHE_DIR="${MARSH_TEMP}/sitemap-render-cache"
+    CACHE_DIR="${TARGET_TEMP_ROOT}/sitemaps/render"
     mkdir -p "${CACHE_DIR}" >/dev/null 2>&1 || {
         echo "Unable to create sitemap render cache directory: ${CACHE_DIR}" >&2
         return 1
@@ -2821,7 +2822,7 @@ function marsh_get_internal_parent_directory {  # marsh_get_internal_parent_dire
 function marsh_rewrite_sitemap_links {  # marsh_rewrite_sitemap_links sitemap_file sitemap_dir document_base_path
     local SITEMAP_FILE SITEMAP_DIR DOCUMENT_BASE_PATH
     local HREFS HREF HREF_TARGET HREF_SUFFIX RESOLVED_HREF REWRITTEN_HREF
-    local SEARCH_ESC REPLACEMENT_ESC REPLACEMENTS RES
+    local SEARCH_ESC REPLACEMENT_ESC REPLACEMENTS SCRATCH_FILE
 
     SITEMAP_FILE="${1:-}"
     SITEMAP_DIR="${2:-}"
@@ -2864,19 +2865,25 @@ function marsh_rewrite_sitemap_links {  # marsh_rewrite_sitemap_links sitemap_fi
         }
     done
 
-    RES=0
     if [[ -s "${REPLACEMENTS}" ]]; then
-        sed -E -f "${REPLACEMENTS}" -i".${MARSH_UID}.backup" "${SITEMAP_FILE}" || RES=1
+        SCRATCH_FILE="${REPLACEMENTS}.scratch"
+        <"${SITEMAP_FILE}" sed -E -f "${REPLACEMENTS}" > "${SCRATCH_FILE}" || {
+            rm -f "${REPLACEMENTS}" "${SCRATCH_FILE}"
+            return 1
+        }
+        mv "${SCRATCH_FILE}" "${SITEMAP_FILE}" 2>/dev/null || {
+            rm -f "${REPLACEMENTS}" "${SCRATCH_FILE}"
+            return 1
+        }
     fi
     rm -f "${REPLACEMENTS}"
-    rm -f "${SITEMAP_FILE}.${MARSH_UID}.backup"
-    return "${RES}"
+    return 0
 }
 
 # returns a cached processed sitemap for a document base path
 function marsh_get_processed_sitemap {  # marsh_get_processed_sitemap sitemap_render_path sitemap_dir document_base_path
     local SITEMAP_RENDER_PATH SITEMAP_DIR DOCUMENT_BASE_PATH
-    local CACHE_DIR CACHE_KEY CACHE_FILE CACHE_TEMP RENDER_HASH
+    local CACHE_DIR CACHE_KEY CACHE_FILE CACHE_TEMP RENDER_HASH RENDER_DIR
 
     SITEMAP_RENDER_PATH="${1:-}"
     SITEMAP_DIR="${2:-}"
@@ -2886,7 +2893,12 @@ function marsh_get_processed_sitemap {  # marsh_get_processed_sitemap sitemap_re
     [[ "${DOCUMENT_BASE_PATH}" == "" ]] && return 1
     [[ -f "${SITEMAP_RENDER_PATH}" ]] && [[ -r "${SITEMAP_RENDER_PATH}" ]] || return 1
 
-    CACHE_DIR="${MARSH_TEMP}/processed-sitemap-cache"
+    RENDER_DIR="${SITEMAP_RENDER_PATH%/*}"
+    if [[ "${RENDER_DIR}" == */sitemaps/render ]]; then
+        CACHE_DIR="${RENDER_DIR%/render}/processed"
+    else
+        CACHE_DIR="${MARSH_TEMP}/processed-sitemap-cache"
+    fi
     mkdir -p "${CACHE_DIR}" >/dev/null 2>&1 || {
         echo "Unable to create processed sitemap cache directory: ${CACHE_DIR}" >&2
         return 1
@@ -3472,7 +3484,7 @@ function marsh_build_archive {  # marsh_build_archive encoding target_dir dest_f
 # builds a sitemap
 function marsh_build_sitemap {  # marsh_build_sitemap target_dir sitemap_file sitemap_source markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links
     local TARGET_DIR SITEMAP_FILE SITEMAP_SOURCE MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_REWRITE_LINKS
-    local SITEMAP_DEST TEXT_TRANSFORM
+    local SITEMAP_DEST TEXT_TRANSFORM SITEMAP_CONTENT_FILE SITEMAP_META_FILE
 
     # init
     TARGET_DIR="${1:-}"
@@ -3494,21 +3506,30 @@ function marsh_build_sitemap {  # marsh_build_sitemap target_dir sitemap_file si
         echo "Unable to create sitemap render path: ${SITEMAP_DEST%/*}" >&2
         return 1
     }
+    SITEMAP_CONTENT_FILE="${SITEMAP_SOURCE}"
+    SITEMAP_META_FILE=""
     if marsh_has_frontmatter "${SITEMAP_SOURCE}"; then
-        marsh_extract_frontmatter "${SITEMAP_SOURCE}" "${SITEMAP_DEST}.meta.yaml" "${SITEMAP_DEST}.temp" || {
+        SITEMAP_CONTENT_FILE=$(marsh_get_sitemap_temp_path "${TARGET_DIR}" "${SITEMAP_FILE}" "content") || return 1
+        SITEMAP_META_FILE=$(marsh_get_sitemap_temp_path "${TARGET_DIR}" "${SITEMAP_FILE}" "meta-yaml") || return 1
+        mkdir -p "${SITEMAP_CONTENT_FILE%/*}" >/dev/null 2>&1 || {
+            echo "Unable to create sitemap temp path: ${SITEMAP_CONTENT_FILE%/*}" >&2
+            return 1
+        }
+        marsh_extract_frontmatter "${SITEMAP_SOURCE}" "${SITEMAP_META_FILE}" "${SITEMAP_CONTENT_FILE}" || {
+            rm -f "${SITEMAP_META_FILE}" "${SITEMAP_CONTENT_FILE}"
             echo "Unable to extract sitemap frontmatter: ${SITEMAP_SOURCE}" >&2
             return 1
         }
-    else
-        cp "${SITEMAP_SOURCE}" "${SITEMAP_DEST}.temp"
     fi
     TEXT_TRANSFORM=
     if [[ "${MARKDOWN_REWRITE_LINKS}" == true ]]; then
         TEXT_TRANSFORM="links:replace-ext:${MARKDOWN_FILEEXT_CSV}:html"
     fi
-    <"${SITEMAP_DEST}.temp" marsh_text_transform ${TEXT_TRANSFORM} | marsh_process_markdown "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" > "${SITEMAP_DEST}"
-    rm -f "${SITEMAP_DEST}.meta.yaml" 2>/dev/null || true
-    rm -f "${SITEMAP_DEST}.temp"
+    <"${SITEMAP_CONTENT_FILE}" marsh_text_transform ${TEXT_TRANSFORM} | marsh_process_markdown "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" > "${SITEMAP_DEST}" || {
+        rm -f "${SITEMAP_META_FILE}" "${SITEMAP_CONTENT_FILE}"
+        return 1
+    }
+    rm -f "${SITEMAP_META_FILE}" "${SITEMAP_CONTENT_FILE}"
 }
 
 # builds a template and applies it to a document

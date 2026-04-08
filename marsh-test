@@ -2727,7 +2727,8 @@ function marsh_test {
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
             SOURCE_DIR="${TEST_TEMP_PREFIX}.source"
             marsh_test_set_env "sitemapvariantuid" true true
-            rm -rf "${MARSH_TEST_TEMP}/processed-sitemap-cache"
+            TARGET_TEMP_ROOT=$(marsh_get_target_temp_root "${TARGET_DIR}")
+            rm -rf "${TARGET_TEMP_ROOT}/sitemaps/processed"
             mkdir -p "${TARGET_DIR}/docs" "${SOURCE_DIR}/site-map" "${TEMPLATE_DIR}/sample/partials"
             marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
             printf '%s\n' '{{ target.sitemap }}' > "${TEMPLATE_DIR}/sample/partials/body.html"
@@ -2749,7 +2750,7 @@ function marsh_test {
                 EXPECTED=0
                 ASSERTION="equals"
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    ACTUAL=$(find "${MARSH_TEST_TEMP}/processed-sitemap-cache" -maxdepth 1 -name '*.html' 2>/dev/null | marsh_text_transform items:count)
+                    ACTUAL=$(find "${TARGET_TEMP_ROOT}/sitemaps/processed" -maxdepth 1 -name '*.html' 2>/dev/null | marsh_text_transform items:count)
                     EXPECTED='1'
                     ASSERTION="equals"
                     if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -2775,7 +2776,7 @@ function marsh_test {
                     fi
                 fi
             fi
-            rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}" "${SOURCE_DIR}" "${MARSH_TEST_TEMP}/processed-sitemap-cache"
+            rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}" "${SOURCE_DIR}"
             marsh_test_restore_env
             ;;
         marsh_build_template:29)
@@ -3165,6 +3166,42 @@ function marsh_test {
                 fi
             fi
             rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}"
+            marsh_test_restore_env
+            ;;
+        marsh_build_sitemap:0)
+            TEST_NAME+=":frontmatter_no_adjacent_scratch_files"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            SOURCE_DIR="${TEST_TEMP_PREFIX}.source"
+            marsh_test_set_env "buildsitemapuid" true true
+            mkdir -p "${SOURCE_DIR}/site-map"
+            printf '%s\n' \
+                '---' \
+                'Title: Site Map' \
+                '...' \
+                '' \
+                '<h1>Site Map</h1>' \
+                '<p><a href="../news/">News</a></p>' > "${SOURCE_DIR}/site-map/index.markdown"
+            marsh_build_sitemap "${TARGET_DIR}" "site-map/index.markdown" "${SOURCE_DIR}/site-map/index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" >/dev/null 2>&1
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                SITEMAP_RENDER=$(marsh_get_sitemap_render_path "${TARGET_DIR}" "site-map/index.markdown")
+                {
+                    [[ -e "${SITEMAP_RENDER}" ]] \
+                        && [[ ! -e "${SITEMAP_RENDER}.temp" ]] \
+                        && [[ ! -e "${SITEMAP_RENDER}.meta.yaml" ]] \
+                        && [[ ! -e "${SITEMAP_RENDER}.scratch" ]] \
+                        && [[ ! -e "${SITEMAP_RENDER}.backup" ]]
+                }
+                ACTUAL=$?
+                EXPECTED=0
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${TARGET_DIR}" "${SOURCE_DIR}"
             marsh_test_restore_env
             ;;
         marsh_check_dependencies:0)
@@ -3882,12 +3919,12 @@ function marsh_test {
         marsh_get_processed_sitemap:0)
             TEST_NAME+=":built"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
-            SITEMAP_FILE="${TARGET_DIR}/rendered.sitemap.html"
             marsh_test_set_env "sitemapvariantuid" true false
             mkdir -p "${TARGET_DIR}"
+            SITEMAP_FILE=$(marsh_get_sitemap_render_path "${TARGET_DIR}" "site-map/index.markdown")
             printf '%s\n' '<h1><a href="./">Site Map</a></h1>' '<p><a href="../news/">News</a></p>' > "${SITEMAP_FILE}"
             ACTUAL=$(marsh_get_processed_sitemap "${SITEMAP_FILE}" "site-map" "docs/")
-            EXPECTED="${MARSH_TEST_TEMP}/processed-sitemap-cache/$(printf '%s\034%s\034%s\034%s\n' "${SITEMAP_FILE}" "site-map" "docs/" "$(<"${SITEMAP_FILE}" marsh_text_transform hash:md5)" | marsh_text_transform hash:md5).html"
+            EXPECTED="$(marsh_get_target_temp_root "${TARGET_DIR}")/sitemaps/processed/$(printf '%s\034%s\034%s\034%s\n' "${SITEMAP_FILE}" "site-map" "docs/" "$(<"${SITEMAP_FILE}" marsh_text_transform hash:md5)" | marsh_text_transform hash:md5).html"
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 ACTUAL=$(<"${EXPECTED}")
@@ -3897,17 +3934,18 @@ function marsh_test {
                     RES="[PASS]"
                 fi
             fi
-            rm -rf "${TARGET_DIR}" "${MARSH_TEST_TEMP}/processed-sitemap-cache"
+            rm -rf "${TARGET_DIR}"
             marsh_test_restore_env
             ;;
         marsh_get_processed_sitemap:1)
             TEST_NAME+=":cached"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
-            SITEMAP_FILE="${TARGET_DIR}/rendered.sitemap.html"
             marsh_test_set_env "sitemapvariantuid" true false
-            mkdir -p "${TARGET_DIR}" "${MARSH_TEST_TEMP}/processed-sitemap-cache"
+            mkdir -p "${TARGET_DIR}"
+            SITEMAP_FILE=$(marsh_get_sitemap_render_path "${TARGET_DIR}" "site-map/index.markdown")
             printf '%s\n' '<p><a href="../news/">News</a></p>' > "${SITEMAP_FILE}"
-            CACHE_FILE="${MARSH_TEST_TEMP}/processed-sitemap-cache/$(printf '%s\034%s\034%s\034%s\n' "${SITEMAP_FILE}" "site-map" "docs/" "$(<"${SITEMAP_FILE}" marsh_text_transform hash:md5)" | marsh_text_transform hash:md5).html"
+            CACHE_FILE="$(marsh_get_target_temp_root "${TARGET_DIR}")/sitemaps/processed/$(printf '%s\034%s\034%s\034%s\n' "${SITEMAP_FILE}" "site-map" "docs/" "$(<"${SITEMAP_FILE}" marsh_text_transform hash:md5)" | marsh_text_transform hash:md5).html"
+            mkdir -p "${CACHE_FILE%/*}"
             printf '%s\n' 'sentinel' > "${CACHE_FILE}"
             ACTUAL=$(marsh_get_processed_sitemap "${SITEMAP_FILE}" "site-map" "docs/")
             EXPECTED="${CACHE_FILE}"
@@ -3920,7 +3958,7 @@ function marsh_test {
                     RES="[PASS]"
                 fi
             fi
-            rm -rf "${TARGET_DIR}" "${MARSH_TEST_TEMP}/processed-sitemap-cache"
+            rm -rf "${TARGET_DIR}"
             marsh_test_restore_env
             ;;
         marsh_get_processed_sitemap:2)
@@ -3932,6 +3970,30 @@ function marsh_test {
             if [[ "${ACTUAL}" -eq "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
+            ;;
+        marsh_get_sitemap_render_path:0)
+            TEST_NAME+=":root_target"
+            marsh_test_set_env "sitemaprendertempuid" true false
+            MARSH_CONFIG_PATH="/site/public"
+            ACTUAL=$(marsh_get_sitemap_render_path "/site/public" "site-map/index.markdown")
+            EXPECTED="${MARSH_TEST_TEMP}/build/targets/root/sitemaps/render/$(printf '%s\034%s\n' "/site/public" "site-map/index.markdown" | marsh_text_transform hash:md5).sitemap.html"
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            marsh_test_restore_env
+            ;;
+        marsh_get_sitemap_render_path:1)
+            TEST_NAME+=":nested_target"
+            marsh_test_set_env "sitemaprendertempuid" true false
+            MARSH_CONFIG_PATH="/site/public"
+            ACTUAL=$(marsh_get_sitemap_render_path "/site/public/blog" "news/sitemap.markdown")
+            EXPECTED="${MARSH_TEST_TEMP}/build/targets/blog/sitemaps/render/$(printf '%s\034%s\n' "/site/public/blog" "news/sitemap.markdown" | marsh_text_transform hash:md5).sitemap.html"
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            marsh_test_restore_env
             ;;
         marsh_get_render_temp_path:0)
             TEST_NAME+=":root_target"
@@ -5237,6 +5299,31 @@ function marsh_test {
             rm -f "${SITEMAP_FILE}"
             marsh_test_restore_env
             ;;
+        marsh_rewrite_sitemap_links:4)
+            TEST_NAME+=":no_adjacent_scratch_files"
+            SITEMAP_FILE="${TEST_TEMP_PREFIX}.sitemap.html"
+            marsh_test_set_env "rewritesitemapuid" true false
+            printf '%s\n' '<a href="../news/">News</a>' > "${SITEMAP_FILE}"
+            marsh_rewrite_sitemap_links "${SITEMAP_FILE}" "site-map" "."
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                {
+                    [[ ! -e "${SITEMAP_FILE}.${MARSH_UID}.backup" ]] \
+                        && [[ ! -e "${SITEMAP_FILE}.backup" ]] \
+                        && [[ ! -e "${SITEMAP_FILE}.scratch" ]]
+                }
+                ACTUAL=$?
+                EXPECTED=0
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -f "${SITEMAP_FILE}"
+            marsh_test_restore_env
+            ;;
         marsh_resolve_tag_metadata:1)
             TEST_NAME+=":generated"
             ACTUAL=$(marsh_resolve_tag_metadata "site.abspath" "DOCUMENT_")
@@ -6312,6 +6399,7 @@ source "${MARSH}"
 KNOWN_FUNCTIONS=(
     marsh_build_archive
     marsh_build_archive_manifest
+    marsh_build_sitemap
     marsh_build_document
     marsh_build_document_and_template
     marsh_build_target

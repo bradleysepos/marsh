@@ -877,6 +877,83 @@ function marsh_test {
             rm -rf "${TARGET_DIR}"
             marsh_test_restore_env
             ;;
+        marsh_build_document:2)
+            TEST_NAME+=":source_root_fallback"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            marsh_test_set_env "documentbuilduid" true true
+            mkdir -p "${TARGET_DIR}"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
+            TARGET_SOURCE_ROOT_FILE="$(marsh_get_target_temp_root "${TARGET_DIR}")/source-root"
+            mkdir -p "${SOURCE_ROOT}" "${TARGET_SOURCE_ROOT_FILE%/*}"
+            printf '%s\n' \
+                '---' \
+                'Type: page' \
+                'Title: Example' \
+                '...' \
+                '' \
+                '# Example' > "${SOURCE_ROOT}/index.markdown"
+            printf '%s\n' "${SOURCE_ROOT}" > "${TARGET_SOURCE_ROOT_FILE}"
+            marsh_build_document "${TARGET_DIR}" "." "index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" >/dev/null 2>&1
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            CONTENT_FILE=$(marsh_get_document_temp_path "${TARGET_DIR}" "index.markdown" "content")
+            META_FILE=$(marsh_get_document_temp_path "${TARGET_DIR}" "index.markdown" "meta-yaml")
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                {
+                    [[ -f "${SOURCE_ROOT}/index.markdown" ]] \
+                        && [[ -f "${CONTENT_FILE}" ]] \
+                        && [[ -f "${META_FILE}" ]] \
+                        && [[ ! -f "${TARGET_DIR}/index.markdown" ]]
+                }
+                ACTUAL=$?
+                EXPECTED=0
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    ACTUAL=$(<"${CONTENT_FILE}")
+                    EXPECTED=$'\n''# Example'
+                    ASSERTION="equals"
+                    if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                        RES="[PASS]"
+                    fi
+                fi
+            fi
+            rm -rf "${TARGET_DIR}" "${SOURCE_ROOT}"
+            marsh_test_restore_env
+            ;;
+        marsh_build_document:3)
+            TEST_NAME+=":source_root_preferred_over_output_tree"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
+            marsh_test_set_env "documentbuilduid" true true
+            mkdir -p "${TARGET_DIR}" "${SOURCE_ROOT}"
+            TARGET_SOURCE_ROOT_FILE="$(marsh_get_target_temp_root "${TARGET_DIR}")/source-root"
+            mkdir -p "${TARGET_SOURCE_ROOT_FILE%/*}"
+            printf '%s\n' '---' 'Title: Stale' '...' '' '# Stale' > "${TARGET_DIR}/index.markdown"
+            printf '%s\n' '---' 'Title: Fresh' '...' '' '# Fresh' > "${SOURCE_ROOT}/index.markdown"
+            printf '%s\n' "${SOURCE_ROOT}" > "${TARGET_SOURCE_ROOT_FILE}"
+            marsh_build_document "${TARGET_DIR}" "." "index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" >/dev/null 2>&1
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            CONTENT_FILE=$(marsh_get_document_temp_path "${TARGET_DIR}" "index.markdown" "content")
+            META_FILE=$(marsh_get_document_temp_path "${TARGET_DIR}" "index.markdown" "meta-yaml")
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                ACTUAL=$(<"${CONTENT_FILE}")
+                EXPECTED=$'\n''# Fresh'
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    ACTUAL=$(<"${META_FILE}")
+                    EXPECTED=$(printf '%s\n' '---' 'Title: Fresh' '...')
+                    ASSERTION="equals"
+                    if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                        RES="[PASS]"
+                    fi
+                fi
+            fi
+            rm -rf "${TARGET_DIR}" "${SOURCE_ROOT}"
+            marsh_test_restore_env
+            ;;
         marsh_build_document_and_template:0)
             TEST_NAME+=":with_template"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
@@ -1231,6 +1308,82 @@ function marsh_test {
                 fi
             fi
             rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}"
+            marsh_test_restore_env
+            ;;
+        marsh_build_target:9)
+            TEST_NAME+=":source_root_markdown_source"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            SOURCE_DIR="${TEST_TEMP_PREFIX}.source"
+            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            marsh_test_set_env "targetstageduid" true true
+            mkdir -p "${SOURCE_DIR}/docs" "${TARGET_DIR}"
+            marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
+            printf '%s\n' '---'$'\n''Title: Example'$'\n''...'$'\n'''$'\n''# Example' > "${SOURCE_DIR}/index.markdown"
+            printf '%s\n' 'asset' > "${SOURCE_DIR}/docs/logo.txt"
+            TARGET_SOURCE_ROOT_FILE="$(marsh_get_target_temp_root "${TARGET_DIR}")/source-root"
+            mkdir -p "${TARGET_SOURCE_ROOT_FILE%/*}"
+            printf '%s\n' "${SOURCE_DIR}" > "${TARGET_SOURCE_ROOT_FILE}"
+            marsh_copy_direct_to_target "${SOURCE_DIR}/*" "${TARGET_DIR}" "." "markdown,md" false >/dev/null 2>&1
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                marsh_build_target "${TARGET_DIR}" "./index.markdown" "1" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+                ACTUAL=$?
+                EXPECTED=0
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    {
+                        [[ -e "${TARGET_DIR}/index.html" ]] \
+                            && [[ ! -e "${TARGET_DIR}/index.markdown" ]] \
+                            && [[ -e "${TARGET_DIR}/docs/logo.txt" ]]
+                    }
+                    ACTUAL=$?
+                    EXPECTED=0
+                    ASSERTION="equals"
+                    if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                        RES="[PASS]"
+                    fi
+                fi
+            fi
+            rm -rf "${TARGET_DIR}" "${SOURCE_DIR}" "${TEMPLATE_DIR}"
+            marsh_test_restore_env
+            ;;
+        marsh_build_target:10)
+            TEST_NAME+=":source_root_ignores_stale_output_markdown"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            SOURCE_DIR="${TEST_TEMP_PREFIX}.source"
+            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            marsh_test_set_env "targetstageduid" true true
+            mkdir -p "${SOURCE_DIR}" "${TARGET_DIR}"
+            marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
+            printf '%s\n' '---'$'\n''Title: Fresh'$'\n''...'$'\n'''$'\n''# Fresh' > "${SOURCE_DIR}/index.markdown"
+            printf '%s\n' '---'$'\n''Title: Stale'$'\n''...'$'\n'''$'\n''# Stale' > "${TARGET_DIR}/stale.markdown"
+            TARGET_SOURCE_ROOT_FILE="$(marsh_get_target_temp_root "${TARGET_DIR}")/source-root"
+            mkdir -p "${TARGET_SOURCE_ROOT_FILE%/*}"
+            printf '%s\n' "${SOURCE_DIR}" > "${TARGET_SOURCE_ROOT_FILE}"
+            marsh_build_target "${TARGET_DIR}" "." "1" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                {
+                    [[ -e "${TARGET_DIR}/index.html" ]] \
+                        && [[ ! -e "${TARGET_DIR}/stale.html" ]]
+                }
+                ACTUAL=$?
+                EXPECTED=0
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    ACTUAL=$(<"${TARGET_DIR}/index.html")
+                    ASSERTION="contains"
+                    EXPECTED='<title>Fresh</title>'
+                    if printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
+                        RES="[PASS]"
+                    fi
+                fi
+            fi
+            rm -rf "${TARGET_DIR}" "${SOURCE_DIR}" "${TEMPLATE_DIR}"
             marsh_test_restore_env
             ;;
         marsh_build_target:2)
@@ -3168,6 +3321,37 @@ function marsh_test {
             rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}"
             marsh_test_restore_env
             ;;
+        marsh_build_template:38)
+            TEST_NAME+=":source_root_preferred_over_output_tree"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
+            marsh_test_set_env "templateuid" true true
+            mkdir -p "${TARGET_DIR}" "${SOURCE_ROOT}"
+            TARGET_SOURCE_ROOT_FILE="$(marsh_get_target_temp_root "${TARGET_DIR}")/source-root"
+            mkdir -p "${TARGET_SOURCE_ROOT_FILE%/*}"
+            marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
+            printf '%s\n' 'old raw source' > "${TARGET_DIR}/index.markdown"
+            printf '%s\n' '---' 'Title: Fresh' '...' '' '# Fresh' > "${SOURCE_ROOT}/index.markdown"
+            printf '%s\n' "${SOURCE_ROOT}" > "${TARGET_SOURCE_ROOT_FILE}"
+            marsh_build_template "${TARGET_DIR}" "." "index.markdown" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                ACTUAL=$(<"${TARGET_DIR}/index.html")
+                ASSERTION="contains"
+                EXPECTED='<title>Fresh</title>'
+                if printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
+                    EXPECTED='# Fresh'
+                    if printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
+                        RES="[PASS]"
+                    fi
+                fi
+            fi
+            rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}" "${SOURCE_ROOT}"
+            marsh_test_restore_env
+            ;;
         marsh_build_sitemap:0)
             TEST_NAME+=":frontmatter_no_adjacent_scratch_files"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
@@ -3234,143 +3418,11 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_clean_target:0)
-            TEST_NAME+=":matching"
-            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
-            marsh_test_set_env "cleantest" false false
-            mkdir -p "${TARGET_DIR}"
-            : > "${TARGET_DIR}/post.${MARSH_UID}.markdown"
-            : > "${TARGET_DIR}/note.${MARSH_UID}.md"
-            : > "${TARGET_DIR}/image.${MARSH_UID}.jpg"
-            : > "${TARGET_DIR}/keep.markdown"
-            : > "${TARGET_DIR}/keep.jpg"
-            marsh_clean_target "${TARGET_DIR}" "markdown,md"
-            ACTUAL=$?
-            EXPECTED=0
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                {
-                    [[ ! -e "${TARGET_DIR}/post.${MARSH_UID}.markdown" ]] \
-                        && [[ ! -e "${TARGET_DIR}/note.${MARSH_UID}.md" ]] \
-                        && [[ -e "${TARGET_DIR}/image.${MARSH_UID}.jpg" ]] \
-                        && [[ ! -e "${TARGET_DIR}/keep.markdown" ]] \
-                        && [[ -e "${TARGET_DIR}/keep.jpg" ]]
-                }
-                ACTUAL=$?
-                EXPECTED=0
-                ASSERTION="equals"
-                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    RES="[PASS]"
-                fi
-            fi
-            rm -rf "${TARGET_DIR}"
-            marsh_test_restore_env
-            ;;
-        marsh_clean_target:1)
-            TEST_NAME+=":nested"
-            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
-            marsh_test_set_env "cleantest" false false
-            mkdir -p "${TARGET_DIR}/nested/deeper"
-            : > "${TARGET_DIR}/nested/article.markdown"
-            : > "${TARGET_DIR}/nested/deeper/keep.png"
-            marsh_clean_target "${TARGET_DIR}" "markdown,md"
-            ACTUAL=$?
-            EXPECTED=0
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                {
-                    [[ ! -e "${TARGET_DIR}/nested/article.markdown" ]] \
-                        && [[ -e "${TARGET_DIR}/nested/deeper/keep.png" ]]
-                }
-                ACTUAL=$?
-                EXPECTED=0
-                ASSERTION="equals"
-                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    RES="[PASS]"
-                fi
-            fi
-            rm -rf "${TARGET_DIR}"
-            marsh_test_restore_env
-            ;;
-        marsh_clean_target:2)
-            TEST_NAME+=":case_insensitive"
-            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
-            mkdir -p "${TARGET_DIR}"
-            : > "${TARGET_DIR}/UPPER.MD"
-            : > "${TARGET_DIR}/Mixed.MarkDown"
-            : > "${TARGET_DIR}/keep.txt"
-            marsh_clean_target "${TARGET_DIR}" "markdown,md"
-            ACTUAL=$?
-            EXPECTED=0
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                {
-                    [[ ! -e "${TARGET_DIR}/UPPER.MD" ]] \
-                        && [[ ! -e "${TARGET_DIR}/Mixed.MarkDown" ]] \
-                        && [[ -e "${TARGET_DIR}/keep.txt" ]]
-                }
-                ACTUAL=$?
-                EXPECTED=0
-                ASSERTION="equals"
-                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    RES="[PASS]"
-                fi
-            fi
-            rm -rf "${TARGET_DIR}"
-            ;;
-        marsh_clean_target:3)
-            TEST_NAME+=":missing_target"
-            marsh_clean_target "" "markdown,md" 2>/dev/null
-            ACTUAL=$?
-            EXPECTED=1
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" -eq "${EXPECTED}" ]]; then
-                RES="[PASS]"
-            fi
-            ;;
-        marsh_clean_target:4)
-            TEST_NAME+=":missing_extensions"
-            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
-            mkdir -p "${TARGET_DIR}"
-            marsh_clean_target "${TARGET_DIR}" "" 2>/dev/null
-            ACTUAL=$?
-            EXPECTED=1
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" -eq "${EXPECTED}" ]]; then
-                RES="[PASS]"
-            fi
-            rm -rf "${TARGET_DIR}"
-            ;;
-        marsh_clean_target:5)
-            TEST_NAME+=":preserves_markdown_named_directories"
-            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
-            mkdir -p "${TARGET_DIR}/nested/notes.markdown"
-            : > "${TARGET_DIR}/nested/notes.markdown/keep.txt"
-            : > "${TARGET_DIR}/nested/remove.markdown"
-            marsh_clean_target "${TARGET_DIR}" "markdown,md"
-            ACTUAL=$?
-            EXPECTED=0
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                {
-                    [[ -d "${TARGET_DIR}/nested/notes.markdown" ]] \
-                        && [[ -e "${TARGET_DIR}/nested/notes.markdown/keep.txt" ]] \
-                        && [[ ! -e "${TARGET_DIR}/nested/remove.markdown" ]]
-                }
-                ACTUAL=$?
-                EXPECTED=0
-                ASSERTION="equals"
-                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    RES="[PASS]"
-                fi
-            fi
-            rm -rf "${TARGET_DIR}"
-            ;;
         marsh_clean_target_temp:0)
             TEST_NAME+=":root_target"
             marsh_test_set_env "cleantargettempuid" true false
-            MARSH_CONFIG_PATH="/site/public"
-            TARGET_DIR="/site/public"
+            MARSH_CONFIG_PATH="${TEST_TEMP_PREFIX}.site/public"
+            TARGET_DIR="${MARSH_CONFIG_PATH}"
             TARGET_TEMP_ROOT=$(marsh_get_target_temp_root "${TARGET_DIR}")
             mkdir -p "${TARGET_TEMP_ROOT}/documents/index.markdown" "${TARGET_DIR}"
             : > "${TARGET_TEMP_ROOT}/documents/index.markdown/content"
@@ -3391,14 +3443,14 @@ function marsh_test {
                     RES="[PASS]"
                 fi
             fi
-            rm -rf "/site"
+            rm -rf "${TEST_TEMP_PREFIX}.site"
             marsh_test_restore_env
             ;;
         marsh_clean_target_temp:1)
             TEST_NAME+=":nested_target"
             marsh_test_set_env "cleantargettempuid" true false
-            MARSH_CONFIG_PATH="/site/public"
-            TARGET_DIR="/site/public/docs/blog"
+            MARSH_CONFIG_PATH="${TEST_TEMP_PREFIX}.site/public"
+            TARGET_DIR="${MARSH_CONFIG_PATH}/docs/blog"
             TARGET_TEMP_ROOT=$(marsh_get_target_temp_root "${TARGET_DIR}")
             mkdir -p "${TARGET_TEMP_ROOT}/render/news" "${TARGET_DIR}"
             : > "${TARGET_TEMP_ROOT}/render/news/item.html"
@@ -3419,7 +3471,7 @@ function marsh_test {
                     RES="[PASS]"
                 fi
             fi
-            rm -rf "/site"
+            rm -rf "${TEST_TEMP_PREFIX}.site"
             marsh_test_restore_env
             ;;
         marsh_clean_target_temp:2)
@@ -3952,6 +4004,104 @@ function marsh_test {
                 RES="[PASS]"
             fi
             rm -rf "${SOURCE_FILE}" "${TARGET_DIR}"
+            ;;
+        marsh_get_target_source_root_path:0)
+            TEST_NAME+=":cached"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            SOURCE_DIR="${TEST_TEMP_PREFIX}.source"
+            marsh_test_set_env "targetsourcerootuid" true false
+            TARGET_SOURCE_ROOT_FILE="$(marsh_get_target_temp_root "${TARGET_DIR}")/source-root"
+            mkdir -p "${SOURCE_DIR}" "${TARGET_SOURCE_ROOT_FILE%/*}"
+            printf '%s\n' "${SOURCE_DIR}" > "${TARGET_SOURCE_ROOT_FILE}"
+            ACTUAL=$(marsh_get_target_source_root_path "${TARGET_DIR}")
+            EXPECTED="${SOURCE_DIR}"
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            rm -rf "${TARGET_DIR}" "${SOURCE_DIR}"
+            marsh_test_restore_env
+            ;;
+        marsh_get_target_source_root_path:1)
+            TEST_NAME+=":missing"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            marsh_test_set_env "targetsourcerootuid" true false
+            marsh_get_target_source_root_path "${TARGET_DIR}" 2>/dev/null
+            ACTUAL=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" -eq "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            rm -rf "${TARGET_DIR}"
+            marsh_test_restore_env
+            ;;
+        marsh_copy_direct_to_target:0)
+            TEST_NAME+=":skips_markdown_copies_passthrough"
+            SOURCE_DIR="${TEST_TEMP_PREFIX}.source"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            marsh_test_set_env "copytargetsourceuid" true true
+            mkdir -p "${SOURCE_DIR}/docs" "${TARGET_DIR}"
+            printf '%s\n' '---'$'\n''Title: Example'$'\n''...'$'\n'''$'\n''# Example' > "${SOURCE_DIR}/index.markdown"
+            printf '%s\n' '# Guide' > "${SOURCE_DIR}/docs/guide.md"
+            printf '%s\n' 'asset' > "${SOURCE_DIR}/docs/logo.txt"
+            marsh_copy_direct_to_target "${SOURCE_DIR}/*" "${TARGET_DIR}" "." "markdown,md" false
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                {
+                    [[ ! -e "${TARGET_DIR}/index.markdown" ]] \
+                        && [[ ! -e "${TARGET_DIR}/docs/guide.md" ]] \
+                        && [[ -e "${TARGET_DIR}/docs/logo.txt" ]]
+                }
+                ACTUAL=$?
+                EXPECTED=0
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    ACTUAL=$(<"${TARGET_DIR}/docs/logo.txt")
+                    EXPECTED='asset'
+                    ASSERTION="equals"
+                    if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                        RES="[PASS]"
+                    fi
+                fi
+            fi
+            rm -rf "${SOURCE_DIR}" "${TARGET_DIR}"
+            marsh_test_restore_env
+            ;;
+        marsh_copy_direct_to_target:1)
+            TEST_NAME+=":directory_source_does_not_duplicate_root"
+            SOURCE_DIR="${TEST_TEMP_PREFIX}.source"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target/www"
+            marsh_test_set_env "copytargetsourceuid" true true
+            mkdir -p "${SOURCE_DIR}/images" "${TARGET_DIR}"
+            printf '%s\n' 'pngdata' > "${SOURCE_DIR}/images/logo.png"
+            printf '%s\n' '---'$'\n''Title: Example'$'\n''...'$'\n'''$'\n''# Example' > "${SOURCE_DIR}/index.markdown"
+            marsh_copy_direct_to_target "${SOURCE_DIR}" "${TEST_TEMP_PREFIX}.target" "www" "markdown,md" false
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                {
+                    [[ -e "${TEST_TEMP_PREFIX}.target/www/images/logo.png" ]] \
+                        && [[ ! -e "${TEST_TEMP_PREFIX}.target/www/www/images/logo.png" ]] \
+                        && [[ ! -e "${TEST_TEMP_PREFIX}.target/www/index.markdown" ]]
+                }
+                ACTUAL=$?
+                EXPECTED=0
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    ACTUAL=$(<"${TEST_TEMP_PREFIX}.target/www/images/logo.png")
+                    EXPECTED='pngdata'
+                    ASSERTION="equals"
+                    if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                        RES="[PASS]"
+                    fi
+                fi
+            fi
+            rm -rf "${SOURCE_DIR}" "${TEST_TEMP_PREFIX}.target"
+            marsh_test_restore_env
             ;;
         marsh_get_internal_parent_directory:0)
             TEST_NAME+=":root_document"
@@ -6496,8 +6646,8 @@ KNOWN_FUNCTIONS=(
     marsh_build_target
     marsh_build_template
     marsh_check_dependencies
-    marsh_clean_target
     marsh_clean_target_temp
+    marsh_copy_direct_to_target
     marsh_escape_substitution
     marsh_extract_frontmatter
     marsh_flat_to_array
@@ -6524,6 +6674,7 @@ KNOWN_FUNCTIONS=(
     marsh_get_target_document_paths
     marsh_get_target_metadata
     marsh_get_target_output_path
+    marsh_get_target_source_root_path
     marsh_get_target_temp_root
     marsh_get_template_metadata
     marsh_get_variables

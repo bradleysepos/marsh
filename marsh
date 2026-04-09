@@ -1572,29 +1572,29 @@ function marsh_get_archive_metadata {  # marsh_get_archive_metadata target_dir d
 
 # builds a sorted archive manifest from cached archive metadata
 function marsh_build_archive_manifest {  # marsh_build_archive_manifest target_dir
-    local TARGET_DIR TARGET_TEMP_ROOT DOCUMENTS_ROOT DOCUMENTS_LIST DOCUMENT DOCUMENT_SOURCE TYPE URI ABSPATH STATE
+    local TARGET_DIR TARGET_BUILD_TEMP_ROOT TARGET_DOCUMENTS_TEMP_ROOT DOCUMENTS_LIST DOCUMENT DOCUMENT_SITE_REL TYPE URI ABSPATH STATE
     local ARCHIVE_META STATE_JOINED OIFS
 
     TARGET_DIR="${1:-}"
     [[ "${TARGET_DIR}" == "" ]] && return 1
     TARGET_DIR=$(marsh_get_target_directory_path "${TARGET_DIR}") || return 1
 
-    TARGET_TEMP_ROOT=$(marsh_get_target_temp_root "${TARGET_DIR}") || return 1
-    DOCUMENTS_ROOT="${TARGET_TEMP_ROOT}/documents"
-    [[ -d "${DOCUMENTS_ROOT}" ]] || return 0
+    TARGET_BUILD_TEMP_ROOT=$(marsh_get_target_temp_root "${TARGET_DIR}") || return 1
+    TARGET_DOCUMENTS_TEMP_ROOT="${TARGET_BUILD_TEMP_ROOT}/documents"
+    [[ -d "${TARGET_DOCUMENTS_TEMP_ROOT}" ]] || return 0
 
-    DOCUMENTS_LIST=$(cd "${DOCUMENTS_ROOT}" && find . -name 'content' | sed 's/^\.\///' | sort -nr -t/)
+    DOCUMENTS_LIST=$(cd "${TARGET_DOCUMENTS_TEMP_ROOT}" && find . -name 'content' | sed 's/^\.\///' | sort -nr -t/)
     while IFS= read -r DOCUMENT; do
         [[ "${DOCUMENT}" == "" ]] && continue
-        DOCUMENT_SOURCE="${DOCUMENT%/content}"
-        [[ "${DOCUMENT_SOURCE}" == "${DOCUMENT}" ]] && continue
-        DOCUMENT="${DOCUMENT_SOURCE}"
+        DOCUMENT_SITE_REL="${DOCUMENT%/content}"
+        [[ "${DOCUMENT_SITE_REL}" == "${DOCUMENT}" ]] && continue
+        DOCUMENT="${DOCUMENT_SITE_REL}"
         TYPE=""
         URI=""
         ABSPATH=""
         STATE=()
         ARCHIVE_META=$(marsh_get_archive_metadata "${TARGET_DIR}" "${DOCUMENT}")
-        [[ $? -ne 0 ]] && echo "Unable to load archive metadata: ${DOCUMENT_SOURCE}" >&2 && return 1
+        [[ $? -ne 0 ]] && echo "Unable to load archive metadata: ${DOCUMENT_SITE_REL}" >&2 && return 1
         eval "${ARCHIVE_META}"
         OIFS="${IFS}"
         IFS=$(printf '\034')
@@ -1608,53 +1608,53 @@ function marsh_build_archive_manifest {  # marsh_build_archive_manifest target_d
 
 # returns the path to a cached archive manifest, building it where needed
 function marsh_get_archive_manifest {  # marsh_get_archive_manifest target_dir
-    local TARGET_DIR CACHE_DIR CACHE_KEY CACHE_FILE CACHE_TEMP
+    local TARGET_DIR ARCHIVE_MANIFEST_CACHE_DIR ARCHIVE_MANIFEST_CACHE_KEY ARCHIVE_MANIFEST_FILE ARCHIVE_MANIFEST_TEMP
 
     TARGET_DIR="${1:-}"
     [[ "${TARGET_DIR}" == "" ]] && return 1
 
-    CACHE_DIR="${MARSH_TEMP}/archive-manifest-cache"
-    mkdir -p "${CACHE_DIR}" >/dev/null 2>&1 || {
-        echo "Unable to create archive manifest cache directory: ${CACHE_DIR}" >&2
+    ARCHIVE_MANIFEST_CACHE_DIR="${MARSH_TEMP}/archive-manifest-cache"
+    mkdir -p "${ARCHIVE_MANIFEST_CACHE_DIR}" >/dev/null 2>&1 || {
+        echo "Unable to create archive manifest cache directory: ${ARCHIVE_MANIFEST_CACHE_DIR}" >&2
         return 1
     }
-    CACHE_KEY=$(printf '%s\034%s\n' "${TARGET_DIR}" "${MARSH_UID}" | marsh_text_transform hash:md5)
-    CACHE_FILE="${CACHE_DIR}/${CACHE_KEY}.manifest"
-    if [[ -f "${CACHE_FILE}" ]] && [[ -r "${CACHE_FILE}" ]]; then
-        printf '%s\n' "${CACHE_FILE}"
+    ARCHIVE_MANIFEST_CACHE_KEY=$(printf '%s\034%s\n' "${TARGET_DIR}" "${MARSH_UID}" | marsh_text_transform hash:md5)
+    ARCHIVE_MANIFEST_FILE="${ARCHIVE_MANIFEST_CACHE_DIR}/${ARCHIVE_MANIFEST_CACHE_KEY}.manifest"
+    if [[ -f "${ARCHIVE_MANIFEST_FILE}" ]] && [[ -r "${ARCHIVE_MANIFEST_FILE}" ]]; then
+        printf '%s\n' "${ARCHIVE_MANIFEST_FILE}"
         return 0
     fi
 
-    CACHE_TEMP=$(mktemp "${CACHE_DIR}/manifest-XXXXXX") || {
-        echo "Unable to create archive manifest cache file: ${CACHE_DIR}/manifest-XXXXXX" >&2
+    ARCHIVE_MANIFEST_TEMP=$(mktemp "${ARCHIVE_MANIFEST_CACHE_DIR}/manifest-XXXXXX") || {
+        echo "Unable to create archive manifest cache file: ${ARCHIVE_MANIFEST_CACHE_DIR}/manifest-XXXXXX" >&2
         return 1
     }
-    marsh_build_archive_manifest "${TARGET_DIR}" > "${CACHE_TEMP}" && mv "${CACHE_TEMP}" "${CACHE_FILE}" 2>/dev/null || {
+    marsh_build_archive_manifest "${TARGET_DIR}" > "${ARCHIVE_MANIFEST_TEMP}" && mv "${ARCHIVE_MANIFEST_TEMP}" "${ARCHIVE_MANIFEST_FILE}" 2>/dev/null || {
         echo "Unable to build archive manifest: ${TARGET_DIR}" >&2
-        rm -f "${CACHE_TEMP}"
+        rm -f "${ARCHIVE_MANIFEST_TEMP}"
         return 1
     }
-    printf '%s\n' "${CACHE_FILE}"
+    printf '%s\n' "${ARCHIVE_MANIFEST_FILE}"
     return 0
 }
 
 # finds the generated sitemap file for a target
-function marsh_get_sitemap_lookup_path {  # marsh_get_sitemap_lookup_path target_dir document sitemap_file sitemap_search
-    local TARGET_DIR DOCUMENT SITEMAP_FILE SITEMAP_SEARCH
-    local CURRENT_DIR CURRENT_BASE CANDIDATE SITEMAP_PATH
+function marsh_get_sitemap_lookup_path {  # marsh_get_sitemap_lookup_path target_output_root document sitemap_file sitemap_search
+    local TARGET_OUTPUT_ROOT DOCUMENT SITEMAP_FILE SITEMAP_SEARCH
+    local CURRENT_DIR CURRENT_BASE CANDIDATE SITEMAP_RENDER_FILE
 
-    TARGET_DIR="${1:-}"
+    TARGET_OUTPUT_ROOT="${1:-}"
     DOCUMENT="${2:-}"
     SITEMAP_FILE="${3:-}"
     SITEMAP_SEARCH="${4:-false}"
-    [[ "${TARGET_DIR}" == "" ]] && return 1
+    [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
     [[ "${DOCUMENT}" == "" ]] && return 1
     [[ "${SITEMAP_FILE}" == "" ]] && return 1
-    TARGET_DIR=$(marsh_get_target_directory_path "${TARGET_DIR}") || return 1
+    TARGET_OUTPUT_ROOT=$(marsh_get_target_directory_path "${TARGET_OUTPUT_ROOT}") || return 1
 
     if [[ "${SITEMAP_SEARCH}" != true ]]; then
-        SITEMAP_PATH=$(marsh_get_sitemap_render_path "${TARGET_DIR}" "${SITEMAP_FILE}") || return 1
-        [[ -f "${SITEMAP_PATH}" ]] && [[ -r "${SITEMAP_PATH}" ]] || return 1
+        SITEMAP_RENDER_FILE=$(marsh_get_sitemap_render_path "${TARGET_OUTPUT_ROOT}" "${SITEMAP_FILE}") || return 1
+        [[ -f "${SITEMAP_RENDER_FILE}" ]] && [[ -r "${SITEMAP_RENDER_FILE}" ]] || return 1
         printf '%s\n' "${SITEMAP_FILE}"
         return 0
     fi
@@ -1663,8 +1663,8 @@ function marsh_get_sitemap_lookup_path {  # marsh_get_sitemap_lookup_path target
     while true; do
         CURRENT_BASE=$(marsh_normalize_internal_path "${CURRENT_DIR}" "directory") || return 1
         CANDIDATE=$(marsh_resolve_relative_path "${CURRENT_BASE}" "${SITEMAP_FILE}") || return 1
-        SITEMAP_PATH=$(marsh_get_sitemap_render_path "${TARGET_DIR}" "${CANDIDATE}") || return 1
-        if [[ -f "${SITEMAP_PATH}" ]] && [[ -r "${SITEMAP_PATH}" ]]; then
+        SITEMAP_RENDER_FILE=$(marsh_get_sitemap_render_path "${TARGET_OUTPUT_ROOT}" "${CANDIDATE}") || return 1
+        if [[ -f "${SITEMAP_RENDER_FILE}" ]] && [[ -r "${SITEMAP_RENDER_FILE}" ]]; then
             printf '%s\n' "${CANDIDATE}"
             return 0
         fi
@@ -1680,23 +1680,23 @@ function marsh_get_sitemap_lookup_path {  # marsh_get_sitemap_lookup_path target
     return 1
 }
 
-function marsh_get_sitemap_rendered_path {  # marsh_get_sitemap_rendered_path target_dir document sitemap_file [sitemap_search]
-    local TARGET_DIR DOCUMENT SITEMAP_FILE SITEMAP_SEARCH SITEMAP_LOOKUP_PATH SITEMAP_PATH
+function marsh_get_sitemap_rendered_path {  # marsh_get_sitemap_rendered_path target_output_root document sitemap_file [sitemap_search]
+    local TARGET_OUTPUT_ROOT DOCUMENT SITEMAP_FILE SITEMAP_SEARCH SITEMAP_LOOKUP_PATH SITEMAP_RENDER_FILE
 
     # init
-    TARGET_DIR="${1:-}"
+    TARGET_OUTPUT_ROOT="${1:-}"
     DOCUMENT="${2:-}"
     SITEMAP_FILE="${3:-}"
     SITEMAP_SEARCH="${4:-false}"
-    [[ "${TARGET_DIR}" == "" ]] && return 1
+    [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
     [[ "${DOCUMENT}" == "" ]] && return 1
     [[ "${SITEMAP_FILE}" == "" ]] && return 1
-    TARGET_DIR=$(marsh_get_target_directory_path "${TARGET_DIR}") || return 1
+    TARGET_OUTPUT_ROOT=$(marsh_get_target_directory_path "${TARGET_OUTPUT_ROOT}") || return 1
 
-    SITEMAP_LOOKUP_PATH=$(marsh_get_sitemap_lookup_path "${TARGET_DIR}" "${DOCUMENT}" "${SITEMAP_FILE}" "${SITEMAP_SEARCH}") || return 1
-    SITEMAP_PATH=$(marsh_get_sitemap_render_path "${TARGET_DIR}" "${SITEMAP_LOOKUP_PATH}") || return 1
-    if [[ -f "${SITEMAP_PATH}" ]] && [[ -r "${SITEMAP_PATH}" ]]; then
-        printf '%s\n' "${SITEMAP_PATH#${TARGET_DIR}/}"
+    SITEMAP_LOOKUP_PATH=$(marsh_get_sitemap_lookup_path "${TARGET_OUTPUT_ROOT}" "${DOCUMENT}" "${SITEMAP_FILE}" "${SITEMAP_SEARCH}") || return 1
+    SITEMAP_RENDER_FILE=$(marsh_get_sitemap_render_path "${TARGET_OUTPUT_ROOT}" "${SITEMAP_LOOKUP_PATH}") || return 1
+    if [[ -f "${SITEMAP_RENDER_FILE}" ]] && [[ -r "${SITEMAP_RENDER_FILE}" ]]; then
+        printf '%s\n' "${SITEMAP_RENDER_FILE#${TARGET_OUTPUT_ROOT}/}"
         return 0
     fi
     return 1
@@ -2292,24 +2292,24 @@ function marsh_get_files {  # marsh_get_files source dest force
 }
 
 # copies source files that can remain in the output tree as-is
-function marsh_copy_direct_to_target {  # marsh_copy_direct_to_target source dest_dir target_dir markdown_fileext_csv force
-    local SOURCE DEST_DIR TARGET_DIR MARKDOWN_FILEEXT_CSV FORCE
-    local SOURCE_DIR FILES_LIST MATCH MATCHES REL_PATH DEST_PATH TARGET_PATH
+function marsh_copy_direct_to_target {  # marsh_copy_direct_to_target source site_output_root target_output_rel markdown_fileext_csv force
+    local SOURCE SITE_OUTPUT_ROOT TARGET_OUTPUT_REL MARKDOWN_FILEEXT_CSV FORCE
+    local SOURCE_DIR FILES_LIST MATCH MATCHES REL_PATH OUTPUT_PATH TARGET_OUTPUT_ROOT
 
     # init
     SOURCE="${1:-}"
-    DEST_DIR="${2:-}"
-    TARGET_DIR="${3:-}"
+    SITE_OUTPUT_ROOT="${2:-}"
+    TARGET_OUTPUT_REL="${3:-}"
     MARKDOWN_FILEEXT_CSV="${4:-}"
     FORCE="${5:-}"
     [[ "${SOURCE}" == "" ]] && return 1
-    [[ "${DEST_DIR}" == "" ]] && return 1
-    [[ "${TARGET_DIR}" == "" ]] && return 1
+    [[ "${SITE_OUTPUT_ROOT}" == "" ]] && return 1
+    [[ "${TARGET_OUTPUT_REL}" == "" ]] && return 1
     [[ "${MARKDOWN_FILEEXT_CSV}" == "" ]] && return 1
 
     SOURCE_DIR="${SOURCE%/*}"
     SOURCE_DIR="${SOURCE_DIR:-.}"
-    TARGET_PATH=$(marsh_get_target_directory_path "${DEST_DIR}/${TARGET_DIR}") || return 1
+    TARGET_OUTPUT_ROOT=$(marsh_get_target_directory_path "${SITE_OUTPUT_ROOT}/${TARGET_OUTPUT_REL}") || return 1
 
     if [[ -d "${SOURCE}" ]]; then
         SOURCE_DIR="${SOURCE}"
@@ -2339,8 +2339,8 @@ function marsh_copy_direct_to_target {  # marsh_copy_direct_to_target source des
         FILES_LIST=$(printf '%s\n' "${MATCHES[@]}")
     fi
 
-    mkdir -p "${TARGET_PATH}" >/dev/null 2>&1 || {
-        echo "Unable to create path: ${TARGET_PATH}" >&2
+    mkdir -p "${TARGET_OUTPUT_ROOT}" >/dev/null 2>&1 || {
+        echo "Unable to create path: ${TARGET_OUTPUT_ROOT}" >&2
         return 1
     }
 
@@ -2350,21 +2350,21 @@ function marsh_copy_direct_to_target {  # marsh_copy_direct_to_target source des
         if marsh_is_markdown_extension "${REL_PATH##*.}" "${MARKDOWN_FILEEXT_CSV}"; then
             continue
         fi
-        DEST_PATH="${TARGET_PATH}/${REL_PATH}"
-        if [[ -e "${DEST_PATH}" ]] && [[ "${FORCE}" != true ]]; then
-            echo "Path exists (--force to overwrite): ${DEST_PATH}" >&2
+        OUTPUT_PATH="${TARGET_OUTPUT_ROOT}/${REL_PATH}"
+        if [[ -e "${OUTPUT_PATH}" ]] && [[ "${FORCE}" != true ]]; then
+            echo "Path exists (--force to overwrite): ${OUTPUT_PATH}" >&2
             return 1
         fi
-        mkdir -p "${DEST_PATH%/*}" >/dev/null 2>&1 || {
-            echo "Unable to create path: ${DEST_PATH%/*}" >&2
+        mkdir -p "${OUTPUT_PATH%/*}" >/dev/null 2>&1 || {
+            echo "Unable to create path: ${OUTPUT_PATH%/*}" >&2
             return 1
         }
-        rm -rf "${DEST_PATH}" || {
-            echo "Unable to replace path: ${DEST_PATH}" >&2
+        rm -rf "${OUTPUT_PATH}" || {
+            echo "Unable to replace path: ${OUTPUT_PATH}" >&2
             return 1
         }
-        cp -R "${SOURCE_DIR}/${REL_PATH}" "${DEST_PATH}" || {
-            echo "Unable to copy file: ${SOURCE_DIR}/${REL_PATH} -> ${DEST_PATH}" >&2
+        cp -R "${SOURCE_DIR}/${REL_PATH}" "${OUTPUT_PATH}" || {
+            echo "Unable to copy file: ${SOURCE_DIR}/${REL_PATH} -> ${OUTPUT_PATH}" >&2
             return 1
         }
     done <<< "${FILES_LIST}"
@@ -2373,45 +2373,45 @@ function marsh_copy_direct_to_target {  # marsh_copy_direct_to_target source des
 }
 
 # resolves a template asset output path relative to the target root and rejects traversal beyond the site root
-function marsh_resolve_template_asset_output_path {  # marsh_resolve_template_asset_output_path target_dir asset_path [template_assets_path]
-    local TARGET_DIR ASSET_PATH TEMPLATE_ASSETS_PATH COMBINED_PATH OUTPUT_PATH
+function marsh_resolve_template_asset_output_path {  # marsh_resolve_template_asset_output_path target_output_rel asset_path [template_assets_path]
+    local TARGET_OUTPUT_REL ASSET_PATH TEMPLATE_ASSETS_PATH COMBINED_PATH ASSET_OUTPUT_REL
 
-    TARGET_DIR="${1:-}"
+    TARGET_OUTPUT_REL="${1:-}"
     ASSET_PATH="${2:-}"
     TEMPLATE_ASSETS_PATH="${3:-}"
-    [[ "${TARGET_DIR}" == "" ]] && return 1
+    [[ "${TARGET_OUTPUT_REL}" == "" ]] && return 1
     [[ "${ASSET_PATH}" == "" ]] && return 1
     [[ "${ASSET_PATH}" != /* ]] || return 1
     [[ "${TEMPLATE_ASSETS_PATH}" != /* ]] || return 1
 
-    TARGET_DIR=$(marsh_normalize_internal_path "${TARGET_DIR}" "directory") || return 1
+    TARGET_OUTPUT_REL=$(marsh_normalize_internal_path "${TARGET_OUTPUT_REL}" "directory") || return 1
     COMBINED_PATH="${ASSET_PATH}"
     if [[ "${TEMPLATE_ASSETS_PATH}" != "" ]]; then
         COMBINED_PATH="${TEMPLATE_ASSETS_PATH%/}/${ASSET_PATH}"
     fi
-    OUTPUT_PATH=$(marsh_resolve_relative_path "${TARGET_DIR}" "${COMBINED_PATH}") || return 1
-    case "${OUTPUT_PATH}" in
+    ASSET_OUTPUT_REL=$(marsh_resolve_relative_path "${TARGET_OUTPUT_REL}" "${COMBINED_PATH}") || return 1
+    case "${ASSET_OUTPUT_REL}" in
         ..|../*)
             return 1
             ;;
     esac
 
-    printf '%s\n' "${OUTPUT_PATH}"
+    printf '%s\n' "${ASSET_OUTPUT_REL}"
 }
 
 # copies template assets into the build output, resolving output paths relative to the target root
-function marsh_copy_template_assets {  # marsh_copy_template_assets dest_dir target_dir templates_dir template #template_overrides[@] template_overrides[@] template_assets_path
-    local DEST_DIR TARGET_DIR TEMPLATES_DIR TEMPLATE NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDES TEMPLATE_ASSETS_PATH
+function marsh_copy_template_assets {  # marsh_copy_template_assets site_output_root target_output_rel templates_dir template #template_overrides[@] template_overrides[@] template_assets_path
+    local SITE_OUTPUT_ROOT TARGET_OUTPUT_REL TEMPLATES_DIR TEMPLATE NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDES TEMPLATE_ASSETS_PATH
     local TEMPLATE_PREFIX TEMPLATE_META TEMPLATE_META_VARS TEMPLATE_ASSETS_ALL
-    local ASSET ASSET_PATH ASSET_OUTPUT_PATH ASSET_SOURCE ASSET_DEST ASSET_CACHE_DIR ASSET_CACHE_KEY ASSET_CACHE_FILE
+    local ASSET ASSET_PATH ASSET_OUTPUT_REL ASSET_SOURCE ASSET_DEST_PATH ASSET_COPY_CACHE_DIR ASSET_COPY_CACHE_KEY ASSET_COPY_CACHE_FILE
 
     # init
-    DEST_DIR="${1:-}"
-    TARGET_DIR="${2:-}"
+    SITE_OUTPUT_ROOT="${1:-}"
+    TARGET_OUTPUT_REL="${2:-}"
     TEMPLATES_DIR="${3:-}"
     TEMPLATE="${4:-}"
-    [[ "${DEST_DIR}" == "" ]] && return 1
-    [[ "${TARGET_DIR}" == "" ]] && return 1
+    [[ "${SITE_OUTPUT_ROOT}" == "" ]] && return 1
+    [[ "${TARGET_OUTPUT_REL}" == "" ]] && return 1
     [[ "${TEMPLATES_DIR}" == "" ]] && return 1
     [[ "${TEMPLATE}" == "" ]] && return 1
     shift 4
@@ -2425,8 +2425,8 @@ function marsh_copy_template_assets {  # marsh_copy_template_assets dest_dir tar
     done
     TEMPLATE_ASSETS_PATH="${1:-}"
 
-    DEST_DIR="${DEST_DIR%/}"
-    TARGET_DIR="${TARGET_DIR%/}"
+    SITE_OUTPUT_ROOT="${SITE_OUTPUT_ROOT%/}"
+    TARGET_OUTPUT_REL="${TARGET_OUTPUT_REL%/}"
     TEMPLATE_ASSETS_PATH="${TEMPLATE_ASSETS_PATH#./}"
     TEMPLATE_ASSETS_PATH="${TEMPLATE_ASSETS_PATH#/}"
     TEMPLATE_ASSETS_PATH="${TEMPLATE_ASSETS_PATH%/}"
@@ -2451,38 +2451,38 @@ function marsh_copy_template_assets {  # marsh_copy_template_assets dest_dir tar
     TEMPLATE_ASSETS_ALL+=("${TEMPLATE_ASSETS_BINARIES[@]}")
     TEMPLATE_ASSETS_ALL+=("${TEMPLATE_ASSETS_OTHER[@]}")
 
-    ASSET_CACHE_DIR="${MARSH_TEMP}/asset-copy-cache"
-    mkdir -p "${ASSET_CACHE_DIR}" >/dev/null 2>&1 || {
-        echo "Unable to create asset copy cache directory: ${ASSET_CACHE_DIR}" >&2
+    ASSET_COPY_CACHE_DIR="${MARSH_TEMP}/asset-copy-cache"
+    mkdir -p "${ASSET_COPY_CACHE_DIR}" >/dev/null 2>&1 || {
+        echo "Unable to create asset copy cache directory: ${ASSET_COPY_CACHE_DIR}" >&2
         return 1
     }
 
     for ASSET in "${TEMPLATE_ASSETS_ALL[@]}"; do
         ASSET_PATH="${ASSET%\?*}"
-        ASSET_OUTPUT_PATH=$(marsh_resolve_template_asset_output_path "${TARGET_DIR:-.}" "${ASSET_PATH}" "${TEMPLATE_ASSETS_PATH}") || {
+        ASSET_OUTPUT_REL=$(marsh_resolve_template_asset_output_path "${TARGET_OUTPUT_REL:-.}" "${ASSET_PATH}" "${TEMPLATE_ASSETS_PATH}") || {
             echo "Invalid template asset output path: ${ASSET_PATH}" >&2
             return 1
         }
         ASSET_SOURCE="${TEMPLATES_DIR}/${TEMPLATE}/${ASSET_PATH}"
-        ASSET_DEST="${DEST_DIR}/${ASSET_OUTPUT_PATH}"
+        ASSET_DEST_PATH="${SITE_OUTPUT_ROOT}/${ASSET_OUTPUT_REL}"
         [[ -e "${ASSET_SOURCE}" ]] && [[ -r "${ASSET_SOURCE}" ]] || continue
-        ASSET_CACHE_KEY=$(printf '%s\034%s\n' "${ASSET_SOURCE}" "${ASSET_DEST}" | marsh_text_transform hash:md5)
-        ASSET_CACHE_FILE="${ASSET_CACHE_DIR}/${ASSET_CACHE_KEY}.copied"
-        [[ -e "${ASSET_CACHE_FILE}" ]] && continue
-        mkdir -p "${ASSET_DEST%/*}" || {
-            echo "Unable to create asset path: ${ASSET_DEST%/*}" >&2
+        ASSET_COPY_CACHE_KEY=$(printf '%s\034%s\n' "${ASSET_SOURCE}" "${ASSET_DEST_PATH}" | marsh_text_transform hash:md5)
+        ASSET_COPY_CACHE_FILE="${ASSET_COPY_CACHE_DIR}/${ASSET_COPY_CACHE_KEY}.copied"
+        [[ -e "${ASSET_COPY_CACHE_FILE}" ]] && continue
+        mkdir -p "${ASSET_DEST_PATH%/*}" || {
+            echo "Unable to create asset path: ${ASSET_DEST_PATH%/*}" >&2
             return 1
         }
-        rm -rf "${ASSET_DEST}" || {
-            echo "Unable to replace asset path: ${ASSET_DEST}" >&2
+        rm -rf "${ASSET_DEST_PATH}" || {
+            echo "Unable to replace asset path: ${ASSET_DEST_PATH}" >&2
             return 1
         }
-        cp -R "${ASSET_SOURCE}" "${ASSET_DEST}" || {
-            echo "Unable to copy asset: ${ASSET_SOURCE} -> ${ASSET_DEST}" >&2
+        cp -R "${ASSET_SOURCE}" "${ASSET_DEST_PATH}" || {
+            echo "Unable to copy asset: ${ASSET_SOURCE} -> ${ASSET_DEST_PATH}" >&2
             return 1
         }
-        : > "${ASSET_CACHE_FILE}" || {
-            echo "Unable to write asset cache file: ${ASSET_CACHE_FILE}" >&2
+        : > "${ASSET_COPY_CACHE_FILE}" || {
+            echo "Unable to write asset cache file: ${ASSET_COPY_CACHE_FILE}" >&2
             return 1
         }
     done
@@ -2725,14 +2725,14 @@ function marsh_get_target_output_path {  # marsh_get_target_output_path target_d
 
 # returns the temp work root for a target under MARSH_TEMP
 function marsh_get_target_temp_root {  # marsh_get_target_temp_root target_dir
-    local TARGET_DIR TARGET_OUTPUT_PATH TARGET_KEY
+    local TARGET_DIR TARGET_OUTPUT_REL TARGET_KEY
 
     TARGET_DIR="${1:-}"
     [[ "${TARGET_DIR}" == "" ]] && return 1
     [[ "${MARSH_TEMP:-}" != "" ]] || return 1
 
-    TARGET_OUTPUT_PATH=$(marsh_get_target_output_path "${TARGET_DIR}") || return 1
-    TARGET_KEY="${TARGET_OUTPUT_PATH#./}"
+    TARGET_OUTPUT_REL=$(marsh_get_target_output_path "${TARGET_DIR}") || return 1
+    TARGET_KEY="${TARGET_OUTPUT_REL#./}"
     [[ "${TARGET_KEY}" == "." ]] && TARGET_KEY=""
     TARGET_KEY="${TARGET_KEY:-root}"
 
@@ -3117,26 +3117,26 @@ function marsh_get_archive_page_source {  # marsh_get_archive_page_source archiv
 
 # returns output uri for an archive source path
 function marsh_get_archive_page_uri {  # marsh_get_archive_page_uri target_dir archive_source
-    local TARGET_DIR ARCHIVE_SOURCE TARGET_PATH URI
+    local TARGET_DIR ARCHIVE_SOURCE TARGET_OUTPUT_REL URI
 
     TARGET_DIR="${1:-}"
     ARCHIVE_SOURCE="${2:-}"
     [[ "${TARGET_DIR}" == "" ]] && return 1
     [[ "${ARCHIVE_SOURCE}" == "" ]] && return 1
 
-    TARGET_PATH=$(marsh_get_target_output_path "${TARGET_DIR}") || return 1
-    if [[ "${TARGET_PATH}" == "." ]]; then
+    TARGET_OUTPUT_REL=$(marsh_get_target_output_path "${TARGET_DIR}") || return 1
+    if [[ "${TARGET_OUTPUT_REL}" == "." ]]; then
         URI="${ARCHIVE_SOURCE}"
     else
-        URI="${TARGET_PATH}/${ARCHIVE_SOURCE}"
+        URI="${TARGET_OUTPUT_REL}/${ARCHIVE_SOURCE}"
     fi
     URI="${URI%.*}.html"
     marsh_get_absolute_output_path "${URI}" "document"
 }
 
 # writes a single archive source page and its page-local subdocuments
-function marsh_write_archive_page {  # marsh_write_archive_page encoding target_dir archive_source title language langcode paginated page page_total page_size page_subdocuments_total archive_subdocuments_total current_uri canonical_uri first_uri prev_uri next_uri last_uri current_href canonical_href first_href prev_href next_href last_href archive_root_path archive_root_href #documents[@] documents[@] document_uris[@] document_abspaths[@]
-    local ENCODING TARGET_DIR ARCHIVE_SOURCE DEST DEST_SOURCE DEST_TITLE LANGUAGE LANGCODE PAGINATED
+function marsh_write_archive_page {  # marsh_write_archive_page encoding target_output_root archive_source archive_title language langcode paginated page page_total page_size page_subdocuments_total archive_subdocuments_total current_uri canonical_uri first_uri prev_uri next_uri last_uri current_href canonical_href first_href prev_href next_href last_href archive_root_path archive_root_href #documents[@] documents[@] document_uris[@] document_abspaths[@]
+    local ENCODING TARGET_OUTPUT_ROOT ARCHIVE_SOURCE ARCHIVE_OUTPUT_SOURCE_PATH ARCHIVE_TEMP_SOURCE_FILE ARCHIVE_TITLE LANGUAGE LANGCODE PAGINATED
     local PAGE PAGE_TOTAL PAGE_SIZE PAGE_SUBDOCUMENTS_TOTAL ARCHIVE_SUBDOCUMENTS_TOTAL
     local PAGE_URI PAGE_CANONICAL_URI PAGE_FIRST_URI PAGE_PREV_URI PAGE_NEXT_URI PAGE_LAST_URI
     local PAGE_HREF PAGE_CANONICAL_HREF PAGE_FIRST_HREF PAGE_PREV_HREF PAGE_NEXT_HREF PAGE_LAST_HREF
@@ -3145,12 +3145,12 @@ function marsh_write_archive_page {  # marsh_write_archive_page encoding target_
     local PAGE_IS_FIRST PAGE_IS_LAST PAGE_HAS_PREV PAGE_HAS_NEXT PAGE_HAS_SUBDOCUMENTS
 
     ENCODING="${1:-}"
-    TARGET_DIR="${2:-}"
+    TARGET_OUTPUT_ROOT="${2:-}"
     ARCHIVE_SOURCE="${3:-}"
-    [[ "${TARGET_DIR}" == "" ]] && return 1
+    [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
     [[ "${ARCHIVE_SOURCE}" == "" ]] && return 1
     shift 3
-    DEST_TITLE="${1:-}"
+    ARCHIVE_TITLE="${1:-}"
     LANGUAGE="${2:-}"
     LANGCODE="${3:-}"
     PAGINATED="${4:-false}"
@@ -3198,8 +3198,8 @@ function marsh_write_archive_page {  # marsh_write_archive_page encoding target_
     done
 
     # page metadata
-    DEST="${TARGET_DIR}/${ARCHIVE_SOURCE}"
-    DEST_SOURCE=$(marsh_get_archive_temp_path "${TARGET_DIR}" "${ARCHIVE_SOURCE}" "source") || return 1
+    ARCHIVE_OUTPUT_SOURCE_PATH="${TARGET_OUTPUT_ROOT}/${ARCHIVE_SOURCE}"
+    ARCHIVE_TEMP_SOURCE_FILE=$(marsh_get_archive_temp_path "${TARGET_OUTPUT_ROOT}" "${ARCHIVE_SOURCE}" "source") || return 1
     PAGE_IS_FIRST=false
     PAGE_IS_LAST=false
     PAGE_HAS_PREV=false
@@ -3212,66 +3212,66 @@ function marsh_write_archive_page {  # marsh_write_archive_page encoding target_
     [[ "${PAGE_SUBDOCUMENTS_TOTAL}" -gt 0 ]] && PAGE_HAS_SUBDOCUMENTS=true
 
     # Keep final output directories present for later archive page publication.
-    mkdir -p "${DEST%/*}" >/dev/null 2>&1 || {
-        echo "Unable to create archive output directory: ${DEST%/*}" >&2
+    mkdir -p "${ARCHIVE_OUTPUT_SOURCE_PATH%/*}" >/dev/null 2>&1 || {
+        echo "Unable to create archive output directory: ${ARCHIVE_OUTPUT_SOURCE_PATH%/*}" >&2
         return 1
     }
 
-    mkdir -p "${DEST_SOURCE%/*}" >/dev/null 2>&1 || {
-        echo "Unable to create archive temp directory: ${DEST_SOURCE%/*}" >&2
+    mkdir -p "${ARCHIVE_TEMP_SOURCE_FILE%/*}" >/dev/null 2>&1 || {
+        echo "Unable to create archive temp directory: ${ARCHIVE_TEMP_SOURCE_FILE%/*}" >&2
         return 1
     }
-    rm -f "${DEST}" >/dev/null 2>&1 || {
-        echo "Unable to remove stale archive file: ${DEST}" >&2
+    rm -f "${ARCHIVE_OUTPUT_SOURCE_PATH}" >/dev/null 2>&1 || {
+        echo "Unable to remove stale archive file: ${ARCHIVE_OUTPUT_SOURCE_PATH}" >&2
         return 1
     }
 
     # write the generated archive source with page metadata
-    echo "---" > "${DEST_SOURCE}" 2>/dev/null || {
-        echo "Unable to write archive file: ${DEST_SOURCE}" >&2
+    echo "---" > "${ARCHIVE_TEMP_SOURCE_FILE}" 2>/dev/null || {
+        echo "Unable to write archive file: ${ARCHIVE_TEMP_SOURCE_FILE}" >&2
         return 1
     }
     if [[ "${ENCODING}" == "html" ]]; then
-        echo "Type: archive" >> "${DEST_SOURCE}"
+        echo "Type: archive" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
     else
-        echo "Type: archive-${ENCODING}" >> "${DEST_SOURCE}"
+        echo "Type: archive-${ENCODING}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
     fi
-    echo "Date: $(date -u '+%Y-%m-%d %H:%M:%S')" >> "${DEST_SOURCE}"
-    echo "Title: ${DEST_TITLE}" >> "${DEST_SOURCE}"
-    echo "Language: ${LANGUAGE}" >> "${DEST_SOURCE}"
-    echo "Language_Code: ${LANGCODE}" >> "${DEST_SOURCE}"
-    echo "Archive_Root_Path: ${ARCHIVE_ROOT_PATH}" >> "${DEST_SOURCE}"
-    echo "Archive_Root_Href: ${ARCHIVE_ROOT_HREF}" >> "${DEST_SOURCE}"
+    echo "Date: $(date -u '+%Y-%m-%d %H:%M:%S')" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+    echo "Title: ${ARCHIVE_TITLE}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+    echo "Language: ${LANGUAGE}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+    echo "Language_Code: ${LANGCODE}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+    echo "Archive_Root_Path: ${ARCHIVE_ROOT_PATH}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+    echo "Archive_Root_Href: ${ARCHIVE_ROOT_HREF}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
     if [[ "${ENCODING}" == "html" ]]; then
-        echo "Paginated: ${PAGINATED}" >> "${DEST_SOURCE}"
-        echo "Page: ${PAGE}" >> "${DEST_SOURCE}"
-        echo "Page_Total: ${PAGE_TOTAL}" >> "${DEST_SOURCE}"
-        echo "Page_Size: ${PAGE_SIZE}" >> "${DEST_SOURCE}"
-        echo "Page_Subdocuments_Total: ${PAGE_SUBDOCUMENTS_TOTAL}" >> "${DEST_SOURCE}"
-        echo "Archive_Subdocuments_Total: ${ARCHIVE_SUBDOCUMENTS_TOTAL}" >> "${DEST_SOURCE}"
-        echo "Page_Is_First: ${PAGE_IS_FIRST}" >> "${DEST_SOURCE}"
-        echo "Page_Is_Last: ${PAGE_IS_LAST}" >> "${DEST_SOURCE}"
-        echo "Page_Has_Prev: ${PAGE_HAS_PREV}" >> "${DEST_SOURCE}"
-        echo "Page_Has_Next: ${PAGE_HAS_NEXT}" >> "${DEST_SOURCE}"
-        echo "Page_Has_Subdocuments: ${PAGE_HAS_SUBDOCUMENTS}" >> "${DEST_SOURCE}"
-        echo "Page_URI: ${PAGE_URI}" >> "${DEST_SOURCE}"
-        echo "Page_Canonical_URI: ${PAGE_CANONICAL_URI}" >> "${DEST_SOURCE}"
-        echo "Page_First_URI: ${PAGE_FIRST_URI}" >> "${DEST_SOURCE}"
-        echo "Page_Prev_URI: ${PAGE_PREV_URI}" >> "${DEST_SOURCE}"
-        echo "Page_Next_URI: ${PAGE_NEXT_URI}" >> "${DEST_SOURCE}"
-        echo "Page_Last_URI: ${PAGE_LAST_URI}" >> "${DEST_SOURCE}"
-        echo "Page_Href: ${PAGE_HREF}" >> "${DEST_SOURCE}"
-        echo "Page_Canonical_Href: ${PAGE_CANONICAL_HREF}" >> "${DEST_SOURCE}"
-        echo "Page_First_Href: ${PAGE_FIRST_HREF}" >> "${DEST_SOURCE}"
-        echo "Page_Prev_Href: ${PAGE_PREV_HREF}" >> "${DEST_SOURCE}"
-        echo "Page_Next_Href: ${PAGE_NEXT_HREF}" >> "${DEST_SOURCE}"
-        echo "Page_Last_Href: ${PAGE_LAST_HREF}" >> "${DEST_SOURCE}"
+        echo "Paginated: ${PAGINATED}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+        echo "Page: ${PAGE}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+        echo "Page_Total: ${PAGE_TOTAL}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+        echo "Page_Size: ${PAGE_SIZE}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+        echo "Page_Subdocuments_Total: ${PAGE_SUBDOCUMENTS_TOTAL}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+        echo "Archive_Subdocuments_Total: ${ARCHIVE_SUBDOCUMENTS_TOTAL}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+        echo "Page_Is_First: ${PAGE_IS_FIRST}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+        echo "Page_Is_Last: ${PAGE_IS_LAST}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+        echo "Page_Has_Prev: ${PAGE_HAS_PREV}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+        echo "Page_Has_Next: ${PAGE_HAS_NEXT}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+        echo "Page_Has_Subdocuments: ${PAGE_HAS_SUBDOCUMENTS}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+        echo "Page_URI: ${PAGE_URI}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+        echo "Page_Canonical_URI: ${PAGE_CANONICAL_URI}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+        echo "Page_First_URI: ${PAGE_FIRST_URI}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+        echo "Page_Prev_URI: ${PAGE_PREV_URI}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+        echo "Page_Next_URI: ${PAGE_NEXT_URI}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+        echo "Page_Last_URI: ${PAGE_LAST_URI}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+        echo "Page_Href: ${PAGE_HREF}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+        echo "Page_Canonical_Href: ${PAGE_CANONICAL_HREF}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+        echo "Page_First_Href: ${PAGE_FIRST_HREF}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+        echo "Page_Prev_Href: ${PAGE_PREV_HREF}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+        echo "Page_Next_Href: ${PAGE_NEXT_HREF}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+        echo "Page_Last_Href: ${PAGE_LAST_HREF}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
     fi
-    echo "---" >> "${DEST_SOURCE}"
+    echo "---" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
 
     # create manifest of the subdocuments for this page
     if [[ "${#DOCUMENTS[@]}" -gt 0 ]]; then
-        MANIFEST_FILE=$(marsh_get_archive_temp_path "${TARGET_DIR}" "${ARCHIVE_SOURCE}" "subdocuments-manifest") || return 1
+        MANIFEST_FILE=$(marsh_get_archive_temp_path "${TARGET_OUTPUT_ROOT}" "${ARCHIVE_SOURCE}" "subdocuments-manifest") || return 1
         mkdir -p "${MANIFEST_FILE%/*}" >/dev/null 2>&1 || {
             echo "Unable to create archive manifest temp directory: ${MANIFEST_FILE%/*}" >&2
             return 1
@@ -3297,8 +3297,8 @@ function marsh_write_archive_page {  # marsh_write_archive_page encoding target_
 }
 
 # builds an archive of directory contents, sorted by descending date
-function marsh_build_archive {  # marsh_build_archive encoding target_dir dest_file dest_title language langcode count page_size #types[@] types[@] #excluded_states[@] excluded_states[@] archive_manifest archive_root_path
-    local ENCODING TARGET_DIR DEST DEST_TITLE LANGUAGE LANGCODE
+function marsh_build_archive {  # marsh_build_archive encoding target_output_root archive_source archive_title language langcode count page_size #types[@] types[@] #excluded_states[@] excluded_states[@] archive_manifest archive_root_path
+    local ENCODING TARGET_OUTPUT_ROOT ARCHIVE_SOURCE_REL ARCHIVE_TITLE LANGUAGE LANGCODE
     local COUNT PAGE_SIZE NUM_TYPES TYPES NUM_EXCLUDED_STATES EXCLUDED_STATES
     local VALID DOCUMENT TYPE STATE STATE_JOINED OIFS E
     local ARCHIVE_MANIFEST MANIFEST_DOCUMENT_ESC MANIFEST_TYPE_ESC MANIFEST_URI_ESC MANIFEST_ABSPATH_ESC MANIFEST_STATE_ESC
@@ -3306,21 +3306,21 @@ function marsh_build_archive {  # marsh_build_archive encoding target_dir dest_f
     local PAGINATED PAGE_TOTAL PAGE PAGE_START PAGE_END PAGE_INDEX PAGE_DOCUMENTS
     local PAGE_DOCUMENT_URIS PAGE_DOCUMENT_ABSPATHS PAGE_SUBDOCUMENTS_TOTAL
     local ARCHIVE_PAGES ARCHIVE_SUBDOCUMENTS_TOTAL
-    local PAGE_DEST PAGE_ALIAS_DEST PAGE_ROOT
+    local PAGE_ARCHIVE_SOURCE_REL PAGE_ALIAS_ARCHIVE_SOURCE_REL PAGE_ROOT
     local PAGE_URI PAGE_CANONICAL_URI PAGE_FIRST_URI PAGE_PREV_URI PAGE_NEXT_URI PAGE_LAST_URI
     local PAGE_HREF PAGE_CANONICAL_HREF PAGE_FIRST_HREF PAGE_PREV_HREF PAGE_NEXT_HREF PAGE_LAST_HREF
-    local PAGE_PREV_DEST PAGE_NEXT_DEST PAGE_LAST_DEST
+    local PAGE_PREV_ARCHIVE_SOURCE_REL PAGE_NEXT_ARCHIVE_SOURCE_REL PAGE_LAST_ARCHIVE_SOURCE_REL
     local PAGE_OUTPUT_PATH PAGE_CANONICAL_OUTPUT_PATH PAGE_FIRST_OUTPUT_PATH PAGE_PREV_OUTPUT_PATH PAGE_NEXT_OUTPUT_PATH PAGE_LAST_OUTPUT_PATH PAGE_BASE_PATH
     local ARCHIVE_ROOT_PATH PAGE_ARCHIVE_ROOT_HREF
 
     # init
     ENCODING="${1:-html}"
-    TARGET_DIR="${2:-}"
-    DEST="${3:-}"
-    [[ "${TARGET_DIR}" == "" ]] && return 1
-    [[ "${DEST}" == "" ]] && return 1
+    TARGET_OUTPUT_ROOT="${2:-}"
+    ARCHIVE_SOURCE_REL="${3:-}"
+    [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
+    [[ "${ARCHIVE_SOURCE_REL}" == "" ]] && return 1
     shift 3
-    DEST_TITLE="${1:-}"
+    ARCHIVE_TITLE="${1:-}"
     LANGUAGE="${2:-}"
     LANGCODE="${3:-}"
     shift 3
@@ -3347,7 +3347,7 @@ function marsh_build_archive {  # marsh_build_archive encoding target_dir dest_f
     ARCHIVE_ROOT_PATH="${2:-}"
 
     if [[ "${ARCHIVE_ROOT_PATH}" == "" ]]; then
-        ARCHIVE_ROOT_PATH=$(marsh_get_archive_root_path "${DEST}") || return 1
+        ARCHIVE_ROOT_PATH=$(marsh_get_archive_root_path "${ARCHIVE_SOURCE_REL}") || return 1
     else
         ARCHIVE_ROOT_PATH=$(marsh_normalize_path "${ARCHIVE_ROOT_PATH}" "directory") || return 1
     fi
@@ -3362,9 +3362,9 @@ function marsh_build_archive {  # marsh_build_archive encoding target_dir dest_f
     PAGINATED=false
     if [[ "${ENCODING}" == "html" ]] && [[ "${PAGE_SIZE}" =~ ^[0-9]+$ ]] && [[ "${PAGE_SIZE}" -gt 0 ]]; then
         PAGINATED=true
-        PAGE_ROOT=$(marsh_get_archive_page_root "${DEST}") || return 1
-        rm -rf "${TARGET_DIR}/${PAGE_ROOT}" >/dev/null 2>&1 || {
-            echo "Unable to clean paginated archive path: ${TARGET_DIR}/${PAGE_ROOT}" >&2
+        PAGE_ROOT=$(marsh_get_archive_page_root "${ARCHIVE_SOURCE_REL}") || return 1
+        rm -rf "${TARGET_OUTPUT_ROOT}/${PAGE_ROOT}" >/dev/null 2>&1 || {
+            echo "Unable to clean paginated archive path: ${TARGET_OUTPUT_ROOT}/${PAGE_ROOT}" >&2
             return 1
         }
     else
@@ -3377,7 +3377,7 @@ function marsh_build_archive {  # marsh_build_archive encoding target_dir dest_f
     VALID_DOCUMENT_URIS=()
     VALID_DOCUMENT_ABSPATHS=()
     if [[ "${ARCHIVE_MANIFEST}" == "" ]]; then
-        ARCHIVE_MANIFEST=$(marsh_get_archive_manifest "${TARGET_DIR}") || return 1
+        ARCHIVE_MANIFEST=$(marsh_get_archive_manifest "${TARGET_OUTPUT_ROOT}") || return 1
     fi
     while IFS=$'\t' read -r MANIFEST_DOCUMENT_ESC MANIFEST_TYPE_ESC MANIFEST_URI_ESC MANIFEST_ABSPATH_ESC MANIFEST_STATE_ESC; do
         [[ "${MANIFEST_DOCUMENT_ESC}" == "" ]] && continue
@@ -3429,14 +3429,14 @@ function marsh_build_archive {  # marsh_build_archive encoding target_dir dest_f
         PAGE_TOTAL=$(( (ARCHIVE_SUBDOCUMENTS_TOTAL + PAGE_SIZE - 1) / PAGE_SIZE ))
         [[ "${PAGE_TOTAL}" -lt 1 ]] && PAGE_TOTAL=1
     fi
-    PAGE_CANONICAL_URI=$(marsh_get_archive_page_uri "${TARGET_DIR}" "${DEST}") || return 1
+    PAGE_CANONICAL_URI=$(marsh_get_archive_page_uri "${TARGET_OUTPUT_ROOT}" "${ARCHIVE_SOURCE_REL}") || return 1
     PAGE_FIRST_URI="${PAGE_CANONICAL_URI}"
-    PAGE_CANONICAL_OUTPUT_PATH="${DEST%.*}.html"
+    PAGE_CANONICAL_OUTPUT_PATH="${ARCHIVE_SOURCE_REL%.*}.html"
     PAGE_FIRST_OUTPUT_PATH="${PAGE_CANONICAL_OUTPUT_PATH}"
     if [[ "${PAGINATED}" == true ]] && [[ "${PAGE_TOTAL}" -gt 1 ]]; then
-        PAGE_LAST_DEST=$(marsh_get_archive_page_source "${DEST}" "${PAGE_TOTAL}") || return 1
-        PAGE_LAST_URI=$(marsh_get_archive_page_uri "${TARGET_DIR}" "${PAGE_LAST_DEST}") || return 1
-        PAGE_LAST_OUTPUT_PATH="${PAGE_LAST_DEST%.*}.html"
+        PAGE_LAST_ARCHIVE_SOURCE_REL=$(marsh_get_archive_page_source "${ARCHIVE_SOURCE_REL}" "${PAGE_TOTAL}") || return 1
+        PAGE_LAST_URI=$(marsh_get_archive_page_uri "${TARGET_OUTPUT_ROOT}" "${PAGE_LAST_ARCHIVE_SOURCE_REL}") || return 1
+        PAGE_LAST_OUTPUT_PATH="${PAGE_LAST_ARCHIVE_SOURCE_REL%.*}.html"
     else
         PAGE_LAST_URI="${PAGE_CANONICAL_URI}"
         PAGE_LAST_OUTPUT_PATH="${PAGE_CANONICAL_OUTPUT_PATH}"
@@ -3463,12 +3463,12 @@ function marsh_build_archive {  # marsh_build_archive encoding target_dir dest_f
         PAGE_SUBDOCUMENTS_TOTAL="${#PAGE_DOCUMENTS[@]}"
 
         if [[ "${PAGINATED}" == true ]] && [[ "${PAGE}" -gt 1 ]]; then
-            PAGE_DEST=$(marsh_get_archive_page_source "${DEST}" "${PAGE}") || return 1
+            PAGE_ARCHIVE_SOURCE_REL=$(marsh_get_archive_page_source "${ARCHIVE_SOURCE_REL}" "${PAGE}") || return 1
         else
-            PAGE_DEST="${DEST}"
+            PAGE_ARCHIVE_SOURCE_REL="${ARCHIVE_SOURCE_REL}"
         fi
-        PAGE_URI=$(marsh_get_archive_page_uri "${TARGET_DIR}" "${PAGE_DEST}") || return 1
-        PAGE_OUTPUT_PATH="${PAGE_DEST%.*}.html"
+        PAGE_URI=$(marsh_get_archive_page_uri "${TARGET_OUTPUT_ROOT}" "${PAGE_ARCHIVE_SOURCE_REL}") || return 1
+        PAGE_OUTPUT_PATH="${PAGE_ARCHIVE_SOURCE_REL%.*}.html"
         PAGE_BASE_PATH="./${PAGE_OUTPUT_PATH}"
         PAGE_BASE_PATH="${PAGE_BASE_PATH%/*}"
         PAGE_BASE_PATH="${PAGE_BASE_PATH#./}"
@@ -3480,17 +3480,17 @@ function marsh_build_archive {  # marsh_build_archive encoding target_dir dest_f
         PAGE_NEXT_OUTPUT_PATH=""
         if [[ "${PAGE}" -gt 1 ]]; then
             if [[ "${PAGE}" -eq 2 ]]; then
-                PAGE_PREV_DEST="${DEST}"
+                PAGE_PREV_ARCHIVE_SOURCE_REL="${ARCHIVE_SOURCE_REL}"
             else
-                PAGE_PREV_DEST=$(marsh_get_archive_page_source "${DEST}" "$((PAGE - 1))") || return 1
+                PAGE_PREV_ARCHIVE_SOURCE_REL=$(marsh_get_archive_page_source "${ARCHIVE_SOURCE_REL}" "$((PAGE - 1))") || return 1
             fi
-            PAGE_PREV_URI=$(marsh_get_archive_page_uri "${TARGET_DIR}" "${PAGE_PREV_DEST}") || return 1
-            PAGE_PREV_OUTPUT_PATH="${PAGE_PREV_DEST%.*}.html"
+            PAGE_PREV_URI=$(marsh_get_archive_page_uri "${TARGET_OUTPUT_ROOT}" "${PAGE_PREV_ARCHIVE_SOURCE_REL}") || return 1
+            PAGE_PREV_OUTPUT_PATH="${PAGE_PREV_ARCHIVE_SOURCE_REL%.*}.html"
         fi
         if [[ "${PAGE}" -lt "${PAGE_TOTAL}" ]]; then
-            PAGE_NEXT_DEST=$(marsh_get_archive_page_source "${DEST}" "$((PAGE + 1))") || return 1
-            PAGE_NEXT_URI=$(marsh_get_archive_page_uri "${TARGET_DIR}" "${PAGE_NEXT_DEST}") || return 1
-            PAGE_NEXT_OUTPUT_PATH="${PAGE_NEXT_DEST%.*}.html"
+            PAGE_NEXT_ARCHIVE_SOURCE_REL=$(marsh_get_archive_page_source "${ARCHIVE_SOURCE_REL}" "$((PAGE + 1))") || return 1
+            PAGE_NEXT_URI=$(marsh_get_archive_page_uri "${TARGET_OUTPUT_ROOT}" "${PAGE_NEXT_ARCHIVE_SOURCE_REL}") || return 1
+            PAGE_NEXT_OUTPUT_PATH="${PAGE_NEXT_ARCHIVE_SOURCE_REL%.*}.html"
         fi
         PAGE_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${PAGE_OUTPUT_PATH}") || return 1
         PAGE_CANONICAL_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${PAGE_CANONICAL_OUTPUT_PATH}") || return 1
@@ -3504,9 +3504,9 @@ function marsh_build_archive {  # marsh_build_archive encoding target_dir dest_f
 
         marsh_write_archive_page \
             "${ENCODING}" \
-            "${TARGET_DIR}" \
-            "${PAGE_DEST}" \
-            "${DEST_TITLE}" \
+            "${TARGET_OUTPUT_ROOT}" \
+            "${PAGE_ARCHIVE_SOURCE_REL}" \
+            "${ARCHIVE_TITLE}" \
             "${LANGUAGE}" \
             "${LANGCODE}" \
             "${PAGINATED}" \
@@ -3533,12 +3533,12 @@ function marsh_build_archive {  # marsh_build_archive encoding target_dir dest_f
             "${PAGE_DOCUMENTS[@]}" \
             "${PAGE_DOCUMENT_URIS[@]}" \
             "${PAGE_DOCUMENT_ABSPATHS[@]}" || return 1
-        ARCHIVE_PAGES+=("${PAGE_DEST}")
+        ARCHIVE_PAGES+=("${PAGE_ARCHIVE_SOURCE_REL}")
 
         if [[ "${PAGINATED}" == true ]] && [[ "${PAGE}" -eq 1 ]]; then
-            PAGE_ALIAS_DEST=$(marsh_get_archive_page_source "${DEST}" '1') || return 1
-            PAGE_URI=$(marsh_get_archive_page_uri "${TARGET_DIR}" "${PAGE_ALIAS_DEST}") || return 1
-            PAGE_OUTPUT_PATH="${PAGE_ALIAS_DEST%.*}.html"
+            PAGE_ALIAS_ARCHIVE_SOURCE_REL=$(marsh_get_archive_page_source "${ARCHIVE_SOURCE_REL}" '1') || return 1
+            PAGE_URI=$(marsh_get_archive_page_uri "${TARGET_OUTPUT_ROOT}" "${PAGE_ALIAS_ARCHIVE_SOURCE_REL}") || return 1
+            PAGE_OUTPUT_PATH="${PAGE_ALIAS_ARCHIVE_SOURCE_REL%.*}.html"
             PAGE_BASE_PATH="./${PAGE_OUTPUT_PATH}"
             PAGE_BASE_PATH="${PAGE_BASE_PATH%/*}"
             PAGE_BASE_PATH="${PAGE_BASE_PATH#./}"
@@ -3553,9 +3553,9 @@ function marsh_build_archive {  # marsh_build_archive encoding target_dir dest_f
             PAGE_ARCHIVE_ROOT_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${ARCHIVE_ROOT_PATH}") || return 1
             marsh_write_archive_page \
                 "${ENCODING}" \
-                "${TARGET_DIR}" \
-                "${PAGE_ALIAS_DEST}" \
-                "${DEST_TITLE}" \
+                "${TARGET_OUTPUT_ROOT}" \
+                "${PAGE_ALIAS_ARCHIVE_SOURCE_REL}" \
+                "${ARCHIVE_TITLE}" \
                 "${LANGUAGE}" \
                 "${LANGCODE}" \
                 "${PAGINATED}" \
@@ -3582,7 +3582,7 @@ function marsh_build_archive {  # marsh_build_archive encoding target_dir dest_f
                 "${PAGE_DOCUMENTS[@]}" \
                 "${PAGE_DOCUMENT_URIS[@]}" \
                 "${PAGE_DOCUMENT_ABSPATHS[@]}" || return 1
-            ARCHIVE_PAGES+=("${PAGE_ALIAS_DEST}")
+            ARCHIVE_PAGES+=("${PAGE_ALIAS_ARCHIVE_SOURCE_REL}")
         fi
     done
 

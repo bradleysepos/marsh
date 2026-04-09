@@ -4159,10 +4159,8 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
     DEST="${DEST_DIR}/${DOCUMENT_OUTPUT_PATH}"
     DEST_FINAL="${DEST}"
     DOCUMENT="${DOCUMENT_SOURCE_PATH}"
-    DOCUMENT_SOURCE_FILE="${DOCUMENT_SOURCE_PATH}"
-    # prefer source tree for ordinary documents; keep output tree fallback for now
-    # todo: remove the ordinary document output tree source fallback once direct build/template paths
-    # no longer rely on uncached target sources
+    DOCUMENT_SOURCE_FILE=""
+    # prefer source tree for ordinary documents
     TARGET_SOURCE_ROOT=$(marsh_get_target_source_root_path "${TARGET_PATH}" 2>/dev/null) || TARGET_SOURCE_ROOT=""
     if [[ -f "${TARGET_SOURCE_ROOT}/${DOCUMENT_REL_PATH}" ]] && [[ -r "${TARGET_SOURCE_ROOT}/${DOCUMENT_REL_PATH}" ]]; then
         DOCUMENT_SOURCE_FILE="${TARGET_SOURCE_ROOT}/${DOCUMENT_REL_PATH}"
@@ -4203,15 +4201,26 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
     echo "  ${DEST_PRINT}"
 
     # document content and metadata
-    # TODO: remove output-adjacent fallback when template builds always get document artifacts from MARSH_TEMP
-    DOCUMENT_CONTENT=$(marsh_get_document_temp_path "${TARGET_PATH}" "${DOCUMENT_REL_PATH}" "content" 2>/dev/null) || DOCUMENT_CONTENT=""
-    DOCUMENT_META_PATH=$(marsh_get_document_temp_path "${TARGET_PATH}" "${DOCUMENT_REL_PATH}" "meta-yaml" 2>/dev/null) || DOCUMENT_META_PATH=""
-    if [[ ! -f "${DOCUMENT_CONTENT}" ]] || [[ ! -r "${DOCUMENT_CONTENT}" ]]; then
-        DOCUMENT_CONTENT="${DOCUMENT}.${MARSH_UID}.document"
-        DOCUMENT_META_PATH="${DOCUMENT}.${MARSH_UID}.meta.yaml"
-    fi
+    DOCUMENT_CONTENT=$(marsh_get_document_temp_path "${TARGET_PATH}" "${DOCUMENT_REL_PATH}" "content") || return 1
+    DOCUMENT_META_PATH=$(marsh_get_document_temp_path "${TARGET_PATH}" "${DOCUMENT_REL_PATH}" "meta-yaml") || return 1
     if [[ ! -e "${DOCUMENT_CONTENT}" ]]; then
+        if [[ "${DOCUMENT_SOURCE_FILE}" == "" ]] && [[ "${TARGET_SOURCE_ROOT}" == "" ]]; then
+            echo "Document source root not found for target: ${TARGET_PATH}" >&2
+            return 1
+        fi
+        if [[ ! -f "${DOCUMENT_SOURCE_FILE}" ]] || [[ ! -r "${DOCUMENT_SOURCE_FILE}" ]]; then
+            if [[ "${TARGET_SOURCE_ROOT}" != "" ]]; then
+                echo "Document source not found: ${TARGET_SOURCE_ROOT}/${DOCUMENT_REL_PATH}" >&2
+            else
+                echo "Document source not found: ${DOCUMENT}" >&2
+            fi
+            return 1
+        fi
         if marsh_has_frontmatter "${DOCUMENT_SOURCE_FILE}"; then
+            mkdir -p "${DOCUMENT_CONTENT%/*}" >/dev/null 2>&1 || {
+                echo "Unable to create document temp directory: ${DOCUMENT_CONTENT%/*}" >&2
+                return 1
+            }
             marsh_extract_frontmatter "${DOCUMENT_SOURCE_FILE}" "${DOCUMENT_META_PATH}" "${DOCUMENT_CONTENT}" || {
                 echo "Unable to extract document frontmatter: ${DOCUMENT_SOURCE_FILE}" >&2
                 return 1
@@ -4784,7 +4793,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
 function marsh_build_document {  # marsh_build_document dest_dir target_dir document markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links
     local DEST_DIR TARGET_DIR DOCUMENT DOCUMENT_EXT DOCUMENT_DIR TEXT_TRANSFORM
     local MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_REWRITE_LINKS
-    local TARGET_PATH DOCUMENT_PATH TARGET_SOURCE_ROOT ARCHIVE_SOURCE_PATH DOCUMENT_REL_TO_SITE DOCUMENT_ARTIFACT_ROOT DOCUMENT_META DOCUMENT_META_CACHE DOCUMENT_CONTENT ARCHIVE_META ARCHIVE_META_TEMP DOCUMENT_OUTPUT_PATH DOCUMENT_SOURCE_PATH DOCUMENT_BASE_PATH TARGET_BUILD_PATH
+    local TARGET_PATH DOCUMENT_PATH DOCUMENT_SOURCE_DIR TARGET_SOURCE_ROOT ARCHIVE_SOURCE_PATH DOCUMENT_REL_TO_SITE DOCUMENT_ARTIFACT_ROOT DOCUMENT_META DOCUMENT_META_CACHE DOCUMENT_CONTENT ARCHIVE_META ARCHIVE_META_TEMP DOCUMENT_OUTPUT_PATH DOCUMENT_SOURCE_PATH DOCUMENT_BASE_PATH TARGET_BUILD_PATH
 
     # init
     DEST_DIR="${1:-.}"
@@ -4801,12 +4810,9 @@ function marsh_build_document {  # marsh_build_document dest_dir target_dir docu
     [[ "${MARKDOWN_FILEEXT_CSV}" == "" ]] && return 1
     [[ "${MARKDOWN_REWRITE_LINKS}" == "" ]] && return 1
     eval "$(marsh_get_target_document_paths "${DOCUMENT}" "${DEST_DIR}" "${TARGET_DIR}" "${MARKDOWN_FILEEXT_CSV}")" || return 1
-    DOCUMENT_PATH="${DOCUMENT_SOURCE_PATH}"
+    DOCUMENT_PATH=""
     DOCUMENT_REL_TO_SITE="${DOCUMENT_SOURCE_PATH#${DEST_DIR%/}/}"
     TARGET_BUILD_PATH=$(marsh_get_target_directory_path "${TARGET_PATH}") || return 1
-    # prefer source tree for ordinary documents; keep output tree fallback for now
-    # todo: remove the ordinary document output tree source fallback once direct build/template paths
-    # no longer rely on uncached target sources
     TARGET_SOURCE_ROOT=$(marsh_get_target_source_root_path "${TARGET_BUILD_PATH}" 2>/dev/null) || TARGET_SOURCE_ROOT=""
     if [[ -f "${TARGET_SOURCE_ROOT}/${DOCUMENT}" ]] && [[ -r "${TARGET_SOURCE_ROOT}/${DOCUMENT}" ]]; then
         DOCUMENT_PATH="${TARGET_SOURCE_ROOT}/${DOCUMENT}"
@@ -4817,15 +4823,25 @@ function marsh_build_document {  # marsh_build_document dest_dir target_dir docu
             DOCUMENT_PATH="${ARCHIVE_SOURCE_PATH}"
         fi
     fi
+    if [[ "${DOCUMENT_PATH}" == "" ]] && [[ "${TARGET_SOURCE_ROOT}" == "" ]]; then
+        echo "Document source root not found for target: ${TARGET_BUILD_PATH}" >&2
+        return 1
+    fi
     DOCUMENT_ARTIFACT_ROOT=$(marsh_get_document_temp_path "${TARGET_BUILD_PATH}" "${DOCUMENT}" "root") || return 1
     DOCUMENT_META=$(marsh_get_document_temp_path "${TARGET_BUILD_PATH}" "${DOCUMENT}" "meta-yaml") || return 1
     DOCUMENT_META_CACHE=$(marsh_get_document_temp_path "${TARGET_BUILD_PATH}" "${DOCUMENT}" "meta") || return 1
     DOCUMENT_CONTENT=$(marsh_get_document_temp_path "${TARGET_BUILD_PATH}" "${DOCUMENT}" "content") || return 1
     ARCHIVE_META=$(marsh_get_document_temp_path "${TARGET_BUILD_PATH}" "${DOCUMENT}" "archive-meta") || return 1
     [[ -f "${DOCUMENT_PATH}" ]] && [[ -r "${DOCUMENT_PATH}" ]] || {
-        echo "Document source not found: ${DOCUMENT_PATH}" >&2
+        if [[ "${TARGET_SOURCE_ROOT}" != "" ]]; then
+            echo "Document source not found: ${TARGET_SOURCE_ROOT}/${DOCUMENT}" >&2
+        else
+            echo "Document source not found: ${DOCUMENT}" >&2
+        fi
         return 1
     }
+    DOCUMENT_SOURCE_DIR="${DOCUMENT_PATH%/*}"
+    [[ "${DOCUMENT_SOURCE_DIR}" == "${DOCUMENT_PATH}" ]] && DOCUMENT_SOURCE_DIR='.'
     mkdir -p "${DOCUMENT_ARTIFACT_ROOT}" >/dev/null 2>&1 || {
         echo "Unable to create document temp directory: ${DOCUMENT_ARTIFACT_ROOT}" >&2
         return 1
@@ -4876,7 +4892,7 @@ function marsh_build_document {  # marsh_build_document dest_dir target_dir docu
         sed -E \
         -e 's|<p><figure>|<figure>|' \
         -e 's|</figure></p>|</figure>|' |
-        awk -v document_dir_prefix="${TARGET_PATH}/${DOCUMENT_DIR}/" '
+        awk -v document_dir_prefix="${DOCUMENT_SOURCE_DIR}/" '
         {
             if ($0 ~ " src=\"[^\"]+\"")
             {
@@ -4993,7 +5009,7 @@ function marsh_build_target {  # marsh_build_target dest_dir target jobs sitemap
     local DEST_DIR TARGET JOBS SITEMAP TEMPLATES_DIR TEMPLATE SITEMAP_SEARCH
     local MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_FILEEXT_REGEX MARKDOWN_REWRITE_LINKS
     local NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDES SKIP_TEMPLATE_ASSETS TEMPLATE_ASSETS_PATH
-    local TARGET_DIR TEMPLATE_PREFIX DOCUMENTS DOCUMENTS_DIR DOCUMENTS_FIND_ARGS FILTERED_DOCUMENTS DOCUMENT
+    local TARGET_DIR TEMPLATE_PREFIX DOCUMENTS FILTERED_DOCUMENTS DOCUMENT
     local TARGET_SCOPE TARGET_BUILD_PATH TARGET_SOURCE_ROOT SOURCE_DOCUMENT TARGET_IS_DIRECTORY_SCOPE SOURCE_MATCHES_TARGET
     local PARALLEL PARALLEL_MARKDOWN
 
@@ -5082,28 +5098,6 @@ function marsh_build_target {  # marsh_build_target dest_dir target jobs sitemap
             fi
             DOCUMENTS+=("${SOURCE_DOCUMENT}")
         done < <(cd "${TARGET_SOURCE_ROOT}" && find . -type f)
-    else
-        # todo: remove this ordinary output-tree discovery fallback in Phase 7B
-        # once direct marsh_build_target callers always provide a cached source root.
-        DOCUMENTS_DIR="${DEST_DIR}/${TARGET_DIR}"
-        DOCUMENTS_FIND_ARGS=()
-        if [[ "${TARGET}" == '*' ]]; then
-            DOCUMENTS_FIND_ARGS=(*)
-        elif [[ -d "${DEST_DIR}/${TARGET}" ]]; then
-            if [[ "${TARGET}" == "." ]]; then
-                DOCUMENTS_DIR="${DEST_DIR}"
-                DOCUMENTS_FIND_ARGS=(.)
-            else
-                DOCUMENTS_DIR="${DEST_DIR}/${TARGET}"
-                DOCUMENTS_FIND_ARGS=(.)
-            fi
-        else
-            DOCUMENTS_FIND_ARGS=("${TARGET##*/}")
-        fi
-        while IFS= read -r DOCUMENT; do
-            [[ "${DOCUMENT}" == "" ]] && continue
-            DOCUMENTS+=("${DOCUMENT}")
-        done < <(cd "${DOCUMENTS_DIR}" && find "${DOCUMENTS_FIND_ARGS[@]}")
     fi
     # todo: remove this fallback once archive source discovery no longer depends on
     # output tree probing through marsh_build_target

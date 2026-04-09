@@ -335,6 +335,19 @@ function marsh_test_write_document_artifacts {
     printf '%s\n' "$@" > "${FILE}" || return 1
 }
 
+function marsh_test_write_target_source_root {
+    local TARGET_DIR SOURCE_ROOT TARGET_SOURCE_ROOT_FILE
+
+    TARGET_DIR="${1:-}"
+    SOURCE_ROOT="${2:-}"
+    [[ "${TARGET_DIR}" == "" ]] && return 1
+    [[ "${SOURCE_ROOT}" == "" ]] && return 1
+
+    TARGET_SOURCE_ROOT_FILE="$(marsh_get_target_temp_root "${TARGET_DIR}")/source-root" || return 1
+    mkdir -p "${TARGET_SOURCE_ROOT_FILE%/*}" || return 1
+    printf '%s\n' "${SOURCE_ROOT}" > "${TARGET_SOURCE_ROOT_FILE}" || return 1
+}
+
 function marsh_test_set_env {
     local RUN_UID USE_TEMP USE_CONFIG
 
@@ -793,8 +806,11 @@ function marsh_test {
         marsh_build_document:0)
             TEST_NAME+=":metadata_cache"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
             marsh_test_set_env "documentbuilduid" true true
-            mkdir -p "${TARGET_DIR}"
+            TARGET_SOURCE_ROOT_FILE="$(marsh_get_target_temp_root "${TARGET_DIR}")/source-root"
+            mkdir -p "${SOURCE_ROOT}" "${TARGET_SOURCE_ROOT_FILE%/*}"
+            printf '%s\n' "${SOURCE_ROOT}" > "${TARGET_SOURCE_ROOT_FILE}"
             printf '%s\n' \
                 '---' \
                 'Type: page' \
@@ -802,7 +818,7 @@ function marsh_test {
                 'Project: Sample Site' \
                 '...' \
                 '' \
-                '# Example' > "${TARGET_DIR}/index.markdown"
+                '# Example' > "${SOURCE_ROOT}/index.markdown"
             marsh_build_document "${TARGET_DIR}" "." "index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
@@ -837,15 +853,18 @@ function marsh_test {
                     fi
                 fi
             fi
-            rm -rf "${TARGET_DIR}"
+            rm -rf "${TARGET_DIR}" "${SOURCE_ROOT}"
             marsh_test_restore_env
             ;;
         marsh_build_document:1)
             TEST_NAME+=":without_frontmatter"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
             marsh_test_set_env "documentbuilduid" true true
-            mkdir -p "${TARGET_DIR}"
-            printf '%s\n' '# Example' > "${TARGET_DIR}/index.markdown"
+            TARGET_SOURCE_ROOT_FILE="$(marsh_get_target_temp_root "${TARGET_DIR}")/source-root"
+            mkdir -p "${SOURCE_ROOT}" "${TARGET_SOURCE_ROOT_FILE%/*}"
+            printf '%s\n' "${SOURCE_ROOT}" > "${TARGET_SOURCE_ROOT_FILE}"
+            printf '%s\n' '# Example' > "${SOURCE_ROOT}/index.markdown"
             marsh_build_document "${TARGET_DIR}" "." "index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
@@ -874,17 +893,17 @@ function marsh_test {
                     fi
                 fi
             fi
-            rm -rf "${TARGET_DIR}"
+            rm -rf "${TARGET_DIR}" "${SOURCE_ROOT}"
             marsh_test_restore_env
             ;;
         marsh_build_document:2)
             TEST_NAME+=":source_root_fallback"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
             marsh_test_set_env "documentbuilduid" true true
-            mkdir -p "${TARGET_DIR}"
             SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
             TARGET_SOURCE_ROOT_FILE="$(marsh_get_target_temp_root "${TARGET_DIR}")/source-root"
             mkdir -p "${SOURCE_ROOT}" "${TARGET_SOURCE_ROOT_FILE%/*}"
+            printf '%s\n' "${SOURCE_ROOT}" > "${TARGET_SOURCE_ROOT_FILE}"
             printf '%s\n' \
                 '---' \
                 'Type: page' \
@@ -892,7 +911,6 @@ function marsh_test {
                 '...' \
                 '' \
                 '# Example' > "${SOURCE_ROOT}/index.markdown"
-            printf '%s\n' "${SOURCE_ROOT}" > "${TARGET_SOURCE_ROOT_FILE}"
             marsh_build_document "${TARGET_DIR}" "." "index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
@@ -929,9 +947,9 @@ function marsh_test {
             mkdir -p "${TARGET_DIR}" "${SOURCE_ROOT}"
             TARGET_SOURCE_ROOT_FILE="$(marsh_get_target_temp_root "${TARGET_DIR}")/source-root"
             mkdir -p "${TARGET_SOURCE_ROOT_FILE%/*}"
+            printf '%s\n' "${SOURCE_ROOT}" > "${TARGET_SOURCE_ROOT_FILE}"
             printf '%s\n' '---' 'Title: Stale' '...' '' '# Stale' > "${TARGET_DIR}/index.markdown"
             printf '%s\n' '---' 'Title: Fresh' '...' '' '# Fresh' > "${SOURCE_ROOT}/index.markdown"
-            printf '%s\n' "${SOURCE_ROOT}" > "${TARGET_SOURCE_ROOT_FILE}"
             marsh_build_document "${TARGET_DIR}" "." "index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
@@ -954,19 +972,73 @@ function marsh_test {
             rm -rf "${TARGET_DIR}" "${SOURCE_ROOT}"
             marsh_test_restore_env
             ;;
+        marsh_build_document:4)
+            TEST_NAME+=":missing_source_root"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            marsh_test_set_env "documentbuilduid" true true
+            mkdir -p "${TARGET_DIR}"
+            printf '%s\n' '---' 'Title: Example' '...' '' '# Example' > "${TARGET_DIR}/index.markdown"
+            marsh_build_document "${TARGET_DIR}" "." "index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" >/dev/null 2>&1
+            ACTUAL=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                CONTENT_FILE=$(marsh_get_document_temp_path "${TARGET_DIR}" "index.markdown" "content")
+                [[ ! -e "${CONTENT_FILE}" ]]
+                ACTUAL=$?
+                EXPECTED=0
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${TARGET_DIR}"
+            marsh_test_restore_env
+            ;;
+        marsh_build_document:5)
+            TEST_NAME+=":srcset_uses_source_root_image_variants"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
+            marsh_test_set_env "documentbuilduid" true true
+            TARGET_SOURCE_ROOT_FILE="$(marsh_get_target_temp_root "${TARGET_DIR}")/source-root"
+            mkdir -p "${SOURCE_ROOT}/images" "${TARGET_SOURCE_ROOT_FILE%/*}"
+            printf '%s\n' "${SOURCE_ROOT}" > "${TARGET_SOURCE_ROOT_FILE}"
+            printf '%s\n' '<img src="images/example.png" />' > "${SOURCE_ROOT}/index.markdown"
+            printf '%s\n' 'base' > "${SOURCE_ROOT}/images/example.png"
+            printf '%s\n' '2x' > "${SOURCE_ROOT}/images/example@2x.png"
+            printf '%s\n' '3x' > "${SOURCE_ROOT}/images/example@3x.png"
+            marsh_build_document "${TARGET_DIR}" "." "index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" >/dev/null 2>&1
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            CONTENT_FILE=$(marsh_get_document_temp_path "${TARGET_DIR}" "index.markdown" "content")
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                ACTUAL=$(<"${CONTENT_FILE}")
+                EXPECTED='<img src="images/example.png" srcset="images/example.png 1x, images/example@2x.png 2x, images/example@3x.png 3x" />'
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${TARGET_DIR}" "${SOURCE_ROOT}"
+            marsh_test_restore_env
+            ;;
         marsh_build_document_and_template:0)
             TEST_NAME+=":with_template"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
             marsh_test_set_env "documentandtemplateuid" true true
-            mkdir -p "${TARGET_DIR}"
+            TARGET_SOURCE_ROOT_FILE="$(marsh_get_target_temp_root "${TARGET_DIR}")/source-root"
+            mkdir -p "${SOURCE_ROOT}" "${TARGET_SOURCE_ROOT_FILE%/*}"
+            printf '%s\n' "${SOURCE_ROOT}" > "${TARGET_SOURCE_ROOT_FILE}"
             marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
             printf '%s\n' \
                 '---' \
                 'Title: Example' \
                 '...' \
                 '' \
-                '# Example' > "${TARGET_DIR}/index.markdown"
+                '# Example' > "${SOURCE_ROOT}/index.markdown"
             marsh_build_document_and_template "${TARGET_DIR}" "." "index.markdown" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
@@ -993,20 +1065,23 @@ function marsh_test {
                     fi
                 fi
             fi
-            rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}"
+            rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}" "${SOURCE_ROOT}"
             marsh_test_restore_env
             ;;
         marsh_build_document_and_template:1)
             TEST_NAME+=":without_template"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
             marsh_test_set_env "documentandtemplateuid" true true
-            mkdir -p "${TARGET_DIR}"
+            TARGET_SOURCE_ROOT_FILE="$(marsh_get_target_temp_root "${TARGET_DIR}")/source-root"
+            mkdir -p "${SOURCE_ROOT}" "${TARGET_SOURCE_ROOT_FILE%/*}"
+            printf '%s\n' "${SOURCE_ROOT}" > "${TARGET_SOURCE_ROOT_FILE}"
             printf '%s\n' \
                 '---' \
                 'Title: Example' \
                 '...' \
                 '' \
-                '# Example' > "${TARGET_DIR}/index.markdown"
+                '# Example' > "${SOURCE_ROOT}/index.markdown"
             marsh_build_document_and_template "${TARGET_DIR}" "." "index.markdown" "" false "" "" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
@@ -1033,7 +1108,7 @@ function marsh_test {
                     fi
                 fi
             fi
-            rm -rf "${TARGET_DIR}"
+            rm -rf "${TARGET_DIR}" "${SOURCE_ROOT}"
             marsh_test_restore_env
             ;;
         marsh_build_document_and_template:2)
@@ -1066,14 +1141,18 @@ function marsh_test {
             TEST_NAME+=":template_failure"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
             marsh_test_set_env "documentandtemplateuid" true true
-            mkdir -p "${TARGET_DIR}" "${TEMPLATE_DIR}"
+            TARGET_SOURCE_ROOT_FILE="$(marsh_get_target_temp_root "${TARGET_DIR}")/source-root"
+            mkdir -p "${SOURCE_ROOT}" "${TARGET_SOURCE_ROOT_FILE%/*}"
+            printf '%s\n' "${SOURCE_ROOT}" > "${TARGET_SOURCE_ROOT_FILE}"
+            mkdir -p "${TEMPLATE_DIR}"
             printf '%s\n' \
                 '---' \
                 'Title: Example' \
                 '...' \
                 '' \
-                '# Example' > "${TARGET_DIR}/index.markdown"
+                '# Example' > "${SOURCE_ROOT}/index.markdown"
             marsh_build_document_and_template "${TARGET_DIR}" "." "index.markdown" "" false "${TEMPLATE_DIR}" "missing" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=1
@@ -1092,17 +1171,19 @@ function marsh_test {
                     RES="[PASS]"
                 fi
             fi
-            rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}"
+            rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}" "${SOURCE_ROOT}"
             marsh_test_restore_env
             ;;
         marsh_build_target:0)
             TEST_NAME+=":copy_assets"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
             marsh_test_set_env "${MARSH_UID:-targetuid}" true false
-            mkdir -p "${TARGET_DIR}"
+            mkdir -p "${TARGET_DIR}" "${SOURCE_ROOT}"
             marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
-            printf '%s\n' '---'$'\n''Title: Example'$'\n''...'$'\n'''$'\n''# Example' > "${TARGET_DIR}/index.markdown"
+            marsh_test_write_target_source_root "${TARGET_DIR}" "${SOURCE_ROOT}"
+            printf '%s\n' '---'$'\n''Title: Example'$'\n''...'$'\n'''$'\n''# Example' > "${SOURCE_ROOT}/index.markdown"
             marsh_build_target "${TARGET_DIR}" "./index.markdown" "1" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
@@ -1124,17 +1205,19 @@ function marsh_test {
                     fi
                 fi
             fi
-            rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}"
+            rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}" "${SOURCE_ROOT}"
             marsh_test_restore_env
             ;;
         marsh_build_target:1)
             TEST_NAME+=":skip_assets"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
             marsh_test_set_env "${MARSH_UID:-targetuid}" true false
-            mkdir -p "${TARGET_DIR}"
+            mkdir -p "${TARGET_DIR}" "${SOURCE_ROOT}"
             marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
-            printf '%s\n' '---'$'\n''Title: Example'$'\n''...'$'\n'''$'\n''# Example' > "${TARGET_DIR}/index.markdown"
+            marsh_test_write_target_source_root "${TARGET_DIR}" "${SOURCE_ROOT}"
+            printf '%s\n' '---'$'\n''Title: Example'$'\n''...'$'\n'''$'\n''# Example' > "${SOURCE_ROOT}/index.markdown"
             marsh_build_target "${TARGET_DIR}" "./index.markdown" "1" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 true >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
@@ -1156,24 +1239,27 @@ function marsh_test {
                     fi
                 fi
             fi
-            rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}"
+            rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}" "${SOURCE_ROOT}"
             marsh_test_restore_env
             ;;
         marsh_build_target:5)
             TEST_NAME+=":target_scoped_assets_across_invocations"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
             marsh_test_set_env "${MARSH_UID:-targetuid}" true false
-            mkdir -p "${TARGET_DIR}/about"
+            mkdir -p "${TARGET_DIR}/about" "${SOURCE_ROOT}/about"
             marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
             printf '%s\n' '{{ template.assets.styles }}'$'\n''{{ template.assets.scripts }}'$'\n''{{ document.content }}' > "${TEMPLATE_DIR}/sample/partials/body.html"
-            printf '%s\n' '---'$'\n''Title: Home'$'\n''...'$'\n'''$'\n''# Example' > "${TARGET_DIR}/index.markdown"
-            printf '%s\n' '---'$'\n''Title: About'$'\n''...'$'\n'''$'\n''# About' > "${TARGET_DIR}/about/index.markdown"
+            marsh_test_write_target_source_root "${TARGET_DIR}" "${SOURCE_ROOT}"
+            printf '%s\n' '---'$'\n''Title: Home'$'\n''...'$'\n'''$'\n''# Example' > "${SOURCE_ROOT}/index.markdown"
+            printf '%s\n' '---'$'\n''Title: About'$'\n''...'$'\n'''$'\n''# About' > "${SOURCE_ROOT}/about/index.markdown"
             marsh_build_target "${TARGET_DIR}" "./index.markdown" "1" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                marsh_test_write_target_source_root "${TARGET_DIR}/about" "${SOURCE_ROOT}/about"
                 marsh_build_target "${TARGET_DIR}" "about/index.markdown" "1" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
                 ACTUAL=$?
                 EXPECTED=0
@@ -1204,18 +1290,20 @@ function marsh_test {
                     fi
                 fi
             fi
-            rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}"
+            rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}" "${SOURCE_ROOT}"
             marsh_test_restore_env
             ;;
         marsh_build_target:6)
             TEST_NAME+=":target_assets_path"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
             marsh_test_set_env "${MARSH_UID:-targetuid}" true false
-            mkdir -p "${TARGET_DIR}"
+            mkdir -p "${TARGET_DIR}" "${SOURCE_ROOT}"
             marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
             printf '%s\n' '{{ template.assets.styles }}'$'\n''{{ template.assets.scripts }}'$'\n''{{ document.content }}' > "${TEMPLATE_DIR}/sample/partials/body.html"
-            printf '%s\n' '---'$'\n''Title: Example'$'\n''...'$'\n'''$'\n''# Example' > "${TARGET_DIR}/index.markdown"
+            marsh_test_write_target_source_root "${TARGET_DIR}" "${SOURCE_ROOT}"
+            printf '%s\n' '---'$'\n''Title: Example'$'\n''...'$'\n'''$'\n''# Example' > "${SOURCE_ROOT}/index.markdown"
             marsh_build_target "${TARGET_DIR}" "./index.markdown" "1" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 false "assets/site" >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
@@ -1244,20 +1332,22 @@ function marsh_test {
                     fi
                 fi
             fi
-            rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}"
+            rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}" "${SOURCE_ROOT}"
             marsh_test_restore_env
             ;;
         marsh_build_target:7)
             TEST_NAME+=":root_target_recursive_nested_pages"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
             marsh_test_set_env "${MARSH_UID:-targetuid}" true false
-            mkdir -p "${TARGET_DIR}/about" "${TARGET_DIR}/redirect-example" "${TARGET_DIR}/news/2026"
+            mkdir -p "${TARGET_DIR}" "${SOURCE_ROOT}/about" "${SOURCE_ROOT}/redirect-example" "${SOURCE_ROOT}/news/2026"
             marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
-            printf '%s\n' '---'$'\n''Title: Home'$'\n''...'$'\n'''$'\n''# Home' > "${TARGET_DIR}/index.markdown"
-            printf '%s\n' '---'$'\n''Title: About'$'\n''...'$'\n'''$'\n''# About' > "${TARGET_DIR}/about/index.markdown"
-            printf '%s\n' '---'$'\n''Title: Redirect Example'$'\n''Redirect_URL: ../'$'\n''...'$'\n'''$'\n''Redirect example.' > "${TARGET_DIR}/redirect-example/index.markdown"
-            printf '%s\n' '---'$'\n''Title: News Item'$'\n''Type: news'$'\n''Date: 2026-01-01'$'\n''...'$'\n'''$'\n''# News Item' > "${TARGET_DIR}/news/2026/item.markdown"
+            marsh_test_write_target_source_root "${TARGET_DIR}" "${SOURCE_ROOT}"
+            printf '%s\n' '---'$'\n''Title: Home'$'\n''...'$'\n'''$'\n''# Home' > "${SOURCE_ROOT}/index.markdown"
+            printf '%s\n' '---'$'\n''Title: About'$'\n''...'$'\n'''$'\n''# About' > "${SOURCE_ROOT}/about/index.markdown"
+            printf '%s\n' '---'$'\n''Title: Redirect Example'$'\n''Redirect_URL: ../'$'\n''...'$'\n'''$'\n''Redirect example.' > "${SOURCE_ROOT}/redirect-example/index.markdown"
+            printf '%s\n' '---'$'\n''Title: News Item'$'\n''Type: news'$'\n''Date: 2026-01-01'$'\n''...'$'\n'''$'\n''# News Item' > "${SOURCE_ROOT}/news/2026/item.markdown"
             marsh_build_target "${TARGET_DIR}" "." "1" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
@@ -1276,19 +1366,21 @@ function marsh_test {
                     RES="[PASS]"
                 fi
             fi
-            rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}"
+            rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}" "${SOURCE_ROOT}"
             marsh_test_restore_env
             ;;
         marsh_build_target:8)
             TEST_NAME+=":root_target_recursive_archives"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
             marsh_test_set_env "rootarchiveuid" true true
-            mkdir -p "${TARGET_DIR}/news/2026"
+            mkdir -p "${TARGET_DIR}" "${SOURCE_ROOT}/news/2026"
             marsh_test_create_archive_template "${TEMPLATE_DIR}" "sample" "html" true
-            printf '%s\n' '---'$'\n''Title: Home'$'\n''...'$'\n'''$'\n''# Home' > "${TARGET_DIR}/index.markdown"
-            printf '%s\n' '---'$'\n''Type: news'$'\n''Title: First Item'$'\n''Date: 2026-01-02'$'\n''...'$'\n'''$'\n''First' > "${TARGET_DIR}/news/2026/first.markdown"
-            printf '%s\n' '---'$'\n''Type: news'$'\n''Title: Second Item'$'\n''Date: 2026-01-01'$'\n''...'$'\n'''$'\n''Second' > "${TARGET_DIR}/news/2026/second.markdown"
+            marsh_test_write_target_source_root "${TARGET_DIR}" "${SOURCE_ROOT}"
+            printf '%s\n' '---'$'\n''Title: Home'$'\n''...'$'\n'''$'\n''# Home' > "${SOURCE_ROOT}/index.markdown"
+            printf '%s\n' '---'$'\n''Type: news'$'\n''Title: First Item'$'\n''Date: 2026-01-02'$'\n''...'$'\n'''$'\n''First' > "${SOURCE_ROOT}/news/2026/first.markdown"
+            printf '%s\n' '---'$'\n''Type: news'$'\n''Title: Second Item'$'\n''Date: 2026-01-01'$'\n''...'$'\n'''$'\n''Second' > "${SOURCE_ROOT}/news/2026/second.markdown"
             marsh_build_target "${TARGET_DIR}" "." "1" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
@@ -1307,7 +1399,7 @@ function marsh_test {
                     fi
                 fi
             fi
-            rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}"
+            rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}" "${SOURCE_ROOT}"
             marsh_test_restore_env
             ;;
         marsh_build_target:9)
@@ -1390,14 +1482,16 @@ function marsh_test {
             TEST_NAME+=":archive_template_selection"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
             marsh_test_set_env "archiveuid" true true
-            mkdir -p "${TARGET_DIR}/news"
+            mkdir -p "${TARGET_DIR}/news" "${SOURCE_ROOT}"
             marsh_test_create_minimal_template "${TEMPLATE_DIR}" "target"
             marsh_test_create_archive_template "${TEMPLATE_DIR}" "archive" "html" true
             printf '%s\n' 'target-page' > "${TEMPLATE_DIR}/target/partials/body.html"
             printf '%s\n' '<!DOCTYPE html>'$'\n''<html><body>archive-template{{ template.body }}</body></html>' > "${TEMPLATE_DIR}/archive/partials/archive-base.html"
             printf '%s\n' 'archive-template-body' > "${TEMPLATE_DIR}/archive/partials/archive-body.html"
-            printf '%s\n' '---'$'\n''Title: Home'$'\n''Type: page'$'\n''...'$'\n'''$'\n''Home' > "${TARGET_DIR}/index.markdown"
+            marsh_test_write_target_source_root "${TARGET_DIR}" "${SOURCE_ROOT}"
+            printf '%s\n' '---'$'\n''Title: Home'$'\n''Type: page'$'\n''...'$'\n'''$'\n''Home' > "${SOURCE_ROOT}/index.markdown"
             marsh_test_create_archive_document "${TARGET_DIR}" "news/item.markdown" "${MARSH_UID}" "post" "Item" "2026-01-01"
             marsh_build_target "${TARGET_DIR}" "./index.markdown" "1" "" false "${TEMPLATE_DIR}" "target" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
             ACTUAL=$?
@@ -1430,20 +1524,22 @@ function marsh_test {
                     fi
                 fi
             fi
-            rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}"
+            rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}" "${SOURCE_ROOT}"
             marsh_test_restore_env
             ;;
         marsh_build_target:3)
             TEST_NAME+=":archive_template_inheritance"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
             marsh_test_set_env "archiveuid" true true
-            mkdir -p "${TARGET_DIR}/news"
+            mkdir -p "${TARGET_DIR}/news" "${SOURCE_ROOT}"
             marsh_test_create_archive_template "${TEMPLATE_DIR}" "target" "html" true
             printf '%s\n' 'target-page' > "${TEMPLATE_DIR}/target/partials/body.html"
             printf '%s\n' '<!DOCTYPE html>'$'\n''<html><body>inherited-archive{{ template.body }}</body></html>' > "${TEMPLATE_DIR}/target/partials/archive-base.html"
             printf '%s\n' 'inherited-archive-body' > "${TEMPLATE_DIR}/target/partials/archive-body.html"
-            printf '%s\n' '---'$'\n''Title: Home'$'\n''Type: page'$'\n''...'$'\n'''$'\n''Home' > "${TARGET_DIR}/index.markdown"
+            marsh_test_write_target_source_root "${TARGET_DIR}" "${SOURCE_ROOT}"
+            printf '%s\n' '---'$'\n''Title: Home'$'\n''Type: page'$'\n''...'$'\n'''$'\n''Home' > "${SOURCE_ROOT}/index.markdown"
             marsh_test_create_archive_document "${TARGET_DIR}" "news/item.markdown" "${MARSH_UID}" "post" "Item" "2026-01-01"
             marsh_build_target "${TARGET_DIR}" "./index.markdown" "1" "" false "${TEMPLATE_DIR}" "target" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
             ACTUAL=$?
@@ -1487,21 +1583,23 @@ function marsh_test {
                     fi
                 fi
             fi
-            rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}"
+            rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}" "${SOURCE_ROOT}"
             marsh_test_restore_env
             ;;
         marsh_build_target:4)
             TEST_NAME+=":archive_template_selection_refactor"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
             marsh_test_set_env "archiveuid" true true
-            mkdir -p "${TARGET_DIR}/news"
+            mkdir -p "${TARGET_DIR}/news" "${SOURCE_ROOT}"
             marsh_test_create_minimal_template "${TEMPLATE_DIR}" "target"
             marsh_test_create_archive_template "${TEMPLATE_DIR}" "archive" "html" true
             printf '%s\n' 'target-page' > "${TEMPLATE_DIR}/target/partials/body.html"
             printf '%s\n' '<!DOCTYPE html>'$'\n''<html><body>archive-template{{ template.body }}</body></html>' > "${TEMPLATE_DIR}/archive/partials/archive-base.html"
             printf '%s\n' 'archive-template-body' > "${TEMPLATE_DIR}/archive/partials/archive-body.html"
-            printf '%s\n' '---'$'\n''Title: Home'$'\n''Type: page'$'\n''...'$'\n'''$'\n''Home' > "${TARGET_DIR}/index.markdown"
+            marsh_test_write_target_source_root "${TARGET_DIR}" "${SOURCE_ROOT}"
+            printf '%s\n' '---'$'\n''Title: Home'$'\n''Type: page'$'\n''...'$'\n'''$'\n''Home' > "${SOURCE_ROOT}/index.markdown"
             marsh_test_create_archive_document "${TARGET_DIR}" "news/item.markdown" "${MARSH_UID}" "post" "Item" "2026-01-01"
             EXPECTED=0
             ASSERTION="equals"
@@ -1525,6 +1623,30 @@ function marsh_test {
                     if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                         RES="[PASS]"
                     fi
+                fi
+            fi
+            rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}" "${SOURCE_ROOT}"
+            marsh_test_restore_env
+            ;;
+        marsh_build_target:11)
+            TEST_NAME+=":missing_source_root_ignores_output_tree_markdown"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            marsh_test_set_env "targetuid" true false
+            mkdir -p "${TARGET_DIR}"
+            marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
+            printf '%s\n' '---'$'\n''Title: Example'$'\n''...'$'\n'''$'\n''# Example' > "${TARGET_DIR}/index.markdown"
+            marsh_build_target "${TARGET_DIR}" "./index.markdown" "1" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                [[ ! -e "${TARGET_DIR}/index.html" ]]
+                ACTUAL=$?
+                EXPECTED=0
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
                 fi
             fi
             rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}"
@@ -1558,13 +1680,13 @@ function marsh_test {
                 '{% endif %}' \
                 '</head><body>{{ template.body }}</body></html>' > "${TEMPLATE_DIR}/sample/partials/base.html"
             printf '%s\n' '{{ document.content }}' > "${TEMPLATE_DIR}/sample/partials/body.html"
-            printf '%s\n' '<p>Home</p>' > "${TARGET_DIR}/index.markdown.${MARSH_UID}.document"
-            printf '%s\n' \
+            marsh_test_write_document_artifacts "${TARGET_DIR}" "index.markdown" "content" '<p>Home</p>'
+            marsh_test_write_document_artifacts "${TARGET_DIR}" "index.markdown" "meta-yaml" \
                 '---' \
                 'Type: page' \
                 'Title: Home' \
                 'Project: Example Site' \
-                '...' > "${TARGET_DIR}/index.markdown.${MARSH_UID}.meta.yaml"
+                '...'
             marsh_build_template "${TARGET_DIR}" "." "index.markdown" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
@@ -1863,10 +1985,10 @@ function marsh_test {
             marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
             printf '%s\n' '<!DOCTYPE html>'$'\n''<html><body>{{ template.body }}</body></html>' > "${TEMPLATE_DIR}/sample/partials/base.html"
             printf '%s\n' 'target-root={{ target.rootpath }};target-abs={{ target.abspath }}' > "${TEMPLATE_DIR}/sample/partials/body.html"
-            printf '%s\n' 'Example' > "${TARGET_DIR}/index.markdown.${MARSH_UID}.document"
-            printf '%s\n' '---'$'\n''Title: Example'$'\n''...' > "${TARGET_DIR}/index.markdown.${MARSH_UID}.meta.yaml"
-            printf '%s\n' 'Example' > "${TARGET_DIR}/news/2026/index.markdown.${MARSH_UID}.document"
-            printf '%s\n' '---'$'\n''Title: Example'$'\n''...' > "${TARGET_DIR}/news/2026/index.markdown.${MARSH_UID}.meta.yaml"
+            marsh_test_write_document_artifacts "${TARGET_DIR}" "index.markdown" "content" 'Example'
+            marsh_test_write_document_artifacts "${TARGET_DIR}" "index.markdown" "meta-yaml" '---' 'Title: Example' '...'
+            marsh_test_write_document_artifacts "${TARGET_DIR}" "news/2026/index.markdown" "content" 'Example'
+            marsh_test_write_document_artifacts "${TARGET_DIR}" "news/2026/index.markdown" "meta-yaml" '---' 'Title: Example' '...'
             {
                 marsh_build_template "${TARGET_DIR}" "." "index.markdown" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1 \
                     && marsh_build_template "${TARGET_DIR}" "." "news/2026/index.markdown" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
@@ -1897,8 +2019,8 @@ function marsh_test {
             marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
             printf '%s\n' '<!DOCTYPE html>'$'\n''<html><body>{{ template.body }}</body></html>' > "${TEMPLATE_DIR}/sample/partials/base.html"
             printf '%s\n' 'site-root={{ site.rootpath }};site-abs={{ site.abspath }};target-root={{ target.rootpath }};target-abs={{ target.abspath }}' > "${TEMPLATE_DIR}/sample/partials/body.html"
-            printf '%s\n' 'Example' > "${TARGET_DIR}/news/index.markdown.${MARSH_UID}.document"
-            printf '%s\n' '---'$'\n''Title: Example'$'\n''...' > "${TARGET_DIR}/news/index.markdown.${MARSH_UID}.meta.yaml"
+            marsh_test_write_document_artifacts "${TARGET_DIR}/news" "index.markdown" "content" 'Example'
+            marsh_test_write_document_artifacts "${TARGET_DIR}/news" "index.markdown" "meta-yaml" '---' 'Title: Example' '...'
             marsh_build_template "${TARGET_DIR}" "news" "index.markdown" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
@@ -1922,10 +2044,10 @@ function marsh_test {
             marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
             printf '%s\n' '<!DOCTYPE html>'$'\n''<html><body>{{ template.body }}</body></html>' > "${TEMPLATE_DIR}/sample/partials/base.html"
             printf '%s\n' 'document-href={{ document.href }};document-uri={{ document.uri }}' > "${TEMPLATE_DIR}/sample/partials/body.html"
-            printf '%s\n' 'Example' > "${TARGET_DIR}/about.markdown.${MARSH_UID}.document"
-            printf '%s\n' '---'$'\n''Title: Example'$'\n''...' > "${TARGET_DIR}/about.markdown.${MARSH_UID}.meta.yaml"
-            printf '%s\n' 'Example' > "${TARGET_DIR}/news/2026/index.markdown.${MARSH_UID}.document"
-            printf '%s\n' '---'$'\n''Title: Example'$'\n''...' > "${TARGET_DIR}/news/2026/index.markdown.${MARSH_UID}.meta.yaml"
+            marsh_test_write_document_artifacts "${TARGET_DIR}" "about.markdown" "content" 'Example'
+            marsh_test_write_document_artifacts "${TARGET_DIR}" "about.markdown" "meta-yaml" '---' 'Title: Example' '...'
+            marsh_test_write_document_artifacts "${TARGET_DIR}" "news/2026/index.markdown" "content" 'Example'
+            marsh_test_write_document_artifacts "${TARGET_DIR}" "news/2026/index.markdown" "meta-yaml" '---' 'Title: Example' '...'
             {
                 marsh_build_template "${TARGET_DIR}" "." "about.markdown" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1 \
                     && marsh_build_template "${TARGET_DIR}" "." "news/2026/index.markdown" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
@@ -2056,8 +2178,8 @@ function marsh_test {
             marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
             printf '%s\n' '<styles>{{ template.assets.styles }}</styles>'$'\n''<scripts>{{ template.assets.scripts }}</scripts>'$'\n''<images>{{ template.assets.images }}</images>' > "${TEMPLATE_DIR}/sample/partials/body.html"
             printf '%s\n' '@media print { body { color: black; } }' > "${TEMPLATE_DIR}/sample/css/print.css"
-            printf '%s\n' 'Example' > "${TARGET_DIR}/news/2026/index.markdown.${MARSH_UID}.document"
-            printf '%s\n' '---'$'\n''Title: Example'$'\n''...' > "${TARGET_DIR}/news/2026/index.markdown.${MARSH_UID}.meta.yaml"
+            marsh_test_write_document_artifacts "${TARGET_DIR}" "news/2026/index.markdown" "content" 'Example'
+            marsh_test_write_document_artifacts "${TARGET_DIR}" "news/2026/index.markdown" "meta-yaml" '---' 'Title: Example' '...'
             marsh_build_template "${TARGET_DIR}" "." "news/2026/index.markdown" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
@@ -2145,8 +2267,8 @@ function marsh_test {
                 '      - js/site.js' \
                 '      - js/feature.js' \
                 '...' > "${TEMPLATE_DIR}/sample/template.yaml"
-            printf '%s\n' 'Example' > "${TARGET_DIR}/news/2026/index.markdown.${MARSH_UID}.document"
-            printf '%s\n' '---'$'\n''Title: Example'$'\n''...' > "${TARGET_DIR}/news/2026/index.markdown.${MARSH_UID}.meta.yaml"
+            marsh_test_write_document_artifacts "${TARGET_DIR}" "news/2026/index.markdown" "content" 'Example'
+            marsh_test_write_document_artifacts "${TARGET_DIR}" "news/2026/index.markdown" "meta-yaml" '---' 'Title: Example' '...'
             marsh_build_template "${TARGET_DIR}" "." "news/2026/index.markdown" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
@@ -2408,8 +2530,8 @@ function marsh_test {
             marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
             printf '%s\n' '{{ target.sitemap }}' > "${TEMPLATE_DIR}/sample/partials/body.html"
             printf '%s\n' '<h1>Site Map</h1>' '<p><a href="../">Home</a></p>' > "${SOURCE_DIR}/site-map/index.markdown"
-            printf '%s\n' 'Example' > "${TARGET_DIR}/about/index.markdown.${MARSH_UID}.document"
-            printf '%s\n' '---'$'\n''Title: Example'$'\n''...' > "${TARGET_DIR}/about/index.markdown.${MARSH_UID}.meta.yaml"
+            marsh_test_write_document_artifacts "${TARGET_DIR}/about" "index.markdown" "content" 'Example'
+            marsh_test_write_document_artifacts "${TARGET_DIR}/about" "index.markdown" "meta-yaml" '---' 'Title: Example' '...'
             marsh_build_sitemap "${TARGET_DIR}/about" "../site-map/index.markdown" "${SOURCE_DIR}/site-map/index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
@@ -2482,8 +2604,8 @@ function marsh_test {
             marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
             printf '%s\n' '{{ target.sitemap }}' > "${TEMPLATE_DIR}/sample/partials/body.html"
             printf '%s\n' '<h1>Site Map</h1>' '<p><a href="../news/">News</a></p>' > "${SOURCE_DIR}/site-map/index.markdown"
-            printf '%s\n' 'Example' > "${TARGET_DIR}/index.markdown.${MARSH_UID}.document"
-            printf '%s\n' '---'$'\n''Title: Example'$'\n''...' > "${TARGET_DIR}/index.markdown.${MARSH_UID}.meta.yaml"
+            marsh_test_write_document_artifacts "${TARGET_DIR}" "index.markdown" "content" 'Example'
+            marsh_test_write_document_artifacts "${TARGET_DIR}" "index.markdown" "meta-yaml" '---' 'Title: Example' '...'
             marsh_build_sitemap "${TARGET_DIR}" "site-map/index.markdown" "${SOURCE_DIR}/site-map/index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
@@ -2565,8 +2687,8 @@ function marsh_test {
             marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
             printf '%s\n' '{{ target.sitemap }}' > "${TEMPLATE_DIR}/sample/partials/body.html"
             printf '%s\n' '<h1>Site Map</h1>' '<p><a href="../">Section Home</a></p>' > "${SOURCE_DIR}/subdir1/sitemap.markdown"
-            printf '%s\n' 'Example' > "${TARGET_DIR}/www/subdir1/index.markdown.${MARSH_UID}.document"
-            printf '%s\n' '---'$'\n''Title: Example'$'\n''...' > "${TARGET_DIR}/www/subdir1/index.markdown.${MARSH_UID}.meta.yaml"
+            marsh_test_write_document_artifacts "${TARGET_DIR}/www" "subdir1/index.markdown" "content" 'Example'
+            marsh_test_write_document_artifacts "${TARGET_DIR}/www" "subdir1/index.markdown" "meta-yaml" '---' 'Title: Example' '...'
             marsh_build_sitemap "${TARGET_DIR}/www" "subdir1/sitemap.markdown" "${SOURCE_DIR}/subdir1/sitemap.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
@@ -2604,8 +2726,8 @@ function marsh_test {
             marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
             printf '%s\n' '{{ template.assets.styles | items:wrap-type:html-style-link }}'$'\n''{{ template.assets.scripts | items:wrap-type:html-script-src }}' > "${TEMPLATE_DIR}/sample/partials/body.html"
             printf '%s\n' '@media print { body { color: black; } }' > "${TEMPLATE_DIR}/sample/css/print.css"
-            printf '%s\n' 'Example' > "${TARGET_DIR}/docs/guides/index.markdown.${MARSH_UID}.document"
-            printf '%s\n' '---'$'\n''Title: Example'$'\n''...' > "${TARGET_DIR}/docs/guides/index.markdown.${MARSH_UID}.meta.yaml"
+            marsh_test_write_document_artifacts "${TARGET_DIR}/docs" "guides/index.markdown" "content" 'Example'
+            marsh_test_write_document_artifacts "${TARGET_DIR}/docs" "guides/index.markdown" "meta-yaml" '---' 'Title: Example' '...'
             marsh_copy_template_assets "${TARGET_DIR}" "docs" "${TEMPLATE_DIR}" "sample" 0 "../shared" >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
@@ -2668,8 +2790,12 @@ function marsh_test {
             TEST_NAME+=":document_metadata_cache"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
             marsh_test_set_env "documentcacheuid" true true
             mkdir -p "${TARGET_DIR}" "${TEMPLATE_DIR}/sample/partials"
+            TARGET_SOURCE_ROOT_FILE="$(marsh_get_target_temp_root "${TARGET_DIR}")/source-root"
+            mkdir -p "${SOURCE_ROOT}" "${TARGET_SOURCE_ROOT_FILE%/*}"
+            printf '%s\n' "${SOURCE_ROOT}" > "${TARGET_SOURCE_ROOT_FILE}"
             printf '%s\n' \
                 '---' \
                 'Template:' \
@@ -2684,7 +2810,7 @@ function marsh_test {
                 'Title: Cached Title' \
                 '...' \
                 '' \
-                '# Example' > "${TARGET_DIR}/index.markdown"
+                '# Example' > "${SOURCE_ROOT}/index.markdown"
             marsh_build_document "${TARGET_DIR}" "." "index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
@@ -2711,15 +2837,19 @@ function marsh_test {
                     fi
                 fi
             fi
-            rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}"
+            rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}" "${SOURCE_ROOT}"
             marsh_test_restore_env
             ;;
         marsh_build_template:25)
             TEST_NAME+=":archive_subdocument_metadata_cache"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
             marsh_test_set_env "subdocumentcacheuid" true true
-            mkdir -p "${TARGET_DIR}/news"
+            mkdir -p "${TARGET_DIR}/news" "${SOURCE_ROOT}/news"
+            TARGET_SOURCE_ROOT_FILE="$(marsh_get_target_temp_root "${TARGET_DIR}")/source-root"
+            mkdir -p "${TARGET_SOURCE_ROOT_FILE%/*}"
+            printf '%s\n' "${SOURCE_ROOT}" > "${TARGET_SOURCE_ROOT_FILE}"
             marsh_test_create_archive_template "${TEMPLATE_DIR}" "sample" "html" true
             printf '%s\n' '{{ subdocuments }}' > "${TEMPLATE_DIR}/sample/partials/archive-body.html"
             printf '%s\n' '<entry>{{ document.title }}</entry>' > "${TEMPLATE_DIR}/sample/partials/archive-document.html"
@@ -2730,7 +2860,7 @@ function marsh_test {
                 'Date: 2026-01-01' \
                 '...' \
                 '' \
-                '# Cached Item' > "${TARGET_DIR}/news/item.markdown"
+                '# Cached Item' > "${SOURCE_ROOT}/news/item.markdown"
             marsh_build_document "${TARGET_DIR}" "." "news/item.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
@@ -2765,7 +2895,7 @@ function marsh_test {
                     fi
                 fi
             fi
-            rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}"
+            rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}" "${SOURCE_ROOT}"
             marsh_test_restore_env
             ;;
         marsh_build_template:26)
@@ -2789,10 +2919,10 @@ function marsh_test {
                 '{% else %}' \
                 '<p>Other</p>' \
                 '{% endif %}' > "${TEMPLATE_DIR}/sample/partials/body.html"
-            printf '%s\n' 'Alpha' > "${TARGET_DIR}/alpha.markdown.${MARSH_UID}.document"
-            printf '%s\n' '---' 'Type: page' 'Title: Alpha' '...' > "${TARGET_DIR}/alpha.markdown.${MARSH_UID}.meta.yaml"
-            printf '%s\n' 'Beta' > "${TARGET_DIR}/beta.markdown.${MARSH_UID}.document"
-            printf '%s\n' '---' 'Type: page' 'Title: Beta' '...' > "${TARGET_DIR}/beta.markdown.${MARSH_UID}.meta.yaml"
+            marsh_test_write_document_artifacts "${TARGET_DIR}" "alpha.markdown" "content" 'Alpha'
+            marsh_test_write_document_artifacts "${TARGET_DIR}" "alpha.markdown" "meta-yaml" '---' 'Type: page' 'Title: Alpha' '...'
+            marsh_test_write_document_artifacts "${TARGET_DIR}" "beta.markdown" "content" 'Beta'
+            marsh_test_write_document_artifacts "${TARGET_DIR}" "beta.markdown" "meta-yaml" '---' 'Type: page' 'Title: Beta' '...'
             {
                 marsh_build_template "${TARGET_DIR}" "." "alpha.markdown" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1 \
                     && marsh_build_template "${TARGET_DIR}" "." "beta.markdown" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
@@ -2842,10 +2972,10 @@ function marsh_test {
                 '{% else %}' \
                 '<p>Other</p>' \
                 '{% endif %}' > "${TEMPLATE_DIR}/sample/partials/body.html"
-            printf '%s\n' 'Alpha' > "${TARGET_DIR}/alpha.markdown.${MARSH_UID}.document"
-            printf '%s\n' '---' 'Type: page' 'Title: Alpha' '...' > "${TARGET_DIR}/alpha.markdown.${MARSH_UID}.meta.yaml"
-            printf '%s\n' 'Beta' > "${TARGET_DIR}/beta.markdown.${MARSH_UID}.document"
-            printf '%s\n' '---' 'Type: post' 'Title: Beta' '...' > "${TARGET_DIR}/beta.markdown.${MARSH_UID}.meta.yaml"
+            marsh_test_write_document_artifacts "${TARGET_DIR}" "alpha.markdown" "content" 'Alpha'
+            marsh_test_write_document_artifacts "${TARGET_DIR}" "alpha.markdown" "meta-yaml" '---' 'Type: page' 'Title: Alpha' '...'
+            marsh_test_write_document_artifacts "${TARGET_DIR}" "beta.markdown" "content" 'Beta'
+            marsh_test_write_document_artifacts "${TARGET_DIR}" "beta.markdown" "meta-yaml" '---' 'Type: post' 'Title: Beta' '...'
             {
                 marsh_build_template "${TARGET_DIR}" "." "alpha.markdown" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1 \
                     && marsh_build_template "${TARGET_DIR}" "." "beta.markdown" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
@@ -2886,10 +3016,10 @@ function marsh_test {
             marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
             printf '%s\n' '{{ target.sitemap }}' > "${TEMPLATE_DIR}/sample/partials/body.html"
             printf '%s\n' '<h1>Site Map</h1>' '<p><a href="../docs/one.html">One</a></p>' '<p><a href="../docs/two.html">Two</a></p>' > "${SOURCE_DIR}/site-map/index.markdown"
-            printf '%s\n' 'Example' > "${TARGET_DIR}/docs/one.markdown.${MARSH_UID}.document"
-            printf '%s\n' '---'$'\n''Title: One'$'\n''...' > "${TARGET_DIR}/docs/one.markdown.${MARSH_UID}.meta.yaml"
-            printf '%s\n' 'Example' > "${TARGET_DIR}/docs/two.markdown.${MARSH_UID}.document"
-            printf '%s\n' '---'$'\n''Title: Two'$'\n''...' > "${TARGET_DIR}/docs/two.markdown.${MARSH_UID}.meta.yaml"
+            marsh_test_write_document_artifacts "${TARGET_DIR}" "docs/one.markdown" "content" 'Example'
+            marsh_test_write_document_artifacts "${TARGET_DIR}" "docs/one.markdown" "meta-yaml" '---' 'Title: One' '...'
+            marsh_test_write_document_artifacts "${TARGET_DIR}" "docs/two.markdown" "content" 'Example'
+            marsh_test_write_document_artifacts "${TARGET_DIR}" "docs/two.markdown" "meta-yaml" '---' 'Title: Two' '...'
             marsh_build_sitemap "${TARGET_DIR}" "site-map/index.markdown" "${SOURCE_DIR}/site-map/index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
@@ -3350,6 +3480,71 @@ function marsh_test {
                 fi
             fi
             rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}" "${SOURCE_ROOT}"
+            marsh_test_restore_env
+            ;;
+        marsh_build_template:39)
+            TEST_NAME+=":missing_source_root"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            marsh_test_set_env "templateuid" true true
+            mkdir -p "${TARGET_DIR}" "${TEMPLATE_DIR}/sample/partials"
+            printf '%s\n' \
+                '---' \
+                'Template:' \
+                '  Partials:' \
+                '    Base: partials/base.html' \
+                '    Body: partials/body.html' \
+                '...' > "${TEMPLATE_DIR}/sample/template.yaml"
+            printf '%s\n' '<!DOCTYPE html>' '<html><body>{{ template.body }}</body></html>' > "${TEMPLATE_DIR}/sample/partials/base.html"
+            printf '%s\n' '{{ document.content }}' > "${TEMPLATE_DIR}/sample/partials/body.html"
+            printf '%s\n' '---' 'Title: Example' '...' '' '# Example' > "${TARGET_DIR}/index.markdown"
+            marsh_build_template "${TARGET_DIR}" "." "index.markdown" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+            ACTUAL=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                [[ ! -e "${TARGET_DIR}/index.html" ]]
+                ACTUAL=$?
+                EXPECTED=0
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}"
+            marsh_test_restore_env
+            ;;
+        marsh_build_template:40)
+            TEST_NAME+=":legacy_output_sidecars_ignored_without_source_root"
+            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            marsh_test_set_env "templateuid" true true
+            mkdir -p "${TARGET_DIR}" "${TEMPLATE_DIR}/sample/partials"
+            printf '%s\n' \
+                '---' \
+                'Template:' \
+                '  Partials:' \
+                '    Base: partials/base.html' \
+                '    Body: partials/body.html' \
+                '...' > "${TEMPLATE_DIR}/sample/template.yaml"
+            printf '%s\n' '<!DOCTYPE html>' '<html><body>{{ template.body }}</body></html>' > "${TEMPLATE_DIR}/sample/partials/base.html"
+            printf '%s\n' '{{ document.title }} {{ document.content }}' > "${TEMPLATE_DIR}/sample/partials/body.html"
+            printf '%s\n' '# stale content' > "${TARGET_DIR}/index.markdown.${MARSH_UID}.document"
+            printf '%s\n' '---' 'Title: Stale' '...' > "${TARGET_DIR}/index.markdown.${MARSH_UID}.meta.yaml"
+            marsh_build_template "${TARGET_DIR}" "." "index.markdown" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+            ACTUAL=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                [[ ! -e "${TARGET_DIR}/index.html" ]]
+                ACTUAL=$?
+                EXPECTED=0
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${TARGET_DIR}" "${TEMPLATE_DIR}"
             marsh_test_restore_env
             ;;
         marsh_build_sitemap:0)

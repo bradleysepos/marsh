@@ -4786,12 +4786,12 @@ function marsh_test {
             TEST_NAME+=":nested_markdown"
             ACTUAL=$(marsh_get_target_document_paths "guides/index.markdown" "/site/public" "docs" "markdown,md")
             EXPECTED=$(printf '%s\n' \
-                'TARGET_PATH=/site/public/docs' \
+                'TARGET_OUTPUT_ROOT=/site/public/docs' \
                 'DOCUMENT_DIR=guides' \
                 'DOCUMENT_EXT=markdown' \
-                'DOCUMENT_OUTPUT_PATH=docs/guides/index.html' \
-                'DOCUMENT_SOURCE_PATH=/site/public/docs/guides/index.markdown' \
-                'DOCUMENT_BASE_PATH=docs/guides/')
+                'DOCUMENT_OUTPUT_REL=docs/guides/index.html' \
+                'DOCUMENT_SITE_REL=docs/guides/index.markdown' \
+                'DOCUMENT_BASE_REL=docs/guides/')
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -4801,12 +4801,12 @@ function marsh_test {
             TEST_NAME+=":root_markdown"
             ACTUAL=$(marsh_get_target_document_paths "index.markdown" "/site/public" "." "markdown,md")
             EXPECTED=$(printf '%s\n' \
-                'TARGET_PATH=/site/public' \
+                'TARGET_OUTPUT_ROOT=/site/public' \
                 'DOCUMENT_DIR=.' \
                 'DOCUMENT_EXT=markdown' \
-                'DOCUMENT_OUTPUT_PATH=index.html' \
-                'DOCUMENT_SOURCE_PATH=/site/public/index.markdown' \
-                'DOCUMENT_BASE_PATH=./')
+                'DOCUMENT_OUTPUT_REL=index.html' \
+                'DOCUMENT_SITE_REL=index.markdown' \
+                'DOCUMENT_BASE_REL=./')
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"

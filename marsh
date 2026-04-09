@@ -1503,7 +1503,7 @@ function marsh_get_document_metadata {  # marsh_get_document_metadata meta_file 
 # loads cached archive metadata for a document
 function marsh_get_archive_metadata {  # marsh_get_archive_metadata target_dir document
     local TARGET_DIR DOCUMENT
-    local INDEX META DOCUMENT_REL_TO_SITE META_PREFIX META_ASSIGNMENTS META_VARS TARGET_PATH
+    local INDEX META DOCUMENT_SITE_REL META_PREFIX META_ASSIGNMENTS META_VARS TARGET_OUTPUT_REL
     local TYPE_VAR TYPE URI ABSPATH STATE VALUE_ESC
 
     # init
@@ -1512,11 +1512,11 @@ function marsh_get_archive_metadata {  # marsh_get_archive_metadata target_dir d
     [[ "${TARGET_DIR}" == "" ]] && return 1
     [[ "${DOCUMENT}" == "" ]] && return 1
     TARGET_DIR=$(marsh_get_target_directory_path "${TARGET_DIR}") || return 1
-    DOCUMENT_REL_TO_SITE=$(marsh_normalize_internal_path "${DOCUMENT}" 2>/dev/null) || return 1
-    [[ "${DOCUMENT_REL_TO_SITE}" == "." ]] && return 1
+    DOCUMENT_SITE_REL=$(marsh_normalize_internal_path "${DOCUMENT}" 2>/dev/null) || return 1
+    [[ "${DOCUMENT_SITE_REL}" == "." ]] && return 1
 
     # use cache where available
-    INDEX=$(marsh_get_document_temp_path "${TARGET_DIR}" "${DOCUMENT_REL_TO_SITE}" "archive-meta" 2>/dev/null) || INDEX=""
+    INDEX=$(marsh_get_document_temp_path "${TARGET_DIR}" "${DOCUMENT_SITE_REL}" "archive-meta" 2>/dev/null) || INDEX=""
     # TODO: remove when archive metadata files are no longer read from the output tree
     [[ "${INDEX}" == "" ]] && INDEX="${TARGET_DIR}/${DOCUMENT%.document}.archive-meta"
     if [[ -f "${INDEX}" ]] && [[ -r "${INDEX}" ]]; then
@@ -1525,7 +1525,7 @@ function marsh_get_archive_metadata {  # marsh_get_archive_metadata target_dir d
     fi
 
     # get archive metadata from the document metadata
-    META=$(marsh_get_document_temp_path "${TARGET_DIR}" "${DOCUMENT_REL_TO_SITE}" "meta-yaml" 2>/dev/null) || META=""
+    META=$(marsh_get_document_temp_path "${TARGET_DIR}" "${DOCUMENT_SITE_REL}" "meta-yaml" 2>/dev/null) || META=""
     # TODO: remove when document metadata files are no longer read from the output tree
     [[ "${META}" == "" ]] && META="${TARGET_DIR}/${DOCUMENT%.document}.meta.yaml"
     [[ -f "${META}" ]] && [[ -r "${META}" ]] || return 1
@@ -1543,11 +1543,11 @@ function marsh_get_archive_metadata {  # marsh_get_archive_metadata target_dir d
     # reconstruct public paths here so archive generation does not need to repeat it
     TYPE_VAR="${META_PREFIX}Type"
     TYPE="${!TYPE_VAR:-}"
-    TARGET_PATH=$(marsh_get_target_output_path "${TARGET_DIR}") || return 1
-    if [[ "${TARGET_PATH}" == "." ]]; then
-        URI="${DOCUMENT_REL_TO_SITE}"
+    TARGET_OUTPUT_REL=$(marsh_get_target_output_path "${TARGET_DIR}") || return 1
+    if [[ "${TARGET_OUTPUT_REL}" == "." ]]; then
+        URI="${DOCUMENT_SITE_REL}"
     else
-        URI="${TARGET_PATH}/${DOCUMENT_REL_TO_SITE}"
+        URI="${TARGET_OUTPUT_REL}/${DOCUMENT_SITE_REL}"
     fi
     URI="${URI%.markdown}.html"
     URI=$(marsh_get_absolute_output_path "${URI}" "document") || return 1
@@ -2137,52 +2137,52 @@ function marsh_get_site_source_root_path {  # marsh_get_site_source_root_path co
 }
 
 # returns the intermediate render path for a target sitemap
-function marsh_get_sitemap_render_path {  # marsh_get_sitemap_render_path target_dir sitemap_path
-    local TARGET_DIR SITEMAP_PATH TARGET_TEMP_ROOT CACHE_DIR CACHE_KEY CACHE_FILE
+function marsh_get_sitemap_render_path {  # marsh_get_sitemap_render_path target_output_root sitemap_path
+    local TARGET_OUTPUT_ROOT SITEMAP_PATH TARGET_BUILD_TEMP_ROOT SITEMAP_RENDER_CACHE_DIR SITEMAP_RENDER_KEY SITEMAP_RENDER_FILE
 
-    TARGET_DIR="${1:-}"
+    TARGET_OUTPUT_ROOT="${1:-}"
     SITEMAP_PATH="${2:-}"
-    [[ "${TARGET_DIR}" == "" ]] && return 1
+    [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
     [[ "${SITEMAP_PATH}" == "" ]] && return 1
-    TARGET_DIR=$(marsh_get_target_directory_path "${TARGET_DIR}") || return 1
-    TARGET_TEMP_ROOT=$(marsh_get_target_temp_root "${TARGET_DIR}") || return 1
+    TARGET_OUTPUT_ROOT=$(marsh_get_target_directory_path "${TARGET_OUTPUT_ROOT}") || return 1
+    TARGET_BUILD_TEMP_ROOT=$(marsh_get_target_temp_root "${TARGET_OUTPUT_ROOT}") || return 1
 
-    CACHE_DIR="${TARGET_TEMP_ROOT}/sitemaps/render"
-    mkdir -p "${CACHE_DIR}" >/dev/null 2>&1 || {
-        echo "Unable to create sitemap render cache directory: ${CACHE_DIR}" >&2
+    SITEMAP_RENDER_CACHE_DIR="${TARGET_BUILD_TEMP_ROOT}/sitemaps/render"
+    mkdir -p "${SITEMAP_RENDER_CACHE_DIR}" >/dev/null 2>&1 || {
+        echo "Unable to create sitemap render cache directory: ${SITEMAP_RENDER_CACHE_DIR}" >&2
         return 1
     }
-    CACHE_KEY=$(printf '%s\034%s\n' "${TARGET_DIR}" "${SITEMAP_PATH}" | marsh_text_transform hash:md5) || return 1
-    CACHE_FILE="${CACHE_DIR}/${CACHE_KEY}.sitemap.html"
-    printf '%s\n' "${CACHE_FILE}"
+    SITEMAP_RENDER_KEY=$(printf '%s\034%s\n' "${TARGET_OUTPUT_ROOT}" "${SITEMAP_PATH}" | marsh_text_transform hash:md5) || return 1
+    SITEMAP_RENDER_FILE="${SITEMAP_RENDER_CACHE_DIR}/${SITEMAP_RENDER_KEY}.sitemap.html"
+    printf '%s\n' "${SITEMAP_RENDER_FILE}"
 }
 
 # resolves a sitemap temp artifact path under the target temp work tree
-function marsh_get_sitemap_temp_path {  # marsh_get_sitemap_temp_path target_dir sitemap_path artifact
-    local TARGET_DIR SITEMAP_PATH ARTIFACT SITEMAP_RENDER_PATH SITEMAP_RENDER_DIR SITEMAP_KEY SITEMAP_ROOT
+function marsh_get_sitemap_temp_path {  # marsh_get_sitemap_temp_path target_output_root sitemap_path artifact
+    local TARGET_OUTPUT_ROOT SITEMAP_PATH ARTIFACT SITEMAP_RENDER_FILE SITEMAP_RENDER_DIR SITEMAP_KEY SITEMAP_TEMP_ROOT
 
-    TARGET_DIR="${1:-}"
+    TARGET_OUTPUT_ROOT="${1:-}"
     SITEMAP_PATH="${2:-}"
     ARTIFACT="${3:-}"
-    [[ "${TARGET_DIR}" == "" ]] && return 1
+    [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
     [[ "${SITEMAP_PATH}" == "" ]] && return 1
     [[ "${ARTIFACT}" == "" ]] && return 1
 
-    SITEMAP_RENDER_PATH=$(marsh_get_sitemap_render_path "${TARGET_DIR}" "${SITEMAP_PATH}") || return 1
-    SITEMAP_RENDER_DIR="${SITEMAP_RENDER_PATH%/*}"
-    SITEMAP_KEY="${SITEMAP_RENDER_PATH##*/}"
+    SITEMAP_RENDER_FILE=$(marsh_get_sitemap_render_path "${TARGET_OUTPUT_ROOT}" "${SITEMAP_PATH}") || return 1
+    SITEMAP_RENDER_DIR="${SITEMAP_RENDER_FILE%/*}"
+    SITEMAP_KEY="${SITEMAP_RENDER_FILE##*/}"
     SITEMAP_KEY="${SITEMAP_KEY%.sitemap.html}"
-    SITEMAP_ROOT="${SITEMAP_RENDER_DIR%/render}/work/${SITEMAP_KEY}"
+    SITEMAP_TEMP_ROOT="${SITEMAP_RENDER_DIR%/render}/work/${SITEMAP_KEY}"
 
     case "${ARTIFACT}" in
         root)
-            printf '%s\n' "${SITEMAP_ROOT}"
+            printf '%s\n' "${SITEMAP_TEMP_ROOT}"
             ;;
         content)
-            printf '%s\n' "${SITEMAP_ROOT}/content"
+            printf '%s\n' "${SITEMAP_TEMP_ROOT}/content"
             ;;
         meta-yaml)
-            printf '%s\n' "${SITEMAP_ROOT}/meta.yaml"
+            printf '%s\n' "${SITEMAP_TEMP_ROOT}/meta.yaml"
             ;;
         *)
             return 1
@@ -2660,43 +2660,43 @@ function marsh_resolve_relative_path {  # marsh_resolve_relative_path base_dir t
 }
 
 # derives normalized target/document path values shared by document and template builds
-function marsh_get_target_document_paths {  # marsh_get_target_document_paths document dest_dir target_dir markdown_fileext_csv
-    local DOCUMENT DEST_DIR TARGET_DIR MARKDOWN_FILEEXT_CSV
-    local DOCUMENT_EXT DOCUMENT_DIR TARGET_PATH DOCUMENT_OUTPUT_PATH DOCUMENT_SOURCE_PATH DOCUMENT_BASE_PATH
+function marsh_get_target_document_paths {  # marsh_get_target_document_paths document site_output_root target_output_rel markdown_fileext_csv
+    local DOCUMENT SITE_OUTPUT_ROOT TARGET_OUTPUT_REL MARKDOWN_FILEEXT_CSV
+    local DOCUMENT_EXT DOCUMENT_DIR TARGET_OUTPUT_ROOT DOCUMENT_OUTPUT_REL DOCUMENT_SITE_REL DOCUMENT_BASE_REL
 
     DOCUMENT="${1:-}"
-    DEST_DIR="${2:-.}"
-    TARGET_DIR="${3:-.}"
+    SITE_OUTPUT_ROOT="${2:-.}"
+    TARGET_OUTPUT_REL="${3:-.}"
     MARKDOWN_FILEEXT_CSV="${4:-}"
     [[ "${DOCUMENT}" == "" ]] && return 1
     [[ "${MARKDOWN_FILEEXT_CSV}" == "" ]] && return 1
 
-    DEST_DIR="${DEST_DIR%/}"
-    TARGET_DIR="${TARGET_DIR%/}"
-    TARGET_PATH="${DEST_DIR}/${TARGET_DIR}"
-    TARGET_PATH="${TARGET_PATH%/.}"
+    SITE_OUTPUT_ROOT="${SITE_OUTPUT_ROOT%/}"
+    TARGET_OUTPUT_REL="${TARGET_OUTPUT_REL%/}"
+    TARGET_OUTPUT_ROOT="${SITE_OUTPUT_ROOT}/${TARGET_OUTPUT_REL}"
+    TARGET_OUTPUT_ROOT="${TARGET_OUTPUT_ROOT%/.}"
 
     DOCUMENT_EXT="${DOCUMENT##*.}"
     DOCUMENT_DIR=$(marsh_get_internal_parent_directory "${DOCUMENT}") || return 1
 
-    DOCUMENT_OUTPUT_PATH="${DOCUMENT}"
+    DOCUMENT_OUTPUT_REL="${DOCUMENT}"
     if marsh_is_markdown_extension "${DOCUMENT_EXT}" "${MARKDOWN_FILEEXT_CSV}"; then
-        DOCUMENT_OUTPUT_PATH="${DOCUMENT_OUTPUT_PATH%.*}.html"
+        DOCUMENT_OUTPUT_REL="${DOCUMENT_OUTPUT_REL%.*}.html"
     fi
-    if [[ "${TARGET_DIR}" != "." ]]; then
-        DOCUMENT_OUTPUT_PATH="${TARGET_DIR}/${DOCUMENT_OUTPUT_PATH}"
+    if [[ "${TARGET_OUTPUT_REL}" != "." ]]; then
+        DOCUMENT_OUTPUT_REL="${TARGET_OUTPUT_REL}/${DOCUMENT_OUTPUT_REL}"
     fi
-    DOCUMENT_OUTPUT_PATH="${DOCUMENT_OUTPUT_PATH#./}"
+    DOCUMENT_OUTPUT_REL="${DOCUMENT_OUTPUT_REL#./}"
 
-    DOCUMENT_SOURCE_PATH="${TARGET_PATH}/${DOCUMENT}"
-    DOCUMENT_BASE_PATH=$(marsh_normalize_internal_path "${TARGET_DIR}/${DOCUMENT_DIR}" "directory") || return 1
+    DOCUMENT_SITE_REL=$(marsh_normalize_internal_path "${TARGET_OUTPUT_REL}/${DOCUMENT}") || return 1
+    DOCUMENT_BASE_REL=$(marsh_normalize_internal_path "${TARGET_OUTPUT_REL}/${DOCUMENT_DIR}" "directory") || return 1
 
-    printf 'TARGET_PATH=%q\n' "${TARGET_PATH}"
+    printf 'TARGET_OUTPUT_ROOT=%q\n' "${TARGET_OUTPUT_ROOT}"
     printf 'DOCUMENT_DIR=%q\n' "${DOCUMENT_DIR}"
     printf 'DOCUMENT_EXT=%q\n' "${DOCUMENT_EXT}"
-    printf 'DOCUMENT_OUTPUT_PATH=%q\n' "${DOCUMENT_OUTPUT_PATH}"
-    printf 'DOCUMENT_SOURCE_PATH=%q\n' "${DOCUMENT_SOURCE_PATH}"
-    printf 'DOCUMENT_BASE_PATH=%q\n' "${DOCUMENT_BASE_PATH}"
+    printf 'DOCUMENT_OUTPUT_REL=%q\n' "${DOCUMENT_OUTPUT_REL}"
+    printf 'DOCUMENT_SITE_REL=%q\n' "${DOCUMENT_SITE_REL}"
+    printf 'DOCUMENT_BASE_REL=%q\n' "${DOCUMENT_BASE_REL}"
 }
 
 # returns the normalized target directory path
@@ -2713,14 +2713,14 @@ function marsh_get_target_directory_path {  # marsh_get_target_directory_path ta
 
 # returns the normalized target path relative to the site output root
 function marsh_get_target_output_path {  # marsh_get_target_output_path target_dir
-    local TARGET_DIR TARGET_PATH
+    local TARGET_DIR TARGET_OUTPUT_REL
 
     TARGET_DIR=$(marsh_get_target_directory_path "${1:-}") || return 1
 
-    TARGET_PATH="${TARGET_DIR#$MARSH_CONFIG_PATH}"
-    TARGET_PATH="${TARGET_PATH#/}"
-    TARGET_PATH="${TARGET_PATH:-.}"
-    marsh_normalize_internal_path "${TARGET_PATH}"
+    TARGET_OUTPUT_REL="${TARGET_DIR#$MARSH_CONFIG_PATH}"
+    TARGET_OUTPUT_REL="${TARGET_OUTPUT_REL#/}"
+    TARGET_OUTPUT_REL="${TARGET_OUTPUT_REL:-.}"
+    marsh_normalize_internal_path "${TARGET_OUTPUT_REL}"
 }
 
 # returns the temp work root for a target under MARSH_TEMP
@@ -2742,16 +2742,16 @@ function marsh_get_target_temp_root {  # marsh_get_target_temp_root target_dir
 
 # returns the configured source root for a target when cached under MARSH_TEMP
 function marsh_get_target_source_root_path {  # marsh_get_target_source_root_path target_dir
-    local TARGET_DIR TARGET_TEMP_ROOT SOURCE_ROOT_FILE SOURCE_ROOT
+    local TARGET_DIR TARGET_BUILD_TEMP_ROOT TARGET_SOURCE_ROOT_CACHE_FILE SOURCE_ROOT
 
     TARGET_DIR="${1:-}"
     [[ "${TARGET_DIR}" == "" ]] && return 1
 
-    TARGET_TEMP_ROOT=$(marsh_get_target_temp_root "${TARGET_DIR}") || return 1
-    SOURCE_ROOT_FILE="${TARGET_TEMP_ROOT}/source-root"
-    [[ -f "${SOURCE_ROOT_FILE}" ]] && [[ -r "${SOURCE_ROOT_FILE}" ]] || return 1
+    TARGET_BUILD_TEMP_ROOT=$(marsh_get_target_temp_root "${TARGET_DIR}") || return 1
+    TARGET_SOURCE_ROOT_CACHE_FILE="${TARGET_BUILD_TEMP_ROOT}/source-root"
+    [[ -f "${TARGET_SOURCE_ROOT_CACHE_FILE}" ]] && [[ -r "${TARGET_SOURCE_ROOT_CACHE_FILE}" ]] || return 1
 
-    SOURCE_ROOT=$(<"${SOURCE_ROOT_FILE}")
+    SOURCE_ROOT=$(<"${TARGET_SOURCE_ROOT_CACHE_FILE}")
     [[ "${SOURCE_ROOT}" != "" ]] || return 1
     [[ -d "${SOURCE_ROOT}" ]] || return 1
     printf '%s\n' "${SOURCE_ROOT}"
@@ -2759,18 +2759,18 @@ function marsh_get_target_source_root_path {  # marsh_get_target_source_root_pat
 
 # removes the temporary working directory for a target under MARSH_TEMP
 function marsh_clean_target_temp {  # marsh_clean_target_temp target_dir
-    local TARGET_DIR TARGET_TEMP_ROOT
+    local TARGET_DIR TARGET_BUILD_TEMP_ROOT
 
     TARGET_DIR="${1:-}"
     [[ "${TARGET_DIR}" == "" ]] && return 1
 
-    TARGET_TEMP_ROOT=$(marsh_get_target_temp_root "${TARGET_DIR}") || return 1
-    rm -rf "${TARGET_TEMP_ROOT}"
+    TARGET_BUILD_TEMP_ROOT=$(marsh_get_target_temp_root "${TARGET_DIR}") || return 1
+    rm -rf "${TARGET_BUILD_TEMP_ROOT}"
 }
 
 # resolves a document temp artifact path under the target temp work tree
 function marsh_get_document_temp_path {  # marsh_get_document_temp_path target_dir document artifact
-    local TARGET_DIR DOCUMENT ARTIFACT TARGET_TEMP_ROOT DOCUMENT_KEY DOCUMENT_ROOT
+    local TARGET_DIR DOCUMENT ARTIFACT TARGET_BUILD_TEMP_ROOT DOCUMENT_KEY DOCUMENT_ROOT
 
     TARGET_DIR="${1:-}"
     DOCUMENT="${2:-}"
@@ -2780,11 +2780,11 @@ function marsh_get_document_temp_path {  # marsh_get_document_temp_path target_d
     [[ "${ARTIFACT}" == "" ]] && return 1
     [[ "${DOCUMENT}" != /* ]] || return 1
 
-    TARGET_TEMP_ROOT=$(marsh_get_target_temp_root "${TARGET_DIR}") || return 1
+    TARGET_BUILD_TEMP_ROOT=$(marsh_get_target_temp_root "${TARGET_DIR}") || return 1
     # Document temp artifacts are keyed by site-relative document path so nested target builds share them.
     DOCUMENT_KEY=$(marsh_normalize_internal_path "${DOCUMENT}") || return 1
     [[ "${DOCUMENT_KEY}" == "." ]] && return 1
-    DOCUMENT_ROOT="${TARGET_TEMP_ROOT}/documents/${DOCUMENT_KEY}"
+    DOCUMENT_ROOT="${TARGET_BUILD_TEMP_ROOT}/documents/${DOCUMENT_KEY}"
 
     case "${ARTIFACT}" in
         root)
@@ -2810,7 +2810,7 @@ function marsh_get_document_temp_path {  # marsh_get_document_temp_path target_d
 
 # resolves an archive temp artifact path under the target temp work tree
 function marsh_get_archive_temp_path {  # marsh_get_archive_temp_path target_dir archive_source artifact
-    local TARGET_DIR ARCHIVE_SOURCE ARTIFACT TARGET_TEMP_ROOT ARCHIVE_KEY ARCHIVE_ROOT
+    local TARGET_DIR ARCHIVE_SOURCE ARTIFACT TARGET_BUILD_TEMP_ROOT ARCHIVE_KEY ARCHIVE_ROOT
 
     TARGET_DIR="${1:-}"
     ARCHIVE_SOURCE="${2:-}"
@@ -2820,10 +2820,10 @@ function marsh_get_archive_temp_path {  # marsh_get_archive_temp_path target_dir
     [[ "${ARTIFACT}" == "" ]] && return 1
     [[ "${ARCHIVE_SOURCE}" != /* ]] || return 1
 
-    TARGET_TEMP_ROOT=$(marsh_get_target_temp_root "${TARGET_DIR}") || return 1
+    TARGET_BUILD_TEMP_ROOT=$(marsh_get_target_temp_root "${TARGET_DIR}") || return 1
     ARCHIVE_KEY=$(marsh_normalize_internal_path "${ARCHIVE_SOURCE}") || return 1
     [[ "${ARCHIVE_KEY}" == "." ]] && return 1
-    ARCHIVE_ROOT="${TARGET_TEMP_ROOT}/archives/${ARCHIVE_KEY}"
+    ARCHIVE_ROOT="${TARGET_BUILD_TEMP_ROOT}/archives/${ARCHIVE_KEY}"
 
     case "${ARTIFACT}" in
         root)
@@ -2846,7 +2846,7 @@ function marsh_get_archive_temp_path {  # marsh_get_archive_temp_path target_dir
 
 # resolves the temp render path for a processed output file under the target temp work tree
 function marsh_get_render_temp_path {  # marsh_get_render_temp_path target_dir output_path
-    local TARGET_DIR OUTPUT_PATH TARGET_TEMP_ROOT OUTPUT_KEY
+    local TARGET_DIR OUTPUT_PATH TARGET_BUILD_TEMP_ROOT OUTPUT_KEY
 
     TARGET_DIR="${1:-}"
     OUTPUT_PATH="${2:-}"
@@ -2854,11 +2854,11 @@ function marsh_get_render_temp_path {  # marsh_get_render_temp_path target_dir o
     [[ "${OUTPUT_PATH}" == "" ]] && return 1
     [[ "${OUTPUT_PATH}" != /* ]] || return 1
 
-    TARGET_TEMP_ROOT=$(marsh_get_target_temp_root "${TARGET_DIR}") || return 1
+    TARGET_BUILD_TEMP_ROOT=$(marsh_get_target_temp_root "${TARGET_DIR}") || return 1
     OUTPUT_KEY=$(marsh_normalize_internal_path "${OUTPUT_PATH}") || return 1
     [[ "${OUTPUT_KEY}" == "." ]] && return 1
 
-    printf '%s\n' "${TARGET_TEMP_ROOT}/render/${OUTPUT_KEY}"
+    printf '%s\n' "${TARGET_BUILD_TEMP_ROOT}/render/${OUTPUT_KEY}"
 }
 
 # publishes a completed processed output file to its final destination
@@ -3642,7 +3642,7 @@ function marsh_build_sitemap {  # marsh_build_sitemap target_output_root sitemap
 }
 
 # builds a template and applies it to a document
-function marsh_build_template {  # marsh_build_template dest_dir target_dir document sitemap sitemap_search templates_dir template markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links #template_overrides[@] template_overrides[@] template_assets_path
+function marsh_build_template {  # marsh_build_template site_output_root target_output_rel document sitemap_source sitemap_search templates_dir template markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links #template_overrides[@] template_overrides[@] template_assets_path
     function process_conditionals {  # process_conditionals file tag list[@]
         local FILE TAG LIST_SEP LIST_RAW
         local FILE_TEMP
@@ -4081,10 +4081,10 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
         return 0
     }
 
-    local DEST_DIR TARGET_DIR TARGET_PATH SITEMAP_SOURCE SITEMAP_SEARCH TARGET_SITEMAP DOCUMENT_REL_PATH DOCUMENT_REL_TO_SITE
+    local SITE_OUTPUT_ROOT TARGET_OUTPUT_REL TARGET_OUTPUT_ROOT SITEMAP_SOURCE SITEMAP_SEARCH TARGET_SITEMAP DOCUMENT_REL_TO_TARGET DOCUMENT_SITE_REL
     local DOCUMENT DOCUMENT_EXT DOCUMENT_DIR DOCUMENT_HREF DOCUMENT_URI
-    local DOCUMENT_OUTPUT_PATH DOCUMENT_BASE_PATH DOCUMENT_ABSPATH DOCUMENT_SOURCE_PATH DOCUMENT_SOURCE_FILE TARGET_SOURCE_ROOT
-    local ARCHIVE_SOURCE_PATH ARCHIVE_OUTPUT_PATH
+    local DOCUMENT_OUTPUT_REL DOCUMENT_BASE_REL DOCUMENT_ABSPATH DOCUMENT_SOURCE_FILE TARGET_SOURCE_ROOT
+    local ARCHIVE_SOURCE_FILE ARCHIVE_OUTPUT_PATH
     local SITE_ROOTPATH SITE_ABSPATH TARGET_ROOTPATH TARGET_ABSPATH ARCHIVE_ROOTPATH ARCHIVE_ABSPATH
     local DEST DEST_FINAL DEST_NAME DEST_PRINT DEST_RENDER_PATH
     local TEMPLATE_DIR TEMPLATE MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_FILEEXT_REGEX MARKDOWN_REWRITE_LINKS TEMPLATE_ASSETS_PATH
@@ -4116,8 +4116,8 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
     local DOCUMENT_HREF_ESC
 
     # init
-    DEST_DIR="${1:-.}"
-    TARGET_DIR="${2:-.}"
+    SITE_OUTPUT_ROOT="${1:-.}"
+    TARGET_OUTPUT_REL="${2:-.}"
     DOCUMENT="${3:-}"
     SITEMAP_SOURCE="${4:-}"
     SITEMAP_SEARCH="${5:-false}"
@@ -4146,47 +4146,45 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
     TEMPLATE_ASSETS_PATH="${TEMPLATE_ASSETS_PATH#./}"
     TEMPLATE_ASSETS_PATH="${TEMPLATE_ASSETS_PATH#/}"
     TEMPLATE_ASSETS_PATH="${TEMPLATE_ASSETS_PATH%/}"
-    DOCUMENT_REL_PATH="${DOCUMENT}"
-    DEST_DIR="${DEST_DIR%/}"
-    TARGET_DIR="${TARGET_DIR%/}"
-    eval "$(marsh_get_target_document_paths "${DOCUMENT}" "${DEST_DIR}" "${TARGET_DIR}" "${MARKDOWN_FILEEXT_CSV}")" || return 1
-    DOCUMENT_REL_TO_SITE="${DOCUMENT_SOURCE_PATH#${DEST_DIR%/}/}"
+    DOCUMENT_REL_TO_TARGET="${DOCUMENT}"
+    SITE_OUTPUT_ROOT="${SITE_OUTPUT_ROOT%/}"
+    TARGET_OUTPUT_REL="${TARGET_OUTPUT_REL%/}"
+    eval "$(marsh_get_target_document_paths "${DOCUMENT}" "${SITE_OUTPUT_ROOT}" "${TARGET_OUTPUT_REL}" "${MARKDOWN_FILEEXT_CSV}")" || return 1
 
     # document destination
     DEST="${DOCUMENT}"
     DEST_NAME="${DEST%.$DOCUMENT_EXT}"
     DEST_NAME="${DEST_NAME##*/}"
-    DEST="${DEST_DIR}/${DOCUMENT_OUTPUT_PATH}"
+    DEST="${SITE_OUTPUT_ROOT}/${DOCUMENT_OUTPUT_REL}"
     DEST_FINAL="${DEST}"
-    DOCUMENT="${DOCUMENT_SOURCE_PATH}"
     DOCUMENT_SOURCE_FILE=""
     # prefer source tree for ordinary documents
-    TARGET_SOURCE_ROOT=$(marsh_get_target_source_root_path "${TARGET_PATH}" 2>/dev/null) || TARGET_SOURCE_ROOT=""
-    if [[ -f "${TARGET_SOURCE_ROOT}/${DOCUMENT_REL_PATH}" ]] && [[ -r "${TARGET_SOURCE_ROOT}/${DOCUMENT_REL_PATH}" ]]; then
-        DOCUMENT_SOURCE_FILE="${TARGET_SOURCE_ROOT}/${DOCUMENT_REL_PATH}"
+    TARGET_SOURCE_ROOT=$(marsh_get_target_source_root_path "${TARGET_OUTPUT_ROOT}" 2>/dev/null) || TARGET_SOURCE_ROOT=""
+    if [[ -f "${TARGET_SOURCE_ROOT}/${DOCUMENT_REL_TO_TARGET}" ]] && [[ -r "${TARGET_SOURCE_ROOT}/${DOCUMENT_REL_TO_TARGET}" ]]; then
+        DOCUMENT_SOURCE_FILE="${TARGET_SOURCE_ROOT}/${DOCUMENT_REL_TO_TARGET}"
     fi
     if [[ ! -f "${DOCUMENT_SOURCE_FILE}" ]] || [[ ! -r "${DOCUMENT_SOURCE_FILE}" ]]; then
-        ARCHIVE_SOURCE_PATH=$(marsh_get_archive_temp_path "${DEST_DIR}" "${DOCUMENT_REL_TO_SITE}" "source" 2>/dev/null) || ARCHIVE_SOURCE_PATH=""
-        if [[ -f "${ARCHIVE_SOURCE_PATH}" ]] && [[ -r "${ARCHIVE_SOURCE_PATH}" ]]; then
-            DOCUMENT_SOURCE_FILE="${ARCHIVE_SOURCE_PATH}"
+        ARCHIVE_SOURCE_FILE=$(marsh_get_archive_temp_path "${SITE_OUTPUT_ROOT}" "${DOCUMENT_SITE_REL}" "source" 2>/dev/null) || ARCHIVE_SOURCE_FILE=""
+        if [[ -f "${ARCHIVE_SOURCE_FILE}" ]] && [[ -r "${ARCHIVE_SOURCE_FILE}" ]]; then
+            DOCUMENT_SOURCE_FILE="${ARCHIVE_SOURCE_FILE}"
         fi
     fi
 
     # absolute path to document directory
-    DOCUMENT_ABSPATH=$(marsh_get_absolute_output_path "${DOCUMENT_BASE_PATH}" "directory") || return 1
+    DOCUMENT_ABSPATH=$(marsh_get_absolute_output_path "${DOCUMENT_BASE_REL}" "directory") || return 1
 
     # target root path and absolute target path
-    TARGET_ROOTPATH=$(marsh_normalize_path "${TARGET_DIR:-.}" "directory") || return 1
-    TARGET_ROOTPATH=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "${TARGET_ROOTPATH}") || return 1
-    TARGET_ABSPATH=$(marsh_get_absolute_output_path "${TARGET_DIR}" "directory") || return 1
+    TARGET_ROOTPATH=$(marsh_normalize_path "${TARGET_OUTPUT_REL:-.}" "directory") || return 1
+    TARGET_ROOTPATH=$(marsh_get_relative_path "${DOCUMENT_BASE_REL}" "${TARGET_ROOTPATH}") || return 1
+    TARGET_ABSPATH=$(marsh_get_absolute_output_path "${TARGET_OUTPUT_REL}" "directory") || return 1
 
     # site root path and absolute site path
-    SITE_ROOTPATH=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "./") || return 1
+    SITE_ROOTPATH=$(marsh_get_relative_path "${DOCUMENT_BASE_REL}" "./") || return 1
     SITE_ABSPATH=$(marsh_get_absolute_output_path "." "directory") || return 1
 
     # document uri (absolute link) and href (relative link)
-    DOCUMENT_URI=$(marsh_get_absolute_output_path "${DOCUMENT_OUTPUT_PATH}" "document") || return 1
-    DOCUMENT_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "${DOCUMENT_OUTPUT_PATH}") || return 1
+    DOCUMENT_URI=$(marsh_get_absolute_output_path "${DOCUMENT_OUTPUT_REL}" "document") || return 1
+    DOCUMENT_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_REL}" "${DOCUMENT_OUTPUT_REL}") || return 1
 
     # markdown file extension regex
     MARKDOWN_FILEEXT_REGEX="${MARKDOWN_FILEEXT_CSV//,/|}"
@@ -4196,21 +4194,21 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
 
     # verbosity
     # seems logical to put this elsewhere, but this is a good catch-all for now
-    DEST_PRINT="${DEST#${DEST_DIR}/}"
+    DEST_PRINT="${DEST#${SITE_OUTPUT_ROOT}/}"
     DEST_PRINT="${DEST_PRINT#./}"
     echo "  ${DEST_PRINT}"
 
     # document content and metadata
-    DOCUMENT_CONTENT=$(marsh_get_document_temp_path "${TARGET_PATH}" "${DOCUMENT_REL_PATH}" "content") || return 1
-    DOCUMENT_META_PATH=$(marsh_get_document_temp_path "${TARGET_PATH}" "${DOCUMENT_REL_PATH}" "meta-yaml") || return 1
+    DOCUMENT_CONTENT=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "${DOCUMENT_REL_TO_TARGET}" "content") || return 1
+    DOCUMENT_META_PATH=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "${DOCUMENT_REL_TO_TARGET}" "meta-yaml") || return 1
     if [[ ! -e "${DOCUMENT_CONTENT}" ]]; then
         if [[ "${DOCUMENT_SOURCE_FILE}" == "" ]] && [[ "${TARGET_SOURCE_ROOT}" == "" ]]; then
-            echo "Document source root not found for target: ${TARGET_PATH}" >&2
+            echo "Document source root not found for target: ${TARGET_OUTPUT_ROOT}" >&2
             return 1
         fi
         if [[ ! -f "${DOCUMENT_SOURCE_FILE}" ]] || [[ ! -r "${DOCUMENT_SOURCE_FILE}" ]]; then
             if [[ "${TARGET_SOURCE_ROOT}" != "" ]]; then
-                echo "Document source not found: ${TARGET_SOURCE_ROOT}/${DOCUMENT_REL_PATH}" >&2
+                echo "Document source not found: ${TARGET_SOURCE_ROOT}/${DOCUMENT_REL_TO_TARGET}" >&2
             else
                 echo "Document source not found: ${DOCUMENT}" >&2
             fi
@@ -4257,9 +4255,9 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
     eval $(marsh_flat_to_array "DOCUMENT_State" "DOCUMENT_State_")
 
     # render outputs to temp first, then publish at the final destination
-    DEST_RENDER_PATH="${DEST_FINAL#${TARGET_PATH%/}/}"
+    DEST_RENDER_PATH="${DEST_FINAL#${TARGET_OUTPUT_ROOT%/}/}"
     DEST_RENDER_PATH="${DEST_RENDER_PATH#./}"
-    DEST=$(marsh_get_render_temp_path "${TARGET_PATH}" "${DEST_RENDER_PATH}") || return 1
+    DEST=$(marsh_get_render_temp_path "${TARGET_OUTPUT_ROOT}" "${DEST_RENDER_PATH}") || return 1
     mkdir -p "${DEST%/*}" >/dev/null 2>&1 || {
         echo "Unable to create render temp directory: ${DEST%/*}" >&2
         return 1
@@ -4386,22 +4384,22 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
         # sitemap
         TARGET_SITEMAP=""
         if [[ "${SITEMAP_SOURCE}" != "" ]]; then
-            SITEMAP_LOOKUP_PATH=$(marsh_get_sitemap_lookup_path "${DEST_DIR}/${TARGET_DIR}" "${DOCUMENT_REL_PATH}" "${SITEMAP_SOURCE}" "${SITEMAP_SEARCH}" 2>/dev/null)
+            SITEMAP_LOOKUP_PATH=$(marsh_get_sitemap_lookup_path "${SITE_OUTPUT_ROOT}/${TARGET_OUTPUT_REL}" "${DOCUMENT_REL_TO_TARGET}" "${SITEMAP_SOURCE}" "${SITEMAP_SEARCH}" 2>/dev/null)
             if [[ "${SITEMAP_LOOKUP_PATH:-}" != "" ]]; then
-                SITEMAP_RENDER_PATH=$(marsh_get_sitemap_render_path "${DEST_DIR}/${TARGET_DIR}" "${SITEMAP_LOOKUP_PATH}") || return 1
+                SITEMAP_RENDER_PATH=$(marsh_get_sitemap_render_path "${SITE_OUTPUT_ROOT}/${TARGET_OUTPUT_REL}" "${SITEMAP_LOOKUP_PATH}") || return 1
                 if [[ ! -f "${SITEMAP_RENDER_PATH}" ]] || [[ ! -r "${SITEMAP_RENDER_PATH}" ]]; then
                     SITEMAP_RENDER_PATH=""
                 fi
             fi
             if [[ "${SITEMAP_RENDER_PATH:-}" != "" ]]; then
-                SITEMAP_OUTPUT_PATH=$(marsh_normalize_internal_path "${TARGET_DIR}/${SITEMAP_LOOKUP_PATH}") || return 1
+                SITEMAP_OUTPUT_PATH=$(marsh_normalize_internal_path "${TARGET_OUTPUT_REL}/${SITEMAP_LOOKUP_PATH}") || return 1
                 if marsh_is_markdown_extension "${SITEMAP_OUTPUT_PATH##*.}" "${MARKDOWN_FILEEXT_CSV}"; then
                     SITEMAP_OUTPUT_PATH="${SITEMAP_OUTPUT_PATH%.*}.html"
                 fi
                 SITEMAP_NAME="${SITEMAP_OUTPUT_PATH##*/}"
                 SITEMAP_DIR=$(marsh_normalize_internal_path "${SITEMAP_OUTPUT_PATH%/*}") || return 1
-                SITEMAP_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "${SITEMAP_OUTPUT_PATH}") || return 1
-                PROCESSED_SITEMAP_PATH=$(marsh_get_processed_sitemap "${SITEMAP_RENDER_PATH}" "${SITEMAP_DIR}" "${DOCUMENT_BASE_PATH}") || return 1
+                SITEMAP_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_REL}" "${SITEMAP_OUTPUT_PATH}") || return 1
+                PROCESSED_SITEMAP_PATH=$(marsh_get_processed_sitemap "${SITEMAP_RENDER_PATH}" "${SITEMAP_DIR}" "${DOCUMENT_BASE_REL}") || return 1
                 DOCUMENT_HREF_ESC=$(printf '%s' "${DOCUMENT_HREF}" | sed -e 's/[\\]/\\\\/g' -e 's/[][/.|$(){}?+*^]/\\&/g')
                 TARGET_SITEMAP=$(<"${PROCESSED_SITEMAP_PATH}" sed -E \
                 -e 's|<h1>([^<]+)</h1>|<h1><a href="'"${SITEMAP_HREF}"'">\1</a></h1>|' \
@@ -4433,8 +4431,8 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                     for ASSET in "${TEMPLATE_ASSETS_FONTS[@]}"; do
                         ASSET_PATH="${ASSET%\?*}"
                         ASSET_QUERY="${ASSET#${ASSET_PATH}}"
-                        ASSET_OUTPUT_PATH=$(marsh_resolve_template_asset_output_path "${TARGET_DIR:-.}" "${ASSET_PATH}" "${TEMPLATE_ASSETS_PATH}") || return 1
-                        ASSET_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "${ASSET_OUTPUT_PATH}") || return 1
+                        ASSET_OUTPUT_PATH=$(marsh_resolve_template_asset_output_path "${TARGET_OUTPUT_REL:-.}" "${ASSET_PATH}" "${TEMPLATE_ASSETS_PATH}") || return 1
+                        ASSET_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_REL}" "${ASSET_OUTPUT_PATH}") || return 1
                         TEMPLATE_TAG_ASSETS_FONTS+=("${ASSET_HREF}${ASSET_QUERY}")
                     done
                     ;;
@@ -4442,8 +4440,8 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                     for ASSET in "${TEMPLATE_ASSETS_STYLES[@]}"; do
                         ASSET_PATH="${ASSET%\?*}"
                         ASSET_QUERY="${ASSET#${ASSET_PATH}}"
-                        ASSET_OUTPUT_PATH=$(marsh_resolve_template_asset_output_path "${TARGET_DIR:-.}" "${ASSET_PATH}" "${TEMPLATE_ASSETS_PATH}") || return 1
-                        ASSET_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "${ASSET_OUTPUT_PATH}") || return 1
+                        ASSET_OUTPUT_PATH=$(marsh_resolve_template_asset_output_path "${TARGET_OUTPUT_REL:-.}" "${ASSET_PATH}" "${TEMPLATE_ASSETS_PATH}") || return 1
+                        ASSET_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_REL}" "${ASSET_OUTPUT_PATH}") || return 1
                         TEMPLATE_TAG_ASSETS_STYLES+=("${ASSET_HREF}${ASSET_QUERY}")
                     done
                     ;;
@@ -4451,8 +4449,8 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                     for ASSET in "${TEMPLATE_ASSETS_SCRIPTS[@]}"; do
                         ASSET_PATH="${ASSET%\?*}"
                         ASSET_QUERY="${ASSET#${ASSET_PATH}}"
-                        ASSET_OUTPUT_PATH=$(marsh_resolve_template_asset_output_path "${TARGET_DIR:-.}" "${ASSET_PATH}" "${TEMPLATE_ASSETS_PATH}") || return 1
-                        ASSET_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "${ASSET_OUTPUT_PATH}") || return 1
+                        ASSET_OUTPUT_PATH=$(marsh_resolve_template_asset_output_path "${TARGET_OUTPUT_REL:-.}" "${ASSET_PATH}" "${TEMPLATE_ASSETS_PATH}") || return 1
+                        ASSET_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_REL}" "${ASSET_OUTPUT_PATH}") || return 1
                         TEMPLATE_TAG_ASSETS_SCRIPTS+=("${ASSET_HREF}${ASSET_QUERY}")
                     done
                     ;;
@@ -4460,8 +4458,8 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                     for ASSET in "${TEMPLATE_ASSETS_IMAGES[@]}"; do
                         ASSET_PATH="${ASSET%\?*}"
                         ASSET_QUERY="${ASSET#${ASSET_PATH}}"
-                        ASSET_OUTPUT_PATH=$(marsh_resolve_template_asset_output_path "${TARGET_DIR:-.}" "${ASSET_PATH}" "${TEMPLATE_ASSETS_PATH}") || return 1
-                        ASSET_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "${ASSET_OUTPUT_PATH}") || return 1
+                        ASSET_OUTPUT_PATH=$(marsh_resolve_template_asset_output_path "${TARGET_OUTPUT_REL:-.}" "${ASSET_PATH}" "${TEMPLATE_ASSETS_PATH}") || return 1
+                        ASSET_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_REL}" "${ASSET_OUTPUT_PATH}") || return 1
                         TEMPLATE_TAG_ASSETS_IMAGES+=("${ASSET_HREF}${ASSET_QUERY}")
                     done
                     ;;
@@ -4469,8 +4467,8 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                     for ASSET in "${TEMPLATE_ASSETS_AUDIO[@]}"; do
                         ASSET_PATH="${ASSET%\?*}"
                         ASSET_QUERY="${ASSET#${ASSET_PATH}}"
-                        ASSET_OUTPUT_PATH=$(marsh_resolve_template_asset_output_path "${TARGET_DIR:-.}" "${ASSET_PATH}" "${TEMPLATE_ASSETS_PATH}") || return 1
-                        ASSET_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "${ASSET_OUTPUT_PATH}") || return 1
+                        ASSET_OUTPUT_PATH=$(marsh_resolve_template_asset_output_path "${TARGET_OUTPUT_REL:-.}" "${ASSET_PATH}" "${TEMPLATE_ASSETS_PATH}") || return 1
+                        ASSET_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_REL}" "${ASSET_OUTPUT_PATH}") || return 1
                         TEMPLATE_TAG_ASSETS_AUDIO+=("${ASSET_HREF}${ASSET_QUERY}")
                     done
                     ;;
@@ -4478,8 +4476,8 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                     for ASSET in "${TEMPLATE_ASSETS_VIDEO[@]}"; do
                         ASSET_PATH="${ASSET%\?*}"
                         ASSET_QUERY="${ASSET#${ASSET_PATH}}"
-                        ASSET_OUTPUT_PATH=$(marsh_resolve_template_asset_output_path "${TARGET_DIR:-.}" "${ASSET_PATH}" "${TEMPLATE_ASSETS_PATH}") || return 1
-                        ASSET_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "${ASSET_OUTPUT_PATH}") || return 1
+                        ASSET_OUTPUT_PATH=$(marsh_resolve_template_asset_output_path "${TARGET_OUTPUT_REL:-.}" "${ASSET_PATH}" "${TEMPLATE_ASSETS_PATH}") || return 1
+                        ASSET_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_REL}" "${ASSET_OUTPUT_PATH}") || return 1
                         TEMPLATE_TAG_ASSETS_VIDEO+=("${ASSET_HREF}${ASSET_QUERY}")
                     done
                     ;;
@@ -4487,8 +4485,8 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                     for ASSET in "${TEMPLATE_ASSETS_DOCUMENTS[@]}"; do
                         ASSET_PATH="${ASSET%\?*}"
                         ASSET_QUERY="${ASSET#${ASSET_PATH}}"
-                        ASSET_OUTPUT_PATH=$(marsh_resolve_template_asset_output_path "${TARGET_DIR:-.}" "${ASSET_PATH}" "${TEMPLATE_ASSETS_PATH}") || return 1
-                        ASSET_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "${ASSET_OUTPUT_PATH}") || return 1
+                        ASSET_OUTPUT_PATH=$(marsh_resolve_template_asset_output_path "${TARGET_OUTPUT_REL:-.}" "${ASSET_PATH}" "${TEMPLATE_ASSETS_PATH}") || return 1
+                        ASSET_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_REL}" "${ASSET_OUTPUT_PATH}") || return 1
                         TEMPLATE_TAG_ASSETS_DOCUMENTS+=("${ASSET_HREF}${ASSET_QUERY}")
                     done
                     ;;
@@ -4496,8 +4494,8 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                     for ASSET in "${TEMPLATE_ASSETS_BINARIES[@]}"; do
                         ASSET_PATH="${ASSET%\?*}"
                         ASSET_QUERY="${ASSET#${ASSET_PATH}}"
-                        ASSET_OUTPUT_PATH=$(marsh_resolve_template_asset_output_path "${TARGET_DIR:-.}" "${ASSET_PATH}" "${TEMPLATE_ASSETS_PATH}") || return 1
-                        ASSET_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "${ASSET_OUTPUT_PATH}") || return 1
+                        ASSET_OUTPUT_PATH=$(marsh_resolve_template_asset_output_path "${TARGET_OUTPUT_REL:-.}" "${ASSET_PATH}" "${TEMPLATE_ASSETS_PATH}") || return 1
+                        ASSET_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_REL}" "${ASSET_OUTPUT_PATH}") || return 1
                         TEMPLATE_TAG_ASSETS_BINARIES+=("${ASSET_HREF}${ASSET_QUERY}")
                     done
                     ;;
@@ -4505,8 +4503,8 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                     for ASSET in "${TEMPLATE_ASSETS_OTHER[@]}"; do
                         ASSET_PATH="${ASSET%\?*}"
                         ASSET_QUERY="${ASSET#${ASSET_PATH}}"
-                        ASSET_OUTPUT_PATH=$(marsh_resolve_template_asset_output_path "${TARGET_DIR:-.}" "${ASSET_PATH}" "${TEMPLATE_ASSETS_PATH}") || return 1
-                        ASSET_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "${ASSET_OUTPUT_PATH}") || return 1
+                        ASSET_OUTPUT_PATH=$(marsh_resolve_template_asset_output_path "${TARGET_OUTPUT_REL:-.}" "${ASSET_PATH}" "${TEMPLATE_ASSETS_PATH}") || return 1
+                        ASSET_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_REL}" "${ASSET_OUTPUT_PATH}") || return 1
                         TEMPLATE_TAG_ASSETS_OTHER+=("${ASSET_HREF}${ASSET_QUERY}")
                     done
                     ;;
@@ -4525,7 +4523,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
         SUBDOCUMENTS=()
         SUBDOCUMENT_URIS=()
         SUBDOCUMENT_ABSPATHS=()
-        SUBDOCUMENTS_MANIFEST=$(marsh_get_archive_temp_path "${DEST_DIR}" "${DOCUMENT_REL_TO_SITE}" "subdocuments-manifest" 2>/dev/null) || SUBDOCUMENTS_MANIFEST=""
+        SUBDOCUMENTS_MANIFEST=$(marsh_get_archive_temp_path "${SITE_OUTPUT_ROOT}" "${DOCUMENT_SITE_REL}" "subdocuments-manifest" 2>/dev/null) || SUBDOCUMENTS_MANIFEST=""
         if [[ -f "${SUBDOCUMENTS_MANIFEST}" ]] && [[ -r "${SUBDOCUMENTS_MANIFEST}" ]]; then
             SUBDOCUMENTS_LIST=$(<"${SUBDOCUMENTS_MANIFEST}")
             while IFS=$'\t' read -r SUBDOCUMENT_DOCUMENT_ESC SUBDOCUMENT_URI_ESC SUBDOCUMENT_ABSPATH_ESC; do
@@ -4543,7 +4541,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
         fi
         NUM_SUBDOCUMENTS="${#SUBDOCUMENTS[@]}"
         if [[ "${NUM_SUBDOCUMENTS}" -gt 0 ]]; then
-            SUBDOCUMENTS_FILE=$(marsh_get_archive_temp_path "${DEST_DIR}" "${DOCUMENT_REL_TO_SITE}" "subdocuments") || return 1
+            SUBDOCUMENTS_FILE=$(marsh_get_archive_temp_path "${SITE_OUTPUT_ROOT}" "${DOCUMENT_SITE_REL}" "subdocuments") || return 1
             mkdir -p "${SUBDOCUMENTS_FILE%/*}" >/dev/null 2>&1 || {
                 echo "Unable to create subdocuments temp directory: ${SUBDOCUMENTS_FILE%/*}" >&2
                 return 1
@@ -4575,10 +4573,10 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                 # where the raw source is not directly readable, load content and metadata from temporary artifacts
                 # TODO: remove the raw source fallback when output-adjacent subdocument artifacts are no longer used
                 if [[ ! -f "${SUBDOCUMENT_CONTENT_FILE}" ]] || [[ ! -r "${SUBDOCUMENT_CONTENT_FILE}" ]]; then
-                    SUBDOCUMENT_CONTENT_FILE=$(marsh_get_document_temp_path "${DEST_DIR}" "${SUBDOCUMENT_REL_TO_SITE}" "content" 2>/dev/null) || SUBDOCUMENT_CONTENT_FILE="${SUBDOCUMENT_SOURCE}"
+                    SUBDOCUMENT_CONTENT_FILE=$(marsh_get_document_temp_path "${SITE_OUTPUT_ROOT}" "${SUBDOCUMENT_REL_TO_SITE}" "content" 2>/dev/null) || SUBDOCUMENT_CONTENT_FILE="${SUBDOCUMENT_SOURCE}"
                 fi
                 if [[ ! -f "${SUBDOCUMENT_META_FILE}" ]] || [[ ! -r "${SUBDOCUMENT_META_FILE}" ]]; then
-                    SUBDOCUMENT_META_FILE=$(marsh_get_document_temp_path "${DEST_DIR}" "${SUBDOCUMENT_REL_TO_SITE}" "meta-yaml" 2>/dev/null) || SUBDOCUMENT_META_FILE="${SUBDOCUMENT_SOURCE%.document}.meta.yaml"
+                    SUBDOCUMENT_META_FILE=$(marsh_get_document_temp_path "${SITE_OUTPUT_ROOT}" "${SUBDOCUMENT_REL_TO_SITE}" "meta-yaml" 2>/dev/null) || SUBDOCUMENT_META_FILE="${SUBDOCUMENT_SOURCE%.document}.meta.yaml"
                 fi
                 # document metadata
                 if [[ -f "${SUBDOCUMENT_META_FILE}" ]] && [[ -r "${SUBDOCUMENT_META_FILE}" ]]; then
@@ -4599,11 +4597,11 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                 # TODO: remove the legacy path transforms when subdocument manifests contain only site-relative ids
                 SUBDOCUMENT_OUTPUT_PATH="${SUBDOCUMENT_REL_TO_SITE}"
                 if [[ "${SUBDOCUMENT_OUTPUT_PATH}" == "" ]]; then
-                    SUBDOCUMENT_OUTPUT_PATH="${SUBDOCUMENT_SOURCE#${DEST_DIR%/}/}"
+                    SUBDOCUMENT_OUTPUT_PATH="${SUBDOCUMENT_SOURCE#${SITE_OUTPUT_ROOT%/}/}"
                     if [[ "${SUBDOCUMENT_OUTPUT_PATH}" == "${SUBDOCUMENT_SOURCE}" ]]; then
-                        SUBDOCUMENT_OUTPUT_PATH="${SUBDOCUMENT_SOURCE#${TARGET_PATH}/}"
-                        if [[ "${SUBDOCUMENT_OUTPUT_PATH}" != "${SUBDOCUMENT_SOURCE}" ]] && [[ "${TARGET_DIR}" != "." ]]; then
-                            SUBDOCUMENT_OUTPUT_PATH="${TARGET_DIR}/${SUBDOCUMENT_OUTPUT_PATH#./}"
+                        SUBDOCUMENT_OUTPUT_PATH="${SUBDOCUMENT_SOURCE#${TARGET_OUTPUT_ROOT}/}"
+                        if [[ "${SUBDOCUMENT_OUTPUT_PATH}" != "${SUBDOCUMENT_SOURCE}" ]] && [[ "${TARGET_OUTPUT_REL}" != "." ]]; then
+                            SUBDOCUMENT_OUTPUT_PATH="${TARGET_OUTPUT_REL}/${SUBDOCUMENT_OUTPUT_PATH#./}"
                         fi
                     fi
                     if [[ "${SUBDOCUMENT_OUTPUT_PATH%.$MARSH_UID.document}" != "${SUBDOCUMENT_OUTPUT_PATH}" ]]; then
@@ -4622,7 +4620,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
                     SUBDOCUMENT_URI=$(marsh_get_absolute_output_path "${SUBDOCUMENT_OUTPUT_PATH}" "document") || return 1
                 fi
                 SUBDOCUMENT_URI=$(marsh_normalize_path "${SUBDOCUMENT_URI}" "document") || return 1
-                SUBDOCUMENT_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "${SUBDOCUMENT_OUTPUT_PATH}") || return 1
+                SUBDOCUMENT_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_REL}" "${SUBDOCUMENT_OUTPUT_PATH}") || return 1
                 # state
                 eval $(marsh_flat_to_array "SUBDOCUMENT_State" "SUBDOCUMENT_State_")
                 SUBDOCUMENT_TEMPLATE=$(<"${SUBDOCUMENT_CONTENT_FILE}")
@@ -4793,7 +4791,7 @@ function marsh_build_template {  # marsh_build_template dest_dir target_dir docu
 function marsh_build_document {  # marsh_build_document site_output_root target_output_rel document markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links
     local SITE_OUTPUT_ROOT TARGET_OUTPUT_REL DOCUMENT DOCUMENT_EXT DOCUMENT_DIR TEXT_TRANSFORM
     local MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_REWRITE_LINKS
-    local TARGET_PATH TARGET_OUTPUT_ROOT DOCUMENT_PATH DOCUMENT_SOURCE_DIR TARGET_SOURCE_ROOT ARCHIVE_SOURCE_FILE DOCUMENT_SITE_REL DOCUMENT_TEMP_ROOT DOCUMENT_META DOCUMENT_META_CACHE DOCUMENT_CONTENT ARCHIVE_META ARCHIVE_META_TEMP DOCUMENT_OUTPUT_PATH DOCUMENT_SOURCE_PATH DOCUMENT_BASE_PATH
+    local TARGET_OUTPUT_ROOT DOCUMENT_SOURCE_FILE DOCUMENT_SOURCE_DIR TARGET_SOURCE_ROOT ARCHIVE_SOURCE_FILE DOCUMENT_SITE_REL DOCUMENT_TEMP_ROOT DOCUMENT_META DOCUMENT_META_CACHE DOCUMENT_CONTENT ARCHIVE_META ARCHIVE_META_TEMP DOCUMENT_OUTPUT_REL DOCUMENT_BASE_REL
 
     # init
     SITE_OUTPUT_ROOT="${1:-.}"
@@ -4810,20 +4808,18 @@ function marsh_build_document {  # marsh_build_document site_output_root target_
     [[ "${MARKDOWN_FILEEXT_CSV}" == "" ]] && return 1
     [[ "${MARKDOWN_REWRITE_LINKS}" == "" ]] && return 1
     eval "$(marsh_get_target_document_paths "${DOCUMENT}" "${SITE_OUTPUT_ROOT}" "${TARGET_OUTPUT_REL}" "${MARKDOWN_FILEEXT_CSV}")" || return 1
-    DOCUMENT_PATH=""
-    DOCUMENT_SITE_REL="${DOCUMENT_SOURCE_PATH#${SITE_OUTPUT_ROOT%/}/}"
-    TARGET_OUTPUT_ROOT=$(marsh_get_target_directory_path "${TARGET_PATH}") || return 1
+    DOCUMENT_SOURCE_FILE=""
     TARGET_SOURCE_ROOT=$(marsh_get_target_source_root_path "${TARGET_OUTPUT_ROOT}" 2>/dev/null) || TARGET_SOURCE_ROOT=""
     if [[ -f "${TARGET_SOURCE_ROOT}/${DOCUMENT}" ]] && [[ -r "${TARGET_SOURCE_ROOT}/${DOCUMENT}" ]]; then
-        DOCUMENT_PATH="${TARGET_SOURCE_ROOT}/${DOCUMENT}"
+        DOCUMENT_SOURCE_FILE="${TARGET_SOURCE_ROOT}/${DOCUMENT}"
     fi
-    if [[ ! -f "${DOCUMENT_PATH}" ]] || [[ ! -r "${DOCUMENT_PATH}" ]]; then
+    if [[ ! -f "${DOCUMENT_SOURCE_FILE}" ]] || [[ ! -r "${DOCUMENT_SOURCE_FILE}" ]]; then
         ARCHIVE_SOURCE_FILE=$(marsh_get_archive_temp_path "${SITE_OUTPUT_ROOT}" "${DOCUMENT_SITE_REL}" "source" 2>/dev/null) || ARCHIVE_SOURCE_FILE=""
         if [[ -f "${ARCHIVE_SOURCE_FILE}" ]] && [[ -r "${ARCHIVE_SOURCE_FILE}" ]]; then
-            DOCUMENT_PATH="${ARCHIVE_SOURCE_FILE}"
+            DOCUMENT_SOURCE_FILE="${ARCHIVE_SOURCE_FILE}"
         fi
     fi
-    if [[ "${DOCUMENT_PATH}" == "" ]] && [[ "${TARGET_SOURCE_ROOT}" == "" ]]; then
+    if [[ "${DOCUMENT_SOURCE_FILE}" == "" ]] && [[ "${TARGET_SOURCE_ROOT}" == "" ]]; then
         echo "Document source root not found for target: ${TARGET_OUTPUT_ROOT}" >&2
         return 1
     fi
@@ -4832,7 +4828,7 @@ function marsh_build_document {  # marsh_build_document site_output_root target_
     DOCUMENT_META_CACHE=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "${DOCUMENT}" "meta") || return 1
     DOCUMENT_CONTENT=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "${DOCUMENT}" "content") || return 1
     ARCHIVE_META=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "${DOCUMENT}" "archive-meta") || return 1
-    [[ -f "${DOCUMENT_PATH}" ]] && [[ -r "${DOCUMENT_PATH}" ]] || {
+    [[ -f "${DOCUMENT_SOURCE_FILE}" ]] && [[ -r "${DOCUMENT_SOURCE_FILE}" ]] || {
         if [[ "${TARGET_SOURCE_ROOT}" != "" ]]; then
             echo "Document source not found: ${TARGET_SOURCE_ROOT}/${DOCUMENT}" >&2
         else
@@ -4840,8 +4836,8 @@ function marsh_build_document {  # marsh_build_document site_output_root target_
         fi
         return 1
     }
-    DOCUMENT_SOURCE_DIR="${DOCUMENT_PATH%/*}"
-    [[ "${DOCUMENT_SOURCE_DIR}" == "${DOCUMENT_PATH}" ]] && DOCUMENT_SOURCE_DIR='.'
+    DOCUMENT_SOURCE_DIR="${DOCUMENT_SOURCE_FILE%/*}"
+    [[ "${DOCUMENT_SOURCE_DIR}" == "${DOCUMENT_SOURCE_FILE}" ]] && DOCUMENT_SOURCE_DIR='.'
     mkdir -p "${DOCUMENT_TEMP_ROOT}" >/dev/null 2>&1 || {
         echo "Unable to create document temp directory: ${DOCUMENT_TEMP_ROOT}" >&2
         return 1
@@ -4856,9 +4852,9 @@ function marsh_build_document {  # marsh_build_document site_output_root target_
     rm -f "${DOCUMENT_META}" "${DOCUMENT_META_CACHE}" "${ARCHIVE_META}"
 
     # extract frontmatter metadata and document content
-    if marsh_has_frontmatter "${DOCUMENT_PATH}"; then
-        marsh_extract_frontmatter "${DOCUMENT_PATH}" "${DOCUMENT_META}" "${DOCUMENT_CONTENT}" || {
-            echo "Unable to extract document frontmatter: ${DOCUMENT_PATH}" >&2
+    if marsh_has_frontmatter "${DOCUMENT_SOURCE_FILE}"; then
+        marsh_extract_frontmatter "${DOCUMENT_SOURCE_FILE}" "${DOCUMENT_META}" "${DOCUMENT_CONTENT}" || {
+            echo "Unable to extract document frontmatter: ${DOCUMENT_SOURCE_FILE}" >&2
             return 1
         }
         marsh_get_document_metadata "${DOCUMENT_META}" "" >/dev/null || {
@@ -4866,8 +4862,8 @@ function marsh_build_document {  # marsh_build_document site_output_root target_
             return 1
         }
     else
-        cp "${DOCUMENT_PATH}" "${DOCUMENT_CONTENT}" || {
-            echo "Unable to copy document content: ${DOCUMENT_PATH}" >&2
+        cp "${DOCUMENT_SOURCE_FILE}" "${DOCUMENT_CONTENT}" || {
+            echo "Unable to copy document content: ${DOCUMENT_SOURCE_FILE}" >&2
             return 1
         }
     fi
@@ -4934,7 +4930,7 @@ function marsh_build_document {  # marsh_build_document site_output_root target_
                 print $0;
             }
         }' > "${DOCUMENT_CONTENT}" || {
-            echo "Unable to process document markdown: ${DOCUMENT_PATH}" >&2
+            echo "Unable to process document markdown: ${DOCUMENT_SOURCE_FILE}" >&2
             rm -f "${DOCUMENT_CONTENT}.temp"
             return 1
         }
@@ -4949,7 +4945,7 @@ function marsh_build_document {  # marsh_build_document site_output_root target_
         }
         marsh_get_archive_metadata "${TARGET_OUTPUT_ROOT}" "${DOCUMENT}" > "${ARCHIVE_META_TEMP}" \
             && mv "${ARCHIVE_META_TEMP}" "${ARCHIVE_META}" || {
-                echo "Unable to build archive metadata: ${DOCUMENT_PATH}" >&2
+                echo "Unable to build archive metadata: ${DOCUMENT_SOURCE_FILE}" >&2
                 rm -f "${ARCHIVE_META_TEMP}"
                 return 1
             }

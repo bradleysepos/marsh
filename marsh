@@ -5105,7 +5105,13 @@ function marsh_build_target {  # marsh_build_target dest_dir target jobs sitemap
         DOCUMENT="${TARGET##*/}"
         if [[ -f "$(marsh_get_archive_temp_path "${DEST_DIR}" "${TARGET#./}" "source" 2>/dev/null)" ]]; then
             DOCUMENTS=("${DOCUMENT}")
+        elif [[ "${TARGET_SOURCE_ROOT}" == "" ]]; then
+            echo "Document source root not found for target: ${TARGET_BUILD_PATH}" >&2
+            return 1
         fi
+    elif [[ "${#DOCUMENTS[@]}" -eq 0 ]] && [[ "${TARGET_SOURCE_ROOT}" == "" ]]; then
+        echo "Document source root not found for target: ${TARGET_BUILD_PATH}" >&2
+        return 1
     fi
     FILTERED_DOCUMENTS=()
     for DOCUMENT in "${DOCUMENTS[@]}"; do

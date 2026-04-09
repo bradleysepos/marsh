@@ -1629,23 +1629,23 @@ function marsh_test {
             marsh_test_restore_env
             ;;
         marsh_build_target:11)
-            TEST_NAME+=":missing_source_root_ignores_output_tree_markdown"
+            TEST_NAME+=":missing_source_root_fails_clearly"
             TARGET_DIR="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
             marsh_test_set_env "targetuid" true false
             mkdir -p "${TARGET_DIR}"
             marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
             printf '%s\n' '---'$'\n''Title: Example'$'\n''...'$'\n'''$'\n''# Example' > "${TARGET_DIR}/index.markdown"
-            marsh_build_target "${TARGET_DIR}" "./index.markdown" "1" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
-            ACTUAL=$?
-            EXPECTED=0
+            ACTUAL=$(marsh_build_target "${TARGET_DIR}" "./index.markdown" "1" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 2>&1 >/dev/null)
+            STATUS=$?
+            EXPECTED=1
             ASSERTION="equals"
-            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+            if [[ "${STATUS}" == "${EXPECTED}" ]]; then
                 [[ ! -e "${TARGET_DIR}/index.html" ]]
-                ACTUAL=$?
+                STATUS=$?
                 EXPECTED=0
                 ASSERTION="equals"
-                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                if [[ "${STATUS}" == "${EXPECTED}" ]]; then
                     RES="[PASS]"
                 fi
             fi

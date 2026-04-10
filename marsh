@@ -4176,7 +4176,7 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
         DOCUMENT_SOURCE_FILE="${TARGET_SOURCE_ROOT}/${DOCUMENT_REL_TO_TARGET}"
     fi
     if [[ ! -f "${DOCUMENT_SOURCE_FILE}" ]] || [[ ! -r "${DOCUMENT_SOURCE_FILE}" ]]; then
-        ARCHIVE_SOURCE_FILE=$(marsh_get_archive_temp_path "${SITE_OUTPUT_ROOT}" "${DOCUMENT_SITE_REL}" "source" 2>/dev/null) || ARCHIVE_SOURCE_FILE=""
+        ARCHIVE_SOURCE_FILE=$(marsh_get_archive_temp_path "${BUILD_CONTEXT_OUTPUT_ROOT}" "${DOCUMENT_SITE_REL}" "source" 2>/dev/null) || ARCHIVE_SOURCE_FILE=""
         if [[ -f "${ARCHIVE_SOURCE_FILE}" ]] && [[ -r "${ARCHIVE_SOURCE_FILE}" ]]; then
             DOCUMENT_SOURCE_FILE="${ARCHIVE_SOURCE_FILE}"
         fi
@@ -4211,8 +4211,8 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
     echo "  ${DEST_PRINT}"
 
     # document content and metadata
-    DOCUMENT_CONTENT=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "${DOCUMENT_REL_TO_TARGET}" "content") || return 1
-    DOCUMENT_META_PATH=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "${DOCUMENT_REL_TO_TARGET}" "meta-yaml") || return 1
+    DOCUMENT_CONTENT=$(marsh_get_document_temp_path "${BUILD_CONTEXT_OUTPUT_ROOT}" "${DOCUMENT_REL_TO_TARGET}" "content") || return 1
+    DOCUMENT_META_PATH=$(marsh_get_document_temp_path "${BUILD_CONTEXT_OUTPUT_ROOT}" "${DOCUMENT_REL_TO_TARGET}" "meta-yaml") || return 1
     if [[ ! -e "${DOCUMENT_CONTENT}" ]]; then
         if [[ "${DOCUMENT_SOURCE_FILE}" == "" ]] && [[ "${TARGET_SOURCE_ROOT}" == "" ]]; then
             echo "Document source root not found for target: ${BUILD_CONTEXT_OUTPUT_ROOT}" >&2
@@ -4267,9 +4267,9 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
     eval $(marsh_flat_to_array "DOCUMENT_State" "DOCUMENT_State_")
 
     # render outputs to temp first, then publish at the final destination
-    DEST_RENDER_PATH="${DEST_FINAL#${TARGET_OUTPUT_ROOT%/}/}"
+    DEST_RENDER_PATH="${DEST_FINAL#${BUILD_CONTEXT_OUTPUT_ROOT%/}/}"
     DEST_RENDER_PATH="${DEST_RENDER_PATH#./}"
-    DEST=$(marsh_get_render_temp_path "${TARGET_OUTPUT_ROOT}" "${DEST_RENDER_PATH}") || return 1
+    DEST=$(marsh_get_render_temp_path "${BUILD_CONTEXT_OUTPUT_ROOT}" "${DEST_RENDER_PATH}") || return 1
     mkdir -p "${DEST%/*}" >/dev/null 2>&1 || {
         echo "Unable to create render temp directory: ${DEST%/*}" >&2
         return 1
@@ -4396,9 +4396,9 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
         # sitemap
         TARGET_SITEMAP=""
         if [[ "${SITEMAP_SOURCE}" != "" ]]; then
-            SITEMAP_LOOKUP_PATH=$(marsh_get_sitemap_lookup_path "${SITE_OUTPUT_ROOT}/${TARGET_OUTPUT_REL}" "${DOCUMENT_REL_TO_TARGET}" "${SITEMAP_SOURCE}" "${SITEMAP_SEARCH}" 2>/dev/null)
+            SITEMAP_LOOKUP_PATH=$(marsh_get_sitemap_lookup_path "${BUILD_CONTEXT_OUTPUT_ROOT}" "${DOCUMENT_REL_TO_TARGET}" "${SITEMAP_SOURCE}" "${SITEMAP_SEARCH}" 2>/dev/null)
             if [[ "${SITEMAP_LOOKUP_PATH:-}" != "" ]]; then
-                SITEMAP_RENDER_PATH=$(marsh_get_sitemap_render_path "${SITE_OUTPUT_ROOT}/${TARGET_OUTPUT_REL}" "${SITEMAP_LOOKUP_PATH}") || return 1
+                SITEMAP_RENDER_PATH=$(marsh_get_sitemap_render_path "${BUILD_CONTEXT_OUTPUT_ROOT}" "${SITEMAP_LOOKUP_PATH}") || return 1
                 if [[ ! -f "${SITEMAP_RENDER_PATH}" ]] || [[ ! -r "${SITEMAP_RENDER_PATH}" ]]; then
                     SITEMAP_RENDER_PATH=""
                 fi
@@ -4535,7 +4535,7 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
         SUBDOCUMENTS=()
         SUBDOCUMENT_URIS=()
         SUBDOCUMENT_ABSPATHS=()
-        SUBDOCUMENTS_MANIFEST=$(marsh_get_archive_temp_path "${SITE_OUTPUT_ROOT}" "${DOCUMENT_SITE_REL}" "subdocuments-manifest" 2>/dev/null) || SUBDOCUMENTS_MANIFEST=""
+        SUBDOCUMENTS_MANIFEST=$(marsh_get_archive_temp_path "${BUILD_CONTEXT_OUTPUT_ROOT}" "${DOCUMENT_SITE_REL}" "subdocuments-manifest" 2>/dev/null) || SUBDOCUMENTS_MANIFEST=""
         if [[ -f "${SUBDOCUMENTS_MANIFEST}" ]] && [[ -r "${SUBDOCUMENTS_MANIFEST}" ]]; then
             SUBDOCUMENTS_LIST=$(<"${SUBDOCUMENTS_MANIFEST}")
             while IFS=$'\t' read -r SUBDOCUMENT_DOCUMENT_ESC SUBDOCUMENT_URI_ESC SUBDOCUMENT_ABSPATH_ESC; do
@@ -4553,7 +4553,7 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
         fi
         NUM_SUBDOCUMENTS="${#SUBDOCUMENTS[@]}"
         if [[ "${NUM_SUBDOCUMENTS}" -gt 0 ]]; then
-            SUBDOCUMENTS_FILE=$(marsh_get_archive_temp_path "${SITE_OUTPUT_ROOT}" "${DOCUMENT_SITE_REL}" "subdocuments") || return 1
+            SUBDOCUMENTS_FILE=$(marsh_get_archive_temp_path "${BUILD_CONTEXT_OUTPUT_ROOT}" "${DOCUMENT_SITE_REL}" "subdocuments") || return 1
             mkdir -p "${SUBDOCUMENTS_FILE%/*}" >/dev/null 2>&1 || {
                 echo "Unable to create subdocuments temp directory: ${SUBDOCUMENTS_FILE%/*}" >&2
                 return 1
@@ -4585,10 +4585,10 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
                 # where the raw source is not directly readable, load content and metadata from temporary artifacts
                 # TODO: remove the raw source fallback when output-adjacent subdocument artifacts are no longer used
                 if [[ ! -f "${SUBDOCUMENT_CONTENT_FILE}" ]] || [[ ! -r "${SUBDOCUMENT_CONTENT_FILE}" ]]; then
-                    SUBDOCUMENT_CONTENT_FILE=$(marsh_get_document_temp_path "${SITE_OUTPUT_ROOT}" "${SUBDOCUMENT_REL_TO_SITE}" "content" 2>/dev/null) || SUBDOCUMENT_CONTENT_FILE="${SUBDOCUMENT_SOURCE}"
+                    SUBDOCUMENT_CONTENT_FILE=$(marsh_get_document_temp_path "${BUILD_CONTEXT_OUTPUT_ROOT}" "${SUBDOCUMENT_REL_TO_SITE}" "content" 2>/dev/null) || SUBDOCUMENT_CONTENT_FILE="${SUBDOCUMENT_SOURCE}"
                 fi
                 if [[ ! -f "${SUBDOCUMENT_META_FILE}" ]] || [[ ! -r "${SUBDOCUMENT_META_FILE}" ]]; then
-                    SUBDOCUMENT_META_FILE=$(marsh_get_document_temp_path "${SITE_OUTPUT_ROOT}" "${SUBDOCUMENT_REL_TO_SITE}" "meta-yaml" 2>/dev/null) || SUBDOCUMENT_META_FILE="${SUBDOCUMENT_SOURCE%.document}.meta.yaml"
+                    SUBDOCUMENT_META_FILE=$(marsh_get_document_temp_path "${BUILD_CONTEXT_OUTPUT_ROOT}" "${SUBDOCUMENT_REL_TO_SITE}" "meta-yaml" 2>/dev/null) || SUBDOCUMENT_META_FILE="${SUBDOCUMENT_SOURCE%.document}.meta.yaml"
                 fi
                 # document metadata
                 if [[ -f "${SUBDOCUMENT_META_FILE}" ]] && [[ -r "${SUBDOCUMENT_META_FILE}" ]]; then
@@ -4611,7 +4611,7 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
                 if [[ "${SUBDOCUMENT_OUTPUT_PATH}" == "" ]]; then
                     SUBDOCUMENT_OUTPUT_PATH="${SUBDOCUMENT_SOURCE#${SITE_OUTPUT_ROOT%/}/}"
                     if [[ "${SUBDOCUMENT_OUTPUT_PATH}" == "${SUBDOCUMENT_SOURCE}" ]]; then
-                        SUBDOCUMENT_OUTPUT_PATH="${SUBDOCUMENT_SOURCE#${TARGET_OUTPUT_ROOT}/}"
+                        SUBDOCUMENT_OUTPUT_PATH="${SUBDOCUMENT_SOURCE#${BUILD_CONTEXT_OUTPUT_ROOT}/}"
                         if [[ "${SUBDOCUMENT_OUTPUT_PATH}" != "${SUBDOCUMENT_SOURCE}" ]] && [[ "${TARGET_OUTPUT_REL}" != "." ]]; then
                             SUBDOCUMENT_OUTPUT_PATH="${TARGET_OUTPUT_REL}/${SUBDOCUMENT_OUTPUT_PATH#./}"
                         fi
@@ -4832,7 +4832,7 @@ function marsh_build_document {  # marsh_build_document site_output_root target_
         DOCUMENT_SOURCE_FILE="${TARGET_SOURCE_ROOT}/${DOCUMENT}"
     fi
     if [[ ! -f "${DOCUMENT_SOURCE_FILE}" ]] || [[ ! -r "${DOCUMENT_SOURCE_FILE}" ]]; then
-        ARCHIVE_SOURCE_FILE=$(marsh_get_archive_temp_path "${SITE_OUTPUT_ROOT}" "${DOCUMENT_SITE_REL}" "source" 2>/dev/null) || ARCHIVE_SOURCE_FILE=""
+        ARCHIVE_SOURCE_FILE=$(marsh_get_archive_temp_path "${BUILD_CONTEXT_OUTPUT_ROOT}" "${DOCUMENT_SITE_REL}" "source" 2>/dev/null) || ARCHIVE_SOURCE_FILE=""
         if [[ -f "${ARCHIVE_SOURCE_FILE}" ]] && [[ -r "${ARCHIVE_SOURCE_FILE}" ]]; then
             DOCUMENT_SOURCE_FILE="${ARCHIVE_SOURCE_FILE}"
         fi
@@ -4841,11 +4841,11 @@ function marsh_build_document {  # marsh_build_document site_output_root target_
         echo "Document source root not found for target: ${BUILD_CONTEXT_OUTPUT_ROOT}" >&2
         return 1
     fi
-    DOCUMENT_TEMP_ROOT=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "${DOCUMENT}" "root") || return 1
-    DOCUMENT_META=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "${DOCUMENT}" "meta-yaml") || return 1
-    DOCUMENT_META_CACHE=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "${DOCUMENT}" "meta") || return 1
-    DOCUMENT_CONTENT=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "${DOCUMENT}" "content") || return 1
-    ARCHIVE_META=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "${DOCUMENT}" "archive-meta") || return 1
+    DOCUMENT_TEMP_ROOT=$(marsh_get_document_temp_path "${BUILD_CONTEXT_OUTPUT_ROOT}" "${DOCUMENT}" "root") || return 1
+    DOCUMENT_META=$(marsh_get_document_temp_path "${BUILD_CONTEXT_OUTPUT_ROOT}" "${DOCUMENT}" "meta-yaml") || return 1
+    DOCUMENT_META_CACHE=$(marsh_get_document_temp_path "${BUILD_CONTEXT_OUTPUT_ROOT}" "${DOCUMENT}" "meta") || return 1
+    DOCUMENT_CONTENT=$(marsh_get_document_temp_path "${BUILD_CONTEXT_OUTPUT_ROOT}" "${DOCUMENT}" "content") || return 1
+    ARCHIVE_META=$(marsh_get_document_temp_path "${BUILD_CONTEXT_OUTPUT_ROOT}" "${DOCUMENT}" "archive-meta") || return 1
     [[ -f "${DOCUMENT_SOURCE_FILE}" ]] && [[ -r "${DOCUMENT_SOURCE_FILE}" ]] || {
         if [[ "${TARGET_SOURCE_ROOT}" != "" ]]; then
             echo "Document source not found: ${TARGET_SOURCE_ROOT}/${DOCUMENT}" >&2
@@ -4961,7 +4961,7 @@ function marsh_build_document {  # marsh_build_document site_output_root target_
             echo "Unable to create archive metadata file: ${MARSH_TEMP}/archive-meta-XXXXXX" >&2
             return 1
         }
-        marsh_get_archive_metadata "${TARGET_OUTPUT_ROOT}" "${DOCUMENT}" > "${ARCHIVE_META_TEMP}" \
+        marsh_get_archive_metadata "${BUILD_CONTEXT_OUTPUT_ROOT}" "${DOCUMENT}" > "${ARCHIVE_META_TEMP}" \
             && mv "${ARCHIVE_META_TEMP}" "${ARCHIVE_META}" || {
                 echo "Unable to build archive metadata: ${DOCUMENT_SOURCE_FILE}" >&2
                 rm -f "${ARCHIVE_META_TEMP}"

@@ -1524,7 +1524,7 @@ function marsh_test {
                 EXPECTED="news/index.markdown"$'\n'"news/page/1/index.markdown"
                 ASSERTION="equals"
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    marsh_build_target "${TARGET_OUTPUT_ROOT}" "news/index.markdown" "1" "" false "${TEMPLATE_DIR}" "archive" "marsh_test_markdown_command" "" "markdown,md" "true" 0 true >/dev/null 2>&1
+                    marsh_build_target "${TARGET_OUTPUT_ROOT}" "news/index.markdown" "1" "" false "${TEMPLATE_DIR}" "archive" "marsh_test_markdown_command" "" "markdown,md" "true" 0 true "" "." "${SOURCE_ROOT}" >/dev/null 2>&1
                     ACTUAL=$?
                     EXPECTED=0
                     ASSERTION="equals"
@@ -1572,7 +1572,7 @@ function marsh_test {
                 EXPECTED="news/index.markdown"$'\n'"news/page/1/index.markdown"
                 ASSERTION="equals"
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    marsh_build_target "${TARGET_OUTPUT_ROOT}" "news/index.markdown" "1" "" false "${TEMPLATE_DIR}" "target" "marsh_test_markdown_command" "" "markdown,md" "true" 0 true >/dev/null 2>&1
+                    marsh_build_target "${TARGET_OUTPUT_ROOT}" "news/index.markdown" "1" "" false "${TEMPLATE_DIR}" "target" "marsh_test_markdown_command" "" "markdown,md" "true" 0 true "" "." "${SOURCE_ROOT}" >/dev/null 2>&1
                     ACTUAL=$?
                     EXPECTED=0
                     ASSERTION="equals"
@@ -1628,7 +1628,7 @@ function marsh_test {
             {
                 marsh_build_target "${TARGET_OUTPUT_ROOT}" "./index.markdown" "1" "" false "${TEMPLATE_DIR}" "target" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
                 marsh_build_archive "html" "${TARGET_OUTPUT_ROOT}" "news/index.markdown" "News" "English" "en" "" "10" "1" "post" "0" >/dev/null 2>&1
-                marsh_build_target "${TARGET_OUTPUT_ROOT}" "news/index.markdown" "1" "" false "${TEMPLATE_DIR}" "archive" "marsh_test_markdown_command" "" "markdown,md" "true" 0 true >/dev/null 2>&1
+                marsh_build_target "${TARGET_OUTPUT_ROOT}" "news/index.markdown" "1" "" false "${TEMPLATE_DIR}" "archive" "marsh_test_markdown_command" "" "markdown,md" "true" 0 true "" "." "${SOURCE_ROOT}" >/dev/null 2>&1
             }
             ACTUAL=$?
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -1702,6 +1702,41 @@ function marsh_test {
                     if printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
                         RES="[PASS]"
                     fi
+                fi
+            fi
+            rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}" "${SOURCE_ROOT}"
+            marsh_test_restore_env
+            ;;
+        marsh_build_target:13)
+            TEST_NAME+=":nested_scope_uses_owner_target_temp_root"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
+            marsh_test_set_env
+            mkdir -p "${TARGET_OUTPUT_ROOT}" "${SOURCE_ROOT}/about"
+            marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
+            printf '%s\n' '---'$'\n''Title: About'$'\n''...'$'\n'''$'\n''# About' > "${SOURCE_ROOT}/about/index.markdown"
+            marsh_build_target "${TARGET_OUTPUT_ROOT}" "about/index.markdown" "1" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 false "" "." "${SOURCE_ROOT}" >/dev/null 2>&1
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                CONTENT_FILE=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "about/index.markdown" "content")
+                RENDER_FILE=$(marsh_get_render_temp_path "${TARGET_OUTPUT_ROOT}" "about/index.html")
+                NESTED_CONTENT_FILE=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}/about" "index.markdown" "content")
+                NESTED_RENDER_FILE=$(marsh_get_render_temp_path "${TARGET_OUTPUT_ROOT}/about" "index.html")
+                {
+                    [[ -e "${TARGET_OUTPUT_ROOT}/about/index.html" ]] \
+                        && [[ -e "${CONTENT_FILE}" ]] \
+                        && [[ -e "${RENDER_FILE}" ]] \
+                        && [[ ! -e "${NESTED_CONTENT_FILE}" ]] \
+                        && [[ ! -e "${NESTED_RENDER_FILE}" ]]
+                }
+                ACTUAL=$?
+                EXPECTED=0
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
                 fi
             fi
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}" "${SOURCE_ROOT}"
@@ -2461,12 +2496,12 @@ function marsh_test {
             EXPECTED='news/index.markdown'$'\n''news/page/1/index.markdown'
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                marsh_build_document "${TARGET_OUTPUT_ROOT}" "news" "page/1/index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" >/dev/null 2>&1
+                marsh_build_document "${TARGET_OUTPUT_ROOT}" "news" "page/1/index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" "." >/dev/null 2>&1
                 ACTUAL=$?
                 EXPECTED=0
                 ASSERTION="equals"
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    marsh_build_template "${TARGET_OUTPUT_ROOT}" "news" "page/1/index.markdown" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+                    marsh_build_template "${TARGET_OUTPUT_ROOT}" "news" "page/1/index.markdown" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 "" "." >/dev/null 2>&1
                     ACTUAL=$?
                     EXPECTED=0
                     ASSERTION="equals"
@@ -2540,12 +2575,12 @@ function marsh_test {
                 EXPECTED=0
                 ASSERTION="equals"
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    marsh_build_document "${TARGET_OUTPUT_ROOT}" "news" "page/1/index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" >/dev/null 2>&1
+                    marsh_build_document "${TARGET_OUTPUT_ROOT}" "news" "page/1/index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" "." >/dev/null 2>&1
                     ACTUAL=$?
                     EXPECTED=0
                     ASSERTION="equals"
                     if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                        marsh_build_template "${TARGET_OUTPUT_ROOT}" "news" "page/1/index.markdown" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 "assets/archive" >/dev/null 2>&1
+                        marsh_build_template "${TARGET_OUTPUT_ROOT}" "news" "page/1/index.markdown" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 "assets/archive" "." >/dev/null 2>&1
                         ACTUAL=$?
                         EXPECTED=0
                         ASSERTION="equals"

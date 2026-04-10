@@ -94,7 +94,7 @@ if echo "${MARSH}" | grep '/' >/dev/null 2>&1; then
     if [[ -x "${MARSH}" ]]; then
         MARSH_FOUND=true
     fi
-elif hash "${MARSH}" >/dev/null 2>&1; then
+elif command -v "${MARSH}" >/dev/null 2>&1; then
     MARSH_FOUND=true
 fi
 if [[ "${MARSH_FOUND}" == false ]]; then

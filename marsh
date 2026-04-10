@@ -1501,33 +1501,33 @@ function marsh_get_document_metadata {  # marsh_get_document_metadata meta_file 
 }
 
 # loads cached archive metadata for a document
-function marsh_get_archive_metadata {  # marsh_get_archive_metadata target_dir document
-    local TARGET_DIR DOCUMENT
+function marsh_get_archive_metadata {  # marsh_get_archive_metadata target_output_root document
+    local TARGET_OUTPUT_ROOT DOCUMENT
     local INDEX META DOCUMENT_SITE_REL META_PREFIX META_ASSIGNMENTS META_VARS TARGET_OUTPUT_REL
     local TYPE_VAR TYPE URI ABSPATH STATE VALUE_ESC
 
     # init
-    TARGET_DIR="${1:-}"
+    TARGET_OUTPUT_ROOT="${1:-}"
     DOCUMENT="${2:-}"
-    [[ "${TARGET_DIR}" == "" ]] && return 1
+    [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
     [[ "${DOCUMENT}" == "" ]] && return 1
-    TARGET_DIR=$(marsh_get_target_directory_path "${TARGET_DIR}") || return 1
+    TARGET_OUTPUT_ROOT=$(marsh_get_target_directory_path "${TARGET_OUTPUT_ROOT}") || return 1
     DOCUMENT_SITE_REL=$(marsh_normalize_internal_path "${DOCUMENT}" 2>/dev/null) || return 1
     [[ "${DOCUMENT_SITE_REL}" == "." ]] && return 1
 
     # use cache where available
-    INDEX=$(marsh_get_document_temp_path "${TARGET_DIR}" "${DOCUMENT_SITE_REL}" "archive-meta" 2>/dev/null) || INDEX=""
+    INDEX=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "${DOCUMENT_SITE_REL}" "archive-meta" 2>/dev/null) || INDEX=""
     # TODO: remove when archive metadata files are no longer read from the output tree
-    [[ "${INDEX}" == "" ]] && INDEX="${TARGET_DIR}/${DOCUMENT%.document}.archive-meta"
+    [[ "${INDEX}" == "" ]] && INDEX="${TARGET_OUTPUT_ROOT}/${DOCUMENT%.document}.archive-meta"
     if [[ -f "${INDEX}" ]] && [[ -r "${INDEX}" ]]; then
         cat "${INDEX}"
         return 0
     fi
 
     # get archive metadata from the document metadata
-    META=$(marsh_get_document_temp_path "${TARGET_DIR}" "${DOCUMENT_SITE_REL}" "meta-yaml" 2>/dev/null) || META=""
+    META=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "${DOCUMENT_SITE_REL}" "meta-yaml" 2>/dev/null) || META=""
     # TODO: remove when document metadata files are no longer read from the output tree
-    [[ "${META}" == "" ]] && META="${TARGET_DIR}/${DOCUMENT%.document}.meta.yaml"
+    [[ "${META}" == "" ]] && META="${TARGET_OUTPUT_ROOT}/${DOCUMENT%.document}.meta.yaml"
     [[ -f "${META}" ]] && [[ -r "${META}" ]] || return 1
 
     # parse
@@ -1543,7 +1543,7 @@ function marsh_get_archive_metadata {  # marsh_get_archive_metadata target_dir d
     # reconstruct public paths here so archive generation does not need to repeat it
     TYPE_VAR="${META_PREFIX}Type"
     TYPE="${!TYPE_VAR:-}"
-    TARGET_OUTPUT_REL=$(marsh_get_target_output_path "${TARGET_DIR}") || return 1
+    TARGET_OUTPUT_REL=$(marsh_get_target_output_path "${TARGET_OUTPUT_ROOT}") || return 1
     if [[ "${TARGET_OUTPUT_REL}" == "." ]]; then
         URI="${DOCUMENT_SITE_REL}"
     else
@@ -1571,15 +1571,15 @@ function marsh_get_archive_metadata {  # marsh_get_archive_metadata target_dir d
 }
 
 # builds a sorted archive manifest from cached archive metadata
-function marsh_build_archive_manifest {  # marsh_build_archive_manifest target_dir
-    local TARGET_DIR TARGET_BUILD_TEMP_ROOT TARGET_DOCUMENTS_TEMP_ROOT DOCUMENTS_LIST DOCUMENT DOCUMENT_SITE_REL TYPE URI ABSPATH STATE
+function marsh_build_archive_manifest {  # marsh_build_archive_manifest target_output_root
+    local TARGET_OUTPUT_ROOT TARGET_BUILD_TEMP_ROOT TARGET_DOCUMENTS_TEMP_ROOT DOCUMENTS_LIST DOCUMENT DOCUMENT_SITE_REL TYPE URI ABSPATH STATE
     local ARCHIVE_META STATE_JOINED OIFS
 
-    TARGET_DIR="${1:-}"
-    [[ "${TARGET_DIR}" == "" ]] && return 1
-    TARGET_DIR=$(marsh_get_target_directory_path "${TARGET_DIR}") || return 1
+    TARGET_OUTPUT_ROOT="${1:-}"
+    [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
+    TARGET_OUTPUT_ROOT=$(marsh_get_target_directory_path "${TARGET_OUTPUT_ROOT}") || return 1
 
-    TARGET_BUILD_TEMP_ROOT=$(marsh_get_target_temp_root "${TARGET_DIR}") || return 1
+    TARGET_BUILD_TEMP_ROOT=$(marsh_get_target_temp_root "${TARGET_OUTPUT_ROOT}") || return 1
     TARGET_DOCUMENTS_TEMP_ROOT="${TARGET_BUILD_TEMP_ROOT}/documents"
     [[ -d "${TARGET_DOCUMENTS_TEMP_ROOT}" ]] || return 0
 
@@ -1593,7 +1593,7 @@ function marsh_build_archive_manifest {  # marsh_build_archive_manifest target_d
         URI=""
         ABSPATH=""
         STATE=()
-        ARCHIVE_META=$(marsh_get_archive_metadata "${TARGET_DIR}" "${DOCUMENT}")
+        ARCHIVE_META=$(marsh_get_archive_metadata "${TARGET_OUTPUT_ROOT}" "${DOCUMENT}")
         [[ $? -ne 0 ]] && echo "Unable to load archive metadata: ${DOCUMENT_SITE_REL}" >&2 && return 1
         eval "${ARCHIVE_META}"
         OIFS="${IFS}"
@@ -1607,18 +1607,18 @@ function marsh_build_archive_manifest {  # marsh_build_archive_manifest target_d
 }
 
 # returns the path to a cached archive manifest, building it where needed
-function marsh_get_archive_manifest {  # marsh_get_archive_manifest target_dir
-    local TARGET_DIR ARCHIVE_MANIFEST_CACHE_DIR ARCHIVE_MANIFEST_CACHE_KEY ARCHIVE_MANIFEST_FILE ARCHIVE_MANIFEST_TEMP
+function marsh_get_archive_manifest {  # marsh_get_archive_manifest target_output_root
+    local TARGET_OUTPUT_ROOT ARCHIVE_MANIFEST_CACHE_DIR ARCHIVE_MANIFEST_CACHE_KEY ARCHIVE_MANIFEST_FILE ARCHIVE_MANIFEST_TEMP
 
-    TARGET_DIR="${1:-}"
-    [[ "${TARGET_DIR}" == "" ]] && return 1
+    TARGET_OUTPUT_ROOT="${1:-}"
+    [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
 
     ARCHIVE_MANIFEST_CACHE_DIR="${MARSH_TEMP}/archive-manifest-cache"
     mkdir -p "${ARCHIVE_MANIFEST_CACHE_DIR}" >/dev/null 2>&1 || {
         echo "Unable to create archive manifest cache directory: ${ARCHIVE_MANIFEST_CACHE_DIR}" >&2
         return 1
     }
-    ARCHIVE_MANIFEST_CACHE_KEY=$(printf '%s\034%s\n' "${TARGET_DIR}" "${MARSH_UID}" | marsh_text_transform hash:md5)
+    ARCHIVE_MANIFEST_CACHE_KEY=$(printf '%s\034%s\n' "${TARGET_OUTPUT_ROOT}" "${MARSH_UID}" | marsh_text_transform hash:md5)
     ARCHIVE_MANIFEST_FILE="${ARCHIVE_MANIFEST_CACHE_DIR}/${ARCHIVE_MANIFEST_CACHE_KEY}.manifest"
     if [[ -f "${ARCHIVE_MANIFEST_FILE}" ]] && [[ -r "${ARCHIVE_MANIFEST_FILE}" ]]; then
         printf '%s\n' "${ARCHIVE_MANIFEST_FILE}"
@@ -1629,8 +1629,8 @@ function marsh_get_archive_manifest {  # marsh_get_archive_manifest target_dir
         echo "Unable to create archive manifest cache file: ${ARCHIVE_MANIFEST_CACHE_DIR}/manifest-XXXXXX" >&2
         return 1
     }
-    marsh_build_archive_manifest "${TARGET_DIR}" > "${ARCHIVE_MANIFEST_TEMP}" && mv "${ARCHIVE_MANIFEST_TEMP}" "${ARCHIVE_MANIFEST_FILE}" 2>/dev/null || {
-        echo "Unable to build archive manifest: ${TARGET_DIR}" >&2
+    marsh_build_archive_manifest "${TARGET_OUTPUT_ROOT}" > "${ARCHIVE_MANIFEST_TEMP}" && mv "${ARCHIVE_MANIFEST_TEMP}" "${ARCHIVE_MANIFEST_FILE}" 2>/dev/null || {
+        echo "Unable to build archive manifest: ${TARGET_OUTPUT_ROOT}" >&2
         rm -f "${ARCHIVE_MANIFEST_TEMP}"
         return 1
     }
@@ -2700,38 +2700,38 @@ function marsh_get_target_document_paths {  # marsh_get_target_document_paths do
 }
 
 # returns the normalized target directory path
-function marsh_get_target_directory_path {  # marsh_get_target_directory_path target_dir
-    local TARGET_DIR
+function marsh_get_target_directory_path {  # marsh_get_target_directory_path target_output_root
+    local TARGET_OUTPUT_ROOT
 
-    TARGET_DIR="${1:-}"
-    [[ "${TARGET_DIR}" == "" ]] && return 1
+    TARGET_OUTPUT_ROOT="${1:-}"
+    [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
 
-    TARGET_DIR="${TARGET_DIR%/}"
-    TARGET_DIR="${TARGET_DIR%/.}"
-    printf '%s\n' "${TARGET_DIR:-.}"
+    TARGET_OUTPUT_ROOT="${TARGET_OUTPUT_ROOT%/}"
+    TARGET_OUTPUT_ROOT="${TARGET_OUTPUT_ROOT%/.}"
+    printf '%s\n' "${TARGET_OUTPUT_ROOT:-.}"
 }
 
 # returns the normalized target path relative to the site output root
-function marsh_get_target_output_path {  # marsh_get_target_output_path target_dir
-    local TARGET_DIR TARGET_OUTPUT_REL
+function marsh_get_target_output_path {  # marsh_get_target_output_path target_output_root
+    local TARGET_OUTPUT_ROOT TARGET_OUTPUT_REL
 
-    TARGET_DIR=$(marsh_get_target_directory_path "${1:-}") || return 1
+    TARGET_OUTPUT_ROOT=$(marsh_get_target_directory_path "${1:-}") || return 1
 
-    TARGET_OUTPUT_REL="${TARGET_DIR#$MARSH_CONFIG_PATH}"
+    TARGET_OUTPUT_REL="${TARGET_OUTPUT_ROOT#$MARSH_CONFIG_PATH}"
     TARGET_OUTPUT_REL="${TARGET_OUTPUT_REL#/}"
     TARGET_OUTPUT_REL="${TARGET_OUTPUT_REL:-.}"
     marsh_normalize_internal_path "${TARGET_OUTPUT_REL}"
 }
 
 # returns the temp work root for a target under MARSH_TEMP
-function marsh_get_target_temp_root {  # marsh_get_target_temp_root target_dir
-    local TARGET_DIR TARGET_OUTPUT_REL TARGET_KEY
+function marsh_get_target_temp_root {  # marsh_get_target_temp_root target_output_root
+    local TARGET_OUTPUT_ROOT TARGET_OUTPUT_REL TARGET_KEY
 
-    TARGET_DIR="${1:-}"
-    [[ "${TARGET_DIR}" == "" ]] && return 1
+    TARGET_OUTPUT_ROOT="${1:-}"
+    [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
     [[ "${MARSH_TEMP:-}" != "" ]] || return 1
 
-    TARGET_OUTPUT_REL=$(marsh_get_target_output_path "${TARGET_DIR}") || return 1
+    TARGET_OUTPUT_REL=$(marsh_get_target_output_path "${TARGET_OUTPUT_ROOT}") || return 1
     TARGET_KEY="${TARGET_OUTPUT_REL#./}"
     [[ "${TARGET_KEY}" == "." ]] && TARGET_KEY=""
     TARGET_KEY="${TARGET_KEY:-root}"
@@ -2741,13 +2741,13 @@ function marsh_get_target_temp_root {  # marsh_get_target_temp_root target_dir
 }
 
 # returns the configured source root for a target when cached under MARSH_TEMP
-function marsh_get_target_source_root_path {  # marsh_get_target_source_root_path target_dir
-    local TARGET_DIR TARGET_BUILD_TEMP_ROOT TARGET_SOURCE_ROOT_CACHE_FILE SOURCE_ROOT
+function marsh_get_target_source_root_path {  # marsh_get_target_source_root_path target_output_root
+    local TARGET_OUTPUT_ROOT TARGET_BUILD_TEMP_ROOT TARGET_SOURCE_ROOT_CACHE_FILE SOURCE_ROOT
 
-    TARGET_DIR="${1:-}"
-    [[ "${TARGET_DIR}" == "" ]] && return 1
+    TARGET_OUTPUT_ROOT="${1:-}"
+    [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
 
-    TARGET_BUILD_TEMP_ROOT=$(marsh_get_target_temp_root "${TARGET_DIR}") || return 1
+    TARGET_BUILD_TEMP_ROOT=$(marsh_get_target_temp_root "${TARGET_OUTPUT_ROOT}") || return 1
     TARGET_SOURCE_ROOT_CACHE_FILE="${TARGET_BUILD_TEMP_ROOT}/source-root"
     [[ -f "${TARGET_SOURCE_ROOT_CACHE_FILE}" ]] && [[ -r "${TARGET_SOURCE_ROOT_CACHE_FILE}" ]] || return 1
 
@@ -2758,29 +2758,29 @@ function marsh_get_target_source_root_path {  # marsh_get_target_source_root_pat
 }
 
 # removes the temporary working directory for a target under MARSH_TEMP
-function marsh_clean_target_temp {  # marsh_clean_target_temp target_dir
-    local TARGET_DIR TARGET_BUILD_TEMP_ROOT
+function marsh_clean_target_temp {  # marsh_clean_target_temp target_output_root
+    local TARGET_OUTPUT_ROOT TARGET_BUILD_TEMP_ROOT
 
-    TARGET_DIR="${1:-}"
-    [[ "${TARGET_DIR}" == "" ]] && return 1
+    TARGET_OUTPUT_ROOT="${1:-}"
+    [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
 
-    TARGET_BUILD_TEMP_ROOT=$(marsh_get_target_temp_root "${TARGET_DIR}") || return 1
+    TARGET_BUILD_TEMP_ROOT=$(marsh_get_target_temp_root "${TARGET_OUTPUT_ROOT}") || return 1
     rm -rf "${TARGET_BUILD_TEMP_ROOT}"
 }
 
 # resolves a document temp artifact path under the target temp work tree
-function marsh_get_document_temp_path {  # marsh_get_document_temp_path target_dir document artifact
-    local TARGET_DIR DOCUMENT ARTIFACT TARGET_BUILD_TEMP_ROOT DOCUMENT_KEY DOCUMENT_ROOT
+function marsh_get_document_temp_path {  # marsh_get_document_temp_path target_output_root document artifact
+    local TARGET_OUTPUT_ROOT DOCUMENT ARTIFACT TARGET_BUILD_TEMP_ROOT DOCUMENT_KEY DOCUMENT_ROOT
 
-    TARGET_DIR="${1:-}"
+    TARGET_OUTPUT_ROOT="${1:-}"
     DOCUMENT="${2:-}"
     ARTIFACT="${3:-}"
-    [[ "${TARGET_DIR}" == "" ]] && return 1
+    [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
     [[ "${DOCUMENT}" == "" ]] && return 1
     [[ "${ARTIFACT}" == "" ]] && return 1
     [[ "${DOCUMENT}" != /* ]] || return 1
 
-    TARGET_BUILD_TEMP_ROOT=$(marsh_get_target_temp_root "${TARGET_DIR}") || return 1
+    TARGET_BUILD_TEMP_ROOT=$(marsh_get_target_temp_root "${TARGET_OUTPUT_ROOT}") || return 1
     # Document temp artifacts are keyed by site-relative document path so nested target builds share them.
     DOCUMENT_KEY=$(marsh_normalize_internal_path "${DOCUMENT}") || return 1
     [[ "${DOCUMENT_KEY}" == "." ]] && return 1
@@ -2809,18 +2809,18 @@ function marsh_get_document_temp_path {  # marsh_get_document_temp_path target_d
 }
 
 # resolves an archive temp artifact path under the target temp work tree
-function marsh_get_archive_temp_path {  # marsh_get_archive_temp_path target_dir archive_source artifact
-    local TARGET_DIR ARCHIVE_SOURCE ARTIFACT TARGET_BUILD_TEMP_ROOT ARCHIVE_KEY ARCHIVE_ROOT
+function marsh_get_archive_temp_path {  # marsh_get_archive_temp_path target_output_root archive_source artifact
+    local TARGET_OUTPUT_ROOT ARCHIVE_SOURCE ARTIFACT TARGET_BUILD_TEMP_ROOT ARCHIVE_KEY ARCHIVE_ROOT
 
-    TARGET_DIR="${1:-}"
+    TARGET_OUTPUT_ROOT="${1:-}"
     ARCHIVE_SOURCE="${2:-}"
     ARTIFACT="${3:-}"
-    [[ "${TARGET_DIR}" == "" ]] && return 1
+    [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
     [[ "${ARCHIVE_SOURCE}" == "" ]] && return 1
     [[ "${ARTIFACT}" == "" ]] && return 1
     [[ "${ARCHIVE_SOURCE}" != /* ]] || return 1
 
-    TARGET_BUILD_TEMP_ROOT=$(marsh_get_target_temp_root "${TARGET_DIR}") || return 1
+    TARGET_BUILD_TEMP_ROOT=$(marsh_get_target_temp_root "${TARGET_OUTPUT_ROOT}") || return 1
     ARCHIVE_KEY=$(marsh_normalize_internal_path "${ARCHIVE_SOURCE}") || return 1
     [[ "${ARCHIVE_KEY}" == "." ]] && return 1
     ARCHIVE_ROOT="${TARGET_BUILD_TEMP_ROOT}/archives/${ARCHIVE_KEY}"
@@ -2845,16 +2845,16 @@ function marsh_get_archive_temp_path {  # marsh_get_archive_temp_path target_dir
 }
 
 # resolves the temp render path for a processed output file under the target temp work tree
-function marsh_get_render_temp_path {  # marsh_get_render_temp_path target_dir output_path
-    local TARGET_DIR OUTPUT_PATH TARGET_BUILD_TEMP_ROOT OUTPUT_KEY
+function marsh_get_render_temp_path {  # marsh_get_render_temp_path target_output_root output_path
+    local TARGET_OUTPUT_ROOT OUTPUT_PATH TARGET_BUILD_TEMP_ROOT OUTPUT_KEY
 
-    TARGET_DIR="${1:-}"
+    TARGET_OUTPUT_ROOT="${1:-}"
     OUTPUT_PATH="${2:-}"
-    [[ "${TARGET_DIR}" == "" ]] && return 1
+    [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
     [[ "${OUTPUT_PATH}" == "" ]] && return 1
     [[ "${OUTPUT_PATH}" != /* ]] || return 1
 
-    TARGET_BUILD_TEMP_ROOT=$(marsh_get_target_temp_root "${TARGET_DIR}") || return 1
+    TARGET_BUILD_TEMP_ROOT=$(marsh_get_target_temp_root "${TARGET_OUTPUT_ROOT}") || return 1
     OUTPUT_KEY=$(marsh_normalize_internal_path "${OUTPUT_PATH}") || return 1
     [[ "${OUTPUT_KEY}" == "." ]] && return 1
 
@@ -3116,19 +3116,19 @@ function marsh_get_archive_page_source {  # marsh_get_archive_page_source archiv
 }
 
 # returns output uri for an archive source path
-function marsh_get_archive_page_uri {  # marsh_get_archive_page_uri target_dir archive_source
-    local TARGET_DIR ARCHIVE_SOURCE TARGET_OUTPUT_REL URI
+function marsh_get_archive_page_uri {  # marsh_get_archive_page_uri target_output_root archive_source_rel
+    local TARGET_OUTPUT_ROOT ARCHIVE_SOURCE_REL TARGET_OUTPUT_REL URI
 
-    TARGET_DIR="${1:-}"
-    ARCHIVE_SOURCE="${2:-}"
-    [[ "${TARGET_DIR}" == "" ]] && return 1
-    [[ "${ARCHIVE_SOURCE}" == "" ]] && return 1
+    TARGET_OUTPUT_ROOT="${1:-}"
+    ARCHIVE_SOURCE_REL="${2:-}"
+    [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
+    [[ "${ARCHIVE_SOURCE_REL}" == "" ]] && return 1
 
-    TARGET_OUTPUT_REL=$(marsh_get_target_output_path "${TARGET_DIR}") || return 1
+    TARGET_OUTPUT_REL=$(marsh_get_target_output_path "${TARGET_OUTPUT_ROOT}") || return 1
     if [[ "${TARGET_OUTPUT_REL}" == "." ]]; then
-        URI="${ARCHIVE_SOURCE}"
+        URI="${ARCHIVE_SOURCE_REL}"
     else
-        URI="${TARGET_OUTPUT_REL}/${ARCHIVE_SOURCE}"
+        URI="${TARGET_OUTPUT_REL}/${ARCHIVE_SOURCE_REL}"
     fi
     URI="${URI%.*}.html"
     marsh_get_absolute_output_path "${URI}" "document"

@@ -393,13 +393,14 @@ function marsh_test {
     TEST_TEMP_PREFIX="${MARSH_TEST_TEMP}/${TEST_NAME//[:]/-}"
     case "${TEST_NAME}" in
         marsh_build_archive:0)
-            TEST_NAME+=":html_pagination"
+            TEST_NAME+=":html_pagination_core"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             marsh_test_set_env
+            marsh_test_create_archive_document "${TARGET_OUTPUT_ROOT}" "news/2026/01/04/04-fourth.markdown" "post" "Fourth" "2026-01-04"
             marsh_test_create_archive_document "${TARGET_OUTPUT_ROOT}" "news/2026/01/03/03-third.markdown" "post" "Third" "2026-01-03"
             marsh_test_create_archive_document "${TARGET_OUTPUT_ROOT}" "news/2026/01/02/02-second.markdown" "post" "Second" "2026-01-02"
             marsh_test_create_archive_document "${TARGET_OUTPUT_ROOT}" "news/2026/01/01/01-first.markdown" "post" "First" "2026-01-01"
-            ACTUAL=$(marsh_build_archive "html" "${TARGET_OUTPUT_ROOT}" "index.markdown" "Archive" "English" "en" "" "2" "1" "post" "0")
+            ACTUAL=$(marsh_build_archive "html" "${TARGET_OUTPUT_ROOT}" "index.markdown" "Archive" "English" "en" "3" "2" "1" "post" "0")
             EXPECTED=$(printf '%s\n' \
                 'index.markdown' \
                 'page/1/index.markdown' \
@@ -465,6 +466,7 @@ function marsh_test {
                                     && [[ -e "$(marsh_get_archive_temp_path "${TARGET_OUTPUT_ROOT}" "index.markdown" "subdocuments-manifest")" ]] \
                                     && [[ -e "$(marsh_get_archive_temp_path "${TARGET_OUTPUT_ROOT}" "page/1/index.markdown" "subdocuments-manifest")" ]] \
                                     && [[ -e "$(marsh_get_archive_temp_path "${TARGET_OUTPUT_ROOT}" "page/2/index.markdown" "subdocuments-manifest")" ]] \
+                                    && [[ ! -e "$(marsh_get_archive_temp_path "${TARGET_OUTPUT_ROOT}" "page/3/index.markdown" "source")" ]] \
                                         && [[ ! -e "${TARGET_OUTPUT_ROOT}/index.markdown.subdocuments.manifest" ]] \
                                         && [[ ! -e "${TARGET_OUTPUT_ROOT}/page/1/index.markdown.subdocuments.manifest" ]] \
                                         && [[ ! -e "${TARGET_OUTPUT_ROOT}/page/2/index.markdown.subdocuments.manifest" ]] \
@@ -485,31 +487,39 @@ function marsh_test {
             marsh_test_restore_env
             ;;
         marsh_build_archive:1)
-            TEST_NAME+=":html_pagination_count_first"
+            TEST_NAME+=":html_pagination_named_and_cleanup"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             marsh_test_set_env
-            marsh_test_create_archive_document "${TARGET_OUTPUT_ROOT}" "news/2026/01/04/04-fourth.markdown" "post" "Fourth" "2026-01-04"
             marsh_test_create_archive_document "${TARGET_OUTPUT_ROOT}" "news/2026/01/03/03-third.markdown" "post" "Third" "2026-01-03"
             marsh_test_create_archive_document "${TARGET_OUTPUT_ROOT}" "news/2026/01/02/02-second.markdown" "post" "Second" "2026-01-02"
             marsh_test_create_archive_document "${TARGET_OUTPUT_ROOT}" "news/2026/01/01/01-first.markdown" "post" "First" "2026-01-01"
-            ACTUAL=$(marsh_build_archive "html" "${TARGET_OUTPUT_ROOT}" "index.markdown" "Archive" "English" "en" "3" "2" "1" "post" "0")
+            mkdir -p "${TARGET_OUTPUT_ROOT}/blog/page/9"
+            printf '%s\n' 'stale' > "${TARGET_OUTPUT_ROOT}/blog/page/9/index.markdown"
+            printf '%s\n' 'keep' > "${TARGET_OUTPUT_ROOT}/all.markdown"
+            ACTUAL=$(marsh_build_archive "html" "${TARGET_OUTPUT_ROOT}" "blog.markdown" "Archive" "English" "en" "" "2" "1" "post" "0")
             EXPECTED=$(printf '%s\n' \
-                'index.markdown' \
-                'page/1/index.markdown' \
-                'page/2/index.markdown')
+                'blog.markdown' \
+                'blog/page/1/index.markdown' \
+                'blog/page/2/index.markdown')
             ASSERTION="equals"
-            SOURCE_FILE=$(marsh_get_archive_temp_path "${TARGET_OUTPUT_ROOT}" "page/2/index.markdown" "source")
-            PAGE_META=$(sed -n -e '/^Page:/p' -e '/^Page_Total:/p' -e '/^Page_Subdocuments_Total:/p' -e '/^Archive_Subdocuments_Total:/p' "${SOURCE_FILE}")
+            BASE_URI="https://example.test/$(basename "${TARGET_OUTPUT_ROOT}")"
+            ALIAS_FILE=$(marsh_get_archive_temp_path "${TARGET_OUTPUT_ROOT}" "blog/page/1/index.markdown" "source")
+            ALIAS_META=$(sed -n -e '/^Archive_Root_Path:/p' -e '/^Archive_Root_Href:/p' -e '/^Page_URI:/p' -e '/^Page_Canonical_URI:/p' -e '/^Page_Href:/p' -e '/^Page_Canonical_Href:/p' "${ALIAS_FILE}")
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                ACTUAL="${PAGE_META}"
+                ACTUAL="${ALIAS_META}"
                 EXPECTED=$(printf '%s\n' \
-                    'Page: 2' \
-                    'Page_Total: 2' \
-                    'Page_Subdocuments_Total: 1' \
-                    'Archive_Subdocuments_Total: 3')
+                    'Archive_Root_Path: ./' \
+                    'Archive_Root_Href: ../../../' \
+                    "Page_URI: ${BASE_URI}/blog/page/1/" \
+                    "Page_Canonical_URI: ${BASE_URI}/blog.html" \
+                    'Page_Href: ./' \
+                    'Page_Canonical_Href: ../../../blog.html')
                 ASSERTION="equals"
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    [[ ! -e "$(marsh_get_archive_temp_path "${TARGET_OUTPUT_ROOT}" "page/3/index.markdown" "source")" ]]
+                    {
+                        [[ ! -e "${TARGET_OUTPUT_ROOT}/blog/page/9/index.markdown" ]] \
+                            && [[ -e "${TARGET_OUTPUT_ROOT}/all.markdown" ]]
+                    }
                     ACTUAL=$?
                     EXPECTED=0
                     ASSERTION="equals"
@@ -564,89 +574,6 @@ function marsh_test {
             marsh_test_restore_env
             ;;
         marsh_build_archive:3)
-            TEST_NAME+=":html_pagination_named_canonical"
-            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
-            marsh_test_set_env
-            marsh_test_create_archive_document "${TARGET_OUTPUT_ROOT}" "news/2026/01/03/03-third.markdown" "post" "Third" "2026-01-03"
-            marsh_test_create_archive_document "${TARGET_OUTPUT_ROOT}" "news/2026/01/02/02-second.markdown" "post" "Second" "2026-01-02"
-            marsh_test_create_archive_document "${TARGET_OUTPUT_ROOT}" "news/2026/01/01/01-first.markdown" "post" "First" "2026-01-01"
-            ACTUAL=$(marsh_build_archive "html" "${TARGET_OUTPUT_ROOT}" "blog.markdown" "Archive" "English" "en" "" "2" "1" "post" "0")
-            EXPECTED=$(printf '%s\n' \
-                'blog.markdown' \
-                'blog/page/1/index.markdown' \
-                'blog/page/2/index.markdown')
-            ASSERTION="equals"
-            BASE_URI="https://example.test/$(basename "${TARGET_OUTPUT_ROOT}")"
-            SOURCE_FILE=$(marsh_get_archive_temp_path "${TARGET_OUTPUT_ROOT}" "blog.markdown" "source")
-            META_FILE=$(marsh_get_archive_temp_path "${TARGET_OUTPUT_ROOT}" "blog/page/1/index.markdown" "source")
-            CONTENT_FILE=$(marsh_get_archive_temp_path "${TARGET_OUTPUT_ROOT}" "blog/page/2/index.markdown" "source")
-            ALIAS_META=$(sed -n -e '/^Archive_Root_Path:/p' -e '/^Archive_Root_Href:/p' -e '/^Page_URI:/p' -e '/^Page_Canonical_URI:/p' -e '/^Page_Href:/p' -e '/^Page_Canonical_Href:/p' "${META_FILE}")
-            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                ACTUAL="${ALIAS_META}"
-                EXPECTED=$(printf '%s\n' \
-                    'Archive_Root_Path: ./' \
-                    'Archive_Root_Href: ../../../' \
-                    "Page_URI: ${BASE_URI}/blog/page/1/" \
-                    "Page_Canonical_URI: ${BASE_URI}/blog.html" \
-                    'Page_Href: ./' \
-                    'Page_Canonical_Href: ../../../blog.html')
-                ASSERTION="equals"
-                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    {
-                        [[ -e "${SOURCE_FILE}" ]] \
-                            && [[ -e "${META_FILE}" ]] \
-                            && [[ -e "${CONTENT_FILE}" ]] \
-                            && [[ ! -e "${TARGET_OUTPUT_ROOT}/blog.markdown" ]] \
-                            && [[ ! -e "${TARGET_OUTPUT_ROOT}/blog/page/1/index.markdown" ]] \
-                            && [[ ! -e "${TARGET_OUTPUT_ROOT}/blog/page/2/index.markdown" ]]
-                    }
-                    ACTUAL=$?
-                    EXPECTED=0
-                    ASSERTION="equals"
-                    if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                        RES="[PASS]"
-                    fi
-                fi
-            fi
-            rm -rf "${TARGET_OUTPUT_ROOT}"
-            marsh_test_restore_env
-            ;;
-        marsh_build_archive:4)
-            TEST_NAME+=":html_pagination_cleanup"
-            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
-            marsh_test_set_env
-            marsh_test_create_archive_document "${TARGET_OUTPUT_ROOT}" "news/2026/01/03/03-third.markdown" "post" "Third" "2026-01-03"
-            marsh_test_create_archive_document "${TARGET_OUTPUT_ROOT}" "news/2026/01/02/02-second.markdown" "post" "Second" "2026-01-02"
-            marsh_test_create_archive_document "${TARGET_OUTPUT_ROOT}" "news/2026/01/01/01-first.markdown" "post" "First" "2026-01-01"
-            mkdir -p "${TARGET_OUTPUT_ROOT}/page/9"
-            printf '%s\n' 'stale' > "${TARGET_OUTPUT_ROOT}/page/9/index.markdown"
-            printf '%s\n' 'keep' > "${TARGET_OUTPUT_ROOT}/all.markdown"
-            ACTUAL=$(marsh_build_archive "html" "${TARGET_OUTPUT_ROOT}" "index.markdown" "Archive" "English" "en" "" "2" "1" "post" "0")
-            EXPECTED=$(printf '%s\n' \
-                'index.markdown' \
-                'page/1/index.markdown' \
-                'page/2/index.markdown')
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                {
-                    [[ ! -e "${TARGET_OUTPUT_ROOT}/page/9/index.markdown" ]] \
-                        && [[ -e "${TARGET_OUTPUT_ROOT}/all.markdown" ]] \
-                        && [[ -e "$(marsh_get_archive_temp_path "${TARGET_OUTPUT_ROOT}" "page/1/index.markdown" "source")" ]] \
-                        && [[ -e "$(marsh_get_archive_temp_path "${TARGET_OUTPUT_ROOT}" "page/2/index.markdown" "source")" ]] \
-                        && [[ ! -e "${TARGET_OUTPUT_ROOT}/page/1/index.markdown" ]] \
-                        && [[ ! -e "${TARGET_OUTPUT_ROOT}/page/2/index.markdown" ]]
-                }
-                ACTUAL=$?
-                EXPECTED=0
-                ASSERTION="equals"
-                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    RES="[PASS]"
-                fi
-            fi
-            rm -rf "${TARGET_OUTPUT_ROOT}"
-            marsh_test_restore_env
-            ;;
-        marsh_build_archive:5)
             TEST_NAME+=":non_html_ignore_pagination"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             marsh_test_set_env
@@ -680,7 +607,7 @@ function marsh_test {
             rm -rf "${TARGET_OUTPUT_ROOT}"
             marsh_test_restore_env
             ;;
-        marsh_build_archive:6)
+        marsh_build_archive:4)
             TEST_NAME+=":manifest_input"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             MANIFEST_FILE="${TEST_TEMP_PREFIX}.archive-manifest"
@@ -717,7 +644,7 @@ function marsh_test {
             rm -rf "${TARGET_OUTPUT_ROOT}" "${MANIFEST_FILE}"
             marsh_test_restore_env
             ;;
-        marsh_build_archive:7)
+        marsh_build_archive:5)
             TEST_NAME+=":explicit_root_path"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             marsh_test_set_env

@@ -4168,10 +4168,6 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
     DOCUMENT_SOURCE_FILE=""
     # prefer source tree for ordinary documents
     TARGET_SOURCE_ROOT="${BUILD_CONTEXT_SOURCE_ROOT}"
-    if [[ "${TARGET_SOURCE_ROOT}" == "" ]]; then
-        # todo: remove the target temp cache fallback when normal build flows always pass explicit build context
-        TARGET_SOURCE_ROOT=$(marsh_get_target_source_root_path "${BUILD_CONTEXT_OUTPUT_ROOT}" 2>/dev/null) || TARGET_SOURCE_ROOT=""
-    fi
     if [[ -f "${TARGET_SOURCE_ROOT}/${DOCUMENT_REL_TO_TARGET}" ]] && [[ -r "${TARGET_SOURCE_ROOT}/${DOCUMENT_REL_TO_TARGET}" ]]; then
         DOCUMENT_SOURCE_FILE="${TARGET_SOURCE_ROOT}/${DOCUMENT_REL_TO_TARGET}"
     fi
@@ -4824,10 +4820,6 @@ function marsh_build_document {  # marsh_build_document site_output_root target_
     BUILD_CONTEXT_OUTPUT_ROOT=$(marsh_get_target_directory_path "${SITE_OUTPUT_ROOT}/${BUILD_CONTEXT_TARGET_OUTPUT_REL}") || return 1
     DOCUMENT_SOURCE_FILE=""
     TARGET_SOURCE_ROOT="${BUILD_CONTEXT_SOURCE_ROOT}"
-    if [[ "${TARGET_SOURCE_ROOT}" == "" ]]; then
-        # todo: remove the target temp cache fallback when normal build flows always pass explicit build context
-        TARGET_SOURCE_ROOT=$(marsh_get_target_source_root_path "${BUILD_CONTEXT_OUTPUT_ROOT}" 2>/dev/null) || TARGET_SOURCE_ROOT=""
-    fi
     if [[ -f "${TARGET_SOURCE_ROOT}/${DOCUMENT}" ]] && [[ -r "${TARGET_SOURCE_ROOT}/${DOCUMENT}" ]]; then
         DOCUMENT_SOURCE_FILE="${TARGET_SOURCE_ROOT}/${DOCUMENT}"
     fi
@@ -5092,10 +5084,6 @@ function marsh_build_target {  # marsh_build_target site_output_root target jobs
         fi
     fi
     TARGET_SOURCE_ROOT="${BUILD_CONTEXT_SOURCE_ROOT}"
-    if [[ "${TARGET_SOURCE_ROOT}" == "" ]]; then
-        # todo: remove the target temp cache fallback when normal build flows always pass explicit build context
-        TARGET_SOURCE_ROOT=$(marsh_get_target_source_root_path "${TARGET_OUTPUT_ROOT}" 2>/dev/null) || TARGET_SOURCE_ROOT=""
-    fi
     # directory targets should include every descendant document under that subtree
     # file targets should match only the exact source document path
     TARGET_IS_DIRECTORY_SCOPE=false
@@ -5877,7 +5865,16 @@ function marsh_cli {
         # clean up
         rm -rf "${MARSH_TEMP}"
         trap - EXIT INT TERM
-    elif [[ "${COMMAND}" == "build-document" ]]; then
+    elif [[ "${COMMAND}" == "build-document" ]] || [[ "${COMMAND}" == "build-document-and-template" ]] || [[ "${COMMAND}" == "build-template" ]]; then
+        BUILD_SITE_OUTPUT_ROOT="${BUILD_SITE_OUTPUT_ROOT%/}"
+        BUILD_SITE_OUTPUT_ROOT="${BUILD_SITE_OUTPUT_ROOT:-.}"
+        BUILD_TARGET_OUTPUT_REL="${BUILD_TARGET_OUTPUT_REL%/}"
+        BUILD_TARGET_OUTPUT_REL="${BUILD_TARGET_OUTPUT_REL:-.}"
+        BUILD_CONTEXT_TARGET_OUTPUT_REL="${BUILD_CONTEXT_TARGET_OUTPUT_REL%/}"
+        BUILD_CONTEXT_TARGET_OUTPUT_REL="${BUILD_CONTEXT_TARGET_OUTPUT_REL:-${BUILD_TARGET_OUTPUT_REL}}"
+    fi
+
+    if [[ "${COMMAND}" == "build-document" ]]; then
         # build single document
         marsh_build_document "${BUILD_SITE_OUTPUT_ROOT}" "${BUILD_TARGET_OUTPUT_REL}" "${BUILD_DOCUMENT}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_FILEEXT_CSV}" "${MARKDOWN_REWRITE_LINKS}" "${BUILD_CONTEXT_TARGET_OUTPUT_REL}" "${BUILD_CONTEXT_SOURCE_ROOT}"
     elif [[ "${COMMAND}" == "build-document-and-template" ]]; then

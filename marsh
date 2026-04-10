@@ -1618,7 +1618,7 @@ function marsh_get_archive_manifest {  # marsh_get_archive_manifest target_outpu
         echo "Unable to create archive manifest cache directory: ${ARCHIVE_MANIFEST_CACHE_DIR}" >&2
         return 1
     }
-    ARCHIVE_MANIFEST_CACHE_KEY=$(printf '%s\034%s\n' "${TARGET_OUTPUT_ROOT}" "${MARSH_UID}" | marsh_text_transform hash:md5)
+    ARCHIVE_MANIFEST_CACHE_KEY=$(printf '%s\n' "${TARGET_OUTPUT_ROOT}" | marsh_text_transform hash:md5)
     ARCHIVE_MANIFEST_FILE="${ARCHIVE_MANIFEST_CACHE_DIR}/${ARCHIVE_MANIFEST_CACHE_KEY}.manifest"
     if [[ -f "${ARCHIVE_MANIFEST_FILE}" ]] && [[ -r "${ARCHIVE_MANIFEST_FILE}" ]]; then
         printf '%s\n' "${ARCHIVE_MANIFEST_FILE}"
@@ -4604,11 +4604,7 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
                             SUBDOCUMENT_OUTPUT_PATH="${TARGET_OUTPUT_REL}/${SUBDOCUMENT_OUTPUT_PATH#./}"
                         fi
                     fi
-                    if [[ "${SUBDOCUMENT_OUTPUT_PATH%.$MARSH_UID.document}" != "${SUBDOCUMENT_OUTPUT_PATH}" ]]; then
-                        SUBDOCUMENT_OUTPUT_PATH="${SUBDOCUMENT_OUTPUT_PATH%.$MARSH_UID.document}"
-                    else
-                        SUBDOCUMENT_OUTPUT_PATH="${SUBDOCUMENT_OUTPUT_PATH%.document}"
-                    fi
+                    SUBDOCUMENT_OUTPUT_PATH="${SUBDOCUMENT_OUTPUT_PATH%.document}"
                 fi
                 SUBDOCUMENT_OUTPUT_EXT="${SUBDOCUMENT_OUTPUT_PATH##*.}"
                 if marsh_is_markdown_extension "${SUBDOCUMENT_OUTPUT_EXT}" "${MARKDOWN_FILEEXT_CSV}"; then
@@ -5122,7 +5118,7 @@ function marsh_build_target {  # marsh_build_target site_output_root target jobs
     if [[ "${JOBS:-1}" -gt 1 ]] && [[ "${PARALLEL:-}" != "" ]] && [[ "$("${PARALLEL}" --version --no-notice 2>/dev/null | head -n 1 | grep -o 'GNU parallel')" == "GNU parallel" ]]; then
         # in parallel
         export -f marsh_build_document_and_template
-        if ! "${PARALLEL}" --halt now,fail=1 --quote --no-notice --env marsh_text_transform --env marsh_process_markdown --env marsh_build_document_and_template --jobs="${JOBS:-1}" "${SELF_DIR}/${SELF_NAME}" build-document-and-template --markdown="${PARALLEL_MARKDOWN}" --markdown-options="${MARKDOWN_OPTIONS_CSV}" --markdown-file-extensions="${MARKDOWN_FILEEXT_CSV}" --markdown-rewrite-links="${MARKDOWN_REWRITE_LINKS}" --marsh-uid="${MARSH_UID}" --marsh-temp="${MARSH_TEMP}" --marsh-config-file="${MARSH_CONFIG_FILE}" --marsh-config-file-dir="${MARSH_CONFIG_FILE_DIR}" --marsh-config-path="${MARSH_CONFIG_PATH}" --marsh-config-url="${MARSH_CONFIG_URL}" "${SITE_OUTPUT_ROOT}" "${TARGET_OUTPUT_REL}" {} "${SITEMAP}" "${SITEMAP_SEARCH}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_ASSETS_PATH}" ::: "${DOCUMENTS[@]}"; then
+        if ! "${PARALLEL}" --halt now,fail=1 --quote --no-notice --env marsh_text_transform --env marsh_process_markdown --env marsh_build_document_and_template --jobs="${JOBS:-1}" "${SELF_DIR}/${SELF_NAME}" build-document-and-template --markdown="${PARALLEL_MARKDOWN}" --markdown-options="${MARKDOWN_OPTIONS_CSV}" --markdown-file-extensions="${MARKDOWN_FILEEXT_CSV}" --markdown-rewrite-links="${MARKDOWN_REWRITE_LINKS}" --marsh-temp="${MARSH_TEMP}" --marsh-config-file="${MARSH_CONFIG_FILE}" --marsh-config-file-dir="${MARSH_CONFIG_FILE_DIR}" --marsh-config-path="${MARSH_CONFIG_PATH}" --marsh-config-url="${MARSH_CONFIG_URL}" "${SITE_OUTPUT_ROOT}" "${TARGET_OUTPUT_REL}" {} "${SITEMAP}" "${SITEMAP_SEARCH}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_ASSETS_PATH}" ::: "${DOCUMENTS[@]}"; then
             echo "Unable to build one or more documents in target: ${TARGET}" >&2
             return 1
         fi
@@ -5196,7 +5192,7 @@ function marsh_cli {
     OPTIND=1
     OPTSPEC=":-:hvj:"
     OPTARRAY=('-h' '--help' '-v' '--version' '--force' '-j' '--jobs' '--markdown' '--markdown-options' '--markdown-file-extensions' '--markdown-rewrite-links')  # all short and long options
-    OPTARRAY+=('marsh-uid' 'marsh-temp' 'marsh-config-file' 'marsh-config-file-dir' 'marsh-config-path' 'marsh-config-url')  # all private options
+    OPTARRAY+=('marsh-temp' 'marsh-config-file' 'marsh-config-file-dir' 'marsh-config-path' 'marsh-config-url')  # all private options
     while getopts "${OPTSPEC}" OPT; do
         case "${OPT}" in
             -)
@@ -5323,19 +5319,6 @@ function marsh_cli {
                         echo "Option --${OPTARG%%=*} takes no value" >&2
                         echo -e "${HELP}"
                         return 1
-                        ;;
-                    marsh-uid)
-                        if [[ -z ${!OPTIND+isset} ]] || marsh_in_array "${!OPTIND}" "${OPTARRAY[@]}"; then
-                            # Option without required argument
-                            echo "Option --${OPTARG} requires a value" >&2
-                            echo -e "${HELP}"
-                            return 1
-                        fi
-                        MARSH_UID="${!OPTIND}"
-                        OPTIND=$((OPTIND + 1))
-                        ;;
-                    marsh-uid=*)
-                        MARSH_UID="${OPTARG#*=}"
                         ;;
                     marsh-temp)
                         if [[ -z ${!OPTIND+isset} ]] || marsh_in_array "${!OPTIND}" "${OPTARRAY[@]}"; then
@@ -5551,7 +5534,7 @@ function marsh_cli {
 
     # keep temporary directory creation close to trap to catch quick SIGINT
     # temporary directory
-    if [[ "${MARSH_UID:-}" == "" ]]; then
+    if [[ "${MARSH_TEMP:-}" == "" ]]; then
         TEMP_DIR="${TMPDIR:-/tmp}"
         TEMP_DIR="${TEMP_DIR%/}"
         MARSH_TEMP=$(mktemp -d "${TEMP_DIR}/marsh-XXXXXX" 2>/dev/null)
@@ -5559,8 +5542,6 @@ function marsh_cli {
             echo "Unable to create temporary directory: ${TEMP_DIR}/marsh-XXXXXX" >&2
             return 1
         fi
-        MARSH_UID="marsh-${MARSH_TEMP##*marsh-}"
-        #export MARSH_TEMP MARSH_UID
     fi
     TEMPLATES_DIR="${MARSH_TEMP}/templates"
     mkdir -p "${TEMPLATES_DIR}"

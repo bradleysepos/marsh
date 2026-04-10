@@ -123,22 +123,22 @@ function marsh_test_markdown_command {
 }
 
 function marsh_test_create_archive_document {
-    local TARGET_DIR DOCUMENT RUN_UID TYPE TITLE DATE_VALUE STATE_VALUE
+    local TARGET_OUTPUT_ROOT DOCUMENT RUN_UID TYPE TITLE DATE_VALUE STATE_VALUE
 
-    TARGET_DIR="${1:-}"
+    TARGET_OUTPUT_ROOT="${1:-}"
     DOCUMENT="${2:-}"
     RUN_UID="${3:-}"
     TYPE="${4:-}"
     TITLE="${5:-}"
     DATE_VALUE="${6:-}"
     STATE_VALUE="${7:-}"
-    [[ "${TARGET_DIR}" == "" ]] && return 1
+    [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
     [[ "${DOCUMENT}" == "" ]] && return 1
     [[ "${RUN_UID}" == "" ]] && return 1
-    mkdir -p "${TARGET_DIR}/${DOCUMENT%/*}" || return 1
-    marsh_test_write_document_artifacts "${TARGET_DIR}" "${DOCUMENT}" "content" "# ${TITLE}" || return 1
+    mkdir -p "${TARGET_OUTPUT_ROOT}/${DOCUMENT%/*}" || return 1
+    marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "${DOCUMENT}" "content" "# ${TITLE}" || return 1
     if [[ "${STATE_VALUE}" != "" ]]; then
-        marsh_test_write_document_artifacts "${TARGET_DIR}" "${DOCUMENT}" "meta-yaml" \
+        marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "${DOCUMENT}" "meta-yaml" \
             '---' \
             "Type: ${TYPE}" \
             "Title: ${TITLE}" \
@@ -147,7 +147,7 @@ function marsh_test_create_archive_document {
             "  - ${STATE_VALUE}" \
             '...' || return 1
     else
-        marsh_test_write_document_artifacts "${TARGET_DIR}" "${DOCUMENT}" "meta-yaml" \
+        marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "${DOCUMENT}" "meta-yaml" \
             '---' \
             "Type: ${TYPE}" \
             "Title: ${TITLE}" \
@@ -314,12 +314,12 @@ function marsh_test_create_archive_template {
 }
 
 function marsh_test_write_document_artifacts {
-    local TARGET_DIR DOCUMENT ARTIFACT FILE
+    local TARGET_OUTPUT_ROOT DOCUMENT ARTIFACT FILE
 
-    TARGET_DIR="${1:-}"
+    TARGET_OUTPUT_ROOT="${1:-}"
     DOCUMENT="${2:-}"
     ARTIFACT="${3:-}"
-    [[ "${TARGET_DIR}" == "" ]] && return 1
+    [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
     [[ "${DOCUMENT}" == "" ]] && return 1
     [[ "${ARTIFACT}" == "archive-yaml" ]] && ARTIFACT="archive-meta"
     if [[ "${ARTIFACT}" != "content" ]] \
@@ -330,22 +330,22 @@ function marsh_test_write_document_artifacts {
     fi
     shift 3
 
-    FILE=$(marsh_get_document_temp_path "${TARGET_DIR}" "${DOCUMENT}" "${ARTIFACT}") || return 1
+    FILE=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "${DOCUMENT}" "${ARTIFACT}") || return 1
     mkdir -p "${FILE%/*}" || return 1
     printf '%s\n' "$@" > "${FILE}" || return 1
 }
 
 function marsh_test_write_target_source_root {
-    local TARGET_DIR SOURCE_ROOT TARGET_SOURCE_ROOT_FILE
+    local TARGET_OUTPUT_ROOT SOURCE_ROOT TARGET_SOURCE_ROOT_CACHE_FILE
 
-    TARGET_DIR="${1:-}"
+    TARGET_OUTPUT_ROOT="${1:-}"
     SOURCE_ROOT="${2:-}"
-    [[ "${TARGET_DIR}" == "" ]] && return 1
+    [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
     [[ "${SOURCE_ROOT}" == "" ]] && return 1
 
-    TARGET_SOURCE_ROOT_FILE="$(marsh_get_target_temp_root "${TARGET_DIR}")/source-root" || return 1
-    mkdir -p "${TARGET_SOURCE_ROOT_FILE%/*}" || return 1
-    printf '%s\n' "${SOURCE_ROOT}" > "${TARGET_SOURCE_ROOT_FILE}" || return 1
+    TARGET_SOURCE_ROOT_CACHE_FILE="$(marsh_get_target_temp_root "${TARGET_OUTPUT_ROOT}")/source-root" || return 1
+    mkdir -p "${TARGET_SOURCE_ROOT_CACHE_FILE%/*}" || return 1
+    printf '%s\n' "${SOURCE_ROOT}" > "${TARGET_SOURCE_ROOT_CACHE_FILE}" || return 1
 }
 
 function marsh_test_set_env {
@@ -3842,11 +3842,11 @@ function marsh_test {
             ;;
         marsh_get_archive_manifest:0)
             TEST_NAME+=":built"
-            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             marsh_test_set_env "archiveuid" true true
-            marsh_test_create_archive_document "${TARGET_DIR}" "news/2026/01/02/02-second.markdown" "${MARSH_UID}" "post" "Second" "2026-01-02" "published"
-            ACTUAL=$(marsh_get_archive_manifest "${TARGET_DIR}")
-            EXPECTED="${MARSH_TEST_TEMP}/archive-manifest-cache/$(printf '%s\034%s\n' "${TARGET_DIR}" "${MARSH_UID}" | marsh_text_transform hash:md5).manifest"
+            marsh_test_create_archive_document "${TARGET_OUTPUT_ROOT}" "news/2026/01/02/02-second.markdown" "${MARSH_UID}" "post" "Second" "2026-01-02" "published"
+            ACTUAL=$(marsh_get_archive_manifest "${TARGET_OUTPUT_ROOT}")
+            EXPECTED="${MARSH_TEST_TEMP}/archive-manifest-cache/$(printf '%s\034%s\n' "${TARGET_OUTPUT_ROOT}" "${MARSH_UID}" | marsh_text_transform hash:md5).manifest"
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 [[ -f "${ACTUAL}" ]]
@@ -3857,36 +3857,36 @@ function marsh_test {
                     RES="[PASS]"
                 fi
             fi
-            rm -rf "${TARGET_DIR}"
+            rm -rf "${TARGET_OUTPUT_ROOT}"
             marsh_test_restore_env
             ;;
         marsh_get_archive_manifest:1)
             TEST_NAME+=":cached"
-            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             marsh_test_set_env "archiveuid" true true
-            marsh_test_create_archive_document "${TARGET_DIR}" "news/2026/01/02/02-second.markdown" "${MARSH_UID}" "post" "Second" "2026-01-02" "published"
-            INDEX_FILE=$(marsh_get_archive_manifest "${TARGET_DIR}")
-            printf '%s\n' 'sentinel' > "${INDEX_FILE}"
-            ACTUAL=$(marsh_get_archive_manifest "${TARGET_DIR}")
-            EXPECTED="${INDEX_FILE}"
+            marsh_test_create_archive_document "${TARGET_OUTPUT_ROOT}" "news/2026/01/02/02-second.markdown" "${MARSH_UID}" "post" "Second" "2026-01-02" "published"
+            ARCHIVE_MANIFEST_FILE=$(marsh_get_archive_manifest "${TARGET_OUTPUT_ROOT}")
+            printf '%s\n' 'sentinel' > "${ARCHIVE_MANIFEST_FILE}"
+            ACTUAL=$(marsh_get_archive_manifest "${TARGET_OUTPUT_ROOT}")
+            EXPECTED="${ARCHIVE_MANIFEST_FILE}"
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                ACTUAL=$(<"${INDEX_FILE}")
+                ACTUAL=$(<"${ARCHIVE_MANIFEST_FILE}")
                 EXPECTED='sentinel'
                 ASSERTION="equals"
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                     RES="[PASS]"
                 fi
             fi
-            rm -rf "${TARGET_DIR}"
+            rm -rf "${TARGET_OUTPUT_ROOT}"
             marsh_test_restore_env
             ;;
         marsh_get_archive_metadata:0)
             TEST_NAME+=":parsed"
-            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             marsh_test_set_env "archiveuid" true true
-            mkdir -p "${TARGET_DIR}/news"
-            marsh_test_write_document_artifacts "${TARGET_DIR}" "news/article.markdown" "meta-yaml" \
+            mkdir -p "${TARGET_OUTPUT_ROOT}/news"
+            marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "news/article.markdown" "meta-yaml" \
                 '---' \
                 'Type: post' \
                 'Title: Hello World' \
@@ -3895,11 +3895,11 @@ function marsh_test {
                 '  - published' \
                 '  - featured' \
                 '...'
-            ACTUAL=$(marsh_get_archive_metadata "${TARGET_DIR}" "news/article.markdown")
+            ACTUAL=$(marsh_get_archive_metadata "${TARGET_OUTPUT_ROOT}" "news/article.markdown")
             EXPECTED=$(printf '%s\n' \
                 'TYPE=post' \
-                "URI=https://example.test/$(basename "${TARGET_DIR}")/news/article.html" \
-                "ABSPATH=https://example.test/$(basename "${TARGET_DIR}")/news" \
+                "URI=https://example.test/$(basename "${TARGET_OUTPUT_ROOT}")/news/article.html" \
+                "ABSPATH=https://example.test/$(basename "${TARGET_OUTPUT_ROOT}")/news" \
                 'STATE=()' \
                 'STATE+=(published)' \
                 'STATE+=(featured)')
@@ -3907,15 +3907,15 @@ function marsh_test {
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
-            rm -rf "${TARGET_DIR}"
+            rm -rf "${TARGET_OUTPUT_ROOT}"
             marsh_test_restore_env
             ;;
         marsh_get_archive_metadata:1)
             TEST_NAME+=":cache"
-            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             marsh_test_set_env "archiveuid" true true
-            mkdir -p "${TARGET_DIR}/news"
-            marsh_test_write_document_artifacts "${TARGET_DIR}" "news/article.markdown" "archive-meta" \
+            mkdir -p "${TARGET_OUTPUT_ROOT}/news"
+            marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "news/article.markdown" "archive-meta" \
                 'TYPE=cached' \
                 'TITLE=Cached\ Title' \
                 'DATE=2024-05-06' \
@@ -3923,7 +3923,7 @@ function marsh_test {
                 'ABSPATH=https://cached.example' \
                 'STATE=()' \
                 'STATE+=(cached)'
-            ACTUAL=$(marsh_get_archive_metadata "${TARGET_DIR}" "news/article.markdown")
+            ACTUAL=$(marsh_get_archive_metadata "${TARGET_OUTPUT_ROOT}" "news/article.markdown")
             EXPECTED=$(printf '%s\n' \
                 'TYPE=cached' \
                 'TITLE=Cached\ Title' \
@@ -3936,62 +3936,62 @@ function marsh_test {
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
-            rm -rf "${TARGET_DIR}"
+            rm -rf "${TARGET_OUTPUT_ROOT}"
             marsh_test_restore_env
             ;;
         marsh_get_archive_metadata:2)
             TEST_NAME+=":missing"
-            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             marsh_test_set_env "archiveuid" false false
-            mkdir -p "${TARGET_DIR}/news"
-            marsh_get_archive_metadata "${TARGET_DIR}" "news/article.markdown" 2>/dev/null
+            mkdir -p "${TARGET_OUTPUT_ROOT}/news"
+            marsh_get_archive_metadata "${TARGET_OUTPUT_ROOT}" "news/article.markdown" 2>/dev/null
             ACTUAL=$?
             EXPECTED=1
             ASSERTION="equals"
             if [[ "${ACTUAL}" -eq "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
-            rm -rf "${TARGET_DIR}"
+            rm -rf "${TARGET_OUTPUT_ROOT}"
             marsh_test_restore_env
             ;;
         marsh_get_archive_metadata:3)
             TEST_NAME+=":root_target_trailing_slash"
-            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             marsh_test_set_env "archiveuid" true true
-            mkdir -p "${TARGET_DIR}/news"
-            marsh_test_write_document_artifacts "${TARGET_DIR}" "news/article.markdown" "meta-yaml" \
+            mkdir -p "${TARGET_OUTPUT_ROOT}/news"
+            marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "news/article.markdown" "meta-yaml" \
                 '---' \
                 'Type: post' \
                 'Title: Hello World' \
                 'Date: 2024-01-02' \
                 '...'
-            ACTUAL=$(marsh_get_archive_metadata "${TARGET_DIR}/" "news/article.markdown")
+            ACTUAL=$(marsh_get_archive_metadata "${TARGET_OUTPUT_ROOT}/" "news/article.markdown")
             EXPECTED=$(printf '%s\n' \
                 'TYPE=post' \
-                "URI=https://example.test/$(basename "${TARGET_DIR}")/news/article.html" \
-                "ABSPATH=https://example.test/$(basename "${TARGET_DIR}")/news" \
+                "URI=https://example.test/$(basename "${TARGET_OUTPUT_ROOT}")/news/article.html" \
+                "ABSPATH=https://example.test/$(basename "${TARGET_OUTPUT_ROOT}")/news" \
                 'STATE=()')
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
-            rm -rf "${TARGET_DIR}"
+            rm -rf "${TARGET_OUTPUT_ROOT}"
             marsh_test_restore_env
             ;;
         marsh_get_archive_metadata:4)
             TEST_NAME+=":config_path_root"
-            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             marsh_test_set_env "archiveuid" true false
-            MARSH_CONFIG_PATH="${TARGET_DIR}"
+            MARSH_CONFIG_PATH="${TARGET_OUTPUT_ROOT}"
             MARSH_CONFIG_URL="https://example.test/site"
-            mkdir -p "${TARGET_DIR}/news"
-            marsh_test_write_document_artifacts "${TARGET_DIR}" "news/article.markdown" "meta-yaml" \
+            mkdir -p "${TARGET_OUTPUT_ROOT}/news"
+            marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "news/article.markdown" "meta-yaml" \
                 '---' \
                 'Type: post' \
                 'Title: Hello World' \
                 'Date: 2024-01-02' \
                 '...'
-            ACTUAL=$(marsh_get_archive_metadata "${TARGET_DIR}" "news/article.markdown")
+            ACTUAL=$(marsh_get_archive_metadata "${TARGET_OUTPUT_ROOT}" "news/article.markdown")
             EXPECTED=$(printf '%s\n' \
                 'TYPE=post' \
                 'URI=https://example.test/site/news/article.html' \
@@ -4001,28 +4001,28 @@ function marsh_test {
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
-            rm -rf "${TARGET_DIR}"
+            rm -rf "${TARGET_OUTPUT_ROOT}"
             marsh_test_restore_env
             ;;
         marsh_get_archive_metadata:5)
             TEST_NAME+=":rejects_legacy_pseudo_filename"
-            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             marsh_test_set_env "archiveuid" true true
-            mkdir -p "${TARGET_DIR}/news"
-            marsh_test_write_document_artifacts "${TARGET_DIR}" "news/article.markdown" "meta-yaml" \
+            mkdir -p "${TARGET_OUTPUT_ROOT}/news"
+            marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "news/article.markdown" "meta-yaml" \
                 '---' \
                 'Type: post' \
                 'Title: Hello World' \
                 'Date: 2024-01-02' \
                 '...'
-            marsh_get_archive_metadata "${TARGET_DIR}" "news/article.markdown.${MARSH_UID}.document" 2>/dev/null
+            marsh_get_archive_metadata "${TARGET_OUTPUT_ROOT}" "news/article.markdown.${MARSH_UID}.document" 2>/dev/null
             ACTUAL=$?
             EXPECTED=1
             ASSERTION="equals"
             if [[ "${ACTUAL}" -eq "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
-            rm -rf "${TARGET_DIR}"
+            rm -rf "${TARGET_OUTPUT_ROOT}"
             marsh_test_restore_env
             ;;
         marsh_get_archive_temp_path:0)
@@ -4051,12 +4051,12 @@ function marsh_test {
             ;;
         marsh_get_document_metadata:0)
             TEST_NAME+=":parsed"
-            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             marsh_test_set_env "documentmetadatauid" true true
-            mkdir -p "${TARGET_DIR}/news"
-            META_FILE=$(marsh_get_document_temp_path "${TARGET_DIR}" "news/article.markdown" "meta-yaml")
-            CACHE_FILE=$(marsh_get_document_temp_path "${TARGET_DIR}" "news/article.markdown" "meta")
-            marsh_test_write_document_artifacts "${TARGET_DIR}" "news/article.markdown" "meta-yaml" \
+            mkdir -p "${TARGET_OUTPUT_ROOT}/news"
+            META_FILE=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "news/article.markdown" "meta-yaml")
+            CACHE_FILE=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "news/article.markdown" "meta")
+            marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "news/article.markdown" "meta-yaml" \
                 '---' \
                 'Type: post' \
                 'Title: Hello World' \
@@ -4082,18 +4082,18 @@ function marsh_test {
                     fi
                 fi
             fi
-            rm -rf "${TARGET_DIR}"
+            rm -rf "${TARGET_OUTPUT_ROOT}"
             marsh_test_restore_env
             ;;
         marsh_get_document_metadata:1)
             TEST_NAME+=":cached"
-            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             marsh_test_set_env "documentmetadatauid" true true
-            mkdir -p "${TARGET_DIR}/news"
-            META_FILE=$(marsh_get_document_temp_path "${TARGET_DIR}" "news/article.markdown" "meta-yaml")
-            CACHE_FILE=$(marsh_get_document_temp_path "${TARGET_DIR}" "news/article.markdown" "meta")
-            marsh_test_write_document_artifacts "${TARGET_DIR}" "news/article.markdown" "meta-yaml" '---' 'Title: Broken' '...'
-            marsh_test_write_document_artifacts "${TARGET_DIR}" "news/article.markdown" "meta" 'Title="Cached Title"' 'Project="Cached Project"'
+            mkdir -p "${TARGET_OUTPUT_ROOT}/news"
+            META_FILE=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "news/article.markdown" "meta-yaml")
+            CACHE_FILE=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "news/article.markdown" "meta")
+            marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "news/article.markdown" "meta-yaml" '---' 'Title: Broken' '...'
+            marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "news/article.markdown" "meta" 'Title="Cached Title"' 'Project="Cached Project"'
             ACTUAL=$(marsh_get_document_metadata "${META_FILE}" "DOCUMENT_")
             EXPECTED=$(printf '%s\n' \
                 'DOCUMENT_Title="Cached Title"' \
@@ -4102,15 +4102,15 @@ function marsh_test {
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
-            rm -rf "${TARGET_DIR}"
+            rm -rf "${TARGET_OUTPUT_ROOT}"
             marsh_test_restore_env
             ;;
         marsh_get_document_metadata:2)
             TEST_NAME+=":missing"
-            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             marsh_test_set_env "documentmetadatauid" true true
-            mkdir -p "${TARGET_DIR}/news"
-            META_FILE=$(marsh_get_document_temp_path "${TARGET_DIR}" "news/article.markdown" "meta-yaml")
+            mkdir -p "${TARGET_OUTPUT_ROOT}/news"
+            META_FILE=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "news/article.markdown" "meta-yaml")
             marsh_get_document_metadata "${META_FILE}" "DOCUMENT_" 2>/dev/null
             ACTUAL=$?
             EXPECTED=1
@@ -4118,7 +4118,7 @@ function marsh_test {
             if [[ "${ACTUAL}" -eq "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
-            rm -rf "${TARGET_DIR}"
+            rm -rf "${TARGET_OUTPUT_ROOT}"
             marsh_test_restore_env
             ;;
         marsh_get_document_temp_path:0)
@@ -4202,59 +4202,59 @@ function marsh_test {
             ;;
         marsh_get_target_source_root_path:0)
             TEST_NAME+=":cached"
-            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
-            SOURCE_DIR="${TEST_TEMP_PREFIX}.source"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
             marsh_test_set_env "targetsourcerootuid" true false
-            TARGET_SOURCE_ROOT_FILE="$(marsh_get_target_temp_root "${TARGET_DIR}")/source-root"
-            mkdir -p "${SOURCE_DIR}" "${TARGET_SOURCE_ROOT_FILE%/*}"
-            printf '%s\n' "${SOURCE_DIR}" > "${TARGET_SOURCE_ROOT_FILE}"
-            ACTUAL=$(marsh_get_target_source_root_path "${TARGET_DIR}")
-            EXPECTED="${SOURCE_DIR}"
+            TARGET_SOURCE_ROOT_CACHE_FILE="$(marsh_get_target_temp_root "${TARGET_OUTPUT_ROOT}")/source-root"
+            mkdir -p "${SOURCE_ROOT}" "${TARGET_SOURCE_ROOT_CACHE_FILE%/*}"
+            printf '%s\n' "${SOURCE_ROOT}" > "${TARGET_SOURCE_ROOT_CACHE_FILE}"
+            ACTUAL=$(marsh_get_target_source_root_path "${TARGET_OUTPUT_ROOT}")
+            EXPECTED="${SOURCE_ROOT}"
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
-            rm -rf "${TARGET_DIR}" "${SOURCE_DIR}"
+            rm -rf "${TARGET_OUTPUT_ROOT}" "${SOURCE_ROOT}"
             marsh_test_restore_env
             ;;
         marsh_get_target_source_root_path:1)
             TEST_NAME+=":missing"
-            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             marsh_test_set_env "targetsourcerootuid" true false
-            marsh_get_target_source_root_path "${TARGET_DIR}" 2>/dev/null
+            marsh_get_target_source_root_path "${TARGET_OUTPUT_ROOT}" 2>/dev/null
             ACTUAL=$?
             EXPECTED=1
             ASSERTION="equals"
             if [[ "${ACTUAL}" -eq "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
-            rm -rf "${TARGET_DIR}"
+            rm -rf "${TARGET_OUTPUT_ROOT}"
             marsh_test_restore_env
             ;;
         marsh_copy_direct_to_target:0)
             TEST_NAME+=":skips_markdown_copies_passthrough"
             SOURCE_DIR="${TEST_TEMP_PREFIX}.source"
-            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            SITE_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             marsh_test_set_env "copytargetsourceuid" true true
-            mkdir -p "${SOURCE_DIR}/docs" "${TARGET_DIR}"
+            mkdir -p "${SOURCE_DIR}/docs" "${SITE_OUTPUT_ROOT}"
             printf '%s\n' '---'$'\n''Title: Example'$'\n''...'$'\n'''$'\n''# Example' > "${SOURCE_DIR}/index.markdown"
             printf '%s\n' '# Guide' > "${SOURCE_DIR}/docs/guide.md"
             printf '%s\n' 'asset' > "${SOURCE_DIR}/docs/logo.txt"
-            marsh_copy_direct_to_target "${SOURCE_DIR}/*" "${TARGET_DIR}" "." "markdown,md" false
+            marsh_copy_direct_to_target "${SOURCE_DIR}/*" "${SITE_OUTPUT_ROOT}" "." "markdown,md" false
             ACTUAL=$?
             EXPECTED=0
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 {
-                    [[ ! -e "${TARGET_DIR}/index.markdown" ]] \
-                        && [[ ! -e "${TARGET_DIR}/docs/guide.md" ]] \
-                        && [[ -e "${TARGET_DIR}/docs/logo.txt" ]]
+                    [[ ! -e "${SITE_OUTPUT_ROOT}/index.markdown" ]] \
+                        && [[ ! -e "${SITE_OUTPUT_ROOT}/docs/guide.md" ]] \
+                        && [[ -e "${SITE_OUTPUT_ROOT}/docs/logo.txt" ]]
                 }
                 ACTUAL=$?
                 EXPECTED=0
                 ASSERTION="equals"
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    ACTUAL=$(<"${TARGET_DIR}/docs/logo.txt")
+                    ACTUAL=$(<"${SITE_OUTPUT_ROOT}/docs/logo.txt")
                     EXPECTED='asset'
                     ASSERTION="equals"
                     if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -4262,32 +4262,33 @@ function marsh_test {
                     fi
                 fi
             fi
-            rm -rf "${SOURCE_DIR}" "${TARGET_DIR}"
+            rm -rf "${SOURCE_DIR}" "${SITE_OUTPUT_ROOT}"
             marsh_test_restore_env
             ;;
         marsh_copy_direct_to_target:1)
             TEST_NAME+=":directory_source_does_not_duplicate_root"
             SOURCE_DIR="${TEST_TEMP_PREFIX}.source"
-            TARGET_DIR="${TEST_TEMP_PREFIX}.target/www"
+            SITE_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            TARGET_OUTPUT_ROOT="${SITE_OUTPUT_ROOT}/www"
             marsh_test_set_env "copytargetsourceuid" true true
-            mkdir -p "${SOURCE_DIR}/images" "${TARGET_DIR}"
+            mkdir -p "${SOURCE_DIR}/images" "${TARGET_OUTPUT_ROOT}"
             printf '%s\n' 'pngdata' > "${SOURCE_DIR}/images/logo.png"
             printf '%s\n' '---'$'\n''Title: Example'$'\n''...'$'\n'''$'\n''# Example' > "${SOURCE_DIR}/index.markdown"
-            marsh_copy_direct_to_target "${SOURCE_DIR}" "${TEST_TEMP_PREFIX}.target" "www" "markdown,md" false
+            marsh_copy_direct_to_target "${SOURCE_DIR}" "${SITE_OUTPUT_ROOT}" "www" "markdown,md" false
             ACTUAL=$?
             EXPECTED=0
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 {
-                    [[ -e "${TEST_TEMP_PREFIX}.target/www/images/logo.png" ]] \
-                        && [[ ! -e "${TEST_TEMP_PREFIX}.target/www/www/images/logo.png" ]] \
-                        && [[ ! -e "${TEST_TEMP_PREFIX}.target/www/index.markdown" ]]
+                    [[ -e "${TARGET_OUTPUT_ROOT}/images/logo.png" ]] \
+                        && [[ ! -e "${TARGET_OUTPUT_ROOT}/www/images/logo.png" ]] \
+                        && [[ ! -e "${TARGET_OUTPUT_ROOT}/index.markdown" ]]
                 }
                 ACTUAL=$?
                 EXPECTED=0
                 ASSERTION="equals"
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    ACTUAL=$(<"${TEST_TEMP_PREFIX}.target/www/images/logo.png")
+                    ACTUAL=$(<"${TARGET_OUTPUT_ROOT}/images/logo.png")
                     EXPECTED='pngdata'
                     ASSERTION="equals"
                     if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -4295,7 +4296,7 @@ function marsh_test {
                     fi
                 fi
             fi
-            rm -rf "${SOURCE_DIR}" "${TEST_TEMP_PREFIX}.target"
+            rm -rf "${SOURCE_DIR}" "${SITE_OUTPUT_ROOT}"
             marsh_test_restore_env
             ;;
         marsh_get_internal_parent_directory:0)
@@ -4354,13 +4355,13 @@ function marsh_test {
             ;;
         marsh_get_processed_sitemap:0)
             TEST_NAME+=":built"
-            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             marsh_test_set_env "sitemapvariantuid" true false
-            mkdir -p "${TARGET_DIR}"
-            SITEMAP_FILE=$(marsh_get_sitemap_render_path "${TARGET_DIR}" "site-map/index.markdown")
-            printf '%s\n' '<h1><a href="./">Site Map</a></h1>' '<p><a href="../news/">News</a></p>' > "${SITEMAP_FILE}"
-            ACTUAL=$(marsh_get_processed_sitemap "${SITEMAP_FILE}" "site-map" "docs/")
-            EXPECTED="$(marsh_get_target_temp_root "${TARGET_DIR}")/sitemaps/processed/$(printf '%s\034%s\034%s\034%s\n' "${SITEMAP_FILE}" "site-map" "docs/" "$(<"${SITEMAP_FILE}" marsh_text_transform hash:md5)" | marsh_text_transform hash:md5).html"
+            mkdir -p "${TARGET_OUTPUT_ROOT}"
+            SITEMAP_RENDER_FILE=$(marsh_get_sitemap_render_path "${TARGET_OUTPUT_ROOT}" "site-map/index.markdown")
+            printf '%s\n' '<h1><a href="./">Site Map</a></h1>' '<p><a href="../news/">News</a></p>' > "${SITEMAP_RENDER_FILE}"
+            ACTUAL=$(marsh_get_processed_sitemap "${SITEMAP_RENDER_FILE}" "site-map" "docs/")
+            EXPECTED="$(marsh_get_target_temp_root "${TARGET_OUTPUT_ROOT}")/sitemaps/processed/$(printf '%s\034%s\034%s\034%s\n' "${SITEMAP_RENDER_FILE}" "site-map" "docs/" "$(<"${SITEMAP_RENDER_FILE}" marsh_text_transform hash:md5)" | marsh_text_transform hash:md5).html"
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 ACTUAL=$(<"${EXPECTED}")
@@ -4370,20 +4371,20 @@ function marsh_test {
                     RES="[PASS]"
                 fi
             fi
-            rm -rf "${TARGET_DIR}"
+            rm -rf "${TARGET_OUTPUT_ROOT}"
             marsh_test_restore_env
             ;;
         marsh_get_processed_sitemap:1)
             TEST_NAME+=":cached"
-            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             marsh_test_set_env "sitemapvariantuid" true false
-            mkdir -p "${TARGET_DIR}"
-            SITEMAP_FILE=$(marsh_get_sitemap_render_path "${TARGET_DIR}" "site-map/index.markdown")
-            printf '%s\n' '<p><a href="../news/">News</a></p>' > "${SITEMAP_FILE}"
-            CACHE_FILE="$(marsh_get_target_temp_root "${TARGET_DIR}")/sitemaps/processed/$(printf '%s\034%s\034%s\034%s\n' "${SITEMAP_FILE}" "site-map" "docs/" "$(<"${SITEMAP_FILE}" marsh_text_transform hash:md5)" | marsh_text_transform hash:md5).html"
+            mkdir -p "${TARGET_OUTPUT_ROOT}"
+            SITEMAP_RENDER_FILE=$(marsh_get_sitemap_render_path "${TARGET_OUTPUT_ROOT}" "site-map/index.markdown")
+            printf '%s\n' '<p><a href="../news/">News</a></p>' > "${SITEMAP_RENDER_FILE}"
+            CACHE_FILE="$(marsh_get_target_temp_root "${TARGET_OUTPUT_ROOT}")/sitemaps/processed/$(printf '%s\034%s\034%s\034%s\n' "${SITEMAP_RENDER_FILE}" "site-map" "docs/" "$(<"${SITEMAP_RENDER_FILE}" marsh_text_transform hash:md5)" | marsh_text_transform hash:md5).html"
             mkdir -p "${CACHE_FILE%/*}"
             printf '%s\n' 'sentinel' > "${CACHE_FILE}"
-            ACTUAL=$(marsh_get_processed_sitemap "${SITEMAP_FILE}" "site-map" "docs/")
+            ACTUAL=$(marsh_get_processed_sitemap "${SITEMAP_RENDER_FILE}" "site-map" "docs/")
             EXPECTED="${CACHE_FILE}"
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -4394,7 +4395,7 @@ function marsh_test {
                     RES="[PASS]"
                 fi
             fi
-            rm -rf "${TARGET_DIR}"
+            rm -rf "${TARGET_OUTPUT_ROOT}"
             marsh_test_restore_env
             ;;
         marsh_get_processed_sitemap:2)
@@ -4514,68 +4515,68 @@ function marsh_test {
             ;;
         marsh_get_sitemap_lookup_path:0)
             TEST_NAME+=":explicit"
-            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             marsh_test_set_env "navlookupuid" true false
-            mkdir -p "${TARGET_DIR}"
-            SITEMAP_RENDER=$(marsh_get_sitemap_render_path "${TARGET_DIR}" "site-map/index.markdown")
-            mkdir -p "${SITEMAP_RENDER%/*}"
-            : > "${SITEMAP_RENDER}"
-            ACTUAL=$(marsh_get_sitemap_lookup_path "${TARGET_DIR}" "news/article.markdown" "site-map/index.markdown")
+            mkdir -p "${TARGET_OUTPUT_ROOT}"
+            SITEMAP_RENDER_FILE=$(marsh_get_sitemap_render_path "${TARGET_OUTPUT_ROOT}" "site-map/index.markdown")
+            mkdir -p "${SITEMAP_RENDER_FILE%/*}"
+            : > "${SITEMAP_RENDER_FILE}"
+            ACTUAL=$(marsh_get_sitemap_lookup_path "${TARGET_OUTPUT_ROOT}" "news/article.markdown" "site-map/index.markdown")
             EXPECTED="site-map/index.markdown"
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
-            rm -rf "${TARGET_DIR}"
+            rm -rf "${TARGET_OUTPUT_ROOT}"
             marsh_test_restore_env
             ;;
         marsh_get_sitemap_lookup_path:1)
             TEST_NAME+=":search_nearest"
-            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             marsh_test_set_env "navlookupuid" true false
-            mkdir -p "${TARGET_DIR}"
-            SITEMAP_RENDER=$(marsh_get_sitemap_render_path "${TARGET_DIR}" "news/world/sitemap.markdown")
-            mkdir -p "${SITEMAP_RENDER%/*}"
-            : > "${SITEMAP_RENDER}"
-            ACTUAL=$(marsh_get_sitemap_lookup_path "${TARGET_DIR}" "news/world/article.markdown" "sitemap.markdown" true)
+            mkdir -p "${TARGET_OUTPUT_ROOT}"
+            SITEMAP_RENDER_FILE=$(marsh_get_sitemap_render_path "${TARGET_OUTPUT_ROOT}" "news/world/sitemap.markdown")
+            mkdir -p "${SITEMAP_RENDER_FILE%/*}"
+            : > "${SITEMAP_RENDER_FILE}"
+            ACTUAL=$(marsh_get_sitemap_lookup_path "${TARGET_OUTPUT_ROOT}" "news/world/article.markdown" "sitemap.markdown" true)
             EXPECTED="news/world/sitemap.markdown"
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
-            rm -rf "${TARGET_DIR}"
+            rm -rf "${TARGET_OUTPUT_ROOT}"
             marsh_test_restore_env
             ;;
         marsh_get_sitemap_lookup_path:2)
             TEST_NAME+=":search_parent"
-            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             marsh_test_set_env "navlookupuid" true false
-            mkdir -p "${TARGET_DIR}"
-            SITEMAP_RENDER=$(marsh_get_sitemap_render_path "${TARGET_DIR}" "news/sitemap.markdown")
-            mkdir -p "${SITEMAP_RENDER%/*}"
-            : > "${SITEMAP_RENDER}"
-            ACTUAL=$(marsh_get_sitemap_lookup_path "${TARGET_DIR}" "news/world/article.markdown" "sitemap.markdown" true)
+            mkdir -p "${TARGET_OUTPUT_ROOT}"
+            SITEMAP_RENDER_FILE=$(marsh_get_sitemap_render_path "${TARGET_OUTPUT_ROOT}" "news/sitemap.markdown")
+            mkdir -p "${SITEMAP_RENDER_FILE%/*}"
+            : > "${SITEMAP_RENDER_FILE}"
+            ACTUAL=$(marsh_get_sitemap_lookup_path "${TARGET_OUTPUT_ROOT}" "news/world/article.markdown" "sitemap.markdown" true)
             EXPECTED="news/sitemap.markdown"
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
-            rm -rf "${TARGET_DIR}"
+            rm -rf "${TARGET_OUTPUT_ROOT}"
             marsh_test_restore_env
             ;;
         marsh_get_sitemap_lookup_path:3)
             TEST_NAME+=":missing"
-            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             marsh_test_set_env "navlookupuid" true false
-            mkdir -p "${TARGET_DIR}"
-            marsh_get_sitemap_lookup_path "${TARGET_DIR}" "news/article.markdown" "sitemap.markdown" true 2>/dev/null
+            mkdir -p "${TARGET_OUTPUT_ROOT}"
+            marsh_get_sitemap_lookup_path "${TARGET_OUTPUT_ROOT}" "news/article.markdown" "sitemap.markdown" true 2>/dev/null
             ACTUAL=$?
             EXPECTED=1
             ASSERTION="equals"
             if [[ "${ACTUAL}" -eq "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
-            rm -rf "${TARGET_DIR}"
+            rm -rf "${TARGET_OUTPUT_ROOT}"
             marsh_test_restore_env
             ;;
         marsh_get_sitemap_render_path:0)
@@ -4604,94 +4605,94 @@ function marsh_test {
             ;;
         marsh_get_sitemap_rendered_path:0)
             TEST_NAME+=":target_level"
-            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             marsh_test_set_env "navtest" true false
-            mkdir -p "${TARGET_DIR}"
-            SITEMAP_RENDER=$(marsh_get_sitemap_render_path "${TARGET_DIR}" "nav.html")
-            mkdir -p "${SITEMAP_RENDER%/*}"
-            : > "${SITEMAP_RENDER}"
-            ACTUAL=$(marsh_get_sitemap_rendered_path "${TARGET_DIR}" "news/article.markdown" "nav.html")
-            EXPECTED="${SITEMAP_RENDER#${TARGET_DIR}/}"
+            mkdir -p "${TARGET_OUTPUT_ROOT}"
+            SITEMAP_RENDER_FILE=$(marsh_get_sitemap_render_path "${TARGET_OUTPUT_ROOT}" "nav.html")
+            mkdir -p "${SITEMAP_RENDER_FILE%/*}"
+            : > "${SITEMAP_RENDER_FILE}"
+            ACTUAL=$(marsh_get_sitemap_rendered_path "${TARGET_OUTPUT_ROOT}" "news/article.markdown" "nav.html")
+            EXPECTED="${SITEMAP_RENDER_FILE#${TARGET_OUTPUT_ROOT}/}"
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
-            rm -rf "${TARGET_DIR}"
+            rm -rf "${TARGET_OUTPUT_ROOT}"
             marsh_test_restore_env
             ;;
         marsh_get_sitemap_rendered_path:1)
             TEST_NAME+=":relative_path_key"
-            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             marsh_test_set_env "navtest" true false
-            mkdir -p "${TARGET_DIR}"
-            SITEMAP_RENDER=$(marsh_get_sitemap_render_path "${TARGET_DIR}" "../site-map/index.markdown")
-            mkdir -p "${SITEMAP_RENDER%/*}"
-            : > "${SITEMAP_RENDER}"
-            ACTUAL=$(marsh_get_sitemap_rendered_path "${TARGET_DIR}" "news/world/article.markdown" "../site-map/index.markdown")
-            EXPECTED="${SITEMAP_RENDER#${TARGET_DIR}/}"
+            mkdir -p "${TARGET_OUTPUT_ROOT}"
+            SITEMAP_RENDER_FILE=$(marsh_get_sitemap_render_path "${TARGET_OUTPUT_ROOT}" "../site-map/index.markdown")
+            mkdir -p "${SITEMAP_RENDER_FILE%/*}"
+            : > "${SITEMAP_RENDER_FILE}"
+            ACTUAL=$(marsh_get_sitemap_rendered_path "${TARGET_OUTPUT_ROOT}" "news/world/article.markdown" "../site-map/index.markdown")
+            EXPECTED="${SITEMAP_RENDER_FILE#${TARGET_OUTPUT_ROOT}/}"
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
-            rm -rf "${TARGET_DIR}"
+            rm -rf "${TARGET_OUTPUT_ROOT}"
             marsh_test_restore_env
             ;;
         marsh_get_sitemap_rendered_path:2)
             TEST_NAME+=":missing"
-            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             marsh_test_set_env "navtest" true false
-            mkdir -p "${TARGET_DIR}/news"
-            marsh_get_sitemap_rendered_path "${TARGET_DIR}" "news/article.markdown" "nav.html" 2>/dev/null
+            mkdir -p "${TARGET_OUTPUT_ROOT}/news"
+            marsh_get_sitemap_rendered_path "${TARGET_OUTPUT_ROOT}" "news/article.markdown" "nav.html" 2>/dev/null
             ACTUAL=$?
             EXPECTED=1
             ASSERTION="equals"
             if [[ "${ACTUAL}" -eq "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
-            rm -rf "${TARGET_DIR}"
+            rm -rf "${TARGET_OUTPUT_ROOT}"
             marsh_test_restore_env
             ;;
         marsh_get_sitemap_rendered_path:3)
             TEST_NAME+=":search_nearest"
-            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             marsh_test_set_env "navtest" true false
-            mkdir -p "${TARGET_DIR}"
-            SITEMAP_RENDER=$(marsh_get_sitemap_render_path "${TARGET_DIR}" "news/world/sitemap.markdown")
-            mkdir -p "${SITEMAP_RENDER%/*}"
-            : > "${SITEMAP_RENDER}"
-            ACTUAL=$(marsh_get_sitemap_rendered_path "${TARGET_DIR}" "news/world/article.markdown" "sitemap.markdown" true)
-            EXPECTED="${SITEMAP_RENDER#${TARGET_DIR}/}"
+            mkdir -p "${TARGET_OUTPUT_ROOT}"
+            SITEMAP_RENDER_FILE=$(marsh_get_sitemap_render_path "${TARGET_OUTPUT_ROOT}" "news/world/sitemap.markdown")
+            mkdir -p "${SITEMAP_RENDER_FILE%/*}"
+            : > "${SITEMAP_RENDER_FILE}"
+            ACTUAL=$(marsh_get_sitemap_rendered_path "${TARGET_OUTPUT_ROOT}" "news/world/article.markdown" "sitemap.markdown" true)
+            EXPECTED="${SITEMAP_RENDER_FILE#${TARGET_OUTPUT_ROOT}/}"
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
-            rm -rf "${TARGET_DIR}"
+            rm -rf "${TARGET_OUTPUT_ROOT}"
             marsh_test_restore_env
             ;;
         marsh_get_sitemap_rendered_path:4)
             TEST_NAME+=":search_parent"
-            TARGET_DIR="${TEST_TEMP_PREFIX}.target"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             marsh_test_set_env "navtest" true false
-            mkdir -p "${TARGET_DIR}"
-            SITEMAP_RENDER=$(marsh_get_sitemap_render_path "${TARGET_DIR}" "news/sitemap.markdown")
-            mkdir -p "${SITEMAP_RENDER%/*}"
-            : > "${SITEMAP_RENDER}"
-            ACTUAL=$(marsh_get_sitemap_rendered_path "${TARGET_DIR}" "news/world/article.markdown" "sitemap.markdown" true)
-            EXPECTED="${SITEMAP_RENDER#${TARGET_DIR}/}"
+            mkdir -p "${TARGET_OUTPUT_ROOT}"
+            SITEMAP_RENDER_FILE=$(marsh_get_sitemap_render_path "${TARGET_OUTPUT_ROOT}" "news/sitemap.markdown")
+            mkdir -p "${SITEMAP_RENDER_FILE%/*}"
+            : > "${SITEMAP_RENDER_FILE}"
+            ACTUAL=$(marsh_get_sitemap_rendered_path "${TARGET_OUTPUT_ROOT}" "news/world/article.markdown" "sitemap.markdown" true)
+            EXPECTED="${SITEMAP_RENDER_FILE#${TARGET_OUTPUT_ROOT}/}"
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
-            rm -rf "${TARGET_DIR}"
+            rm -rf "${TARGET_OUTPUT_ROOT}"
             marsh_test_restore_env
             ;;
         marsh_get_sitemap_temp_path:0)
             TEST_NAME+=":root_target_content"
             marsh_test_set_env "sitemaptemptestuid" true false
             MARSH_CONFIG_PATH="/site/public"
-            SITEMAP_RENDER=$(marsh_get_sitemap_render_path "/site/public" "site-map/index.markdown")
+            SITEMAP_RENDER_FILE=$(marsh_get_sitemap_render_path "/site/public" "site-map/index.markdown")
             ACTUAL=$(marsh_get_sitemap_temp_path "/site/public" "site-map/index.markdown" "content")
-            EXPECTED="${SITEMAP_RENDER%/render/*}/work/${SITEMAP_RENDER##*/}"
+            EXPECTED="${SITEMAP_RENDER_FILE%/render/*}/work/${SITEMAP_RENDER_FILE##*/}"
             EXPECTED="${EXPECTED%.sitemap.html}/content"
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -4703,9 +4704,9 @@ function marsh_test {
             TEST_NAME+=":nested_target_meta_yaml"
             marsh_test_set_env "sitemaptemptestuid" true false
             MARSH_CONFIG_PATH="/site/public"
-            SITEMAP_RENDER=$(marsh_get_sitemap_render_path "/site/public/blog" "news/sitemap.markdown")
+            SITEMAP_RENDER_FILE=$(marsh_get_sitemap_render_path "/site/public/blog" "news/sitemap.markdown")
             ACTUAL=$(marsh_get_sitemap_temp_path "/site/public/blog" "news/sitemap.markdown" "meta-yaml")
-            EXPECTED="${SITEMAP_RENDER%/render/*}/work/${SITEMAP_RENDER##*/}"
+            EXPECTED="${SITEMAP_RENDER_FILE%/render/*}/work/${SITEMAP_RENDER_FILE##*/}"
             EXPECTED="${EXPECTED%.sitemap.html}/meta.yaml"
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -4761,7 +4762,9 @@ function marsh_test {
             marsh_test_set_env "archiveuriuid" false false
             MARSH_CONFIG_PATH="/tmp/example-site/public"
             MARSH_CONFIG_URL="https://example.test/site"
-            ACTUAL=$(marsh_get_archive_page_uri "/tmp/example-site/public/." "news/index.markdown")
+            TARGET_OUTPUT_ROOT="/tmp/example-site/public/."
+            ARCHIVE_SOURCE_REL="news/index.markdown"
+            ACTUAL=$(marsh_get_archive_page_uri "${TARGET_OUTPUT_ROOT}" "${ARCHIVE_SOURCE_REL}")
             EXPECTED="https://example.test/site/news/"
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -4774,7 +4777,9 @@ function marsh_test {
             marsh_test_set_env "archiveuriuid" false false
             MARSH_CONFIG_PATH="/tmp/example-site/public"
             MARSH_CONFIG_URL="https://example.test/site"
-            ACTUAL=$(marsh_get_archive_page_uri "/tmp/example-site/public/./blog" "news/index.markdown")
+            TARGET_OUTPUT_ROOT="/tmp/example-site/public/./blog"
+            ARCHIVE_SOURCE_REL="news/index.markdown"
+            ACTUAL=$(marsh_get_archive_page_uri "${TARGET_OUTPUT_ROOT}" "${ARCHIVE_SOURCE_REL}")
             EXPECTED="https://example.test/site/blog/news/"
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -5048,7 +5053,8 @@ function marsh_test {
             TEST_NAME+=":root_target"
             marsh_test_set_env "targettempuid" true false
             MARSH_CONFIG_PATH="/site/public"
-            ACTUAL=$(marsh_get_target_temp_root "/site/public")
+            TARGET_OUTPUT_ROOT="/site/public"
+            ACTUAL=$(marsh_get_target_temp_root "${TARGET_OUTPUT_ROOT}")
             EXPECTED="${MARSH_TEST_TEMP}/build/targets/root"
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -5060,7 +5066,8 @@ function marsh_test {
             TEST_NAME+=":nested_target"
             marsh_test_set_env "targettempuid" true false
             MARSH_CONFIG_PATH="/site/public"
-            ACTUAL=$(marsh_get_target_temp_root "/site/public/docs/blog")
+            TARGET_OUTPUT_ROOT="/site/public/docs/blog"
+            ACTUAL=$(marsh_get_target_temp_root "${TARGET_OUTPUT_ROOT}")
             EXPECTED="${MARSH_TEST_TEMP}/build/targets/docs/blog"
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then

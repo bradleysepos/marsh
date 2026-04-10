@@ -681,7 +681,7 @@ function marsh_test {
             marsh_test_restore_env
             ;;
         marsh_build_archive:6)
-            TEST_NAME+=":manifest"
+            TEST_NAME+=":manifest_input"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             MANIFEST_FILE="${TEST_TEMP_PREFIX}.archive-manifest"
             marsh_test_set_env

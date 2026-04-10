@@ -1517,8 +1517,6 @@ function marsh_get_archive_metadata {  # marsh_get_archive_metadata target_outpu
 
     # use cache where available
     INDEX=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "${DOCUMENT_SITE_REL}" "archive-meta" 2>/dev/null) || INDEX=""
-    # TODO: remove when archive metadata files are no longer read from the output tree
-    [[ "${INDEX}" == "" ]] && INDEX="${TARGET_OUTPUT_ROOT}/${DOCUMENT%.document}.archive-meta"
     if [[ -f "${INDEX}" ]] && [[ -r "${INDEX}" ]]; then
         cat "${INDEX}"
         return 0
@@ -1526,8 +1524,6 @@ function marsh_get_archive_metadata {  # marsh_get_archive_metadata target_outpu
 
     # get archive metadata from the document metadata
     META=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "${DOCUMENT_SITE_REL}" "meta-yaml" 2>/dev/null) || META=""
-    # TODO: remove when document metadata files are no longer read from the output tree
-    [[ "${META}" == "" ]] && META="${TARGET_OUTPUT_ROOT}/${DOCUMENT%.document}.meta.yaml"
     [[ -f "${META}" ]] && [[ -r "${META}" ]] || return 1
 
     # parse
@@ -4087,10 +4083,10 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
     local BUILD_CONTEXT_TARGET_OUTPUT_REL BUILD_CONTEXT_SOURCE_ROOT BUILD_CONTEXT_OUTPUT_ROOT
     local ARCHIVE_SOURCE_FILE ARCHIVE_OUTPUT_PATH
     local SITE_ROOTPATH SITE_ABSPATH TARGET_ROOTPATH TARGET_ABSPATH ARCHIVE_ROOTPATH ARCHIVE_ABSPATH
-    local DEST DEST_FINAL DEST_NAME DEST_PRINT DEST_RENDER_PATH
+    local DEST DEST_FINAL DEST_PRINT DEST_RENDER_PATH
     local TEMPLATE_DIR TEMPLATE MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_FILEEXT_REGEX MARKDOWN_REWRITE_LINKS TEMPLATE_ASSETS_PATH
     local NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDES
-    local TEMPLATE_PREFIX TEMPLATE_META TEMPLATE_META_VARS PARTIALS TEMPLATE_BASE TEMPLATE_TEMP
+    local TEMPLATE_PREFIX TEMPLATE_META TEMPLATE_META_VARS PARTIALS
     local TEMPLATE_RENDER
     local TEMPLATE_BASE_FILE TEMPLATE_HEAD_FILE TEMPLATE_BODY_FILE TEMPLATE_DOCUMENT_FILE TEMPLATE_HEADER_FILE TEMPLATE_FOOTER_FILE TEMPLATE_NAV_FILE TEMPLATE_NOTICE_FILE
     local TEMPLATE_BASE_TEMPLATE TEMPLATE_HEAD_TEMPLATE TEMPLATE_BODY_TEMPLATE TEMPLATE_DOCUMENT_TEMPLATE TEMPLATE_HEADER_TEMPLATE TEMPLATE_FOOTER_TEMPLATE
@@ -4110,10 +4106,8 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
     local SUBDOCUMENTS_FILE
     local DEST_SCRATCH
     local TEXT_TRANSFORM UTIL_JSON_SEPARATOR I J
-    local CONDITIONAL_TAG CONDITIONAL_VALUES
     local DOCUMENT_State
-    local PARTIAL_CONDITIONAL_TAGS
-    local SITEMAP SITEMAP_DIR SITEMAP_NAME SITEMAP_RELPATH SITEMAP_OUTPUT_PATH SITEMAP_HREF SITEMAP_RENDER_PATH PROCESSED_SITEMAP_PATH
+    local SITEMAP SITEMAP_DIR SITEMAP_NAME SITEMAP_OUTPUT_PATH SITEMAP_HREF SITEMAP_RENDER_PATH PROCESSED_SITEMAP_PATH
     local DOCUMENT_HREF_ESC
 
     # init
@@ -4161,8 +4155,6 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
 
     # document destination
     DEST="${DOCUMENT}"
-    DEST_NAME="${DEST%.$DOCUMENT_EXT}"
-    DEST_NAME="${DEST_NAME##*/}"
     DEST="${SITE_OUTPUT_ROOT}/${DOCUMENT_OUTPUT_REL}"
     DEST_FINAL="${DEST}"
     DOCUMENT_SOURCE_FILE=""
@@ -4570,22 +4562,16 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
                     echo "Invalid subdocument id: ${SUBDOCUMENT_SOURCE}" >&2
                     return 1
                 }
-                SUBDOCUMENT_CONTENT_FILE="${SUBDOCUMENT_SOURCE}"
-                SUBDOCUMENT_META_FILE="${SUBDOCUMENT_SOURCE%.document}.meta.yaml"
+                SUBDOCUMENT_CONTENT_FILE=""
+                SUBDOCUMENT_META_FILE=""
                 SUBDOCUMENT_URI=""
                 SUBDOCUMENT_ABSPATH=""
                 SUBDOCUMENT_URI_FROM_MANIFEST="${SUBDOCUMENT_URIS[$J]:-}"
                 SUBDOCUMENT_ABSPATH_FROM_MANIFEST="${SUBDOCUMENT_ABSPATHS[$J]:-}"
                 SUBDOCUMENT_META=""
                 SUBDOCUMENT_META_VARS=""
-                # where the raw source is not directly readable, load content and metadata from temporary artifacts
-                # TODO: remove the raw source fallback when output-adjacent subdocument artifacts are no longer used
-                if [[ ! -f "${SUBDOCUMENT_CONTENT_FILE}" ]] || [[ ! -r "${SUBDOCUMENT_CONTENT_FILE}" ]]; then
-                    SUBDOCUMENT_CONTENT_FILE=$(marsh_get_document_temp_path "${BUILD_CONTEXT_OUTPUT_ROOT}" "${SUBDOCUMENT_REL_TO_SITE}" "content" 2>/dev/null) || SUBDOCUMENT_CONTENT_FILE="${SUBDOCUMENT_SOURCE}"
-                fi
-                if [[ ! -f "${SUBDOCUMENT_META_FILE}" ]] || [[ ! -r "${SUBDOCUMENT_META_FILE}" ]]; then
-                    SUBDOCUMENT_META_FILE=$(marsh_get_document_temp_path "${BUILD_CONTEXT_OUTPUT_ROOT}" "${SUBDOCUMENT_REL_TO_SITE}" "meta-yaml" 2>/dev/null) || SUBDOCUMENT_META_FILE="${SUBDOCUMENT_SOURCE%.document}.meta.yaml"
-                fi
+                SUBDOCUMENT_CONTENT_FILE=$(marsh_get_document_temp_path "${BUILD_CONTEXT_OUTPUT_ROOT}" "${SUBDOCUMENT_REL_TO_SITE}" "content" 2>/dev/null) || SUBDOCUMENT_CONTENT_FILE=""
+                SUBDOCUMENT_META_FILE=$(marsh_get_document_temp_path "${BUILD_CONTEXT_OUTPUT_ROOT}" "${SUBDOCUMENT_REL_TO_SITE}" "meta-yaml" 2>/dev/null) || SUBDOCUMENT_META_FILE=""
                 # document metadata
                 if [[ -f "${SUBDOCUMENT_META_FILE}" ]] && [[ -r "${SUBDOCUMENT_META_FILE}" ]]; then
                     # parse metadata
@@ -4596,24 +4582,12 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
                     eval "${SUBDOCUMENT_META}"
                 fi
                 [[ -f "${SUBDOCUMENT_CONTENT_FILE}" ]] && [[ -r "${SUBDOCUMENT_CONTENT_FILE}" ]] || {
-                    echo "Subdocument content not found: ${SUBDOCUMENT_SOURCE}" >&2
+                    echo "Subdocument content not found: ${SUBDOCUMENT_REL_TO_SITE}" >&2
                     return 1
                 }
                 [[ "${SUBDOCUMENT_URI_FROM_MANIFEST:-}" != "" ]] && SUBDOCUMENT_URI="${SUBDOCUMENT_URI_FROM_MANIFEST}"
                 [[ "${SUBDOCUMENT_ABSPATH_FROM_MANIFEST:-}" != "" ]] && SUBDOCUMENT_ABSPATH="${SUBDOCUMENT_ABSPATH_FROM_MANIFEST}"
-                # prefer the logical site-relative id for public path reconstruction
-                # TODO: remove the legacy path transforms when subdocument manifests contain only site-relative ids
                 SUBDOCUMENT_OUTPUT_PATH="${SUBDOCUMENT_REL_TO_SITE}"
-                if [[ "${SUBDOCUMENT_OUTPUT_PATH}" == "" ]]; then
-                    SUBDOCUMENT_OUTPUT_PATH="${SUBDOCUMENT_SOURCE#${SITE_OUTPUT_ROOT%/}/}"
-                    if [[ "${SUBDOCUMENT_OUTPUT_PATH}" == "${SUBDOCUMENT_SOURCE}" ]]; then
-                        SUBDOCUMENT_OUTPUT_PATH="${SUBDOCUMENT_SOURCE#${BUILD_CONTEXT_OUTPUT_ROOT}/}"
-                        if [[ "${SUBDOCUMENT_OUTPUT_PATH}" != "${SUBDOCUMENT_SOURCE}" ]] && [[ "${TARGET_OUTPUT_REL}" != "." ]]; then
-                            SUBDOCUMENT_OUTPUT_PATH="${TARGET_OUTPUT_REL}/${SUBDOCUMENT_OUTPUT_PATH#./}"
-                        fi
-                    fi
-                    SUBDOCUMENT_OUTPUT_PATH="${SUBDOCUMENT_OUTPUT_PATH%.document}"
-                fi
                 SUBDOCUMENT_OUTPUT_EXT="${SUBDOCUMENT_OUTPUT_PATH##*.}"
                 if marsh_is_markdown_extension "${SUBDOCUMENT_OUTPUT_EXT}" "${MARKDOWN_FILEEXT_CSV}"; then
                     SUBDOCUMENT_OUTPUT_PATH="${SUBDOCUMENT_OUTPUT_PATH%.*}.html"
@@ -5094,11 +5068,11 @@ function marsh_build_target {  # marsh_build_target site_output_root target jobs
     fi
     DOCUMENTS=()
     if [[ "${TARGET_SOURCE_ROOT}" != "" ]]; then
-        # Prefer source-root discovery when a target source root is cached.
+        # prefer source root discovery when a target source root is cached
         while IFS= read -r SOURCE_DOCUMENT; do
             [[ "${SOURCE_DOCUMENT}" == "" ]] && continue
             SOURCE_DOCUMENT="${SOURCE_DOCUMENT#./}"
-            # For a specific file or subdirectory, skip unrelated source-tree documents.
+            # for a specific file or subdirectory, skip unrelated source tree documents
             if [[ "${REQUESTED_TARGET_REL}" != "*" ]] && [[ "${REQUESTED_TARGET_REL}" != "." ]] && [[ "${REQUESTED_TARGET_REL}" != "" ]]; then
                 SOURCE_MATCHES_TARGET=false
                 if [[ "${TARGET_IS_DIRECTORY_SCOPE}" == true ]]; then
@@ -5117,8 +5091,8 @@ function marsh_build_target {  # marsh_build_target site_output_root target jobs
             DOCUMENTS+=("${SOURCE_DOCUMENT}")
         done < <(cd "${TARGET_SOURCE_ROOT}" && find . -type f)
     fi
-    # todo: remove this fallback once archive source discovery no longer depends on
-    # output tree probing through marsh_build_target
+    # synthetic archive pages are discovered from the target temp tree when build scope
+    # does not have a matching source tree document
     if [[ "${#DOCUMENTS[@]}" -eq 0 ]] && [[ "${TARGET}" != '*' ]] && [[ ! -d "${SITE_OUTPUT_ROOT}/${TARGET}" ]]; then
         DOCUMENT="${REQUESTED_TARGET_REL#./}"
         # keep archive source lookup keyed by the site-relative archive id even when

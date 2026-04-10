@@ -1158,6 +1158,44 @@ function marsh_test {
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}" "${SOURCE_ROOT}"
             marsh_test_restore_env
             ;;
+        marsh_build_document_and_template:4)
+            TEST_NAME+=":explicit_build_context"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
+            marsh_test_set_env
+            mkdir -p "${TARGET_OUTPUT_ROOT}" "${SOURCE_ROOT}/about"
+            marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
+            printf '%s\n' \
+                '---' \
+                'Title: Example' \
+                '...' \
+                '' \
+                '# Example' > "${SOURCE_ROOT}/about/index.markdown"
+            marsh_build_document_and_template "${TARGET_OUTPUT_ROOT}" "." "about/index.markdown" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 "" "." "${SOURCE_ROOT}" >/dev/null 2>&1
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                {
+                    [[ -e "${TARGET_OUTPUT_ROOT}/about/index.html" ]] \
+                        && [[ -e "$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "about/index.markdown" "content")" ]]
+                }
+                ACTUAL=$?
+                EXPECTED=0
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    ACTUAL=$(<"${TARGET_OUTPUT_ROOT}/about/index.html")
+                    EXPECTED='<title>Example</title>'
+                    ASSERTION="contains"
+                    if printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
+                        RES="[PASS]"
+                    fi
+                fi
+            fi
+            rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}" "${SOURCE_ROOT}"
+            marsh_test_restore_env
+            ;;
         marsh_build_target:0)
             TEST_NAME+=":copy_assets"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
@@ -1634,6 +1672,39 @@ function marsh_test {
                 fi
             fi
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}"
+            marsh_test_restore_env
+            ;;
+        marsh_build_target:12)
+            TEST_NAME+=":nested_scope_explicit_build_context"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
+            marsh_test_set_env
+            mkdir -p "${TARGET_OUTPUT_ROOT}" "${SOURCE_ROOT}/about"
+            marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
+            printf '%s\n' '---'$'\n''Title: About'$'\n''...'$'\n'''$'\n''# About' > "${SOURCE_ROOT}/about/index.markdown"
+            marsh_build_target "${TARGET_OUTPUT_ROOT}" "about/index.markdown" "1" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 false "" "." "${SOURCE_ROOT}" >/dev/null 2>&1
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                {
+                    [[ -e "${TARGET_OUTPUT_ROOT}/about/index.html" ]] \
+                        && [[ ! -e "${TARGET_OUTPUT_ROOT}/index.html" ]]
+                }
+                ACTUAL=$?
+                EXPECTED=0
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    ACTUAL=$(<"${TARGET_OUTPUT_ROOT}/about/index.html")
+                    EXPECTED='<title>About</title>'
+                    ASSERTION="contains"
+                    if printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
+                        RES="[PASS]"
+                    fi
+                fi
+            fi
+            rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}" "${SOURCE_ROOT}"
             marsh_test_restore_env
             ;;
         marsh_build_template:0)

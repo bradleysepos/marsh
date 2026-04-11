@@ -5006,6 +5006,59 @@ function marsh_build_document_and_template {  # marsh_build_document_and_templat
     return 0
 }
 
+# returns source documents for a target scope relative to a target source root
+function marsh_get_target_source_documents {  # marsh_get_target_source_documents site_output_root target target_output_rel target_source_root
+    local SITE_OUTPUT_ROOT TARGET TARGET_OUTPUT_REL TARGET_SOURCE_ROOT
+    local REQUESTED_TARGET_REL TARGET_IS_DIRECTORY_SCOPE SOURCE_DOCUMENT SOURCE_MATCHES_TARGET
+
+    SITE_OUTPUT_ROOT="${1:-}"
+    TARGET="${2:-}"
+    TARGET_OUTPUT_REL="${3:-.}"
+    TARGET_SOURCE_ROOT="${4:-}"
+    [[ "${SITE_OUTPUT_ROOT}" == "" ]] && return 1
+    [[ "${TARGET}" == "" ]] && return 1
+    [[ "${TARGET_OUTPUT_REL}" == "" ]] && return 1
+    [[ "${TARGET_SOURCE_ROOT}" == "" ]] && return 1
+
+    # interpret the requested path relative to the current target root
+    REQUESTED_TARGET_REL="${TARGET#./}"
+    if [[ "${TARGET_OUTPUT_REL}" != "." ]]; then
+        if [[ "${REQUESTED_TARGET_REL}" == "${TARGET_OUTPUT_REL}" ]]; then
+            REQUESTED_TARGET_REL='.'
+        elif [[ "${REQUESTED_TARGET_REL}" == "${TARGET_OUTPUT_REL}/"* ]]; then
+            REQUESTED_TARGET_REL="${REQUESTED_TARGET_REL#${TARGET_OUTPUT_REL}/}"
+        fi
+    fi
+
+    # directory scopes include descendants while file scopes match exactly
+    TARGET_IS_DIRECTORY_SCOPE=false
+    if [[ -d "${SITE_OUTPUT_ROOT}/${TARGET}" ]]; then
+        TARGET_IS_DIRECTORY_SCOPE=true
+    elif [[ "${REQUESTED_TARGET_REL}" != "*" ]] && [[ "${REQUESTED_TARGET_REL}" != "." ]] && [[ "${REQUESTED_TARGET_REL}" != "" ]] && [[ -d "${TARGET_SOURCE_ROOT}/${REQUESTED_TARGET_REL}" ]]; then
+        TARGET_IS_DIRECTORY_SCOPE=true
+    fi
+
+    while IFS= read -r SOURCE_DOCUMENT; do
+        [[ "${SOURCE_DOCUMENT}" == "" ]] && continue
+        SOURCE_DOCUMENT="${SOURCE_DOCUMENT#./}"
+        # narrow the inventory to the requested file or subtree where necessary
+        if [[ "${REQUESTED_TARGET_REL}" != "*" ]] && [[ "${REQUESTED_TARGET_REL}" != "." ]] && [[ "${REQUESTED_TARGET_REL}" != "" ]]; then
+            SOURCE_MATCHES_TARGET=false
+            if [[ "${TARGET_IS_DIRECTORY_SCOPE}" == true ]]; then
+                if [[ "${SOURCE_DOCUMENT}" == "${REQUESTED_TARGET_REL}" ]] || [[ "${SOURCE_DOCUMENT}" == "${REQUESTED_TARGET_REL}/"* ]]; then
+                    SOURCE_MATCHES_TARGET=true
+                fi
+            elif [[ "${SOURCE_DOCUMENT}" == "${REQUESTED_TARGET_REL}" ]]; then
+                SOURCE_MATCHES_TARGET=true
+            fi
+            if [[ "${SOURCE_MATCHES_TARGET}" != true ]]; then
+                continue
+            fi
+        fi
+        printf '%s\n' "${SOURCE_DOCUMENT}"
+    done < <(marsh_get_source_inventory "${TARGET_SOURCE_ROOT}")
+}
+
 # builds a target, parallel if possible
 function marsh_build_target {  # marsh_build_target site_output_root target jobs sitemap sitemap_search templates_dir template markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links #template_overrides[@] template_overrides[@] skip_template_assets template_assets_path build_context_target_output_rel build_context_source_root
     local SITE_OUTPUT_ROOT TARGET JOBS SITEMAP TEMPLATES_DIR TEMPLATE SITEMAP_SEARCH
@@ -5013,7 +5066,7 @@ function marsh_build_target {  # marsh_build_target site_output_root target jobs
     local NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDES SKIP_TEMPLATE_ASSETS TEMPLATE_ASSETS_PATH
     local BUILD_CONTEXT_TARGET_OUTPUT_REL BUILD_CONTEXT_SOURCE_ROOT
     local TARGET_OUTPUT_REL TEMPLATE_PREFIX DOCUMENTS FILTERED_DOCUMENTS DOCUMENT
-    local REQUESTED_TARGET_REL REQUESTED_TARGET_SITE_REL TARGET_OUTPUT_ROOT TARGET_SOURCE_ROOT SOURCE_DOCUMENT TARGET_IS_DIRECTORY_SCOPE SOURCE_MATCHES_TARGET
+    local REQUESTED_TARGET_REL REQUESTED_TARGET_SITE_REL TARGET_OUTPUT_ROOT TARGET_SOURCE_ROOT SOURCE_DOCUMENT
     local PARALLEL PARALLEL_MARKDOWN
 
     # init
@@ -5075,38 +5128,12 @@ function marsh_build_target {  # marsh_build_target site_output_root target jobs
         fi
     fi
     TARGET_SOURCE_ROOT="${BUILD_CONTEXT_SOURCE_ROOT}"
-    # directory targets should include every descendant document under that subtree
-    # file targets should match only the exact source document path
-    TARGET_IS_DIRECTORY_SCOPE=false
-    if [[ -d "${SITE_OUTPUT_ROOT}/${TARGET}" ]]; then
-        TARGET_IS_DIRECTORY_SCOPE=true
-    elif [[ "${TARGET_SOURCE_ROOT}" != "" ]] && [[ "${REQUESTED_TARGET_REL}" != "*" ]] && [[ "${REQUESTED_TARGET_REL}" != "." ]] && [[ "${REQUESTED_TARGET_REL}" != "" ]] && [[ -d "${TARGET_SOURCE_ROOT}/${REQUESTED_TARGET_REL}" ]]; then
-        TARGET_IS_DIRECTORY_SCOPE=true
-    fi
     DOCUMENTS=()
     if [[ "${TARGET_SOURCE_ROOT}" != "" ]]; then
-        # prefer source root discovery when a target source root is cached
         while IFS= read -r SOURCE_DOCUMENT; do
             [[ "${SOURCE_DOCUMENT}" == "" ]] && continue
-            SOURCE_DOCUMENT="${SOURCE_DOCUMENT#./}"
-            # for a specific file or subdirectory, skip unrelated source tree documents
-            if [[ "${REQUESTED_TARGET_REL}" != "*" ]] && [[ "${REQUESTED_TARGET_REL}" != "." ]] && [[ "${REQUESTED_TARGET_REL}" != "" ]]; then
-                SOURCE_MATCHES_TARGET=false
-                if [[ "${TARGET_IS_DIRECTORY_SCOPE}" == true ]]; then
-                    # recursive directory match
-                    if [[ "${SOURCE_DOCUMENT}" == "${REQUESTED_TARGET_REL}" ]] || [[ "${SOURCE_DOCUMENT}" == "${REQUESTED_TARGET_REL}/"* ]]; then
-                        SOURCE_MATCHES_TARGET=true
-                    fi
-                elif [[ "${SOURCE_DOCUMENT}" == "${REQUESTED_TARGET_REL}" ]]; then
-                    # exact file match
-                    SOURCE_MATCHES_TARGET=true
-                fi
-                if [[ "${SOURCE_MATCHES_TARGET}" != true ]]; then
-                    continue
-                fi
-            fi
             DOCUMENTS+=("${SOURCE_DOCUMENT}")
-        done < <(marsh_get_source_inventory "${TARGET_SOURCE_ROOT}")
+        done < <(marsh_get_target_source_documents "${SITE_OUTPUT_ROOT}" "${TARGET}" "${TARGET_OUTPUT_REL}" "${TARGET_SOURCE_ROOT}")
     fi
     # synthetic archive pages are discovered from the target temp tree when build scope
     # does not have a matching source tree document

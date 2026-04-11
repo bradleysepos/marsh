@@ -5025,8 +5025,8 @@ function marsh_build_document_and_template {  # marsh_build_document_and_templat
     return 0
 }
 
-# returns source documents for a target scope relative to a target source root
-function marsh_get_target_source_documents {  # marsh_get_target_source_documents site_output_root target target_output_rel target_source_root
+# returns scoped source-relative paths for a target request
+function marsh_get_target_scope_paths {  # marsh_get_target_scope_paths site_output_root target target_output_rel target_source_root
     local SITE_OUTPUT_ROOT TARGET TARGET_OUTPUT_REL TARGET_SOURCE_ROOT
     local REQUESTED_TARGET_REL TARGET_IS_DIRECTORY_SCOPE SOURCE_DOCUMENT SOURCE_MATCHES_TARGET
 
@@ -5078,8 +5078,8 @@ function marsh_get_target_source_documents {  # marsh_get_target_source_document
     done < <(marsh_get_source_inventory "${TARGET_SOURCE_ROOT}")
 }
 
-# returns buildable ordinary documents for a target scope
-function marsh_get_target_documents {  # marsh_get_target_documents site_output_root target target_output_rel target_source_root markdown_fileext_csv
+# returns buildable documents for a target scope
+function marsh_get_target_build_documents {  # marsh_get_target_build_documents site_output_root target target_output_rel target_source_root markdown_fileext_csv
     local SITE_OUTPUT_ROOT TARGET TARGET_OUTPUT_REL TARGET_SOURCE_ROOT MARKDOWN_FILEEXT_CSV MARKDOWN_FILEEXT_REGEX
     local SOURCE_DOCUMENT
 
@@ -5099,7 +5099,7 @@ function marsh_get_target_documents {  # marsh_get_target_documents site_output_
         [[ "${SOURCE_DOCUMENT}" == "" ]] && continue
         [[ "${SOURCE_DOCUMENT}" =~ \.(${MARKDOWN_FILEEXT_REGEX}|xml|json)$ ]] || continue
         printf '%s\n' "${SOURCE_DOCUMENT}"
-    done < <(marsh_get_target_source_documents "${SITE_OUTPUT_ROOT}" "${TARGET}" "${TARGET_OUTPUT_REL}" "${TARGET_SOURCE_ROOT}")
+    done < <(marsh_get_target_scope_paths "${SITE_OUTPUT_ROOT}" "${TARGET}" "${TARGET_OUTPUT_REL}" "${TARGET_SOURCE_ROOT}")
 }
 
 # returns target sitemap file and source path pairs as tab-separated records
@@ -5207,7 +5207,7 @@ function marsh_build_target {  # marsh_build_target site_output_root target jobs
         while IFS= read -r SOURCE_DOCUMENT; do
             [[ "${SOURCE_DOCUMENT}" == "" ]] && continue
             DOCUMENTS+=("${SOURCE_DOCUMENT}")
-        done < <(marsh_get_target_documents "${SITE_OUTPUT_ROOT}" "${TARGET}" "${TARGET_OUTPUT_REL}" "${TARGET_SOURCE_ROOT}" "${MARKDOWN_FILEEXT_CSV}")
+        done < <(marsh_get_target_build_documents "${SITE_OUTPUT_ROOT}" "${TARGET}" "${TARGET_OUTPUT_REL}" "${TARGET_SOURCE_ROOT}" "${MARKDOWN_FILEEXT_CSV}")
     fi
     # synthetic archive pages are discovered from the target temp tree when build scope
     # does not have a matching source tree document

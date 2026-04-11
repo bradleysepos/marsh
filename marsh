@@ -5143,6 +5143,7 @@ function marsh_cli {
     local MARKDOWN_COMMAND MARKDOWN_OPTIONS MARKDOWN_FILEEXT MARKDOWN_REWRITE_LINKS
     local MARKDOWN_OPTIONS_CSV MARKDOWN_OPTIONS_CLIARGS MARKDOWN_FILEEXT_CSV
     local INDEX PREFIX META META_VARS CONFIG_VARS OIFS I J
+    local TARGET_COUNT TARGET_COUNT_INDEX TARGET_COUNT_PREFIX TARGET_NUMBER
     local GENERATED_ARCHIVES GENERATED_ARCHIVE
     local TARGET_ARCHIVE_TYPES TARGET_ARCHIVE_EXCLUDED_STATES TARGET_ARCHIVE_MANIFEST
     local TARGET_ARCHIVE_TEMPLATE TARGET_ARCHIVE_TEMPLATE_SOURCE TARGET_ARCHIVE_TEMPLATE_ASSETS_PATH TARGET_ARCHIVE_TEMPLATE_OVERRIDES
@@ -5596,6 +5597,19 @@ function marsh_cli {
         echo ""
         echo "${CONFIG_Build_Name:-No Name} (${MARSH_CONFIG_FILE#$SELF_DIR/})"
         echo "${CONFIG_Build_Path%/} -> ${CONFIG_Build_URL%/}"
+        TARGET_COUNT=0
+        TARGET_COUNT_INDEX=0
+        TARGET_COUNT_PREFIX="CONFIG_Build_Targets_${TARGET_COUNT_INDEX}_"
+        while marsh_get_target_metadata "${TARGET_COUNT_PREFIX}" "TARGET_" >/dev/null; do
+            TARGET_COUNT=$((TARGET_COUNT + 1))
+            TARGET_COUNT_INDEX=$((TARGET_COUNT_INDEX + 1))
+            TARGET_COUNT_PREFIX="CONFIG_Build_Targets_${TARGET_COUNT_INDEX}_"
+        done
+        if [[ "${TARGET_COUNT}" -eq 1 ]]; then
+            echo "Building 1 target"
+        else
+            echo "Building ${TARGET_COUNT} targets"
+        fi
 
         SITE_SOURCE_ROOT=$(marsh_get_site_source_root_path "${MARSH_CONFIG_FILE_DIR:-.}") || {
             echo "Unable to resolve site source root from target sources" >&2
@@ -5604,11 +5618,14 @@ function marsh_cli {
 
         # build
         INDEX=0
+        TARGET_NUMBER=1
         PREFIX="CONFIG_Build_Targets_${INDEX}_"
         while META=$(marsh_get_target_metadata "${PREFIX}" "TARGET_"); do
             META_VARS=$(echo "${META}" | marsh_get_variables)
             eval "$(printf '%s\n' "${META_VARS}" | marsh_get_local_declarations)"
             eval "${META}"
+            echo "Target ${TARGET_NUMBER}: ${TARGET_NAME:-}"
+            echo "Target ${TARGET_NUMBER}: planning"
 
             # get template
             if [[ "${TARGET_TEMPLATE_SOURCE:-}" != "" ]]; then
@@ -5833,6 +5850,7 @@ function marsh_cli {
 
             marsh_clean_target_temp "${MARSH_CONFIG_PATH}/${TARGET_PATH}" || die_gracefully
             INDEX=$((INDEX+1))
+            TARGET_NUMBER=$((TARGET_NUMBER + 1))
             PREFIX="CONFIG_Build_Targets_${INDEX}_"
         done
 

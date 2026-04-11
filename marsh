@@ -2287,6 +2287,23 @@ function marsh_get_files {  # marsh_get_files source dest force
     return 0
 }
 
+# returns a normalized relative source inventory for a source root
+function marsh_get_source_inventory {  # marsh_get_source_inventory source_root [skip_links]
+    local SOURCE_ROOT SKIP_LINKS
+
+    SOURCE_ROOT="${1:-}"
+    SKIP_LINKS="${2:-false}"
+    [[ "${SOURCE_ROOT}" == "" ]] || [[ ! -d "${SOURCE_ROOT}" ]] && return 1
+
+    if [[ "${SKIP_LINKS}" == true ]]; then
+        cd "${SOURCE_ROOT}" >/dev/null 2>&1 && find . -type f | sed -e 's/^\.\///' -e 's/^\.$//'
+    elif [[ "${SKIP_LINKS}" == false ]]; then
+        cd "${SOURCE_ROOT}" >/dev/null 2>&1 && find . \( -type f -o -type l \) | sed -e 's/^\.\///' -e 's/^\.$//'
+    else
+        return 1
+    fi
+}
+
 # copies source files that can remain in the output tree as-is
 function marsh_copy_direct_to_target {  # marsh_copy_direct_to_target source site_output_root target_output_rel markdown_fileext_csv force
     local SOURCE SITE_OUTPUT_ROOT TARGET_OUTPUT_REL MARKDOWN_FILEEXT_CSV FORCE
@@ -2309,7 +2326,7 @@ function marsh_copy_direct_to_target {  # marsh_copy_direct_to_target source sit
 
     if [[ -d "${SOURCE}" ]]; then
         SOURCE_DIR="${SOURCE}"
-        FILES_LIST=$(cd "${SOURCE_DIR}" >/dev/null 2>&1 && find . \( -type f -o -type l \) | sed -e 's/^\.\///' -e 's/^\.$//') || {
+        FILES_LIST=$(marsh_get_source_inventory "${SOURCE_DIR}") || {
             echo "Unable to change into directory: ${SOURCE_DIR}" >&2
             return 1
         }
@@ -2326,8 +2343,8 @@ function marsh_copy_direct_to_target {  # marsh_copy_direct_to_target source sit
             if [[ -d "${SOURCE_DIR}/${MATCH}" ]]; then
                 while IFS= read -r REL_PATH; do
                     [[ "${REL_PATH}" == "" ]] && continue
-                    MATCHES+=("${REL_PATH}")
-                done < <(cd "${SOURCE_DIR}" >/dev/null 2>&1 && find "${MATCH}" \( -type f -o -type l \) | sed -e 's/^\.\///')
+                    MATCHES+=("${MATCH%/}/${REL_PATH}")
+                done < <(marsh_get_source_inventory "${SOURCE_DIR}/${MATCH}")
             else
                 MATCHES+=("${MATCH}")
             fi
@@ -5089,7 +5106,7 @@ function marsh_build_target {  # marsh_build_target site_output_root target jobs
                 fi
             fi
             DOCUMENTS+=("${SOURCE_DOCUMENT}")
-        done < <(cd "${TARGET_SOURCE_ROOT}" && find . -type f)
+        done < <(marsh_get_source_inventory "${TARGET_SOURCE_ROOT}")
     fi
     # synthetic archive pages are discovered from the target temp tree when build scope
     # does not have a matching source tree document

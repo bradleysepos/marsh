@@ -393,7 +393,7 @@ function marsh_test {
     TEST_TEMP_PREFIX="${MARSH_TEST_TEMP}/${TEST_NAME//[:]/-}"
     case "${TEST_NAME}" in
         marsh_build_archive:0)
-            TEST_NAME+=":html_pagination_core"
+            TEST_NAME+=":html_pagination"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             marsh_test_set_env
             marsh_test_create_archive_document "${TARGET_OUTPUT_ROOT}" "news/2026/01/04/04-fourth.markdown" "post" "Fourth" "2026-01-04"
@@ -775,100 +775,86 @@ function marsh_test {
             marsh_test_restore_env
             ;;
         marsh_build_document:2)
-            TEST_NAME+=":explicit_source_root"
-            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            TEST_NAME+=":source_root_requirements"
+            EXPLICIT_TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.explicit.target"
+            EXPLICIT_SOURCE_ROOT="${TEST_TEMP_PREFIX}.explicit.source"
+            PREFERRED_TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.preferred.target"
+            PREFERRED_SOURCE_ROOT="${TEST_TEMP_PREFIX}.preferred.source"
+            MISSING_TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.missing.target"
             marsh_test_set_env
-            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
-            mkdir -p "${SOURCE_ROOT}"
+            mkdir -p "${EXPLICIT_SOURCE_ROOT}"
             printf '%s\n' \
                 '---' \
                 'Type: page' \
                 'Title: Example' \
                 '...' \
                 '' \
-                '# Example' > "${SOURCE_ROOT}/index.markdown"
-            marsh_build_document "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" "." "${SOURCE_ROOT}" >/dev/null 2>&1
+                '# Example' > "${EXPLICIT_SOURCE_ROOT}/index.markdown"
+            marsh_build_document "${EXPLICIT_TARGET_OUTPUT_ROOT}" "." "index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" "." "${EXPLICIT_SOURCE_ROOT}" >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
             ASSERTION="equals"
-            CONTENT_FILE=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "index.markdown" "content")
-            META_FILE=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "index.markdown" "meta-yaml")
+            EXPLICIT_CONTENT_FILE=$(marsh_get_document_temp_path "${EXPLICIT_TARGET_OUTPUT_ROOT}" "index.markdown" "content")
+            EXPLICIT_META_FILE=$(marsh_get_document_temp_path "${EXPLICIT_TARGET_OUTPUT_ROOT}" "index.markdown" "meta-yaml")
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 {
-                    [[ -f "${SOURCE_ROOT}/index.markdown" ]] \
-                        && [[ -f "${CONTENT_FILE}" ]] \
-                        && [[ -f "${META_FILE}" ]] \
-                        && [[ ! -f "${TARGET_OUTPUT_ROOT}/index.markdown" ]]
+                    [[ -f "${EXPLICIT_SOURCE_ROOT}/index.markdown" ]] \
+                        && [[ -f "${EXPLICIT_CONTENT_FILE}" ]] \
+                        && [[ -f "${EXPLICIT_META_FILE}" ]] \
+                        && [[ ! -f "${EXPLICIT_TARGET_OUTPUT_ROOT}/index.markdown" ]]
                 }
                 ACTUAL=$?
                 EXPECTED=0
                 ASSERTION="equals"
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    ACTUAL=$(<"${CONTENT_FILE}")
+                    ACTUAL=$(<"${EXPLICIT_CONTENT_FILE}")
                     EXPECTED=$'\n''# Example'
                     ASSERTION="equals"
                     if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                        RES="[PASS]"
+                        mkdir -p "${PREFERRED_TARGET_OUTPUT_ROOT}" "${PREFERRED_SOURCE_ROOT}"
+                        printf '%s\n' '---' 'Title: Stale' '...' '' '# Stale' > "${PREFERRED_TARGET_OUTPUT_ROOT}/index.markdown"
+                        printf '%s\n' '---' 'Title: Fresh' '...' '' '# Fresh' > "${PREFERRED_SOURCE_ROOT}/index.markdown"
+                        marsh_build_document "${PREFERRED_TARGET_OUTPUT_ROOT}" "." "index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" "." "${PREFERRED_SOURCE_ROOT}" >/dev/null 2>&1
+                        ACTUAL=$?
+                        EXPECTED=0
+                        ASSERTION="equals"
+                        PREFERRED_CONTENT_FILE=$(marsh_get_document_temp_path "${PREFERRED_TARGET_OUTPUT_ROOT}" "index.markdown" "content")
+                        PREFERRED_META_FILE=$(marsh_get_document_temp_path "${PREFERRED_TARGET_OUTPUT_ROOT}" "index.markdown" "meta-yaml")
+                        if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                            ACTUAL=$(<"${PREFERRED_CONTENT_FILE}")
+                            EXPECTED=$'\n''# Fresh'
+                            ASSERTION="equals"
+                            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                                ACTUAL=$(<"${PREFERRED_META_FILE}")
+                                EXPECTED=$(printf '%s\n' '---' 'Title: Fresh' '...')
+                                ASSERTION="equals"
+                                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                                    mkdir -p "${MISSING_TARGET_OUTPUT_ROOT}"
+                                    printf '%s\n' '---' 'Title: Example' '...' '' '# Example' > "${MISSING_TARGET_OUTPUT_ROOT}/index.markdown"
+                                    marsh_build_document "${MISSING_TARGET_OUTPUT_ROOT}" "." "index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" "." "" >/dev/null 2>&1
+                                    ACTUAL=$?
+                                    EXPECTED=1
+                                    ASSERTION="equals"
+                                    if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                                        MISSING_CONTENT_FILE=$(marsh_get_document_temp_path "${MISSING_TARGET_OUTPUT_ROOT}" "index.markdown" "content")
+                                        [[ ! -e "${MISSING_CONTENT_FILE}" ]]
+                                        ACTUAL=$?
+                                        EXPECTED=0
+                                        ASSERTION="equals"
+                                        if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                                            RES="[PASS]"
+                                        fi
+                                    fi
+                                fi
+                            fi
+                        fi
                     fi
                 fi
             fi
-            rm -rf "${TARGET_OUTPUT_ROOT}" "${SOURCE_ROOT}"
+            rm -rf "${EXPLICIT_TARGET_OUTPUT_ROOT}" "${EXPLICIT_SOURCE_ROOT}" "${PREFERRED_TARGET_OUTPUT_ROOT}" "${PREFERRED_SOURCE_ROOT}" "${MISSING_TARGET_OUTPUT_ROOT}"
             marsh_test_restore_env
             ;;
         marsh_build_document:3)
-            TEST_NAME+=":source_root_preferred_over_output_tree"
-            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
-            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
-            marsh_test_set_env
-            mkdir -p "${TARGET_OUTPUT_ROOT}" "${SOURCE_ROOT}"
-            printf '%s\n' '---' 'Title: Stale' '...' '' '# Stale' > "${TARGET_OUTPUT_ROOT}/index.markdown"
-            printf '%s\n' '---' 'Title: Fresh' '...' '' '# Fresh' > "${SOURCE_ROOT}/index.markdown"
-            marsh_build_document "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" "." "${SOURCE_ROOT}" >/dev/null 2>&1
-            ACTUAL=$?
-            EXPECTED=0
-            ASSERTION="equals"
-            CONTENT_FILE=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "index.markdown" "content")
-            META_FILE=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "index.markdown" "meta-yaml")
-            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                ACTUAL=$(<"${CONTENT_FILE}")
-                EXPECTED=$'\n''# Fresh'
-                ASSERTION="equals"
-                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    ACTUAL=$(<"${META_FILE}")
-                    EXPECTED=$(printf '%s\n' '---' 'Title: Fresh' '...')
-                    ASSERTION="equals"
-                    if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                        RES="[PASS]"
-                    fi
-                fi
-            fi
-            rm -rf "${TARGET_OUTPUT_ROOT}" "${SOURCE_ROOT}"
-            marsh_test_restore_env
-            ;;
-        marsh_build_document:4)
-            TEST_NAME+=":missing_source_root"
-            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
-            marsh_test_set_env
-            mkdir -p "${TARGET_OUTPUT_ROOT}"
-            printf '%s\n' '---' 'Title: Example' '...' '' '# Example' > "${TARGET_OUTPUT_ROOT}/index.markdown"
-            marsh_build_document "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" "." "" >/dev/null 2>&1
-            ACTUAL=$?
-            EXPECTED=1
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                CONTENT_FILE=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "index.markdown" "content")
-                [[ ! -e "${CONTENT_FILE}" ]]
-                ACTUAL=$?
-                EXPECTED=0
-                ASSERTION="equals"
-                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    RES="[PASS]"
-                fi
-            fi
-            rm -rf "${TARGET_OUTPUT_ROOT}"
-            marsh_test_restore_env
-            ;;
-        marsh_build_document:5)
             TEST_NAME+=":srcset_uses_source_root_image_variants"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"

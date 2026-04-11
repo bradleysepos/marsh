@@ -1628,50 +1628,7 @@ function marsh_test {
             marsh_test_restore_env
             ;;
         marsh_build_template:1)
-            TEST_NAME+=":archive_subdocument_tags_from_manifest"
-            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
-            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
-            marsh_test_set_env
-            mkdir -p "${TARGET_OUTPUT_ROOT}/news"
-            marsh_test_create_archive_template "${TEMPLATE_DIR}" "sample" "html" true
-            marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "news/item.markdown" "content" '{{ document.title }}' '{{ document.uri }}'
-            marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "news/item.markdown" "meta-yaml" \
-                '---' \
-                'Type: post' \
-                'Title: Tagged Item' \
-                'Date: 2026-01-01' \
-                '...'
-            ACTUAL=$(marsh_build_archive "html" "${TARGET_OUTPUT_ROOT}" "index.markdown" "Archive" "English" "en" "" "2" "1" "post" "0")
-            EXPECTED='index.markdown'$'\n''page/1/index.markdown'
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                marsh_build_document "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" >/dev/null 2>&1
-                ACTUAL=$?
-                EXPECTED=0
-                ASSERTION="equals"
-                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
-                    ACTUAL=$?
-                    EXPECTED=0
-                    ASSERTION="equals"
-                    if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                        ACTUAL=$(<"${TARGET_OUTPUT_ROOT}/index.html")
-                        ASSERTION="contains"
-                        EXPECTED='Tagged Item'
-                        if printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
-                            EXPECTED="https://example.test/$(basename "${TARGET_OUTPUT_ROOT}")/news/item.html"
-                            if printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
-                                RES="[PASS]"
-                            fi
-                        fi
-                    fi
-                fi
-            fi
-            rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}"
-            marsh_test_restore_env
-            ;;
-        marsh_build_template:2)
-            TEST_NAME+=":archive_template"
+            TEST_NAME+=":archive_template_html"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
             marsh_test_set_env
@@ -1737,7 +1694,7 @@ function marsh_test {
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}"
             marsh_test_restore_env
             ;;
-        marsh_build_template:3)
+        marsh_build_template:2)
             TEST_NAME+=":archive_template_fallback"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
@@ -1825,7 +1782,7 @@ function marsh_test {
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}"
             marsh_test_restore_env
             ;;
-        marsh_build_template:4)
+        marsh_build_template:3)
             TEST_NAME+=":archive_atom"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
@@ -1858,7 +1815,7 @@ function marsh_test {
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}"
             marsh_test_restore_env
             ;;
-        marsh_build_template:5)
+        marsh_build_template:4)
             TEST_NAME+=":archive_json"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
@@ -1891,7 +1848,7 @@ function marsh_test {
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}"
             marsh_test_restore_env
             ;;
-        marsh_build_template:6)
+        marsh_build_template:5)
             TEST_NAME+=":generated_target_tags"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
@@ -1925,7 +1882,7 @@ function marsh_test {
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}"
             marsh_test_restore_env
             ;;
-        marsh_build_template:7)
+        marsh_build_template:6)
             TEST_NAME+=":generated_site_tags"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
@@ -1950,7 +1907,7 @@ function marsh_test {
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}"
             marsh_test_restore_env
             ;;
-        marsh_build_template:8)
+        marsh_build_template:7)
             TEST_NAME+=":generated_document_tags"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
@@ -1984,7 +1941,7 @@ function marsh_test {
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}"
             marsh_test_restore_env
             ;;
-        marsh_build_template:9)
+        marsh_build_template:8)
             TEST_NAME+=":archive_generated_tags"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
@@ -2038,7 +1995,7 @@ function marsh_test {
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}"
             marsh_test_restore_env
             ;;
-        marsh_build_template:10)
+        marsh_build_template:9)
             TEST_NAME+=":archive_generated_tags"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
@@ -2084,7 +2041,7 @@ function marsh_test {
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}"
             marsh_test_restore_env
             ;;
-        marsh_build_template:11)
+        marsh_build_template:10)
             TEST_NAME+=":template_asset_tags"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
@@ -2116,7 +2073,7 @@ function marsh_test {
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}"
             marsh_test_restore_env
             ;;
-        marsh_build_template:12)
+        marsh_build_template:11)
             TEST_NAME+=":archive_template_asset_tags"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
@@ -2157,7 +2114,7 @@ function marsh_test {
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}"
             marsh_test_restore_env
             ;;
-        marsh_build_template:13)
+        marsh_build_template:12)
             TEST_NAME+=":template_asset_tags_with_transforms"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
@@ -2202,7 +2159,7 @@ function marsh_test {
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}"
             marsh_test_restore_env
             ;;
-        marsh_build_template:14)
+        marsh_build_template:13)
             TEST_NAME+=":archive_template_asset_tags_with_transforms"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
@@ -2275,7 +2232,7 @@ function marsh_test {
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}"
             marsh_test_restore_env
             ;;
-        marsh_build_template:15)
+        marsh_build_template:14)
             TEST_NAME+=":archive_template_asset_tags_with_transforms_target_root"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
@@ -2349,7 +2306,7 @@ function marsh_test {
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}"
             marsh_test_restore_env
             ;;
-        marsh_build_template:16)
+        marsh_build_template:15)
             TEST_NAME+=":archive_template_assets_path"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
@@ -2435,7 +2392,7 @@ function marsh_test {
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}"
             marsh_test_restore_env
             ;;
-        marsh_build_template:17)
+        marsh_build_template:16)
             TEST_NAME+=":sitemap_relative_source_paths"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
@@ -2475,7 +2432,7 @@ function marsh_test {
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}" "${SOURCE_DIR}"
             marsh_test_restore_env
             ;;
-        marsh_build_template:18)
+        marsh_build_template:17)
             TEST_NAME+=":archive_root_tags_nested_index"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
@@ -2509,7 +2466,7 @@ function marsh_test {
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}"
             marsh_test_restore_env
             ;;
-        marsh_build_template:19)
+        marsh_build_template:18)
             TEST_NAME+=":sitemap_directory_links_root_page"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
@@ -2545,7 +2502,7 @@ function marsh_test {
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}" "${SOURCE_DIR}"
             marsh_test_restore_env
             ;;
-        marsh_build_template:20)
+        marsh_build_template:19)
             TEST_NAME+=":sitemap_directory_links_archive_page"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
@@ -2592,7 +2549,7 @@ function marsh_test {
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}" "${SOURCE_DIR}"
             marsh_test_restore_env
             ;;
-        marsh_build_template:21)
+        marsh_build_template:20)
             TEST_NAME+=":sitemap_search_non_root_target"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
@@ -2632,7 +2589,7 @@ function marsh_test {
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}" "${SOURCE_DIR}"
             marsh_test_restore_env
             ;;
-        marsh_build_template:22)
+        marsh_build_template:21)
             TEST_NAME+=":target_asset_parent_path_within_site_root"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
@@ -2676,7 +2633,7 @@ function marsh_test {
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}"
             marsh_test_restore_env
             ;;
-        marsh_build_template:23)
+        marsh_build_template:22)
             TEST_NAME+=":target_asset_invalid_parent_path"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
@@ -2701,7 +2658,7 @@ function marsh_test {
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}"
             marsh_test_restore_env
             ;;
-        marsh_build_template:24)
+        marsh_build_template:23)
             TEST_NAME+=":document_metadata_cache"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
@@ -2753,7 +2710,7 @@ function marsh_test {
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}" "${SOURCE_ROOT}"
             marsh_test_restore_env
             ;;
-        marsh_build_template:25)
+        marsh_build_template:24)
             TEST_NAME+=":archive_subdocument_metadata_cache"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
@@ -2808,7 +2765,7 @@ function marsh_test {
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}" "${SOURCE_ROOT}"
             marsh_test_restore_env
             ;;
-        marsh_build_template:26)
+        marsh_build_template:25)
             TEST_NAME+=":conditional_cache_reuse"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
@@ -2861,7 +2818,7 @@ function marsh_test {
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}" "${MARSH_TEST_TEMP}/conditional-partial-cache" "${MARSH_TEST_TEMP}/conditional-tag-cache"
             marsh_test_restore_env
             ;;
-        marsh_build_template:27)
+        marsh_build_template:26)
             TEST_NAME+=":conditional_cache_distinct_outcomes"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
@@ -2914,7 +2871,7 @@ function marsh_test {
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}" "${MARSH_TEST_TEMP}/conditional-partial-cache" "${MARSH_TEST_TEMP}/conditional-tag-cache"
             marsh_test_restore_env
             ;;
-        marsh_build_template:28)
+        marsh_build_template:27)
             TEST_NAME+=":processed_sitemap_cache_selected_link"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
@@ -2972,7 +2929,7 @@ function marsh_test {
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}" "${SOURCE_DIR}"
             marsh_test_restore_env
             ;;
-        marsh_build_template:29)
+        marsh_build_template:28)
             TEST_NAME+=":archive_render_temp_publish_html"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
@@ -3024,7 +2981,7 @@ function marsh_test {
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}"
             marsh_test_restore_env
             ;;
-        marsh_build_template:30)
+        marsh_build_template:29)
             TEST_NAME+=":archive_render_temp_publish_json"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
@@ -3067,7 +3024,7 @@ function marsh_test {
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}"
             marsh_test_restore_env
             ;;
-        marsh_build_template:31)
+        marsh_build_template:30)
             TEST_NAME+=":document_render_temp_publish_html"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
@@ -3112,7 +3069,7 @@ function marsh_test {
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}"
             marsh_test_restore_env
             ;;
-        marsh_build_template:32)
+        marsh_build_template:31)
             TEST_NAME+=":document_render_temp_publish_without_template"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             marsh_test_set_env
@@ -3153,7 +3110,7 @@ function marsh_test {
             rm -rf "${TARGET_OUTPUT_ROOT}"
             marsh_test_restore_env
             ;;
-        marsh_build_template:33)
+        marsh_build_template:32)
             TEST_NAME+=":render_tree_has_no_adjacent_scratch_files"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
@@ -3199,7 +3156,7 @@ function marsh_test {
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}"
             marsh_test_restore_env
             ;;
-        marsh_build_template:34)
+        marsh_build_template:33)
             TEST_NAME+=":source_root_preferred_over_output_tree"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
@@ -3227,7 +3184,7 @@ function marsh_test {
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}" "${SOURCE_ROOT}"
             marsh_test_restore_env
             ;;
-        marsh_build_template:35)
+        marsh_build_template:34)
             TEST_NAME+=":missing_source_root"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"

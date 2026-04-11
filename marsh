@@ -5097,7 +5097,7 @@ function marsh_get_target_build_documents {  # marsh_get_target_build_documents 
     MARKDOWN_FILEEXT_REGEX="${MARKDOWN_FILEEXT_CSV//,/|}"
     while IFS= read -r SOURCE_DOCUMENT; do
         [[ "${SOURCE_DOCUMENT}" == "" ]] && continue
-        [[ "${SOURCE_DOCUMENT}" =~ \.(${MARKDOWN_FILEEXT_REGEX}|xml|json)$ ]] || continue
+        [[ "${SOURCE_DOCUMENT}" =~ \.(${MARKDOWN_FILEEXT_REGEX})$ ]] || continue
         printf '%s\n' "${SOURCE_DOCUMENT}"
     done < <(marsh_get_target_scope_paths "${SITE_OUTPUT_ROOT}" "${TARGET}" "${TARGET_OUTPUT_REL}" "${TARGET_SOURCE_ROOT}")
 }

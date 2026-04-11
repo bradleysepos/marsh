@@ -1412,7 +1412,7 @@ function marsh_test {
             TARGET_SOURCE_ROOT_CACHE_FILE="$(marsh_get_target_temp_root "${TARGET_OUTPUT_ROOT}")/source-root"
             mkdir -p "${TARGET_SOURCE_ROOT_CACHE_FILE%/*}"
             printf '%s\n' "${SOURCE_DIR}" > "${TARGET_SOURCE_ROOT_CACHE_FILE}"
-            marsh_copy_direct_to_target "${SOURCE_DIR}/*" "${TARGET_OUTPUT_ROOT}" "." "markdown,md" false >/dev/null 2>&1
+            marsh_copy_source_objects_to_target "${SOURCE_DIR}/*" "${TARGET_OUTPUT_ROOT}" "." "markdown,md" false >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
             ASSERTION="equals"
@@ -3265,7 +3265,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_copy_direct_to_target:0)
+        marsh_copy_source_objects_to_target:0)
             TEST_NAME+=":skips_markdown_copies_passthrough"
             SOURCE_DIR="${TEST_TEMP_PREFIX}.source"
             SITE_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
@@ -3274,7 +3274,7 @@ function marsh_test {
             printf '%s\n' '---'$'\n''Title: Example'$'\n''...'$'\n'''$'\n''# Example' > "${SOURCE_DIR}/index.markdown"
             printf '%s\n' '# Guide' > "${SOURCE_DIR}/docs/guide.md"
             printf '%s\n' 'asset' > "${SOURCE_DIR}/docs/logo.txt"
-            marsh_copy_direct_to_target "${SOURCE_DIR}/*" "${SITE_OUTPUT_ROOT}" "." "markdown,md" false
+            marsh_copy_source_objects_to_target "${SOURCE_DIR}/*" "${SITE_OUTPUT_ROOT}" "." "markdown,md" false
             ACTUAL=$?
             EXPECTED=0
             ASSERTION="equals"
@@ -3299,7 +3299,7 @@ function marsh_test {
             rm -rf "${SOURCE_DIR}" "${SITE_OUTPUT_ROOT}"
             marsh_test_restore_env
             ;;
-        marsh_copy_direct_to_target:1)
+        marsh_copy_source_objects_to_target:1)
             TEST_NAME+=":directory_source_does_not_duplicate_root"
             SOURCE_DIR="${TEST_TEMP_PREFIX}.source"
             SITE_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
@@ -3308,7 +3308,7 @@ function marsh_test {
             mkdir -p "${SOURCE_DIR}/images" "${TARGET_OUTPUT_ROOT}"
             printf '%s\n' 'pngdata' > "${SOURCE_DIR}/images/logo.png"
             printf '%s\n' '---'$'\n''Title: Example'$'\n''...'$'\n'''$'\n''# Example' > "${SOURCE_DIR}/index.markdown"
-            marsh_copy_direct_to_target "${SOURCE_DIR}" "${SITE_OUTPUT_ROOT}" "www" "markdown,md" false
+            marsh_copy_source_objects_to_target "${SOURCE_DIR}" "${SITE_OUTPUT_ROOT}" "www" "markdown,md" false
             ACTUAL=$?
             EXPECTED=0
             ASSERTION="equals"
@@ -4316,6 +4316,46 @@ function marsh_test {
             EXPECTED=$(printf '%s\n' \
                 'nested/page.markdown' \
                 'index.markdown' | sort)
+            ACTUAL=$(printf '%s\n' "${ACTUAL}" | sed '/^$/d' | sort)
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            rm -rf "${SOURCE_ROOT}"
+            ;;
+        marsh_get_source_objects:0)
+            TEST_NAME+=":directory_source_excludes_markdown"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
+            mkdir -p "${SOURCE_ROOT}/nested"
+            printf '%s\n' '# page' > "${SOURCE_ROOT}/index.markdown"
+            printf '%s\n' '# nested page' > "${SOURCE_ROOT}/nested/page.markdown"
+            printf '%s\n' 'image' > "${SOURCE_ROOT}/image.png"
+            printf '%s\n' 'document' > "${SOURCE_ROOT}/nested/doc.pdf"
+            ln -s "${SOURCE_ROOT}/image.png" "${SOURCE_ROOT}/image-link.png"
+            ACTUAL=$(marsh_get_source_objects "${SOURCE_ROOT}" "markdown,md")
+            EXPECTED=$(printf '%s\n' \
+                'image-link.png' \
+                'image.png' \
+                'nested/doc.pdf' | sort)
+            ACTUAL=$(printf '%s\n' "${ACTUAL}" | sed '/^$/d' | sort)
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            rm -rf "${SOURCE_ROOT}"
+            ;;
+        marsh_get_source_objects:1)
+            TEST_NAME+=":glob_expands_matched_directories"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
+            mkdir -p "${SOURCE_ROOT}/docs"
+            printf '%s\n' 'download' > "${SOURCE_ROOT}/download.bin"
+            printf '%s\n' '# readme' > "${SOURCE_ROOT}/readme.markdown"
+            printf '%s\n' 'guide' > "${SOURCE_ROOT}/docs/guide.pdf"
+            printf '%s\n' '# note' > "${SOURCE_ROOT}/docs/note.markdown"
+            ACTUAL=$(marsh_get_source_objects "${SOURCE_ROOT}/*" "markdown,md")
+            EXPECTED=$(printf '%s\n' \
+                'docs/guide.pdf' \
+                'download.bin' | sort)
             ACTUAL=$(printf '%s\n' "${ACTUAL}" | sed '/^$/d' | sort)
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -6465,7 +6505,7 @@ KNOWN_FUNCTIONS=(
     marsh_build_template
     marsh_check_dependencies
     marsh_clean_target_temp
-    marsh_copy_direct_to_target
+    marsh_copy_source_objects_to_target
     marsh_escape_substitution
     marsh_extract_frontmatter
     marsh_flat_to_array
@@ -6488,6 +6528,7 @@ KNOWN_FUNCTIONS=(
     marsh_get_sitemap_rendered_path
     marsh_get_sitemap_temp_path
     marsh_get_source_inventory
+    marsh_get_source_objects
     marsh_get_source_root_path
     marsh_get_target_directory_path
     marsh_get_target_document_paths

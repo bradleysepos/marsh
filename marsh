@@ -5078,6 +5078,30 @@ function marsh_get_target_source_documents {  # marsh_get_target_source_document
     done < <(marsh_get_source_inventory "${TARGET_SOURCE_ROOT}")
 }
 
+# returns buildable ordinary documents for a target scope
+function marsh_get_target_documents {  # marsh_get_target_documents site_output_root target target_output_rel target_source_root markdown_fileext_csv
+    local SITE_OUTPUT_ROOT TARGET TARGET_OUTPUT_REL TARGET_SOURCE_ROOT MARKDOWN_FILEEXT_CSV MARKDOWN_FILEEXT_REGEX
+    local SOURCE_DOCUMENT
+
+    SITE_OUTPUT_ROOT="${1:-}"
+    TARGET="${2:-}"
+    TARGET_OUTPUT_REL="${3:-.}"
+    TARGET_SOURCE_ROOT="${4:-}"
+    MARKDOWN_FILEEXT_CSV="${5:-}"
+    [[ "${SITE_OUTPUT_ROOT}" == "" ]] && return 1
+    [[ "${TARGET}" == "" ]] && return 1
+    [[ "${TARGET_OUTPUT_REL}" == "" ]] && return 1
+    [[ "${TARGET_SOURCE_ROOT}" == "" ]] && return 1
+    [[ "${MARKDOWN_FILEEXT_CSV}" == "" ]] && return 1
+
+    MARKDOWN_FILEEXT_REGEX="${MARKDOWN_FILEEXT_CSV//,/|}"
+    while IFS= read -r SOURCE_DOCUMENT; do
+        [[ "${SOURCE_DOCUMENT}" == "" ]] && continue
+        [[ "${SOURCE_DOCUMENT}" =~ \.(${MARKDOWN_FILEEXT_REGEX}|xml|json)$ ]] || continue
+        printf '%s\n' "${SOURCE_DOCUMENT}"
+    done < <(marsh_get_target_source_documents "${SITE_OUTPUT_ROOT}" "${TARGET}" "${TARGET_OUTPUT_REL}" "${TARGET_SOURCE_ROOT}")
+}
+
 # returns target sitemap file and source path pairs as tab-separated records
 function marsh_get_target_sitemap_sources {  # marsh_get_target_sitemap_sources site_source_root target_source_root sitemap_path [search]
     local SITE_SOURCE_ROOT TARGET_SOURCE_ROOT SITEMAP_PATH SITEMAP_SEARCH
@@ -5113,10 +5137,10 @@ function marsh_get_target_sitemap_sources {  # marsh_get_target_sitemap_sources 
 # builds a target, parallel if possible
 function marsh_build_target {  # marsh_build_target site_output_root target jobs sitemap sitemap_search templates_dir template markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links #template_overrides[@] template_overrides[@] skip_template_assets template_assets_path build_context_target_output_rel build_context_source_root
     local SITE_OUTPUT_ROOT TARGET JOBS SITEMAP TEMPLATES_DIR TEMPLATE SITEMAP_SEARCH
-    local MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_FILEEXT_REGEX MARKDOWN_REWRITE_LINKS
+    local MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_REWRITE_LINKS
     local NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDES SKIP_TEMPLATE_ASSETS TEMPLATE_ASSETS_PATH
     local BUILD_CONTEXT_TARGET_OUTPUT_REL BUILD_CONTEXT_SOURCE_ROOT
-    local TARGET_OUTPUT_REL TEMPLATE_PREFIX DOCUMENTS FILTERED_DOCUMENTS DOCUMENT
+    local TARGET_OUTPUT_REL TEMPLATE_PREFIX DOCUMENTS DOCUMENT
     local REQUESTED_TARGET_REL REQUESTED_TARGET_SITE_REL TARGET_OUTPUT_ROOT TARGET_SOURCE_ROOT SOURCE_DOCUMENT
     local PARALLEL PARALLEL_MARKDOWN
 
@@ -5136,7 +5160,6 @@ function marsh_build_target {  # marsh_build_target site_output_root target jobs
     MARKDOWN_COMMAND="${8:-}"
     MARKDOWN_OPTIONS_CSV="${9:-}"
     MARKDOWN_FILEEXT_CSV="${10:-}"
-    MARKDOWN_FILEEXT_REGEX="${MARKDOWN_FILEEXT_CSV//,/|}"
     MARKDOWN_REWRITE_LINKS="${11:-}"
     shift 11
     [[ "${MARKDOWN_COMMAND}" == "" ]] && return 1
@@ -5184,7 +5207,7 @@ function marsh_build_target {  # marsh_build_target site_output_root target jobs
         while IFS= read -r SOURCE_DOCUMENT; do
             [[ "${SOURCE_DOCUMENT}" == "" ]] && continue
             DOCUMENTS+=("${SOURCE_DOCUMENT}")
-        done < <(marsh_get_target_source_documents "${SITE_OUTPUT_ROOT}" "${TARGET}" "${TARGET_OUTPUT_REL}" "${TARGET_SOURCE_ROOT}")
+        done < <(marsh_get_target_documents "${SITE_OUTPUT_ROOT}" "${TARGET}" "${TARGET_OUTPUT_REL}" "${TARGET_SOURCE_ROOT}" "${MARKDOWN_FILEEXT_CSV}")
     fi
     # synthetic archive pages are discovered from the target temp tree when build scope
     # does not have a matching source tree document
@@ -5202,13 +5225,6 @@ function marsh_build_target {  # marsh_build_target site_output_root target jobs
         echo "Document source root not found for target: ${TARGET_OUTPUT_ROOT}" >&2
         return 1
     fi
-    FILTERED_DOCUMENTS=()
-    for DOCUMENT in "${DOCUMENTS[@]}"; do
-        DOCUMENT="${DOCUMENT#./}"
-        [[ "${DOCUMENT}" =~ \.(${MARKDOWN_FILEEXT_REGEX}|xml|json)$ ]] || continue
-        FILTERED_DOCUMENTS+=("${DOCUMENT}")
-    done
-    DOCUMENTS=("${FILTERED_DOCUMENTS[@]}")
     PARALLEL=$(command -v parallel 2>/dev/null)
     PARALLEL_MARKDOWN=""
     [[ "${MARKDOWN_COMMAND}" != "markdown" ]] && PARALLEL_MARKDOWN="${MARKDOWN_COMMAND}"

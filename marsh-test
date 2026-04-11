@@ -385,6 +385,7 @@ function marsh_test {
     local TEST_TEMP_PREFIX SOURCE_FILE META_FILE CONTENT_FILE DOCUMENT_FILE TARGET_OUTPUT_ROOT HASH ARCHIVE_HASH SEP MANIFEST_FILE
     local INDEX_FILE CACHE_FILE CACHE_COUNT TEMPLATE_DIR TEMPLATE_OVERRIDE_FILE MARSH_OTEMP
     local BASE_URI CANONICAL_META ALIAS_META PAGE_META
+    local TARGET_SCOPE TARGET_OUTPUT_REL TARGET_SOURCE_ROOT_ARG
     EXISTS=true
     EXPECTED=""
     ACTUAL=""
@@ -4645,7 +4646,10 @@ function marsh_test {
             printf '%s\n' '# about' > "${SOURCE_ROOT}/about/index.markdown"
             printf '%s\n' '# team' > "${SOURCE_ROOT}/about/team/index.markdown"
             printf '%s\n' '# home' > "${SOURCE_ROOT}/index.markdown"
-            ACTUAL=$(marsh_get_target_source_documents "${SITE_OUTPUT_ROOT}" "about" "." "${SOURCE_ROOT}")
+            TARGET_SCOPE="about"
+            TARGET_OUTPUT_REL="."
+            TARGET_SOURCE_ROOT_ARG="${SOURCE_ROOT}"
+            ACTUAL=$(marsh_get_target_source_documents "${SITE_OUTPUT_ROOT}" "${TARGET_SCOPE}" "${TARGET_OUTPUT_REL}" "${TARGET_SOURCE_ROOT_ARG}")
             EXPECTED=$(printf '%s\n' \
                 'about/index.markdown' \
                 'about/team/index.markdown' | sort)
@@ -4664,7 +4668,10 @@ function marsh_test {
             printf '%s\n' '# team' > "${SOURCE_ROOT}/about/team/index.markdown"
             printf '%s\n' '# team member' > "${SOURCE_ROOT}/about/team/member.markdown"
             printf '%s\n' '# news' > "${SOURCE_ROOT}/about/news/index.markdown"
-            ACTUAL=$(marsh_get_target_source_documents "${SITE_OUTPUT_ROOT}" "about/team" "about" "${SOURCE_ROOT}/about")
+            TARGET_SCOPE="about/team"
+            TARGET_OUTPUT_REL="about"
+            TARGET_SOURCE_ROOT_ARG="${SOURCE_ROOT}/about"
+            ACTUAL=$(marsh_get_target_source_documents "${SITE_OUTPUT_ROOT}" "${TARGET_SCOPE}" "${TARGET_OUTPUT_REL}" "${TARGET_SOURCE_ROOT_ARG}")
             EXPECTED=$(printf '%s\n' \
                 'team/index.markdown' \
                 'team/member.markdown' | sort)

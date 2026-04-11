@@ -5102,6 +5102,36 @@ function marsh_get_target_build_documents {  # marsh_get_target_build_documents 
     done < <(marsh_get_target_scope_paths "${SITE_OUTPUT_ROOT}" "${TARGET}" "${TARGET_OUTPUT_REL}" "${TARGET_SOURCE_ROOT}")
 }
 
+# returns synthetic archive documents that match an exact target request
+function marsh_get_target_archive_documents {  # marsh_get_target_archive_documents site_output_root target target_output_rel
+    local SITE_OUTPUT_ROOT TARGET TARGET_OUTPUT_REL REQUESTED_TARGET_SITE_REL REQUESTED_TARGET_REL DOCUMENT
+
+    SITE_OUTPUT_ROOT="${1:-}"
+    TARGET="${2:-}"
+    TARGET_OUTPUT_REL="${3:-.}"
+    [[ "${SITE_OUTPUT_ROOT}" == "" ]] && return 1
+    [[ "${TARGET}" == "" ]] && return 1
+    [[ "${TARGET_OUTPUT_REL}" == "" ]] && return 1
+
+    [[ "${TARGET}" != '*' ]] || return 0
+    [[ ! -d "${SITE_OUTPUT_ROOT}/${TARGET}" ]] || return 0
+
+    REQUESTED_TARGET_SITE_REL="${TARGET#./}"
+    REQUESTED_TARGET_REL="${TARGET#./}"
+    if [[ "${TARGET_OUTPUT_REL}" != "." ]]; then
+        if [[ "${REQUESTED_TARGET_REL}" == "${TARGET_OUTPUT_REL}" ]]; then
+            REQUESTED_TARGET_REL='.'
+        elif [[ "${REQUESTED_TARGET_REL}" == "${TARGET_OUTPUT_REL}/"* ]]; then
+            REQUESTED_TARGET_REL="${REQUESTED_TARGET_REL#${TARGET_OUTPUT_REL}/}"
+        fi
+    fi
+
+    DOCUMENT="${REQUESTED_TARGET_REL#./}"
+    if [[ -f "$(marsh_get_archive_temp_path "${SITE_OUTPUT_ROOT}" "${REQUESTED_TARGET_SITE_REL}" "source" 2>/dev/null)" ]]; then
+        printf '%s\n' "${DOCUMENT}"
+    fi
+}
+
 # returns target sitemap file and source path pairs as tab-separated records
 function marsh_get_target_sitemap_sources {  # marsh_get_target_sitemap_sources site_source_root target_source_root sitemap_path [search]
     local SITE_SOURCE_ROOT TARGET_SOURCE_ROOT SITEMAP_PATH SITEMAP_SEARCH
@@ -5140,7 +5170,7 @@ function marsh_build_target {  # marsh_build_target site_output_root target jobs
     local MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_REWRITE_LINKS
     local NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDES SKIP_TEMPLATE_ASSETS TEMPLATE_ASSETS_PATH
     local BUILD_CONTEXT_TARGET_OUTPUT_REL BUILD_CONTEXT_SOURCE_ROOT
-    local TARGET_OUTPUT_REL TEMPLATE_PREFIX DOCUMENTS DOCUMENT
+    local TARGET_OUTPUT_REL TEMPLATE_PREFIX DOCUMENTS ARCHIVE_DOCUMENTS DOCUMENT
     local REQUESTED_TARGET_REL REQUESTED_TARGET_SITE_REL TARGET_OUTPUT_ROOT TARGET_SOURCE_ROOT SOURCE_DOCUMENT
     local PARALLEL PARALLEL_MARKDOWN
 
@@ -5209,14 +5239,15 @@ function marsh_build_target {  # marsh_build_target site_output_root target jobs
             DOCUMENTS+=("${SOURCE_DOCUMENT}")
         done < <(marsh_get_target_build_documents "${SITE_OUTPUT_ROOT}" "${TARGET}" "${TARGET_OUTPUT_REL}" "${TARGET_SOURCE_ROOT}" "${MARKDOWN_FILEEXT_CSV}")
     fi
-    # synthetic archive pages are discovered from the target temp tree when build scope
-    # does not have a matching source tree document
-    if [[ "${#DOCUMENTS[@]}" -eq 0 ]] && [[ "${TARGET}" != '*' ]] && [[ ! -d "${SITE_OUTPUT_ROOT}/${TARGET}" ]]; then
-        DOCUMENT="${REQUESTED_TARGET_REL#./}"
-        # keep archive source lookup keyed by the site-relative archive id even when
-        # the requested build scope has been narrowed to a target-relative document path
-        if [[ -f "$(marsh_get_archive_temp_path "${SITE_OUTPUT_ROOT}" "${REQUESTED_TARGET_SITE_REL}" "source" 2>/dev/null)" ]]; then
-            DOCUMENTS=("${DOCUMENT}")
+    # synthetic archive pages are planned on a separate path from ordinary source documents
+    if [[ "${#DOCUMENTS[@]}" -eq 0 ]]; then
+        ARCHIVE_DOCUMENTS=()
+        while IFS= read -r DOCUMENT; do
+            [[ "${DOCUMENT}" == "" ]] && continue
+            ARCHIVE_DOCUMENTS+=("${DOCUMENT}")
+        done < <(marsh_get_target_archive_documents "${SITE_OUTPUT_ROOT}" "${TARGET}" "${TARGET_OUTPUT_REL}")
+        if [[ "${#ARCHIVE_DOCUMENTS[@]}" -gt 0 ]]; then
+            DOCUMENTS=("${ARCHIVE_DOCUMENTS[@]}")
         elif [[ "${TARGET_SOURCE_ROOT}" == "" ]]; then
             echo "Document source root not found for target: ${TARGET_OUTPUT_ROOT}" >&2
             return 1

@@ -4377,6 +4377,38 @@ function marsh_test {
             fi
             rm -rf "${TARGET_OUTPUT_ROOT}"
             ;;
+        marsh_get_target_archive_documents:0)
+            TEST_NAME+=":root_target_exact_match"
+            SITE_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            marsh_test_set_env
+            ARCHIVE_SOURCE_FILE=$(marsh_get_archive_temp_path "${SITE_OUTPUT_ROOT}" "news/index.markdown" "source")
+            mkdir -p "${ARCHIVE_SOURCE_FILE%/*}"
+            printf '%s\n' 'archive' > "${ARCHIVE_SOURCE_FILE}"
+            ACTUAL=$(marsh_get_target_archive_documents "${SITE_OUTPUT_ROOT}" "news/index.markdown" ".")
+            EXPECTED='news/index.markdown'
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            rm -rf "${SITE_OUTPUT_ROOT}"
+            marsh_test_restore_env
+            ;;
+        marsh_get_target_archive_documents:1)
+            TEST_NAME+=":nested_target_relative_match"
+            SITE_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            marsh_test_set_env
+            ARCHIVE_SOURCE_FILE=$(marsh_get_archive_temp_path "${SITE_OUTPUT_ROOT}" "news/index.markdown" "source")
+            mkdir -p "${ARCHIVE_SOURCE_FILE%/*}"
+            printf '%s\n' 'archive' > "${ARCHIVE_SOURCE_FILE}"
+            ACTUAL=$(marsh_get_target_archive_documents "${SITE_OUTPUT_ROOT}" "news/index.markdown" "news")
+            EXPECTED='index.markdown'
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            rm -rf "${SITE_OUTPUT_ROOT}"
+            marsh_test_restore_env
+            ;;
         marsh_get_target_build_documents:0)
             TEST_NAME+=":directory_scope_filters_markdown_only"
             SITE_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
@@ -6618,6 +6650,7 @@ KNOWN_FUNCTIONS=(
     marsh_get_source_inventory
     marsh_get_source_objects
     marsh_get_source_root_path
+    marsh_get_target_archive_documents
     marsh_get_target_build_documents
     marsh_get_target_directory_path
     marsh_get_target_document_paths

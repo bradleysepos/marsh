@@ -385,7 +385,8 @@ function marsh_test {
     local TEST_TEMP_PREFIX SOURCE_FILE META_FILE CONTENT_FILE DOCUMENT_FILE TARGET_OUTPUT_ROOT HASH ARCHIVE_HASH SEP MANIFEST_FILE
     local INDEX_FILE CACHE_FILE CACHE_COUNT TEMPLATE_DIR TEMPLATE_OVERRIDE_FILE MARSH_OTEMP
     local BASE_URI CANONICAL_META ALIAS_META PAGE_META
-    local TARGET_SCOPE TARGET_OUTPUT_REL TARGET_SOURCE_ROOT_ARG
+    local TARGET_SCOPE TARGET_OUTPUT_REL TARGET_SOURCE_ROOT TARGET_SOURCE_ROOT_ARG
+    local SITE_SOURCE_ROOT TARGET_SITEMAP_PATH TARGET_SITEMAP_SEARCH
     EXISTS=true
     EXPECTED=""
     ACTUAL=""
@@ -4638,6 +4639,43 @@ function marsh_test {
             fi
             marsh_test_restore_env
             ;;
+        marsh_get_target_sitemap_sources:0)
+            TEST_NAME+=":explicit"
+            SITE_SOURCE_ROOT="${TEST_TEMP_PREFIX}.site-source"
+            TARGET_SOURCE_ROOT="${SITE_SOURCE_ROOT}/about"
+            mkdir -p "${TARGET_SOURCE_ROOT}" "${SITE_SOURCE_ROOT}/shared"
+            printf '%s\n' '# sitemap' > "${SITE_SOURCE_ROOT}/shared/site-map.markdown"
+            TARGET_SITEMAP_PATH="../shared/site-map.markdown"
+            TARGET_SITEMAP_SEARCH=false
+            ACTUAL=$(marsh_get_target_sitemap_sources "${SITE_SOURCE_ROOT}" "${TARGET_SOURCE_ROOT}" "${TARGET_SITEMAP_PATH}" "${TARGET_SITEMAP_SEARCH}")
+            EXPECTED=$(printf '%s\t%s\n' "${TARGET_SITEMAP_PATH}" "${SITE_SOURCE_ROOT}/shared/site-map.markdown")
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            rm -rf "${SITE_SOURCE_ROOT}"
+            ;;
+        marsh_get_target_sitemap_sources:1)
+            TEST_NAME+=":search"
+            SITE_SOURCE_ROOT="${TEST_TEMP_PREFIX}.site-source"
+            TARGET_SOURCE_ROOT="${SITE_SOURCE_ROOT}/about"
+            mkdir -p "${TARGET_SOURCE_ROOT}/team" "${TARGET_SOURCE_ROOT}/news"
+            printf '%s\n' '# team sitemap' > "${TARGET_SOURCE_ROOT}/team/site-map.markdown"
+            printf '%s\n' '# news sitemap' > "${TARGET_SOURCE_ROOT}/news/site-map.markdown"
+            printf '%s\n' '# note' > "${TARGET_SOURCE_ROOT}/news/article.markdown"
+            TARGET_SITEMAP_PATH="site-map.markdown"
+            TARGET_SITEMAP_SEARCH=true
+            ACTUAL=$(marsh_get_target_sitemap_sources "${SITE_SOURCE_ROOT}" "${TARGET_SOURCE_ROOT}" "${TARGET_SITEMAP_PATH}" "${TARGET_SITEMAP_SEARCH}")
+            EXPECTED=$(printf '%s\t%s\n' \
+                'news/site-map.markdown' "${TARGET_SOURCE_ROOT}/news/site-map.markdown" \
+                'team/site-map.markdown' "${TARGET_SOURCE_ROOT}/team/site-map.markdown" | sort)
+            ACTUAL=$(printf '%s\n' "${ACTUAL}" | sed '/^$/d' | sort)
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            rm -rf "${SITE_SOURCE_ROOT}"
+            ;;
         marsh_get_target_source_documents:0)
             TEST_NAME+=":directory_scope"
             SITE_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
@@ -6541,6 +6579,7 @@ KNOWN_FUNCTIONS=(
     marsh_get_target_document_paths
     marsh_get_target_metadata
     marsh_get_target_output_path
+    marsh_get_target_sitemap_sources
     marsh_get_target_source_documents
     marsh_get_target_source_root_path
     marsh_get_target_temp_root

@@ -2393,10 +2393,40 @@ function marsh_copy_source_objects {  # marsh_copy_source_objects source_dir tar
     done
 }
 
+# resolves target-aware source object selection without copying
+function marsh_get_target_source_copy_plan {  # marsh_get_target_source_copy_plan source site_output_root target_output_rel markdown_fileext_csv
+    local SOURCE SITE_OUTPUT_ROOT TARGET_OUTPUT_REL MARKDOWN_FILEEXT_CSV
+    local SOURCE_DIR FILES_LIST TARGET_OUTPUT_ROOT REL_PATH
+
+    SOURCE="${1:-}"
+    SITE_OUTPUT_ROOT="${2:-}"
+    TARGET_OUTPUT_REL="${3:-}"
+    MARKDOWN_FILEEXT_CSV="${4:-}"
+    [[ "${SOURCE}" == "" ]] && return 1
+    [[ "${SITE_OUTPUT_ROOT}" == "" ]] && return 1
+    [[ "${TARGET_OUTPUT_REL}" == "" ]] && return 1
+    [[ "${MARKDOWN_FILEEXT_CSV}" == "" ]] && return 1
+
+    SOURCE_DIR="${SOURCE%/*}"
+    SOURCE_DIR="${SOURCE_DIR:-.}"
+    TARGET_OUTPUT_ROOT=$(marsh_get_target_directory_path "${SITE_OUTPUT_ROOT}/${TARGET_OUTPUT_REL}") || return 1
+    [[ -d "${SOURCE}" ]] && SOURCE_DIR="${SOURCE}"
+    FILES_LIST=$(marsh_get_source_objects "${SOURCE}" "${MARKDOWN_FILEEXT_CSV}") || return 1
+
+    # emit a reusable copy plan so selection stays separate from execution
+    printf 'SOURCE_DIR=%q\n' "${SOURCE_DIR}"
+    printf 'TARGET_OUTPUT_ROOT=%q\n' "${TARGET_OUTPUT_ROOT}"
+    echo 'SOURCE_OBJECTS=()'
+    while IFS= read -r REL_PATH; do
+        [[ "${REL_PATH}" == "" ]] && continue
+        printf 'SOURCE_OBJECTS+=(%q)\n' "${REL_PATH}"
+    done <<< "${FILES_LIST}"
+}
+
 # resolves target-aware source object selection and delegates copying
 function marsh_copy_source_objects_to_target {  # marsh_copy_source_objects_to_target source site_output_root target_output_rel markdown_fileext_csv force
     local SOURCE SITE_OUTPUT_ROOT TARGET_OUTPUT_REL MARKDOWN_FILEEXT_CSV FORCE
-    local SOURCE_DIR FILES_LIST TARGET_OUTPUT_ROOT SOURCE_OBJECTS REL_PATH
+    local SOURCE_DIR TARGET_OUTPUT_ROOT SOURCE_OBJECTS
 
     # init
     SOURCE="${1:-}"
@@ -2409,16 +2439,8 @@ function marsh_copy_source_objects_to_target {  # marsh_copy_source_objects_to_t
     [[ "${TARGET_OUTPUT_REL}" == "" ]] && return 1
     [[ "${MARKDOWN_FILEEXT_CSV}" == "" ]] && return 1
 
-    SOURCE_DIR="${SOURCE%/*}"
-    SOURCE_DIR="${SOURCE_DIR:-.}"
-    TARGET_OUTPUT_ROOT=$(marsh_get_target_directory_path "${SITE_OUTPUT_ROOT}/${TARGET_OUTPUT_REL}") || return 1
-    [[ -d "${SOURCE}" ]] && SOURCE_DIR="${SOURCE}"
-    FILES_LIST=$(marsh_get_source_objects "${SOURCE}" "${MARKDOWN_FILEEXT_CSV}") || return 1
-    SOURCE_OBJECTS=()
-    while IFS= read -r REL_PATH; do
-        [[ "${REL_PATH}" == "" ]] && continue
-        SOURCE_OBJECTS+=("${REL_PATH}")
-    done <<< "${FILES_LIST}"
+    # consume the extracted selection plan and delegate copying only
+    eval "$(marsh_get_target_source_copy_plan "${SOURCE}" "${SITE_OUTPUT_ROOT}" "${TARGET_OUTPUT_REL}" "${MARKDOWN_FILEEXT_CSV}")" || return 1
     marsh_copy_source_objects "${SOURCE_DIR}" "${TARGET_OUTPUT_ROOT}" "${FORCE}" "${SOURCE_OBJECTS[@]}"
 }
 

@@ -5001,6 +5001,52 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
+        marsh_get_target_source_copy_plan:0)
+            TEST_NAME+=":glob_source_selection"
+            SITE_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
+            mkdir -p "${SOURCE_ROOT}/docs"
+            printf '%s\n' '# readme' > "${SOURCE_ROOT}/readme.markdown"
+            printf '%s\n' 'download' > "${SOURCE_ROOT}/download.bin"
+            printf '%s\n' 'guide' > "${SOURCE_ROOT}/docs/guide.pdf"
+            printf '%s\n' '# note' > "${SOURCE_ROOT}/docs/note.markdown"
+            eval "$(marsh_get_target_source_copy_plan "${SOURCE_ROOT}/*" "${SITE_OUTPUT_ROOT}" "." "markdown,md")"
+            ACTUAL=$(printf '%s\n' "${SOURCE_DIR}" "${TARGET_OUTPUT_ROOT}")
+            EXPECTED=$(printf '%s\n' "${SOURCE_ROOT}" "${SITE_OUTPUT_ROOT}")
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                ACTUAL=$(printf '%s\n' "${SOURCE_OBJECTS[@]}" | sed '/^$/d' | sort)
+                EXPECTED=$(printf '%s\n' \
+                    'docs/guide.pdf' \
+                    'download.bin' | sort)
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${SITE_OUTPUT_ROOT}" "${SOURCE_ROOT}"
+            ;;
+        marsh_get_target_source_copy_plan:1)
+            TEST_NAME+=":directory_source_selection"
+            SITE_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
+            mkdir -p "${SOURCE_ROOT}/images"
+            printf '%s\n' 'pngdata' > "${SOURCE_ROOT}/images/logo.png"
+            printf '%s\n' '# example' > "${SOURCE_ROOT}/index.markdown"
+            eval "$(marsh_get_target_source_copy_plan "${SOURCE_ROOT}" "${SITE_OUTPUT_ROOT}" "www" "markdown,md")"
+            ACTUAL=$(printf '%s\n' "${SOURCE_DIR}" "${TARGET_OUTPUT_ROOT}")
+            EXPECTED=$(printf '%s\n' "${SOURCE_ROOT}" "${SITE_OUTPUT_ROOT}/www")
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                ACTUAL=$(printf '%s\n' "${SOURCE_OBJECTS[@]}")
+                EXPECTED='images/logo.png'
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${SITE_OUTPUT_ROOT}" "${SOURCE_ROOT}"
+            ;;
         marsh_get_target_scope_paths:0)
             TEST_NAME+=":directory_scope"
             SITE_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
@@ -7032,6 +7078,7 @@ KNOWN_FUNCTIONS=(
     marsh_get_target_request_relpath
     marsh_get_target_sitemap_sources
     marsh_get_target_scope_paths
+    marsh_get_target_source_copy_plan
     marsh_get_target_source_inventory
     marsh_get_target_source_root_path
     marsh_get_target_temp_root

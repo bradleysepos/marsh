@@ -2520,6 +2520,23 @@ function marsh_copy_template_assets {  # marsh_copy_template_assets site_output_
     done
 }
 
+# resolves a config-relative path against the config file directory without
+# changing absolute paths or glob expressions beyond prefixing the base dir
+function marsh_resolve_config_path {  # marsh_resolve_config_path config_file_dir path
+    local CONFIG_FILE_DIR PATH_VALUE
+
+    CONFIG_FILE_DIR="${1:-}"
+    PATH_VALUE="${2:-}"
+    [[ "${CONFIG_FILE_DIR}" == "" ]] && return 1
+    [[ "${PATH_VALUE}" == "" ]] && return 1
+
+    if [[ ! "${PATH_VALUE}" =~ ^/ ]]; then
+        PATH_VALUE="${CONFIG_FILE_DIR}/${PATH_VALUE}"
+    fi
+    PATH_VALUE="${PATH_VALUE#./}"
+    printf '%s\n' "${PATH_VALUE}"
+}
+
 # normalizes a marsh-internal relative path value for reuse in path helpers
 function marsh_normalize_internal_path {  # marsh_normalize_internal_path path [path_kind]
     local PATH_VALUE PATH_KIND
@@ -5893,15 +5910,10 @@ function marsh_cli {
 
             # get template
             if [[ "${TARGET_TEMPLATE_SOURCE:-}" != "" ]]; then
-                if [[ ! "${TARGET_TEMPLATE_SOURCE}" =~ ^/ ]]; then
-                    TARGET_TEMPLATE_SOURCE="${MARSH_CONFIG_FILE_DIR}/${TARGET_TEMPLATE_SOURCE}"
-                    TARGET_TEMPLATE_SOURCE="${TARGET_TEMPLATE_SOURCE#./}"
-                fi
+                TARGET_TEMPLATE_SOURCE=$(marsh_resolve_config_path "${MARSH_CONFIG_FILE_DIR}" "${TARGET_TEMPLATE_SOURCE}") || die_gracefully
                 for I in "${!TARGET_TEMPLATE_OVERRIDES[@]}"; do
-                    if [[ "${TARGET_TEMPLATE_OVERRIDES[$I]:-}" != "" ]] && [[ ! "${TARGET_TEMPLATE_OVERRIDES[$I]}" =~ ^/ ]]; then
-                        TARGET_TEMPLATE_OVERRIDES[$I]="${MARSH_CONFIG_FILE_DIR}/${TARGET_TEMPLATE_OVERRIDES[$I]}"
-                        TARGET_TEMPLATE_OVERRIDES[$I]="${TARGET_TEMPLATE_OVERRIDES[$I]#./}"
-                    fi
+                    [[ "${TARGET_TEMPLATE_OVERRIDES[$I]:-}" == "" ]] && continue
+                    TARGET_TEMPLATE_OVERRIDES[$I]=$(marsh_resolve_config_path "${MARSH_CONFIG_FILE_DIR}" "${TARGET_TEMPLATE_OVERRIDES[$I]}") || die_gracefully
                 done
                 if [[ ! -e "${TEMPLATES_DIR}/${TARGET_TEMPLATE}" ]]; then
                     marsh_get_files "${TARGET_TEMPLATE_SOURCE}/*" \
@@ -5915,8 +5927,7 @@ function marsh_cli {
                 TARGET_FORCE=true
             fi
             if [[ ! "${TARGET_SOURCE}" =~ ^/ ]]; then
-                TARGET_SOURCE="${MARSH_CONFIG_FILE_DIR}/${TARGET_SOURCE}"
-                TARGET_SOURCE="${TARGET_SOURCE#./}"
+                TARGET_SOURCE=$(marsh_resolve_config_path "${MARSH_CONFIG_FILE_DIR}" "${TARGET_SOURCE}") || die_gracefully
             fi
             if [[ "${TARGET_SOURCE}" != "" ]]; then
                 TARGET_SOURCE_ROOT=$(marsh_get_source_root_path "${TARGET_SOURCE}") || die_gracefully
@@ -6000,15 +6011,10 @@ function marsh_cli {
                         TARGET_ARCHIVE_TEMPLATE_OVERRIDES=("${TARGET_TEMPLATE_OVERRIDES[@]}")
                     fi
                     if [[ "${TARGET_ARCHIVE_TEMPLATE_SOURCE:-}" != "" ]]; then
-                        if [[ ! "${TARGET_ARCHIVE_TEMPLATE_SOURCE}" =~ ^/ ]]; then
-                            TARGET_ARCHIVE_TEMPLATE_SOURCE="${MARSH_CONFIG_FILE_DIR}/${TARGET_ARCHIVE_TEMPLATE_SOURCE}"
-                            TARGET_ARCHIVE_TEMPLATE_SOURCE="${TARGET_ARCHIVE_TEMPLATE_SOURCE#./}"
-                        fi
+                        TARGET_ARCHIVE_TEMPLATE_SOURCE=$(marsh_resolve_config_path "${MARSH_CONFIG_FILE_DIR}" "${TARGET_ARCHIVE_TEMPLATE_SOURCE}") || die_gracefully
                         for J in "${!TARGET_ARCHIVE_TEMPLATE_OVERRIDES[@]}"; do
-                            if [[ "${TARGET_ARCHIVE_TEMPLATE_OVERRIDES[$J]:-}" != "" ]] && [[ ! "${TARGET_ARCHIVE_TEMPLATE_OVERRIDES[$J]}" =~ ^/ ]]; then
-                                TARGET_ARCHIVE_TEMPLATE_OVERRIDES[$J]="${MARSH_CONFIG_FILE_DIR}/${TARGET_ARCHIVE_TEMPLATE_OVERRIDES[$J]}"
-                                TARGET_ARCHIVE_TEMPLATE_OVERRIDES[$J]="${TARGET_ARCHIVE_TEMPLATE_OVERRIDES[$J]#./}"
-                            fi
+                            [[ "${TARGET_ARCHIVE_TEMPLATE_OVERRIDES[$J]:-}" == "" ]] && continue
+                            TARGET_ARCHIVE_TEMPLATE_OVERRIDES[$J]=$(marsh_resolve_config_path "${MARSH_CONFIG_FILE_DIR}" "${TARGET_ARCHIVE_TEMPLATE_OVERRIDES[$J]}") || die_gracefully
                         done
                         if [[ ! -e "${TEMPLATES_DIR}/${TARGET_ARCHIVE_TEMPLATE}" ]]; then
                             marsh_get_files "${TARGET_ARCHIVE_TEMPLATE_SOURCE}/*" \

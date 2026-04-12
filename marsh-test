@@ -5519,6 +5519,24 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
+        marsh_resolve_config_path:0)
+            TEST_NAME+=":relative_path"
+            ACTUAL=$(marsh_resolve_config_path "site/config" "templates/default")
+            EXPECTED='site/config/templates/default'
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_resolve_config_path:1)
+            TEST_NAME+=":absolute_path"
+            ACTUAL=$(marsh_resolve_config_path "site/config" "/abs/templates/default")
+            EXPECTED='/abs/templates/default'
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
         marsh_resolve_relative_path:0)
             TEST_NAME+=":parent_directory"
             ACTUAL=$(marsh_resolve_relative_path "site-map/" "../news/")
@@ -6863,6 +6881,7 @@ KNOWN_FUNCTIONS=(
     marsh_parse_yaml
     marsh_publish_processed_output
     marsh_process_markdown
+    marsh_resolve_config_path
     marsh_resolve_relative_path
     marsh_resolve_sitemap_source_path
     marsh_resolve_tag_metadata

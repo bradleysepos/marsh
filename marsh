@@ -5206,6 +5206,46 @@ function marsh_get_target_sitemap_sources {  # marsh_get_target_sitemap_sources 
     printf '%s\t%s\n' "${SITEMAP_PATH}" "${SITEMAP_SOURCE}"
 }
 
+# builds planned sitemaps for a target
+function marsh_build_target_sitemaps {  # marsh_build_target_sitemaps target_output_root site_source_root target_source_root sitemap sitemap_search markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links
+    local TARGET_OUTPUT_ROOT SITE_SOURCE_ROOT TARGET_SOURCE_ROOT SITEMAP SITEMAP_SEARCH
+    local MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_REWRITE_LINKS
+    local TARGET_SITEMAP_FILE TARGET_SITEMAP_SOURCE TARGET_SITEMAP_FOUND
+
+    TARGET_OUTPUT_ROOT="${1:-}"
+    SITE_SOURCE_ROOT="${2:-}"
+    TARGET_SOURCE_ROOT="${3:-}"
+    SITEMAP="${4:-}"
+    SITEMAP_SEARCH="${5:-false}"
+    MARKDOWN_COMMAND="${6:-}"
+    MARKDOWN_OPTIONS_CSV="${7:-}"
+    MARKDOWN_FILEEXT_CSV="${8:-}"
+    MARKDOWN_REWRITE_LINKS="${9:-}"
+    [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
+    [[ "${SITE_SOURCE_ROOT}" == "" ]] && return 1
+    [[ "${TARGET_SOURCE_ROOT}" == "" ]] && return 1
+    [[ "${SITEMAP}" == "" ]] && return 1
+    [[ "${MARKDOWN_COMMAND}" == "" ]] && return 1
+    [[ "${MARKDOWN_FILEEXT_CSV}" == "" ]] && return 1
+    [[ "${MARKDOWN_REWRITE_LINKS}" == "" ]] && return 1
+
+    TARGET_SITEMAP_FOUND=false
+    while IFS=$'\t' read -r TARGET_SITEMAP_FILE TARGET_SITEMAP_SOURCE; do
+        [[ "${TARGET_SITEMAP_FILE}" == "" ]] && continue
+        [[ "${TARGET_SITEMAP_SOURCE}" == "" ]] && continue
+        TARGET_SITEMAP_FOUND=true
+        marsh_build_sitemap \
+            "${TARGET_OUTPUT_ROOT}" \
+            "${TARGET_SITEMAP_FILE}" \
+            "${TARGET_SITEMAP_SOURCE}" \
+            "${MARKDOWN_COMMAND}" \
+            "${MARKDOWN_OPTIONS_CSV}" \
+            "${MARKDOWN_FILEEXT_CSV}" \
+            "${MARKDOWN_REWRITE_LINKS}" || return 1
+    done < <(marsh_get_target_sitemap_sources "${SITE_SOURCE_ROOT}" "${TARGET_SOURCE_ROOT}" "${SITEMAP}" "${SITEMAP_SEARCH}")
+    [[ "${TARGET_SITEMAP_FOUND}" == true ]] || return 1
+}
+
 # builds a planned document list for a target, in parallel if possible
 function marsh_build_target_documents {  # marsh_build_target_documents site_output_root target_output_rel jobs sitemap sitemap_search templates_dir template markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links #template_overrides[@] template_overrides[@] template_assets_path build_context_target_output_rel build_context_source_root documents[@]
     local SITE_OUTPUT_ROOT TARGET_OUTPUT_REL JOBS SITEMAP SITEMAP_SEARCH TEMPLATES_DIR TEMPLATE
@@ -5875,24 +5915,21 @@ function marsh_cli {
 
             # build sitemap
             if [[ "${TARGET_SITEMAP}" != "" ]]; then
-                TARGET_SOURCE_ROOT=$(marsh_get_source_root_path "${TARGET_SOURCE}") || {
+                TARGET_SOURCE_ROOT="${BUILD_CONTEXT_SOURCE_ROOT}"
+                [[ "${TARGET_SOURCE_ROOT}" != "" ]] || {
                     echo "Unable to resolve target source root for sitemap: ${TARGET_SITEMAP}" >&2
                     die_gracefully
                 }
-                TARGET_SITEMAP_FOUND=false
-                while IFS=$'\t' read -r TARGET_SITEMAP_FILE TARGET_SITEMAP_SOURCE; do
-                    [[ "${TARGET_SITEMAP_FILE}" == "" ]] && continue
-                    [[ "${TARGET_SITEMAP_SOURCE}" == "" ]] && continue
-                    TARGET_SITEMAP_FOUND=true
-                    marsh_build_sitemap "${MARSH_CONFIG_PATH}/${TARGET_PATH}" \
-                                    "${TARGET_SITEMAP_FILE}" \
-                                    "${TARGET_SITEMAP_SOURCE}" \
-                                    "${MARKDOWN_COMMAND}" \
-                                    "${MARKDOWN_OPTIONS_CSV}" \
-                                    "${MARKDOWN_FILEEXT_CSV}" \
-                                    "${MARKDOWN_REWRITE_LINKS}" || die_gracefully
-                done < <(marsh_get_target_sitemap_sources "${SITE_SOURCE_ROOT}" "${TARGET_SOURCE_ROOT}" "${TARGET_SITEMAP}" "${TARGET_SITEMAP_SEARCH}")
-                if [[ "${TARGET_SITEMAP_FOUND}" != true ]]; then
+                if ! marsh_build_target_sitemaps \
+                        "${MARSH_CONFIG_PATH}/${TARGET_PATH}" \
+                        "${SITE_SOURCE_ROOT}" \
+                        "${TARGET_SOURCE_ROOT}" \
+                        "${TARGET_SITEMAP}" \
+                        "${TARGET_SITEMAP_SEARCH}" \
+                        "${MARKDOWN_COMMAND}" \
+                        "${MARKDOWN_OPTIONS_CSV}" \
+                        "${MARKDOWN_FILEEXT_CSV}" \
+                        "${MARKDOWN_REWRITE_LINKS}"; then
                     echo "Unable to resolve sitemap source path: ${TARGET_SITEMAP}" >&2
                     die_gracefully
                 fi

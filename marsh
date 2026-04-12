@@ -2772,6 +2772,28 @@ function marsh_get_target_temp_root {  # marsh_get_target_temp_root target_outpu
     printf '%s\n' "${MARSH_TEMP}/build/targets/${TARGET_KEY}"
 }
 
+# creates the cached source-root record for a target under MARSH_TEMP
+function marsh_create_target_source_root {  # marsh_create_target_source_root target_output_root source_root
+    local TARGET_OUTPUT_ROOT SOURCE_ROOT TARGET_BUILD_TEMP_ROOT TARGET_SOURCE_ROOT_CACHE_FILE
+
+    TARGET_OUTPUT_ROOT="${1:-}"
+    SOURCE_ROOT="${2:-}"
+    [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
+    [[ "${SOURCE_ROOT}" == "" ]] && return 1
+    [[ -d "${SOURCE_ROOT}" ]] || return 1
+
+    TARGET_BUILD_TEMP_ROOT=$(marsh_get_target_temp_root "${TARGET_OUTPUT_ROOT}") || return 1
+    TARGET_SOURCE_ROOT_CACHE_FILE="${TARGET_BUILD_TEMP_ROOT}/source-root"
+    mkdir -p "${TARGET_SOURCE_ROOT_CACHE_FILE%/*}" >/dev/null 2>&1 || {
+        echo "Unable to create target source root path: ${TARGET_SOURCE_ROOT_CACHE_FILE%/*}" >&2
+        return 1
+    }
+    printf '%s\n' "${SOURCE_ROOT}" > "${TARGET_SOURCE_ROOT_CACHE_FILE}" || {
+        echo "Unable to write target source root path: ${TARGET_SOURCE_ROOT_CACHE_FILE}" >&2
+        return 1
+    }
+}
+
 # returns the configured source root for a target when cached under MARSH_TEMP
 function marsh_get_target_source_root_path {  # marsh_get_target_source_root_path target_output_root
     local TARGET_OUTPUT_ROOT TARGET_BUILD_TEMP_ROOT TARGET_SOURCE_ROOT_CACHE_FILE SOURCE_ROOT
@@ -5389,7 +5411,7 @@ function marsh_cli {
     local GENERATED_ARCHIVES GENERATED_ARCHIVE
     local TARGET_ARCHIVE_TYPES TARGET_ARCHIVE_EXCLUDED_STATES TARGET_ARCHIVE_MANIFEST
     local TARGET_ARCHIVE_TEMPLATE TARGET_ARCHIVE_TEMPLATE_SOURCE TARGET_ARCHIVE_TEMPLATE_ASSETS_PATH TARGET_ARCHIVE_TEMPLATE_OVERRIDES
-    local SITE_SOURCE_ROOT TARGET_SOURCE_ROOT TARGET_BUILD_TEMP_ROOT TARGET_SOURCE_ROOT_CACHE_FILE TARGET_SITEMAP_RESOLVED TARGET_SITEMAP_SEARCH TARGET_SITEMAP_MATCH TARGET_SITEMAP_REL TARGET_SITEMAP_FOUND TARGET_SITEMAP_FILE TARGET_SITEMAP_SOURCE
+    local SITE_SOURCE_ROOT TARGET_SOURCE_ROOT TARGET_SITEMAP_RESOLVED TARGET_SITEMAP_SEARCH TARGET_SITEMAP_MATCH TARGET_SITEMAP_REL TARGET_SITEMAP_FOUND TARGET_SITEMAP_FILE TARGET_SITEMAP_SOURCE
     local BUILD_SITE_OUTPUT_ROOT BUILD_TARGET_OUTPUT_REL BUILD_DOCUMENT BUILD_SITEMAP BUILD_SITEMAP_SEARCH
     local BUILD_CONTEXT_TARGET_OUTPUT_REL BUILD_CONTEXT_SOURCE_ROOT
     local BUILD_TEMPLATES_DIR BUILD_TEMPLATE BUILD_NUM_TEMPLATE_OVERRIDES BUILD_TEMPLATE_OVERRIDES BUILD_TEMPLATE_ASSETS_PATH
@@ -5899,10 +5921,7 @@ function marsh_cli {
             if [[ "${TARGET_SOURCE}" != "" ]]; then
                 TARGET_SOURCE_ROOT=$(marsh_get_source_root_path "${TARGET_SOURCE}") || die_gracefully
                 BUILD_CONTEXT_SOURCE_ROOT="${TARGET_SOURCE_ROOT}"
-                TARGET_BUILD_TEMP_ROOT=$(marsh_get_target_temp_root "${MARSH_CONFIG_PATH}/${TARGET_PATH}") || die_gracefully
-                TARGET_SOURCE_ROOT_CACHE_FILE="${TARGET_BUILD_TEMP_ROOT}/source-root"
-                mkdir -p "${TARGET_BUILD_TEMP_ROOT}" >/dev/null 2>&1 || die_gracefully
-                printf '%s\n' "${TARGET_SOURCE_ROOT}" > "${TARGET_SOURCE_ROOT_CACHE_FILE}" || die_gracefully
+                marsh_create_target_source_root "${MARSH_CONFIG_PATH}/${TARGET_PATH}" "${TARGET_SOURCE_ROOT}" || die_gracefully
                 marsh_copy_source_objects_to_target "${TARGET_SOURCE}" \
                         "${MARSH_CONFIG_PATH}" \
                         "${TARGET_PATH}" \

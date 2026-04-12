@@ -334,16 +334,14 @@ function marsh_test_write_document_artifacts {
 }
 
 function marsh_test_write_target_source_root {
-    local TARGET_OUTPUT_ROOT SOURCE_ROOT TARGET_SOURCE_ROOT_CACHE_FILE
+    local TARGET_OUTPUT_ROOT SOURCE_ROOT
 
     TARGET_OUTPUT_ROOT="${1:-}"
     SOURCE_ROOT="${2:-}"
     [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
     [[ "${SOURCE_ROOT}" == "" ]] && return 1
 
-    TARGET_SOURCE_ROOT_CACHE_FILE="$(marsh_get_target_temp_root "${TARGET_OUTPUT_ROOT}")/source-root" || return 1
-    mkdir -p "${TARGET_SOURCE_ROOT_CACHE_FILE%/*}" || return 1
-    printf '%s\n' "${SOURCE_ROOT}" > "${TARGET_SOURCE_ROOT_CACHE_FILE}" || return 1
+    marsh_create_target_source_root "${TARGET_OUTPUT_ROOT}" "${SOURCE_ROOT}" || return 1
 }
 
 function marsh_test_set_env {
@@ -3434,6 +3432,41 @@ function marsh_test {
                 fi
             fi
             rm -rf "${SOURCE_DIR}" "${SITE_OUTPUT_ROOT}"
+            marsh_test_restore_env
+            ;;
+        marsh_create_target_source_root:0)
+            TEST_NAME+=":creates_cached_source_root"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
+            marsh_test_set_env
+            mkdir -p "${SOURCE_ROOT}"
+            marsh_create_target_source_root "${TARGET_OUTPUT_ROOT}" "${SOURCE_ROOT}"
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                ACTUAL=$(marsh_get_target_source_root_path "${TARGET_OUTPUT_ROOT}")
+                EXPECTED="${SOURCE_ROOT}"
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${TARGET_OUTPUT_ROOT}" "${SOURCE_ROOT}"
+            marsh_test_restore_env
+            ;;
+        marsh_create_target_source_root:1)
+            TEST_NAME+=":missing_source_root"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            marsh_test_set_env
+            marsh_create_target_source_root "${TARGET_OUTPUT_ROOT}" "${TEST_TEMP_PREFIX}.missing" 2>/dev/null
+            ACTUAL=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            rm -rf "${TARGET_OUTPUT_ROOT}"
             marsh_test_restore_env
             ;;
         marsh_escape_substitution:0)
@@ -6782,6 +6815,7 @@ KNOWN_FUNCTIONS=(
     marsh_check_dependencies
     marsh_clean_target_temp
     marsh_copy_source_objects_to_target
+    marsh_create_target_source_root
     marsh_escape_substitution
     marsh_extract_frontmatter
     marsh_flat_to_array

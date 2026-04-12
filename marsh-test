@@ -4714,6 +4714,59 @@ function marsh_test {
             fi
             marsh_test_restore_env
             ;;
+        marsh_get_target_planned_documents:0)
+            TEST_NAME+=":prefers_source_documents"
+            SITE_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
+            marsh_test_set_env
+            mkdir -p "${SOURCE_ROOT}/news"
+            printf '%s\n' '# news' > "${SOURCE_ROOT}/news/index.markdown"
+            ARCHIVE_SOURCE_FILE=$(marsh_get_archive_temp_path "${SITE_OUTPUT_ROOT}" "news/index.markdown" "source")
+            mkdir -p "${ARCHIVE_SOURCE_FILE%/*}"
+            printf '%s\n' 'archive' > "${ARCHIVE_SOURCE_FILE}"
+            ACTUAL=$(marsh_get_target_planned_documents "${SITE_OUTPUT_ROOT}" "news/index.markdown" "." "${SOURCE_ROOT}" "markdown,md")
+            EXPECTED='news/index.markdown'
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            rm -rf "${SITE_OUTPUT_ROOT}" "${SOURCE_ROOT}"
+            marsh_test_restore_env
+            ;;
+        marsh_get_target_planned_documents:1)
+            TEST_NAME+=":falls_back_to_archive_documents"
+            SITE_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            marsh_test_set_env
+            ARCHIVE_SOURCE_FILE=$(marsh_get_archive_temp_path "${SITE_OUTPUT_ROOT}" "news/index.markdown" "source")
+            mkdir -p "${ARCHIVE_SOURCE_FILE%/*}"
+            printf '%s\n' 'archive' > "${ARCHIVE_SOURCE_FILE}"
+            ACTUAL=$(marsh_get_target_planned_documents "${SITE_OUTPUT_ROOT}" "news/index.markdown" "." "" "markdown,md")
+            EXPECTED='news/index.markdown'
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            rm -rf "${SITE_OUTPUT_ROOT}"
+            marsh_test_restore_env
+            ;;
+        marsh_get_target_request_relpath:0)
+            TEST_NAME+=":root_target"
+            ACTUAL=$(marsh_get_target_request_relpath "./news/index.markdown" ".")
+            EXPECTED='news/index.markdown'
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_get_target_request_relpath:1)
+            TEST_NAME+=":nested_target"
+            ACTUAL=$(marsh_get_target_request_relpath "about/team/index.markdown" "about")
+            EXPECTED='team/index.markdown'
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
         marsh_get_target_scope_paths:0)
             TEST_NAME+=":directory_scope"
             SITE_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
@@ -6656,6 +6709,8 @@ KNOWN_FUNCTIONS=(
     marsh_get_target_document_paths
     marsh_get_target_metadata
     marsh_get_target_output_path
+    marsh_get_target_planned_documents
+    marsh_get_target_request_relpath
     marsh_get_target_sitemap_sources
     marsh_get_target_scope_paths
     marsh_get_target_source_root_path

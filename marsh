@@ -5025,6 +5025,29 @@ function marsh_build_document_and_template {  # marsh_build_document_and_templat
     return 0
 }
 
+# returns the request path relative to the current target root
+function marsh_get_target_request_relpath {  # marsh_get_target_request_relpath target target_output_rel
+    local TARGET TARGET_OUTPUT_REL REQUESTED_TARGET_REL
+
+    TARGET="${1:-}"
+    TARGET_OUTPUT_REL="${2:-.}"
+    [[ "${TARGET}" == "" ]] && return 1
+    [[ "${TARGET_OUTPUT_REL}" == "" ]] && return 1
+
+    # nested targets receive site-relative requests, so strip the target
+    # prefix when present and keep '.' for an exact target-root request
+    REQUESTED_TARGET_REL="${TARGET#./}"
+    if [[ "${TARGET_OUTPUT_REL}" != "." ]]; then
+        if [[ "${REQUESTED_TARGET_REL}" == "${TARGET_OUTPUT_REL}" ]]; then
+            REQUESTED_TARGET_REL='.'
+        elif [[ "${REQUESTED_TARGET_REL}" == "${TARGET_OUTPUT_REL}/"* ]]; then
+            REQUESTED_TARGET_REL="${REQUESTED_TARGET_REL#${TARGET_OUTPUT_REL}/}"
+        fi
+    fi
+
+    printf '%s\n' "${REQUESTED_TARGET_REL}"
+}
+
 # returns scoped source-relative paths for a target request
 function marsh_get_target_scope_paths {  # marsh_get_target_scope_paths site_output_root target target_output_rel target_source_root
     local SITE_OUTPUT_ROOT TARGET TARGET_OUTPUT_REL TARGET_SOURCE_ROOT
@@ -5039,15 +5062,8 @@ function marsh_get_target_scope_paths {  # marsh_get_target_scope_paths site_out
     [[ "${TARGET_OUTPUT_REL}" == "" ]] && return 1
     [[ "${TARGET_SOURCE_ROOT}" == "" ]] && return 1
 
-    # interpret the requested path relative to the current target root
-    REQUESTED_TARGET_REL="${TARGET#./}"
-    if [[ "${TARGET_OUTPUT_REL}" != "." ]]; then
-        if [[ "${REQUESTED_TARGET_REL}" == "${TARGET_OUTPUT_REL}" ]]; then
-            REQUESTED_TARGET_REL='.'
-        elif [[ "${REQUESTED_TARGET_REL}" == "${TARGET_OUTPUT_REL}/"* ]]; then
-            REQUESTED_TARGET_REL="${REQUESTED_TARGET_REL#${TARGET_OUTPUT_REL}/}"
-        fi
-    fi
+    # scope matching runs against the current target root, not the site root
+    REQUESTED_TARGET_REL=$(marsh_get_target_request_relpath "${TARGET}" "${TARGET_OUTPUT_REL}") || return 1
 
     # directory scopes include descendants while file scopes match exactly
     TARGET_IS_DIRECTORY_SCOPE=false
@@ -5116,20 +5132,46 @@ function marsh_get_target_archive_documents {  # marsh_get_target_archive_docume
     [[ "${TARGET}" != '*' ]] || return 0
     [[ ! -d "${SITE_OUTPUT_ROOT}/${TARGET}" ]] || return 0
 
+    # archive temp artifacts are keyed by the site-relative request, but the
+    # executor still needs the document id relative to the current target root
     REQUESTED_TARGET_SITE_REL="${TARGET#./}"
-    REQUESTED_TARGET_REL="${TARGET#./}"
-    if [[ "${TARGET_OUTPUT_REL}" != "." ]]; then
-        if [[ "${REQUESTED_TARGET_REL}" == "${TARGET_OUTPUT_REL}" ]]; then
-            REQUESTED_TARGET_REL='.'
-        elif [[ "${REQUESTED_TARGET_REL}" == "${TARGET_OUTPUT_REL}/"* ]]; then
-            REQUESTED_TARGET_REL="${REQUESTED_TARGET_REL#${TARGET_OUTPUT_REL}/}"
-        fi
-    fi
+    REQUESTED_TARGET_REL=$(marsh_get_target_request_relpath "${TARGET}" "${TARGET_OUTPUT_REL}") || return 1
 
     DOCUMENT="${REQUESTED_TARGET_REL#./}"
     if [[ -f "$(marsh_get_archive_temp_path "${SITE_OUTPUT_ROOT}" "${REQUESTED_TARGET_SITE_REL}" "source" 2>/dev/null)" ]]; then
         printf '%s\n' "${DOCUMENT}"
     fi
+}
+
+# returns planned documents for a target from ordinary source or synthetic archive inputs
+function marsh_get_target_planned_documents {  # marsh_get_target_planned_documents site_output_root target target_output_rel target_source_root markdown_fileext_csv
+    local SITE_OUTPUT_ROOT TARGET TARGET_OUTPUT_REL TARGET_SOURCE_ROOT MARKDOWN_FILEEXT_CSV
+    local DOCUMENT PLANNED_DOCUMENTS
+
+    SITE_OUTPUT_ROOT="${1:-}"
+    TARGET="${2:-}"
+    TARGET_OUTPUT_REL="${3:-.}"
+    TARGET_SOURCE_ROOT="${4:-}"
+    MARKDOWN_FILEEXT_CSV="${5:-}"
+    [[ "${SITE_OUTPUT_ROOT}" == "" ]] && return 1
+    [[ "${TARGET}" == "" ]] && return 1
+    [[ "${TARGET_OUTPUT_REL}" == "" ]] && return 1
+    [[ "${MARKDOWN_FILEEXT_CSV}" == "" ]] && return 1
+
+    PLANNED_DOCUMENTS=()
+    if [[ "${TARGET_SOURCE_ROOT}" != "" ]]; then
+        while IFS= read -r DOCUMENT; do
+            [[ "${DOCUMENT}" == "" ]] && continue
+            PLANNED_DOCUMENTS+=("${DOCUMENT}")
+        done < <(marsh_get_target_build_documents "${SITE_OUTPUT_ROOT}" "${TARGET}" "${TARGET_OUTPUT_REL}" "${TARGET_SOURCE_ROOT}" "${MARKDOWN_FILEEXT_CSV}")
+    fi
+    if [[ "${#PLANNED_DOCUMENTS[@]}" -eq 0 ]]; then
+        while IFS= read -r DOCUMENT; do
+            [[ "${DOCUMENT}" == "" ]] && continue
+            PLANNED_DOCUMENTS+=("${DOCUMENT}")
+        done < <(marsh_get_target_archive_documents "${SITE_OUTPUT_ROOT}" "${TARGET}" "${TARGET_OUTPUT_REL}")
+    fi
+    printf '%s\n' "${PLANNED_DOCUMENTS[@]}"
 }
 
 # returns target sitemap file and source path pairs as tab-separated records
@@ -5170,8 +5212,8 @@ function marsh_build_target {  # marsh_build_target site_output_root target jobs
     local MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_REWRITE_LINKS
     local NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDES SKIP_TEMPLATE_ASSETS TEMPLATE_ASSETS_PATH
     local BUILD_CONTEXT_TARGET_OUTPUT_REL BUILD_CONTEXT_SOURCE_ROOT
-    local TARGET_OUTPUT_REL TEMPLATE_PREFIX DOCUMENTS ARCHIVE_DOCUMENTS DOCUMENT
-    local REQUESTED_TARGET_REL REQUESTED_TARGET_SITE_REL TARGET_OUTPUT_ROOT TARGET_SOURCE_ROOT SOURCE_DOCUMENT
+    local TARGET_OUTPUT_REL TEMPLATE_PREFIX DOCUMENTS DOCUMENT
+    local TARGET_OUTPUT_ROOT TARGET_SOURCE_ROOT SOURCE_DOCUMENT
     local PARALLEL PARALLEL_MARKDOWN
 
     # init
@@ -5218,41 +5260,13 @@ function marsh_build_target {  # marsh_build_target site_output_root target jobs
 
     # build target documents
     TARGET_OUTPUT_ROOT=$(marsh_get_target_directory_path "${SITE_OUTPUT_ROOT}/${TARGET_OUTPUT_REL}") || return 1
-    # interpret the requested target relative to the current target root
-    # here '.' means current target root, not the site root
-    REQUESTED_TARGET_SITE_REL="${TARGET#./}"
-    REQUESTED_TARGET_REL="${TARGET#./}"
-    if [[ "${TARGET_OUTPUT_REL}" != "." ]]; then
-        # nested target builds pass paths that may still include the target prefix
-        # strip the prefix so source tree matching is relative to TARGET_OUTPUT_REL
-        if [[ "${REQUESTED_TARGET_REL}" == "${TARGET_OUTPUT_REL}" ]]; then
-            REQUESTED_TARGET_REL='.'
-        elif [[ "${REQUESTED_TARGET_REL}" == "${TARGET_OUTPUT_REL}/"* ]]; then
-            REQUESTED_TARGET_REL="${REQUESTED_TARGET_REL#${TARGET_OUTPUT_REL}/}"
-        fi
-    fi
     TARGET_SOURCE_ROOT="${BUILD_CONTEXT_SOURCE_ROOT}"
     DOCUMENTS=()
-    if [[ "${TARGET_SOURCE_ROOT}" != "" ]]; then
-        while IFS= read -r SOURCE_DOCUMENT; do
-            [[ "${SOURCE_DOCUMENT}" == "" ]] && continue
-            DOCUMENTS+=("${SOURCE_DOCUMENT}")
-        done < <(marsh_get_target_build_documents "${SITE_OUTPUT_ROOT}" "${TARGET}" "${TARGET_OUTPUT_REL}" "${TARGET_SOURCE_ROOT}" "${MARKDOWN_FILEEXT_CSV}")
-    fi
-    # synthetic archive pages are planned on a separate path from ordinary source documents
-    if [[ "${#DOCUMENTS[@]}" -eq 0 ]]; then
-        ARCHIVE_DOCUMENTS=()
-        while IFS= read -r DOCUMENT; do
-            [[ "${DOCUMENT}" == "" ]] && continue
-            ARCHIVE_DOCUMENTS+=("${DOCUMENT}")
-        done < <(marsh_get_target_archive_documents "${SITE_OUTPUT_ROOT}" "${TARGET}" "${TARGET_OUTPUT_REL}")
-        if [[ "${#ARCHIVE_DOCUMENTS[@]}" -gt 0 ]]; then
-            DOCUMENTS=("${ARCHIVE_DOCUMENTS[@]}")
-        elif [[ "${TARGET_SOURCE_ROOT}" == "" ]]; then
-            echo "Document source root not found for target: ${TARGET_OUTPUT_ROOT}" >&2
-            return 1
-        fi
-    elif [[ "${#DOCUMENTS[@]}" -eq 0 ]] && [[ "${TARGET_SOURCE_ROOT}" == "" ]]; then
+    while IFS= read -r SOURCE_DOCUMENT; do
+        [[ "${SOURCE_DOCUMENT}" == "" ]] && continue
+        DOCUMENTS+=("${SOURCE_DOCUMENT}")
+    done < <(marsh_get_target_planned_documents "${SITE_OUTPUT_ROOT}" "${TARGET}" "${TARGET_OUTPUT_REL}" "${TARGET_SOURCE_ROOT}" "${MARKDOWN_FILEEXT_CSV}")
+    if [[ "${#DOCUMENTS[@]}" -eq 0 ]] && [[ "${TARGET_SOURCE_ROOT}" == "" ]]; then
         echo "Document source root not found for target: ${TARGET_OUTPUT_ROOT}" >&2
         return 1
     fi

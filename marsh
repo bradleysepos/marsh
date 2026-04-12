@@ -5334,6 +5334,30 @@ function marsh_get_target_planned_documents {  # marsh_get_target_planned_docume
     printf '%s\n' "${PLANNED_DOCUMENTS[@]}"
 }
 
+# plans target documents to build
+function marsh_plan_target_documents {  # marsh_plan_target_documents site_output_root target target_output_rel target_source_root markdown_fileext_csv
+    local SITE_OUTPUT_ROOT TARGET TARGET_OUTPUT_REL TARGET_SOURCE_ROOT MARKDOWN_FILEEXT_CSV
+    local DOCUMENT_ID
+
+    SITE_OUTPUT_ROOT="${1:-}"
+    TARGET="${2:-}"
+    TARGET_OUTPUT_REL="${3:-.}"
+    TARGET_SOURCE_ROOT="${4:-}"
+    MARKDOWN_FILEEXT_CSV="${5:-}"
+    [[ "${SITE_OUTPUT_ROOT}" == "" ]] && return 1
+    [[ "${TARGET}" == "" ]] && return 1
+    [[ "${TARGET_OUTPUT_REL}" == "" ]] && return 1
+    [[ "${MARKDOWN_FILEEXT_CSV}" == "" ]] && return 1
+
+    TARGET_OUTPUT_REL=$(marsh_normalize_internal_path "${TARGET_OUTPUT_REL}") || return 1
+
+    # emit document plan records using shell-safe fields
+    while IFS= read -r DOCUMENT_ID; do
+        [[ "${DOCUMENT_ID}" == "" ]] && continue
+        printf '%q\t%q\t%q\t%q\n' "${DOCUMENT_ID}" "${DOCUMENT_ID}" "${TARGET_OUTPUT_REL}" "${TARGET_SOURCE_ROOT}"
+    done < <(marsh_get_target_planned_documents "${SITE_OUTPUT_ROOT}" "${TARGET}" "${TARGET_OUTPUT_REL}" "${TARGET_SOURCE_ROOT}" "${MARKDOWN_FILEEXT_CSV}")
+}
+
 # plans target sitemaps as file and source path pairs
 function marsh_plan_target_sitemaps {  # marsh_plan_target_sitemaps site_source_root target_source_root sitemap_path [search] [target_output_root]
     local SITE_SOURCE_ROOT TARGET_SOURCE_ROOT SITEMAP_PATH SITEMAP_SEARCH TARGET_OUTPUT_ROOT
@@ -5467,13 +5491,84 @@ function marsh_build_target_documents {  # marsh_build_target_documents site_out
     fi
 }
 
+# builds planned documents for a target, in parallel if possible
+function marsh_build_planned_target_documents {  # marsh_build_planned_target_documents site_output_root jobs sitemap sitemap_search templates_dir template markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links #template_overrides[@] template_overrides[@] template_assets_path document_records[@]
+    local SITE_OUTPUT_ROOT JOBS SITEMAP SITEMAP_SEARCH TEMPLATES_DIR TEMPLATE
+    local MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_REWRITE_LINKS
+    local NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDES TEMPLATE_ASSETS_PATH
+    local DOCUMENT_RECORD DOCUMENT_ID SOURCE_RELPATH TARGET_OUTPUT_REL SOURCE_ROOT
+    local DOCUMENT_ID_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC
+    local DOCUMENTS PLAN_CONTEXT_IDENTIFIED PLAN_TARGET_OUTPUT_REL PLAN_SOURCE_ROOT
+
+    SITE_OUTPUT_ROOT="${1:-.}"
+    JOBS="${2:-1}"
+    SITEMAP="${3:-}"
+    SITEMAP_SEARCH="${4:-false}"
+    TEMPLATES_DIR="${5:-}"
+    TEMPLATE="${6:-}"
+    MARKDOWN_COMMAND="${7:-}"
+    MARKDOWN_OPTIONS_CSV="${8:-}"
+    MARKDOWN_FILEEXT_CSV="${9:-}"
+    MARKDOWN_REWRITE_LINKS="${10:-}"
+    shift 10
+    [[ "${MARKDOWN_COMMAND}" == "" ]] && return 1
+    [[ "${MARKDOWN_FILEEXT_CSV}" == "" ]] && return 1
+    [[ "${MARKDOWN_REWRITE_LINKS}" == "" ]] && return 1
+    NUM_TEMPLATE_OVERRIDES="${1:-0}"
+    shift 1
+    TEMPLATE_OVERRIDES=()
+    while [[ "${NUM_TEMPLATE_OVERRIDES}" -gt 0 ]] && [[ "${#@}" -gt 0 ]]; do
+        TEMPLATE_OVERRIDES+=("${1}")
+        NUM_TEMPLATE_OVERRIDES=$((NUM_TEMPLATE_OVERRIDES - 1))
+        shift 1
+    done
+    TEMPLATE_ASSETS_PATH="${1:-}"
+    shift 1
+
+    # first record establishes the shared target context for the batch
+    # PLAN_CONTEXT_IDENTIFIED distinguishes the initial record from later validation
+    TARGET_OUTPUT_REL=""
+    SOURCE_ROOT=""
+    PLAN_CONTEXT_IDENTIFIED=false
+    DOCUMENTS=()
+    while [[ "${#@}" -gt 0 ]]; do
+        DOCUMENT_RECORD="${1:-}"
+        shift 1
+        [[ "${DOCUMENT_RECORD}" == "" ]] && continue
+        IFS=$'\t' read -r DOCUMENT_ID_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC <<< "${DOCUMENT_RECORD}"
+        [[ "${DOCUMENT_ID_ESC}" == "" ]] && continue
+        eval "DOCUMENT_ID=${DOCUMENT_ID_ESC}"
+        eval "SOURCE_RELPATH=${SOURCE_RELPATH_ESC}"
+        eval "TARGET_OUTPUT_REL=${TARGET_OUTPUT_REL_ESC}"
+        eval "SOURCE_ROOT=${SOURCE_ROOT_ESC}"
+        [[ "${DOCUMENT_ID}" == "" ]] && return 1
+        [[ "${TARGET_OUTPUT_REL}" == "" ]] && return 1
+
+        # consume one target-scoped document batch at a time
+        # mixed target contexts should be split by the caller
+        if [[ "${PLAN_CONTEXT_IDENTIFIED}" != true ]]; then
+            PLAN_CONTEXT_IDENTIFIED=true
+            PLAN_TARGET_OUTPUT_REL="${TARGET_OUTPUT_REL}"
+            PLAN_SOURCE_ROOT="${SOURCE_ROOT}"
+        else
+            [[ "${PLAN_TARGET_OUTPUT_REL}" == "${TARGET_OUTPUT_REL}" ]] || return 1
+            [[ "${PLAN_SOURCE_ROOT}" == "${SOURCE_ROOT}" ]] || return 1
+        fi
+
+        DOCUMENTS+=("${DOCUMENT_ID}")
+    done
+
+    [[ "${#DOCUMENTS[@]}" -gt 0 ]] || return 0
+    marsh_build_target_documents "${SITE_OUTPUT_ROOT}" "${PLAN_TARGET_OUTPUT_REL}" "${JOBS}" "${SITEMAP}" "${SITEMAP_SEARCH}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_FILEEXT_CSV}" "${MARKDOWN_REWRITE_LINKS}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_ASSETS_PATH}" "${PLAN_TARGET_OUTPUT_REL}" "${PLAN_SOURCE_ROOT}" "${DOCUMENTS[@]}"
+}
+
 # builds a target, parallel if possible
 function marsh_build_target {  # marsh_build_target site_output_root target jobs sitemap sitemap_search templates_dir template markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links #template_overrides[@] template_overrides[@] skip_template_assets template_assets_path build_context_target_output_rel build_context_source_root
     local SITE_OUTPUT_ROOT TARGET JOBS SITEMAP TEMPLATES_DIR TEMPLATE SITEMAP_SEARCH
     local MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_REWRITE_LINKS
     local NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDES SKIP_TEMPLATE_ASSETS TEMPLATE_ASSETS_PATH
     local BUILD_CONTEXT_TARGET_OUTPUT_REL BUILD_CONTEXT_SOURCE_ROOT
-    local TARGET_OUTPUT_REL TEMPLATE_PREFIX DOCUMENTS
+    local TARGET_OUTPUT_REL TEMPLATE_PREFIX DOCUMENTS DOCUMENT_RECORDS DOCUMENT_RECORD
     local TARGET_OUTPUT_ROOT TARGET_SOURCE_ROOT SOURCE_DOCUMENT
 
     # init
@@ -5521,16 +5616,16 @@ function marsh_build_target {  # marsh_build_target site_output_root target jobs
     # build target documents
     TARGET_OUTPUT_ROOT=$(marsh_get_target_directory_path "${SITE_OUTPUT_ROOT}/${TARGET_OUTPUT_REL}") || return 1
     TARGET_SOURCE_ROOT="${BUILD_CONTEXT_SOURCE_ROOT}"
-    DOCUMENTS=()
-    while IFS= read -r SOURCE_DOCUMENT; do
-        [[ "${SOURCE_DOCUMENT}" == "" ]] && continue
-        DOCUMENTS+=("${SOURCE_DOCUMENT}")
-    done < <(marsh_get_target_planned_documents "${SITE_OUTPUT_ROOT}" "${TARGET}" "${TARGET_OUTPUT_REL}" "${TARGET_SOURCE_ROOT}" "${MARKDOWN_FILEEXT_CSV}")
-    if [[ "${#DOCUMENTS[@]}" -eq 0 ]] && [[ "${TARGET_SOURCE_ROOT}" == "" ]]; then
+    DOCUMENT_RECORDS=()
+    while IFS= read -r DOCUMENT_RECORD; do
+        [[ "${DOCUMENT_RECORD}" == "" ]] && continue
+        DOCUMENT_RECORDS+=("${DOCUMENT_RECORD}")
+    done < <(marsh_plan_target_documents "${SITE_OUTPUT_ROOT}" "${TARGET}" "${TARGET_OUTPUT_REL}" "${TARGET_SOURCE_ROOT}" "${MARKDOWN_FILEEXT_CSV}")
+    if [[ "${#DOCUMENT_RECORDS[@]}" -eq 0 ]] && [[ "${TARGET_SOURCE_ROOT}" == "" ]]; then
         echo "Document source root not found for target: ${TARGET_OUTPUT_ROOT}" >&2
         return 1
     fi
-    if ! marsh_build_target_documents "${SITE_OUTPUT_ROOT}" "${TARGET_OUTPUT_REL}" "${JOBS}" "${SITEMAP}" "${SITEMAP_SEARCH}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_FILEEXT_CSV}" "${MARKDOWN_REWRITE_LINKS}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_ASSETS_PATH}" "${TARGET_OUTPUT_REL}" "${TARGET_SOURCE_ROOT}" "${DOCUMENTS[@]}"; then
+    if ! marsh_build_planned_target_documents "${SITE_OUTPUT_ROOT}" "${JOBS}" "${SITEMAP}" "${SITEMAP_SEARCH}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_FILEEXT_CSV}" "${MARKDOWN_REWRITE_LINKS}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_ASSETS_PATH}" "${DOCUMENT_RECORDS[@]}"; then
         echo "Unable to build one or more documents in target: ${TARGET}" >&2
         return 1
     fi

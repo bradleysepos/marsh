@@ -3366,6 +3366,56 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
+        marsh_copy_source_objects:0)
+            TEST_NAME+=":copies_selected_objects"
+            SOURCE_DIR="${TEST_TEMP_PREFIX}.source"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            marsh_test_set_env
+            mkdir -p "${SOURCE_DIR}/docs" "${SOURCE_DIR}/images"
+            printf '%s\n' 'asset' > "${SOURCE_DIR}/docs/logo.txt"
+            printf '%s\n' 'pngdata' > "${SOURCE_DIR}/images/logo.png"
+            marsh_copy_source_objects "${SOURCE_DIR}" "${TARGET_OUTPUT_ROOT}" false "docs/logo.txt" "images/logo.png"
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                {
+                    [[ -e "${TARGET_OUTPUT_ROOT}/docs/logo.txt" ]] \
+                        && [[ -e "${TARGET_OUTPUT_ROOT}/images/logo.png" ]]
+                }
+                ACTUAL=$?
+                EXPECTED=0
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${SOURCE_DIR}" "${TARGET_OUTPUT_ROOT}"
+            marsh_test_restore_env
+            ;;
+        marsh_copy_source_objects:1)
+            TEST_NAME+=":existing_path_without_force"
+            SOURCE_DIR="${TEST_TEMP_PREFIX}.source"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            marsh_test_set_env
+            mkdir -p "${SOURCE_DIR}/docs" "${TARGET_OUTPUT_ROOT}/docs"
+            printf '%s\n' 'new asset' > "${SOURCE_DIR}/docs/logo.txt"
+            printf '%s\n' 'existing asset' > "${TARGET_OUTPUT_ROOT}/docs/logo.txt"
+            marsh_copy_source_objects "${SOURCE_DIR}" "${TARGET_OUTPUT_ROOT}" false "docs/logo.txt" >/dev/null 2>&1
+            ACTUAL=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                ACTUAL=$(<"${TARGET_OUTPUT_ROOT}/docs/logo.txt")
+                EXPECTED='existing asset'
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${SOURCE_DIR}" "${TARGET_OUTPUT_ROOT}"
+            marsh_test_restore_env
+            ;;
         marsh_copy_source_objects_to_target:0)
             TEST_NAME+=":skips_markdown_copies_passthrough"
             SOURCE_DIR="${TEST_TEMP_PREFIX}.source"
@@ -6878,6 +6928,7 @@ KNOWN_FUNCTIONS=(
     marsh_build_template
     marsh_check_dependencies
     marsh_clean_target_temp
+    marsh_copy_source_objects
     marsh_copy_source_objects_to_target
     marsh_create_target_source_root
     marsh_create_template_cache

@@ -2353,34 +2353,25 @@ function marsh_get_source_objects {  # marsh_get_source_objects source markdown_
     done <<< "${FILES_LIST}"
 }
 
-# copies selected source objects into a target output root
-function marsh_copy_source_objects_to_target {  # marsh_copy_source_objects_to_target source site_output_root target_output_rel markdown_fileext_csv force
-    local SOURCE SITE_OUTPUT_ROOT TARGET_OUTPUT_REL MARKDOWN_FILEEXT_CSV FORCE
-    local SOURCE_DIR FILES_LIST REL_PATH OUTPUT_PATH TARGET_OUTPUT_ROOT
+# copies source-relative objects into a resolved target output root
+function marsh_copy_source_objects {  # marsh_copy_source_objects source_dir target_output_root force source_objects[@]
+    local SOURCE_DIR TARGET_OUTPUT_ROOT FORCE REL_PATH OUTPUT_PATH
 
-    # init
-    SOURCE="${1:-}"
-    SITE_OUTPUT_ROOT="${2:-}"
-    TARGET_OUTPUT_REL="${3:-}"
-    MARKDOWN_FILEEXT_CSV="${4:-}"
-    FORCE="${5:-}"
-    [[ "${SOURCE}" == "" ]] && return 1
-    [[ "${SITE_OUTPUT_ROOT}" == "" ]] && return 1
-    [[ "${TARGET_OUTPUT_REL}" == "" ]] && return 1
-    [[ "${MARKDOWN_FILEEXT_CSV}" == "" ]] && return 1
-
-    SOURCE_DIR="${SOURCE%/*}"
-    SOURCE_DIR="${SOURCE_DIR:-.}"
-    TARGET_OUTPUT_ROOT=$(marsh_get_target_directory_path "${SITE_OUTPUT_ROOT}/${TARGET_OUTPUT_REL}") || return 1
-    [[ -d "${SOURCE}" ]] && SOURCE_DIR="${SOURCE}"
-    FILES_LIST=$(marsh_get_source_objects "${SOURCE}" "${MARKDOWN_FILEEXT_CSV}") || return 1
+    SOURCE_DIR="${1:-}"
+    TARGET_OUTPUT_ROOT="${2:-}"
+    FORCE="${3:-}"
+    shift 3
+    [[ "${SOURCE_DIR}" == "" ]] && return 1
+    [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
 
     mkdir -p "${TARGET_OUTPUT_ROOT}" >/dev/null 2>&1 || {
         echo "Unable to create path: ${TARGET_OUTPUT_ROOT}" >&2
         return 1
     }
 
-    while IFS= read -r REL_PATH; do
+    while [[ "${#@}" -gt 0 ]]; do
+        REL_PATH="${1:-}"
+        shift 1
         [[ "${REL_PATH}" == "" ]] && continue
         OUTPUT_PATH="${TARGET_OUTPUT_ROOT}/${REL_PATH}"
         if [[ -e "${OUTPUT_PATH}" ]] && [[ "${FORCE}" != true ]]; then
@@ -2399,9 +2390,36 @@ function marsh_copy_source_objects_to_target {  # marsh_copy_source_objects_to_t
             echo "Unable to copy file: ${SOURCE_DIR}/${REL_PATH} -> ${OUTPUT_PATH}" >&2
             return 1
         }
-    done <<< "${FILES_LIST}"
+    done
+}
 
-    return 0
+# resolves target-aware source object selection and delegates copying
+function marsh_copy_source_objects_to_target {  # marsh_copy_source_objects_to_target source site_output_root target_output_rel markdown_fileext_csv force
+    local SOURCE SITE_OUTPUT_ROOT TARGET_OUTPUT_REL MARKDOWN_FILEEXT_CSV FORCE
+    local SOURCE_DIR FILES_LIST TARGET_OUTPUT_ROOT SOURCE_OBJECTS REL_PATH
+
+    # init
+    SOURCE="${1:-}"
+    SITE_OUTPUT_ROOT="${2:-}"
+    TARGET_OUTPUT_REL="${3:-}"
+    MARKDOWN_FILEEXT_CSV="${4:-}"
+    FORCE="${5:-}"
+    [[ "${SOURCE}" == "" ]] && return 1
+    [[ "${SITE_OUTPUT_ROOT}" == "" ]] && return 1
+    [[ "${TARGET_OUTPUT_REL}" == "" ]] && return 1
+    [[ "${MARKDOWN_FILEEXT_CSV}" == "" ]] && return 1
+
+    SOURCE_DIR="${SOURCE%/*}"
+    SOURCE_DIR="${SOURCE_DIR:-.}"
+    TARGET_OUTPUT_ROOT=$(marsh_get_target_directory_path "${SITE_OUTPUT_ROOT}/${TARGET_OUTPUT_REL}") || return 1
+    [[ -d "${SOURCE}" ]] && SOURCE_DIR="${SOURCE}"
+    FILES_LIST=$(marsh_get_source_objects "${SOURCE}" "${MARKDOWN_FILEEXT_CSV}") || return 1
+    SOURCE_OBJECTS=()
+    while IFS= read -r REL_PATH; do
+        [[ "${REL_PATH}" == "" ]] && continue
+        SOURCE_OBJECTS+=("${REL_PATH}")
+    done <<< "${FILES_LIST}"
+    marsh_copy_source_objects "${SOURCE_DIR}" "${TARGET_OUTPUT_ROOT}" "${FORCE}" "${SOURCE_OBJECTS[@]}"
 }
 
 # resolves a template asset output path relative to the target root and rejects traversal beyond the site root

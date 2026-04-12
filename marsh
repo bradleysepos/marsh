@@ -2396,7 +2396,7 @@ function marsh_copy_source_objects {  # marsh_copy_source_objects source_dir tar
 # creates a plan for direct copy of source assets for a target
 function marsh_plan_target_source_assets {  # marsh_plan_target_source_assets source site_output_root target_output_rel markdown_fileext_csv
     local SOURCE SITE_OUTPUT_ROOT TARGET_OUTPUT_REL MARKDOWN_FILEEXT_CSV
-    local SOURCE_DIR TARGET_SOURCE_ASSETS REL_PATH
+    local SOURCE_ROOT TARGET_OUTPUT_ROOT SOURCE_PATH_PATTERN TARGET_SOURCE_INVENTORY REL_PATH MATCH_REL_PATH
 
     SOURCE="${1:-}"
     SITE_OUTPUT_ROOT="${2:-}"
@@ -2407,17 +2407,27 @@ function marsh_plan_target_source_assets {  # marsh_plan_target_source_assets so
     [[ "${TARGET_OUTPUT_REL}" == "" ]] && return 1
     [[ "${MARKDOWN_FILEEXT_CSV}" == "" ]] && return 1
 
-    SOURCE_DIR="${SOURCE%/*}"
-    SOURCE_DIR="${SOURCE_DIR:-.}"
-    [[ -d "${SOURCE}" ]] && SOURCE_DIR="${SOURCE}"
-    TARGET_SOURCE_ASSETS=$(marsh_get_source_objects "${SOURCE}" "${MARKDOWN_FILEEXT_CSV}") || return 1
+    SOURCE_ROOT=$(marsh_get_source_root_path "${SOURCE}") || return 1
+    TARGET_OUTPUT_ROOT=$(marsh_get_target_directory_path "${SITE_OUTPUT_ROOT}/${TARGET_OUTPUT_REL}") || return 1
+    SOURCE_PATH_PATTERN="${SOURCE##*/}"
+    [[ -d "${SOURCE}" ]] && SOURCE_PATH_PATTERN=""
+    TARGET_SOURCE_INVENTORY=$(marsh_get_target_source_inventory "${TARGET_OUTPUT_ROOT}" "${SOURCE_ROOT}") || return 1
     TARGET_OUTPUT_REL=$(marsh_normalize_internal_path "${TARGET_OUTPUT_REL}") || return 1
 
-    # emit source asset records using shell-safe fields
+    # emit source asset records from the target-scoped cached inventory
     while IFS= read -r REL_PATH; do
         [[ "${REL_PATH}" == "" ]] && continue
-        printf '%q\t%q\t%q\t%q\n' "${REL_PATH}" "${REL_PATH}" "${TARGET_OUTPUT_REL}" "${SOURCE_DIR}"
-    done <<< "${TARGET_SOURCE_ASSETS}"
+        if [[ "${SOURCE_PATH_PATTERN}" != "" ]]; then
+            MATCH_REL_PATH="${REL_PATH%%/*}"
+            [[ "${REL_PATH}" == */* ]] || MATCH_REL_PATH="${REL_PATH}"
+            [[ "${MATCH_REL_PATH}" == ${SOURCE_PATH_PATTERN} ]] || continue
+        fi
+        # markdown files are rendered instead of copied directly
+        if marsh_is_markdown_extension "${REL_PATH##*.}" "${MARKDOWN_FILEEXT_CSV}"; then
+            continue
+        fi
+        printf '%q\t%q\t%q\t%q\n' "${REL_PATH}" "${REL_PATH}" "${TARGET_OUTPUT_REL}" "${SOURCE_ROOT}"
+    done <<< "${TARGET_SOURCE_INVENTORY}"
 }
 
 # copies planned source assets for a target

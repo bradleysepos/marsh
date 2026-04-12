@@ -3376,6 +3376,7 @@ function marsh_test {
             SITE_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
             SOURCE_ASSET_RECORDS=()
+            marsh_test_set_env
             mkdir -p "${SOURCE_ROOT}/docs" "${SITE_OUTPUT_ROOT}"
             printf '%s\n' '---'$'\n''Title: Example'$'\n''...'$'\n'''$'\n''# Example' > "${SOURCE_ROOT}/index.markdown"
             printf '%s\n' '# Guide' > "${SOURCE_ROOT}/docs/guide.md"
@@ -3407,6 +3408,7 @@ function marsh_test {
                 fi
             fi
             rm -rf "${SOURCE_ROOT}" "${SITE_OUTPUT_ROOT}"
+            marsh_test_restore_env
             ;;
         marsh_copy_planned_target_source_assets:1)
             TEST_NAME+=":directory_plan_records"
@@ -3414,6 +3416,7 @@ function marsh_test {
             SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
             TARGET_OUTPUT_ROOT="${SITE_OUTPUT_ROOT}/www"
             SOURCE_ASSET_RECORDS=()
+            marsh_test_set_env
             mkdir -p "${SOURCE_ROOT}/images" "${TARGET_OUTPUT_ROOT}"
             printf '%s\n' 'pngdata' > "${SOURCE_ROOT}/images/logo.png"
             printf '%s\n' '---'$'\n''Title: Example'$'\n''...'$'\n'''$'\n''# Example' > "${SOURCE_ROOT}/index.markdown"
@@ -3444,6 +3447,7 @@ function marsh_test {
                 fi
             fi
             rm -rf "${SOURCE_ROOT}" "${SITE_OUTPUT_ROOT}"
+            marsh_test_restore_env
             ;;
         marsh_copy_source_objects:0)
             TEST_NAME+=":copies_selected_objects"
@@ -5622,6 +5626,7 @@ function marsh_test {
             TEST_NAME+=":glob_source_selection"
             SITE_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
+            marsh_test_set_env
             mkdir -p "${SOURCE_ROOT}/docs"
             printf '%s\n' '# readme' > "${SOURCE_ROOT}/readme.markdown"
             printf '%s\n' 'download' > "${SOURCE_ROOT}/download.bin"
@@ -5644,11 +5649,13 @@ function marsh_test {
                 RES="[PASS]"
             fi
             rm -rf "${SITE_OUTPUT_ROOT}" "${SOURCE_ROOT}"
+            marsh_test_restore_env
             ;;
         marsh_plan_target_source_assets:1)
             TEST_NAME+=":directory_source_selection"
             SITE_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
+            marsh_test_set_env
             mkdir -p "${SOURCE_ROOT}/images"
             printf '%s\n' 'pngdata' > "${SOURCE_ROOT}/images/logo.png"
             printf '%s\n' '# example' > "${SOURCE_ROOT}/index.markdown"
@@ -5667,6 +5674,35 @@ function marsh_test {
                 RES="[PASS]"
             fi
             rm -rf "${SITE_OUTPUT_ROOT}" "${SOURCE_ROOT}"
+            marsh_test_restore_env
+            ;;
+        marsh_plan_target_source_assets:2)
+            TEST_NAME+=":reuses_target_inventory_cache"
+            SITE_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
+            marsh_test_set_env
+            mkdir -p "${SOURCE_ROOT}/docs"
+            printf '%s\n' 'asset' > "${SOURCE_ROOT}/docs/logo.txt"
+            ACTUAL=$(marsh_plan_target_source_assets "${SOURCE_ROOT}/*" "${SITE_OUTPUT_ROOT}" "." "markdown,md")
+            printf '%s\n' 'new asset' > "${SOURCE_ROOT}/docs/second.txt"
+            ACTUAL_SECOND=$(marsh_plan_target_source_assets "${SOURCE_ROOT}/*" "${SITE_OUTPUT_ROOT}" "." "markdown,md")
+            ACTUAL=$(while IFS=$'\t' read -r ASSET_RELPATH_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC; do
+                [[ "${ASSET_RELPATH_ESC}" == "" ]] && continue
+                eval "ASSET_RELPATH=${ASSET_RELPATH_ESC}"
+                printf '%s\n' "${ASSET_RELPATH}"
+            done <<< "${ACTUAL}")
+            ACTUAL_SECOND=$(while IFS=$'\t' read -r ASSET_RELPATH_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC; do
+                [[ "${ASSET_RELPATH_ESC}" == "" ]] && continue
+                eval "ASSET_RELPATH=${ASSET_RELPATH_ESC}"
+                printf '%s\n' "${ASSET_RELPATH}"
+            done <<< "${ACTUAL_SECOND}")
+            EXPECTED='docs/logo.txt'
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]] && [[ "${ACTUAL_SECOND}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            rm -rf "${SITE_OUTPUT_ROOT}" "${SOURCE_ROOT}"
+            marsh_test_restore_env
             ;;
         marsh_publish_processed_output:0)
             TEST_NAME+=":copy_and_replace"

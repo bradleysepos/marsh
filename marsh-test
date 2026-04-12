@@ -5078,6 +5078,38 @@ function marsh_test {
             fi
             rm -rf "${SITE_SOURCE_ROOT}"
             ;;
+        marsh_get_target_source_inventory:0)
+            TEST_NAME+=":cached_within_target"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
+            marsh_test_set_env
+            mkdir -p "${SOURCE_ROOT}/news"
+            printf '%s\n' '# first' > "${SOURCE_ROOT}/news/first.markdown"
+            ACTUAL=$(marsh_get_target_source_inventory "${TARGET_OUTPUT_ROOT}" "${SOURCE_ROOT}")
+            printf '%s\n' '# second' > "${SOURCE_ROOT}/news/second.markdown"
+            ACTUAL_SECOND=$(marsh_get_target_source_inventory "${TARGET_OUTPUT_ROOT}" "${SOURCE_ROOT}")
+            EXPECTED='news/first.markdown'
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]] && [[ "${ACTUAL_SECOND}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            rm -rf "${TARGET_OUTPUT_ROOT}" "${SOURCE_ROOT}"
+            marsh_test_restore_env
+            ;;
+        marsh_get_target_source_inventory:1)
+            TEST_NAME+=":missing_source_root"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            marsh_test_set_env
+            marsh_get_target_source_inventory "${TARGET_OUTPUT_ROOT}" "${TEST_TEMP_PREFIX}.missing" 2>/dev/null
+            ACTUAL=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" -eq "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            rm -rf "${TARGET_OUTPUT_ROOT}"
+            marsh_test_restore_env
+            ;;
         marsh_get_target_source_root_path:0)
             TEST_NAME+=":cached"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
@@ -6966,6 +6998,7 @@ KNOWN_FUNCTIONS=(
     marsh_get_target_request_relpath
     marsh_get_target_sitemap_sources
     marsh_get_target_scope_paths
+    marsh_get_target_source_inventory
     marsh_get_target_source_root_path
     marsh_get_target_temp_root
     marsh_get_template_metadata

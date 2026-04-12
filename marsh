@@ -5283,19 +5283,22 @@ function marsh_get_target_planned_documents {  # marsh_get_target_planned_docume
 }
 
 # returns target sitemap file and source path pairs as tab-separated records
-function marsh_get_target_sitemap_sources {  # marsh_get_target_sitemap_sources site_source_root target_source_root sitemap_path [search]
-    local SITE_SOURCE_ROOT TARGET_SOURCE_ROOT SITEMAP_PATH SITEMAP_SEARCH
+function marsh_get_target_sitemap_sources {  # marsh_get_target_sitemap_sources site_source_root target_source_root sitemap_path [search] [target_output_root]
+    local SITE_SOURCE_ROOT TARGET_SOURCE_ROOT SITEMAP_PATH SITEMAP_SEARCH TARGET_OUTPUT_ROOT
     local SOURCE_DOCUMENT SOURCE_MATCHES_SITEMAP SITEMAP_SOURCE
 
     SITE_SOURCE_ROOT="${1:-}"
     TARGET_SOURCE_ROOT="${2:-}"
     SITEMAP_PATH="${3:-}"
     SITEMAP_SEARCH="${4:-false}"
+    TARGET_OUTPUT_ROOT="${5:-}"
     [[ "${SITE_SOURCE_ROOT}" == "" ]] && return 1
     [[ "${TARGET_SOURCE_ROOT}" == "" ]] && return 1
     [[ "${SITEMAP_PATH}" == "" ]] && return 1
 
     if [[ "${SITEMAP_SEARCH}" == true ]]; then
+        # search mode needs target output root for cached inventory reuse
+        [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
         while IFS= read -r SOURCE_DOCUMENT; do
             [[ "${SOURCE_DOCUMENT}" == "" ]] && continue
             SOURCE_MATCHES_SITEMAP=false
@@ -5306,7 +5309,7 @@ function marsh_get_target_sitemap_sources {  # marsh_get_target_sitemap_sources 
                 continue
             fi
             printf '%s\t%s\n' "${SOURCE_DOCUMENT}" "${TARGET_SOURCE_ROOT}/${SOURCE_DOCUMENT}"
-        done < <(marsh_get_source_inventory "${TARGET_SOURCE_ROOT}" true)
+        done < <(marsh_get_target_source_inventory "${TARGET_OUTPUT_ROOT}" "${TARGET_SOURCE_ROOT}" true)
         return 0
     fi
 
@@ -5350,7 +5353,7 @@ function marsh_build_target_sitemaps {  # marsh_build_target_sitemaps target_out
             "${MARKDOWN_OPTIONS_CSV}" \
             "${MARKDOWN_FILEEXT_CSV}" \
             "${MARKDOWN_REWRITE_LINKS}" || return 1
-    done < <(marsh_get_target_sitemap_sources "${SITE_SOURCE_ROOT}" "${TARGET_SOURCE_ROOT}" "${SITEMAP}" "${SITEMAP_SEARCH}")
+    done < <(marsh_get_target_sitemap_sources "${SITE_SOURCE_ROOT}" "${TARGET_SOURCE_ROOT}" "${SITEMAP}" "${SITEMAP_SEARCH}" "${TARGET_OUTPUT_ROOT}")
     [[ "${TARGET_SITEMAP_FOUND}" == true ]] || return 1
 }
 

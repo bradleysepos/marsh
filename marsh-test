@@ -5043,31 +5043,34 @@ function marsh_test {
             ;;
         marsh_get_target_sitemap_sources:0)
             TEST_NAME+=":explicit"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             SITE_SOURCE_ROOT="${TEST_TEMP_PREFIX}.site-source"
             TARGET_SOURCE_ROOT="${SITE_SOURCE_ROOT}/about"
             mkdir -p "${TARGET_SOURCE_ROOT}" "${SITE_SOURCE_ROOT}/shared"
             printf '%s\n' '# sitemap' > "${SITE_SOURCE_ROOT}/shared/site-map.markdown"
             TARGET_SITEMAP_PATH="../shared/site-map.markdown"
             TARGET_SITEMAP_SEARCH=false
-            ACTUAL=$(marsh_get_target_sitemap_sources "${SITE_SOURCE_ROOT}" "${TARGET_SOURCE_ROOT}" "${TARGET_SITEMAP_PATH}" "${TARGET_SITEMAP_SEARCH}")
+            ACTUAL=$(marsh_get_target_sitemap_sources "${SITE_SOURCE_ROOT}" "${TARGET_SOURCE_ROOT}" "${TARGET_SITEMAP_PATH}" "${TARGET_SITEMAP_SEARCH}" "${TARGET_OUTPUT_ROOT}")
             EXPECTED=$(printf '%s\t%s\n' "${TARGET_SITEMAP_PATH}" "${SITE_SOURCE_ROOT}/shared/site-map.markdown")
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
-            rm -rf "${SITE_SOURCE_ROOT}"
+            rm -rf "${TARGET_OUTPUT_ROOT}" "${SITE_SOURCE_ROOT}"
             ;;
         marsh_get_target_sitemap_sources:1)
             TEST_NAME+=":search"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             SITE_SOURCE_ROOT="${TEST_TEMP_PREFIX}.site-source"
             TARGET_SOURCE_ROOT="${SITE_SOURCE_ROOT}/about"
+            marsh_test_set_env
             mkdir -p "${TARGET_SOURCE_ROOT}/team" "${TARGET_SOURCE_ROOT}/news"
             printf '%s\n' '# team sitemap' > "${TARGET_SOURCE_ROOT}/team/site-map.markdown"
             printf '%s\n' '# news sitemap' > "${TARGET_SOURCE_ROOT}/news/site-map.markdown"
             printf '%s\n' '# note' > "${TARGET_SOURCE_ROOT}/news/article.markdown"
             TARGET_SITEMAP_PATH="site-map.markdown"
             TARGET_SITEMAP_SEARCH=true
-            ACTUAL=$(marsh_get_target_sitemap_sources "${SITE_SOURCE_ROOT}" "${TARGET_SOURCE_ROOT}" "${TARGET_SITEMAP_PATH}" "${TARGET_SITEMAP_SEARCH}")
+            ACTUAL=$(marsh_get_target_sitemap_sources "${SITE_SOURCE_ROOT}" "${TARGET_SOURCE_ROOT}" "${TARGET_SITEMAP_PATH}" "${TARGET_SITEMAP_SEARCH}" "${TARGET_OUTPUT_ROOT}")
             EXPECTED=$(printf '%s\t%s\n' \
                 'news/site-map.markdown' "${TARGET_SOURCE_ROOT}/news/site-map.markdown" \
                 'team/site-map.markdown' "${TARGET_SOURCE_ROOT}/team/site-map.markdown" | sort)
@@ -5076,7 +5079,30 @@ function marsh_test {
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
-            rm -rf "${SITE_SOURCE_ROOT}"
+            rm -rf "${TARGET_OUTPUT_ROOT}" "${SITE_SOURCE_ROOT}"
+            marsh_test_restore_env
+            ;;
+        marsh_get_target_sitemap_sources:2)
+            TEST_NAME+=":search_uses_target_inventory_cache"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            SITE_SOURCE_ROOT="${TEST_TEMP_PREFIX}.site-source"
+            TARGET_SOURCE_ROOT="${SITE_SOURCE_ROOT}/about"
+            marsh_test_set_env
+            mkdir -p "${TARGET_SOURCE_ROOT}/team"
+            printf '%s\n' '# team sitemap' > "${TARGET_SOURCE_ROOT}/team/site-map.markdown"
+            TARGET_SITEMAP_PATH="site-map.markdown"
+            TARGET_SITEMAP_SEARCH=true
+            ACTUAL=$(marsh_get_target_sitemap_sources "${SITE_SOURCE_ROOT}" "${TARGET_SOURCE_ROOT}" "${TARGET_SITEMAP_PATH}" "${TARGET_SITEMAP_SEARCH}" "${TARGET_OUTPUT_ROOT}")
+            mkdir -p "${TARGET_SOURCE_ROOT}/news"
+            printf '%s\n' '# news sitemap' > "${TARGET_SOURCE_ROOT}/news/site-map.markdown"
+            ACTUAL_SECOND=$(marsh_get_target_sitemap_sources "${SITE_SOURCE_ROOT}" "${TARGET_SOURCE_ROOT}" "${TARGET_SITEMAP_PATH}" "${TARGET_SITEMAP_SEARCH}" "${TARGET_OUTPUT_ROOT}")
+            EXPECTED=$(printf '%s\t%s\n' 'team/site-map.markdown' "${TARGET_SOURCE_ROOT}/team/site-map.markdown")
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]] && [[ "${ACTUAL_SECOND}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            rm -rf "${TARGET_OUTPUT_ROOT}" "${SITE_SOURCE_ROOT}"
+            marsh_test_restore_env
             ;;
         marsh_get_target_source_inventory:0)
             TEST_NAME+=":cached_within_target"

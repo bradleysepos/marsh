@@ -5334,8 +5334,8 @@ function marsh_get_target_planned_documents {  # marsh_get_target_planned_docume
     printf '%s\n' "${PLANNED_DOCUMENTS[@]}"
 }
 
-# returns target sitemap file and source path pairs as tab-separated records
-function marsh_get_target_sitemap_sources {  # marsh_get_target_sitemap_sources site_source_root target_source_root sitemap_path [search] [target_output_root]
+# plans target sitemaps as file and source path pairs
+function marsh_plan_target_sitemaps {  # marsh_plan_target_sitemaps site_source_root target_source_root sitemap_path [search] [target_output_root]
     local SITE_SOURCE_ROOT TARGET_SOURCE_ROOT SITEMAP_PATH SITEMAP_SEARCH TARGET_OUTPUT_ROOT
     local SOURCE_DOCUMENT SOURCE_MATCHES_SITEMAP SITEMAP_SOURCE
 
@@ -5369,31 +5369,28 @@ function marsh_get_target_sitemap_sources {  # marsh_get_target_sitemap_sources 
     printf '%s\t%s\n' "${SITEMAP_PATH}" "${SITEMAP_SOURCE}"
 }
 
-# builds planned sitemaps for a target
-function marsh_build_target_sitemaps {  # marsh_build_target_sitemaps target_output_root site_source_root target_source_root sitemap sitemap_search markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links
-    local TARGET_OUTPUT_ROOT SITE_SOURCE_ROOT TARGET_SOURCE_ROOT SITEMAP SITEMAP_SEARCH
-    local MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_REWRITE_LINKS
-    local TARGET_SITEMAP_FILE TARGET_SITEMAP_SOURCE TARGET_SITEMAP_FOUND
+# builds planned sitemap records for a target
+function marsh_build_planned_target_sitemaps {  # marsh_build_planned_target_sitemaps target_output_root markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links sitemap_records[@]
+    local TARGET_OUTPUT_ROOT MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_REWRITE_LINKS
+    local SITEMAP_RECORD TARGET_SITEMAP_FILE TARGET_SITEMAP_SOURCE TARGET_SITEMAP_FOUND
 
     TARGET_OUTPUT_ROOT="${1:-}"
-    SITE_SOURCE_ROOT="${2:-}"
-    TARGET_SOURCE_ROOT="${3:-}"
-    SITEMAP="${4:-}"
-    SITEMAP_SEARCH="${5:-false}"
-    MARKDOWN_COMMAND="${6:-}"
-    MARKDOWN_OPTIONS_CSV="${7:-}"
-    MARKDOWN_FILEEXT_CSV="${8:-}"
-    MARKDOWN_REWRITE_LINKS="${9:-}"
+    MARKDOWN_COMMAND="${2:-}"
+    MARKDOWN_OPTIONS_CSV="${3:-}"
+    MARKDOWN_FILEEXT_CSV="${4:-}"
+    MARKDOWN_REWRITE_LINKS="${5:-}"
+    shift 5
     [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
-    [[ "${SITE_SOURCE_ROOT}" == "" ]] && return 1
-    [[ "${TARGET_SOURCE_ROOT}" == "" ]] && return 1
-    [[ "${SITEMAP}" == "" ]] && return 1
     [[ "${MARKDOWN_COMMAND}" == "" ]] && return 1
     [[ "${MARKDOWN_FILEEXT_CSV}" == "" ]] && return 1
     [[ "${MARKDOWN_REWRITE_LINKS}" == "" ]] && return 1
 
     TARGET_SITEMAP_FOUND=false
-    while IFS=$'\t' read -r TARGET_SITEMAP_FILE TARGET_SITEMAP_SOURCE; do
+    while [[ "${#@}" -gt 0 ]]; do
+        SITEMAP_RECORD="${1:-}"
+        shift 1
+        [[ "${SITEMAP_RECORD}" == "" ]] && continue
+        IFS=$'\t' read -r TARGET_SITEMAP_FILE TARGET_SITEMAP_SOURCE <<< "${SITEMAP_RECORD}"
         [[ "${TARGET_SITEMAP_FILE}" == "" ]] && continue
         [[ "${TARGET_SITEMAP_SOURCE}" == "" ]] && continue
         TARGET_SITEMAP_FOUND=true
@@ -5405,7 +5402,7 @@ function marsh_build_target_sitemaps {  # marsh_build_target_sitemaps target_out
             "${MARKDOWN_OPTIONS_CSV}" \
             "${MARKDOWN_FILEEXT_CSV}" \
             "${MARKDOWN_REWRITE_LINKS}" || return 1
-    done < <(marsh_get_target_sitemap_sources "${SITE_SOURCE_ROOT}" "${TARGET_SOURCE_ROOT}" "${SITEMAP}" "${SITEMAP_SEARCH}" "${TARGET_OUTPUT_ROOT}")
+    done
     [[ "${TARGET_SITEMAP_FOUND}" == true ]] || return 1
 }
 
@@ -5552,7 +5549,7 @@ function marsh_cli {
     local GENERATED_ARCHIVES GENERATED_ARCHIVE
     local TARGET_ARCHIVE_TYPES TARGET_ARCHIVE_EXCLUDED_STATES TARGET_ARCHIVE_MANIFEST
     local TARGET_ARCHIVE_TEMPLATE TARGET_ARCHIVE_TEMPLATE_SOURCE TARGET_ARCHIVE_TEMPLATE_ASSETS_PATH TARGET_ARCHIVE_TEMPLATE_OVERRIDES
-    local SITE_SOURCE_ROOT TARGET_SOURCE_ROOT TARGET_SITEMAP_RESOLVED TARGET_SITEMAP_SEARCH TARGET_SITEMAP_MATCH TARGET_SITEMAP_REL TARGET_SITEMAP_FOUND TARGET_SITEMAP_FILE TARGET_SITEMAP_SOURCE
+    local SITE_SOURCE_ROOT TARGET_SOURCE_ROOT TARGET_SITEMAP_RESOLVED TARGET_SITEMAP_SEARCH TARGET_SITEMAP_MATCH TARGET_SITEMAP_REL TARGET_SITEMAP_FOUND TARGET_SITEMAP_FILE TARGET_SITEMAP_SOURCE TARGET_SITEMAP_RECORDS TARGET_SITEMAP_RECORD
     local TARGET_SOURCE_ASSET_RECORDS TARGET_SOURCE_ASSET_RECORD
     local BUILD_SITE_OUTPUT_ROOT BUILD_TARGET_OUTPUT_REL BUILD_DOCUMENT BUILD_SITEMAP BUILD_SITEMAP_SEARCH
     local BUILD_CONTEXT_TARGET_OUTPUT_REL BUILD_CONTEXT_SOURCE_ROOT
@@ -6072,16 +6069,18 @@ function marsh_cli {
                     echo "Unable to resolve target source root for sitemap: ${TARGET_SITEMAP}" >&2
                     die_gracefully
                 }
-                if ! marsh_build_target_sitemaps \
+                TARGET_SITEMAP_RECORDS=()
+                while IFS= read -r TARGET_SITEMAP_RECORD; do
+                    [[ "${TARGET_SITEMAP_RECORD}" == "" ]] && continue
+                    TARGET_SITEMAP_RECORDS+=("${TARGET_SITEMAP_RECORD}")
+                done < <(marsh_plan_target_sitemaps "${SITE_SOURCE_ROOT}" "${TARGET_SOURCE_ROOT}" "${TARGET_SITEMAP}" "${TARGET_SITEMAP_SEARCH}" "${MARSH_CONFIG_PATH}/${TARGET_PATH}") || die_gracefully
+                if ! marsh_build_planned_target_sitemaps \
                         "${MARSH_CONFIG_PATH}/${TARGET_PATH}" \
-                        "${SITE_SOURCE_ROOT}" \
-                        "${TARGET_SOURCE_ROOT}" \
-                        "${TARGET_SITEMAP}" \
-                        "${TARGET_SITEMAP_SEARCH}" \
                         "${MARKDOWN_COMMAND}" \
                         "${MARKDOWN_OPTIONS_CSV}" \
                         "${MARKDOWN_FILEEXT_CSV}" \
-                        "${MARKDOWN_REWRITE_LINKS}"; then
+                        "${MARKDOWN_REWRITE_LINKS}" \
+                        "${TARGET_SITEMAP_RECORDS[@]}"; then
                     echo "Unable to resolve sitemap source path: ${TARGET_SITEMAP}" >&2
                     die_gracefully
                 fi

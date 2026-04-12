@@ -1063,6 +1063,70 @@ function marsh_test {
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}" "${SOURCE_ROOT}"
             marsh_test_restore_env
             ;;
+        marsh_build_planned_target_sitemaps:0)
+            TEST_NAME+=":explicit"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            SITE_SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
+            TARGET_SITEMAP_RECORDS=()
+            marsh_test_set_env
+            mkdir -p "${SITE_SOURCE_ROOT}/site-map"
+            printf '%s\n' '# Site Map' > "${SITE_SOURCE_ROOT}/site-map/index.markdown"
+            while IFS= read -r TARGET_SITEMAP_RECORD; do
+                [[ "${TARGET_SITEMAP_RECORD}" == "" ]] && continue
+                TARGET_SITEMAP_RECORDS+=("${TARGET_SITEMAP_RECORD}")
+            done < <(marsh_plan_target_sitemaps "${SITE_SOURCE_ROOT}" "${SITE_SOURCE_ROOT}" "site-map/index.markdown" false "${TARGET_OUTPUT_ROOT}")
+            marsh_build_planned_target_sitemaps "${TARGET_OUTPUT_ROOT}" "marsh_test_markdown_command" "" "markdown,md" true "${TARGET_SITEMAP_RECORDS[@]}" >/dev/null 2>&1
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                SITEMAP_RENDER=$(marsh_get_sitemap_render_path "${TARGET_OUTPUT_ROOT}" "site-map/index.markdown")
+                [[ -e "${SITEMAP_RENDER}" ]]
+                ACTUAL=$?
+                EXPECTED=0
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${TARGET_OUTPUT_ROOT}" "${SITE_SOURCE_ROOT}"
+            marsh_test_restore_env
+            ;;
+        marsh_build_planned_target_sitemaps:1)
+            TEST_NAME+=":search"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            SITE_SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
+            TARGET_SOURCE_ROOT="${SITE_SOURCE_ROOT}/about"
+            TARGET_SITEMAP_RECORDS=()
+            marsh_test_set_env
+            mkdir -p "${TARGET_SOURCE_ROOT}/team" "${TARGET_SOURCE_ROOT}/news"
+            printf '%s\n' '# team sitemap' > "${TARGET_SOURCE_ROOT}/team/site-map.markdown"
+            printf '%s\n' '# news sitemap' > "${TARGET_SOURCE_ROOT}/news/site-map.markdown"
+            while IFS= read -r TARGET_SITEMAP_RECORD; do
+                [[ "${TARGET_SITEMAP_RECORD}" == "" ]] && continue
+                TARGET_SITEMAP_RECORDS+=("${TARGET_SITEMAP_RECORD}")
+            done < <(marsh_plan_target_sitemaps "${SITE_SOURCE_ROOT}" "${TARGET_SOURCE_ROOT}" "site-map.markdown" true "${TARGET_OUTPUT_ROOT}")
+            marsh_build_planned_target_sitemaps "${TARGET_OUTPUT_ROOT}" "marsh_test_markdown_command" "" "markdown,md" true "${TARGET_SITEMAP_RECORDS[@]}" >/dev/null 2>&1
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                TEAM_RENDER=$(marsh_get_sitemap_render_path "${TARGET_OUTPUT_ROOT}" "team/site-map.markdown")
+                NEWS_RENDER=$(marsh_get_sitemap_render_path "${TARGET_OUTPUT_ROOT}" "news/site-map.markdown")
+                {
+                    [[ -e "${TEAM_RENDER}" ]] \
+                        && [[ -e "${NEWS_RENDER}" ]]
+                }
+                ACTUAL=$?
+                EXPECTED=0
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${TARGET_OUTPUT_ROOT}" "${SITE_SOURCE_ROOT}"
+            marsh_test_restore_env
+            ;;
         marsh_build_target:0)
             TEST_NAME+=":copy_assets"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
@@ -1617,60 +1681,6 @@ function marsh_test {
                 RES="[PASS]"
             fi
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}" "${SOURCE_ROOT}"
-            marsh_test_restore_env
-            ;;
-        marsh_build_target_sitemaps:0)
-            TEST_NAME+=":explicit"
-            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
-            SITE_SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
-            marsh_test_set_env
-            mkdir -p "${SITE_SOURCE_ROOT}/site-map"
-            printf '%s\n' '# Site Map' > "${SITE_SOURCE_ROOT}/site-map/index.markdown"
-            marsh_build_target_sitemaps "${TARGET_OUTPUT_ROOT}" "${SITE_SOURCE_ROOT}" "${SITE_SOURCE_ROOT}" "site-map/index.markdown" false "marsh_test_markdown_command" "" "markdown,md" true >/dev/null 2>&1
-            ACTUAL=$?
-            EXPECTED=0
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                SITEMAP_RENDER=$(marsh_get_sitemap_render_path "${TARGET_OUTPUT_ROOT}" "site-map/index.markdown")
-                [[ -e "${SITEMAP_RENDER}" ]]
-                ACTUAL=$?
-                EXPECTED=0
-                ASSERTION="equals"
-                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    RES="[PASS]"
-                fi
-            fi
-            rm -rf "${TARGET_OUTPUT_ROOT}" "${SITE_SOURCE_ROOT}"
-            marsh_test_restore_env
-            ;;
-        marsh_build_target_sitemaps:1)
-            TEST_NAME+=":search"
-            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
-            SITE_SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
-            TARGET_SOURCE_ROOT="${SITE_SOURCE_ROOT}/about"
-            marsh_test_set_env
-            mkdir -p "${TARGET_SOURCE_ROOT}/team" "${TARGET_SOURCE_ROOT}/news"
-            printf '%s\n' '# team sitemap' > "${TARGET_SOURCE_ROOT}/team/site-map.markdown"
-            printf '%s\n' '# news sitemap' > "${TARGET_SOURCE_ROOT}/news/site-map.markdown"
-            marsh_build_target_sitemaps "${TARGET_OUTPUT_ROOT}" "${SITE_SOURCE_ROOT}" "${TARGET_SOURCE_ROOT}" "site-map.markdown" true "marsh_test_markdown_command" "" "markdown,md" true >/dev/null 2>&1
-            ACTUAL=$?
-            EXPECTED=0
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                TEAM_RENDER=$(marsh_get_sitemap_render_path "${TARGET_OUTPUT_ROOT}" "team/site-map.markdown")
-                NEWS_RENDER=$(marsh_get_sitemap_render_path "${TARGET_OUTPUT_ROOT}" "news/site-map.markdown")
-                {
-                    [[ -e "${TEAM_RENDER}" ]] \
-                        && [[ -e "${NEWS_RENDER}" ]]
-                }
-                ACTUAL=$?
-                EXPECTED=0
-                ASSERTION="equals"
-                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    RES="[PASS]"
-                fi
-            fi
-            rm -rf "${TARGET_OUTPUT_ROOT}" "${SITE_SOURCE_ROOT}"
             marsh_test_restore_env
             ;;
         marsh_build_template:0)
@@ -5029,69 +5039,6 @@ function marsh_test {
             rm -rf "${SITE_OUTPUT_ROOT}" "${SOURCE_ROOT}"
             marsh_test_restore_env
             ;;
-        marsh_get_target_sitemap_sources:0)
-            TEST_NAME+=":explicit"
-            SITE_SOURCE_ROOT="${TEST_TEMP_PREFIX}.site-source"
-            TARGET_SOURCE_ROOT="${SITE_SOURCE_ROOT}/about"
-            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
-            mkdir -p "${TARGET_SOURCE_ROOT}" "${SITE_SOURCE_ROOT}/shared"
-            printf '%s\n' '# sitemap' > "${SITE_SOURCE_ROOT}/shared/site-map.markdown"
-            TARGET_SITEMAP_PATH="../shared/site-map.markdown"
-            TARGET_SITEMAP_SEARCH=false
-            ACTUAL=$(marsh_get_target_sitemap_sources "${SITE_SOURCE_ROOT}" "${TARGET_SOURCE_ROOT}" "${TARGET_SITEMAP_PATH}" "${TARGET_SITEMAP_SEARCH}" "${TARGET_OUTPUT_ROOT}")
-            EXPECTED=$(printf '%s\t%s\n' "${TARGET_SITEMAP_PATH}" "${SITE_SOURCE_ROOT}/shared/site-map.markdown")
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                RES="[PASS]"
-            fi
-            rm -rf "${TARGET_OUTPUT_ROOT}" "${SITE_SOURCE_ROOT}"
-            ;;
-        marsh_get_target_sitemap_sources:1)
-            TEST_NAME+=":search"
-            SITE_SOURCE_ROOT="${TEST_TEMP_PREFIX}.site-source"
-            TARGET_SOURCE_ROOT="${SITE_SOURCE_ROOT}/about"
-            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
-            marsh_test_set_env
-            mkdir -p "${TARGET_SOURCE_ROOT}/team" "${TARGET_SOURCE_ROOT}/news"
-            printf '%s\n' '# team sitemap' > "${TARGET_SOURCE_ROOT}/team/site-map.markdown"
-            printf '%s\n' '# news sitemap' > "${TARGET_SOURCE_ROOT}/news/site-map.markdown"
-            printf '%s\n' '# note' > "${TARGET_SOURCE_ROOT}/news/article.markdown"
-            TARGET_SITEMAP_PATH="site-map.markdown"
-            TARGET_SITEMAP_SEARCH=true
-            ACTUAL=$(marsh_get_target_sitemap_sources "${SITE_SOURCE_ROOT}" "${TARGET_SOURCE_ROOT}" "${TARGET_SITEMAP_PATH}" "${TARGET_SITEMAP_SEARCH}" "${TARGET_OUTPUT_ROOT}")
-            EXPECTED=$(printf '%s\t%s\n' \
-                'news/site-map.markdown' "${TARGET_SOURCE_ROOT}/news/site-map.markdown" \
-                'team/site-map.markdown' "${TARGET_SOURCE_ROOT}/team/site-map.markdown" | sort)
-            ACTUAL=$(printf '%s\n' "${ACTUAL}" | sed '/^$/d' | sort)
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                RES="[PASS]"
-            fi
-            rm -rf "${TARGET_OUTPUT_ROOT}" "${SITE_SOURCE_ROOT}"
-            marsh_test_restore_env
-            ;;
-        marsh_get_target_sitemap_sources:2)
-            TEST_NAME+=":search_uses_target_inventory_cache"
-            SITE_SOURCE_ROOT="${TEST_TEMP_PREFIX}.site-source"
-            TARGET_SOURCE_ROOT="${SITE_SOURCE_ROOT}/about"
-            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
-            marsh_test_set_env
-            mkdir -p "${TARGET_SOURCE_ROOT}/team"
-            printf '%s\n' '# team sitemap' > "${TARGET_SOURCE_ROOT}/team/site-map.markdown"
-            TARGET_SITEMAP_PATH="site-map.markdown"
-            TARGET_SITEMAP_SEARCH=true
-            ACTUAL=$(marsh_get_target_sitemap_sources "${SITE_SOURCE_ROOT}" "${TARGET_SOURCE_ROOT}" "${TARGET_SITEMAP_PATH}" "${TARGET_SITEMAP_SEARCH}" "${TARGET_OUTPUT_ROOT}")
-            mkdir -p "${TARGET_SOURCE_ROOT}/news"
-            printf '%s\n' '# news sitemap' > "${TARGET_SOURCE_ROOT}/news/site-map.markdown"
-            ACTUAL_SECOND=$(marsh_get_target_sitemap_sources "${SITE_SOURCE_ROOT}" "${TARGET_SOURCE_ROOT}" "${TARGET_SITEMAP_PATH}" "${TARGET_SITEMAP_SEARCH}" "${TARGET_OUTPUT_ROOT}")
-            EXPECTED=$(printf '%s\t%s\n' 'team/site-map.markdown' "${TARGET_SOURCE_ROOT}/team/site-map.markdown")
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" == "${EXPECTED}" ]] && [[ "${ACTUAL_SECOND}" == "${EXPECTED}" ]]; then
-                RES="[PASS]"
-            fi
-            rm -rf "${TARGET_OUTPUT_ROOT}" "${SITE_SOURCE_ROOT}"
-            marsh_test_restore_env
-            ;;
         marsh_get_target_source_inventory:0)
             TEST_NAME+=":cached_within_target"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
@@ -5621,6 +5568,69 @@ function marsh_test {
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
+            ;;
+        marsh_plan_target_sitemaps:0)
+            TEST_NAME+=":explicit"
+            SITE_SOURCE_ROOT="${TEST_TEMP_PREFIX}.site-source"
+            TARGET_SOURCE_ROOT="${SITE_SOURCE_ROOT}/about"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            mkdir -p "${TARGET_SOURCE_ROOT}" "${SITE_SOURCE_ROOT}/shared"
+            printf '%s\n' '# sitemap' > "${SITE_SOURCE_ROOT}/shared/site-map.markdown"
+            TARGET_SITEMAP_PATH="../shared/site-map.markdown"
+            TARGET_SITEMAP_SEARCH=false
+            ACTUAL=$(marsh_plan_target_sitemaps "${SITE_SOURCE_ROOT}" "${TARGET_SOURCE_ROOT}" "${TARGET_SITEMAP_PATH}" "${TARGET_SITEMAP_SEARCH}" "${TARGET_OUTPUT_ROOT}")
+            EXPECTED=$(printf '%s\t%s\n' "${TARGET_SITEMAP_PATH}" "${SITE_SOURCE_ROOT}/shared/site-map.markdown")
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            rm -rf "${TARGET_OUTPUT_ROOT}" "${SITE_SOURCE_ROOT}"
+            ;;
+        marsh_plan_target_sitemaps:1)
+            TEST_NAME+=":search"
+            SITE_SOURCE_ROOT="${TEST_TEMP_PREFIX}.site-source"
+            TARGET_SOURCE_ROOT="${SITE_SOURCE_ROOT}/about"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            marsh_test_set_env
+            mkdir -p "${TARGET_SOURCE_ROOT}/team" "${TARGET_SOURCE_ROOT}/news"
+            printf '%s\n' '# team sitemap' > "${TARGET_SOURCE_ROOT}/team/site-map.markdown"
+            printf '%s\n' '# news sitemap' > "${TARGET_SOURCE_ROOT}/news/site-map.markdown"
+            printf '%s\n' '# note' > "${TARGET_SOURCE_ROOT}/news/article.markdown"
+            TARGET_SITEMAP_PATH="site-map.markdown"
+            TARGET_SITEMAP_SEARCH=true
+            ACTUAL=$(marsh_plan_target_sitemaps "${SITE_SOURCE_ROOT}" "${TARGET_SOURCE_ROOT}" "${TARGET_SITEMAP_PATH}" "${TARGET_SITEMAP_SEARCH}" "${TARGET_OUTPUT_ROOT}")
+            EXPECTED=$(printf '%s\t%s\n' \
+                'news/site-map.markdown' "${TARGET_SOURCE_ROOT}/news/site-map.markdown" \
+                'team/site-map.markdown' "${TARGET_SOURCE_ROOT}/team/site-map.markdown" | sort)
+            ACTUAL=$(printf '%s\n' "${ACTUAL}" | sed '/^$/d' | sort)
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            rm -rf "${TARGET_OUTPUT_ROOT}" "${SITE_SOURCE_ROOT}"
+            marsh_test_restore_env
+            ;;
+        marsh_plan_target_sitemaps:2)
+            TEST_NAME+=":search_uses_target_inventory_cache"
+            SITE_SOURCE_ROOT="${TEST_TEMP_PREFIX}.site-source"
+            TARGET_SOURCE_ROOT="${SITE_SOURCE_ROOT}/about"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            marsh_test_set_env
+            mkdir -p "${TARGET_SOURCE_ROOT}/team"
+            printf '%s\n' '# team sitemap' > "${TARGET_SOURCE_ROOT}/team/site-map.markdown"
+            TARGET_SITEMAP_PATH="site-map.markdown"
+            TARGET_SITEMAP_SEARCH=true
+            ACTUAL=$(marsh_plan_target_sitemaps "${SITE_SOURCE_ROOT}" "${TARGET_SOURCE_ROOT}" "${TARGET_SITEMAP_PATH}" "${TARGET_SITEMAP_SEARCH}" "${TARGET_OUTPUT_ROOT}")
+            mkdir -p "${TARGET_SOURCE_ROOT}/news"
+            printf '%s\n' '# news sitemap' > "${TARGET_SOURCE_ROOT}/news/site-map.markdown"
+            ACTUAL_SECOND=$(marsh_plan_target_sitemaps "${SITE_SOURCE_ROOT}" "${TARGET_SOURCE_ROOT}" "${TARGET_SITEMAP_PATH}" "${TARGET_SITEMAP_SEARCH}" "${TARGET_OUTPUT_ROOT}")
+            EXPECTED=$(printf '%s\t%s\n' 'team/site-map.markdown' "${TARGET_SOURCE_ROOT}/team/site-map.markdown")
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]] && [[ "${ACTUAL_SECOND}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            rm -rf "${TARGET_OUTPUT_ROOT}" "${SITE_SOURCE_ROOT}"
+            marsh_test_restore_env
             ;;
         marsh_plan_target_source_assets:0)
             TEST_NAME+=":glob_source_selection"
@@ -7050,9 +7060,9 @@ KNOWN_FUNCTIONS=(
     marsh_build_sitemap
     marsh_build_document
     marsh_build_document_and_template
+    marsh_build_planned_target_sitemaps
     marsh_build_target
     marsh_build_target_documents
-    marsh_build_target_sitemaps
     marsh_build_template
     marsh_check_dependencies
     marsh_clean_target_temp
@@ -7092,7 +7102,6 @@ KNOWN_FUNCTIONS=(
     marsh_get_target_output_path
     marsh_get_target_planned_documents
     marsh_get_target_request_relpath
-    marsh_get_target_sitemap_sources
     marsh_get_target_scope_paths
     marsh_get_target_source_inventory
     marsh_get_target_source_root_path
@@ -7104,9 +7113,10 @@ KNOWN_FUNCTIONS=(
     marsh_is_markdown_extension
     marsh_normalize_internal_path
     marsh_normalize_path
+    marsh_plan_target_sitemaps
+    marsh_plan_target_source_assets
     marsh_parse_template_metadata
     marsh_parse_yaml
-    marsh_plan_target_source_assets
     marsh_publish_processed_output
     marsh_process_markdown
     marsh_resolve_config_path

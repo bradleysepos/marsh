@@ -3469,6 +3469,52 @@ function marsh_test {
             rm -rf "${TARGET_OUTPUT_ROOT}"
             marsh_test_restore_env
             ;;
+        marsh_create_template_cache:0)
+            TEST_NAME+=":copies_when_missing"
+            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.template-source"
+            TEMPLATES_DIR="${TEST_TEMP_PREFIX}.templates"
+            mkdir -p "${TEMPLATE_DIR}/partials"
+            printf '%s\n' '---' 'Template:' '  Partials:' '    Base: partials/base.html' '...' > "${TEMPLATE_DIR}/template.yaml"
+            printf '%s\n' '<!DOCTYPE html>' > "${TEMPLATE_DIR}/partials/base.html"
+            marsh_create_template_cache "${TEMPLATES_DIR}" "sample" "${TEMPLATE_DIR}"
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                {
+                    [[ -e "${TEMPLATES_DIR}/sample/template.yaml" ]] \
+                        && [[ -e "${TEMPLATES_DIR}/sample/partials/base.html" ]]
+                }
+                ACTUAL=$?
+                EXPECTED=0
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${TEMPLATE_DIR}" "${TEMPLATES_DIR}"
+            ;;
+        marsh_create_template_cache:1)
+            TEST_NAME+=":preserves_existing_template"
+            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.template-source"
+            TEMPLATES_DIR="${TEST_TEMP_PREFIX}.templates"
+            mkdir -p "${TEMPLATE_DIR}" "${TEMPLATES_DIR}/sample"
+            printf '%s\n' 'source-template' > "${TEMPLATE_DIR}/template.yaml"
+            printf '%s\n' 'existing-template' > "${TEMPLATES_DIR}/sample/template.yaml"
+            marsh_create_template_cache "${TEMPLATES_DIR}" "sample" "${TEMPLATE_DIR}"
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                ACTUAL=$(<"${TEMPLATES_DIR}/sample/template.yaml")
+                EXPECTED='existing-template'
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${TEMPLATE_DIR}" "${TEMPLATES_DIR}"
+            ;;
         marsh_escape_substitution:0)
             TEST_NAME+=":plain"
             ACTUAL=$(printf 'foo' | marsh_escape_substitution)
@@ -6834,6 +6880,7 @@ KNOWN_FUNCTIONS=(
     marsh_clean_target_temp
     marsh_copy_source_objects_to_target
     marsh_create_target_source_root
+    marsh_create_template_cache
     marsh_escape_substitution
     marsh_extract_frontmatter
     marsh_flat_to_array

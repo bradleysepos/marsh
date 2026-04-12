@@ -5064,6 +5064,24 @@ function marsh_build_document_and_template {  # marsh_build_document_and_templat
     return 0
 }
 
+# creates a cached template copy under the build template cache when needed
+function marsh_create_template_cache {  # marsh_create_template_cache templates_dir template template_source
+    local TEMPLATES_DIR TEMPLATE TEMPLATE_SOURCE
+
+    TEMPLATES_DIR="${1:-}"
+    TEMPLATE="${2:-}"
+    TEMPLATE_SOURCE="${3:-}"
+    [[ "${TEMPLATES_DIR}" == "" ]] && return 1
+    [[ "${TEMPLATE}" == "" ]] && return 1
+    [[ "${TEMPLATE_SOURCE}" == "" ]] && return 1
+
+    if [[ ! -e "${TEMPLATES_DIR}/${TEMPLATE}" ]]; then
+        marsh_get_files "${TEMPLATE_SOURCE}/*" \
+                "${TEMPLATES_DIR}/${TEMPLATE}" \
+                false || return 1
+    fi
+}
+
 # returns the request path relative to the current target root
 function marsh_get_target_request_relpath {  # marsh_get_target_request_relpath target target_output_rel
     local TARGET TARGET_OUTPUT_REL REQUESTED_TARGET_REL
@@ -5915,11 +5933,7 @@ function marsh_cli {
                     [[ "${TARGET_TEMPLATE_OVERRIDES[$I]:-}" == "" ]] && continue
                     TARGET_TEMPLATE_OVERRIDES[$I]=$(marsh_resolve_config_path "${MARSH_CONFIG_FILE_DIR}" "${TARGET_TEMPLATE_OVERRIDES[$I]}") || die_gracefully
                 done
-                if [[ ! -e "${TEMPLATES_DIR}/${TARGET_TEMPLATE}" ]]; then
-                    marsh_get_files "${TARGET_TEMPLATE_SOURCE}/*" \
-                            "${TEMPLATES_DIR}/${TARGET_TEMPLATE}" \
-                            false || die_gracefully
-                fi
+                marsh_create_template_cache "${TEMPLATES_DIR}" "${TARGET_TEMPLATE}" "${TARGET_TEMPLATE_SOURCE}" || die_gracefully
             fi
 
             # get source files for target
@@ -6016,11 +6030,7 @@ function marsh_cli {
                             [[ "${TARGET_ARCHIVE_TEMPLATE_OVERRIDES[$J]:-}" == "" ]] && continue
                             TARGET_ARCHIVE_TEMPLATE_OVERRIDES[$J]=$(marsh_resolve_config_path "${MARSH_CONFIG_FILE_DIR}" "${TARGET_ARCHIVE_TEMPLATE_OVERRIDES[$J]}") || die_gracefully
                         done
-                        if [[ ! -e "${TEMPLATES_DIR}/${TARGET_ARCHIVE_TEMPLATE}" ]]; then
-                            marsh_get_files "${TARGET_ARCHIVE_TEMPLATE_SOURCE}/*" \
-                                    "${TEMPLATES_DIR}/${TARGET_ARCHIVE_TEMPLATE}" \
-                                    false || die_gracefully
-                        fi
+                        marsh_create_template_cache "${TEMPLATES_DIR}" "${TARGET_ARCHIVE_TEMPLATE}" "${TARGET_ARCHIVE_TEMPLATE_SOURCE}" || die_gracefully
                         marsh_copy_template_assets "${MARSH_CONFIG_PATH}" \
                             "${TARGET_PATH}" \
                             "${TEMPLATES_DIR}" \

@@ -5206,15 +5206,75 @@ function marsh_get_target_sitemap_sources {  # marsh_get_target_sitemap_sources 
     printf '%s\t%s\n' "${SITEMAP_PATH}" "${SITEMAP_SOURCE}"
 }
 
+# builds a planned document list for a target, in parallel if possible
+function marsh_build_target_documents {  # marsh_build_target_documents site_output_root target_output_rel jobs sitemap sitemap_search templates_dir template markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links #template_overrides[@] template_overrides[@] template_assets_path build_context_target_output_rel build_context_source_root documents[@]
+    local SITE_OUTPUT_ROOT TARGET_OUTPUT_REL JOBS SITEMAP SITEMAP_SEARCH TEMPLATES_DIR TEMPLATE
+    local MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_REWRITE_LINKS
+    local NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDES TEMPLATE_ASSETS_PATH
+    local BUILD_CONTEXT_TARGET_OUTPUT_REL BUILD_CONTEXT_SOURCE_ROOT
+    local DOCUMENTS DOCUMENT
+    local PARALLEL PARALLEL_MARKDOWN
+
+    # init
+    SITE_OUTPUT_ROOT="${1:-.}"
+    TARGET_OUTPUT_REL="${2:-.}"
+    JOBS="${3:-1}"
+    SITEMAP="${4:-}"
+    SITEMAP_SEARCH="${5:-false}"
+    TEMPLATES_DIR="${6:-}"
+    TEMPLATE="${7:-}"
+    MARKDOWN_COMMAND="${8:-}"
+    MARKDOWN_OPTIONS_CSV="${9:-}"
+    MARKDOWN_FILEEXT_CSV="${10:-}"
+    MARKDOWN_REWRITE_LINKS="${11:-}"
+    shift 11
+    [[ "${MARKDOWN_COMMAND}" == "" ]] && return 1
+    [[ "${MARKDOWN_FILEEXT_CSV}" == "" ]] && return 1
+    [[ "${MARKDOWN_REWRITE_LINKS}" == "" ]] && return 1
+    NUM_TEMPLATE_OVERRIDES="${1:-0}"
+    shift 1
+    TEMPLATE_OVERRIDES=()
+    while [[ "${NUM_TEMPLATE_OVERRIDES}" -gt 0 ]] && [[ "${#@}" -gt 0 ]]; do
+        TEMPLATE_OVERRIDES+=("${1}")
+        NUM_TEMPLATE_OVERRIDES=$((NUM_TEMPLATE_OVERRIDES - 1))
+        shift 1
+    done
+    TEMPLATE_ASSETS_PATH="${1:-}"
+    BUILD_CONTEXT_TARGET_OUTPUT_REL="${2:-${TARGET_OUTPUT_REL}}"
+    BUILD_CONTEXT_SOURCE_ROOT="${3:-}"
+    shift 3
+    DOCUMENTS=()
+    while [[ "${#@}" -gt 0 ]]; do
+        DOCUMENTS+=("${1}")
+        shift 1
+    done
+    [[ "${#DOCUMENTS[@]}" -gt 0 ]] || return 0
+
+    PARALLEL=$(command -v parallel 2>/dev/null)
+    PARALLEL_MARKDOWN=""
+    [[ "${MARKDOWN_COMMAND}" != "markdown" ]] && PARALLEL_MARKDOWN="${MARKDOWN_COMMAND}"
+    if [[ "${JOBS:-1}" -gt 1 ]] && [[ "${PARALLEL:-}" != "" ]] && [[ "$("${PARALLEL}" --version --no-notice 2>/dev/null | head -n 1 | grep -o 'GNU parallel')" == "GNU parallel" ]]; then
+        export -f marsh_build_document_and_template
+        if ! "${PARALLEL}" --halt now,fail=1 --quote --no-notice --env marsh_text_transform --env marsh_process_markdown --env marsh_build_document_and_template --jobs="${JOBS:-1}" "${SELF_DIR}/${SELF_NAME}" build-document-and-template --markdown="${PARALLEL_MARKDOWN}" --markdown-options="${MARKDOWN_OPTIONS_CSV}" --markdown-file-extensions="${MARKDOWN_FILEEXT_CSV}" --markdown-rewrite-links="${MARKDOWN_REWRITE_LINKS}" --marsh-temp="${MARSH_TEMP}" --marsh-config-file="${MARSH_CONFIG_FILE}" --marsh-config-file-dir="${MARSH_CONFIG_FILE_DIR}" --marsh-config-path="${MARSH_CONFIG_PATH}" --marsh-config-url="${MARSH_CONFIG_URL}" --marsh-build-context-target-output-rel="${BUILD_CONTEXT_TARGET_OUTPUT_REL}" --marsh-build-context-source-root="${BUILD_CONTEXT_SOURCE_ROOT}" "${SITE_OUTPUT_ROOT}" "${TARGET_OUTPUT_REL}" {} "${SITEMAP}" "${SITEMAP_SEARCH}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_ASSETS_PATH}" ::: "${DOCUMENTS[@]}"; then
+            return 1
+        fi
+    else
+        for DOCUMENT in "${DOCUMENTS[@]}"; do
+            if ! marsh_build_document_and_template "${SITE_OUTPUT_ROOT}" "${TARGET_OUTPUT_REL}" "${DOCUMENT}" "${SITEMAP}" "${SITEMAP_SEARCH}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_FILEEXT_CSV}" "${MARKDOWN_REWRITE_LINKS}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_ASSETS_PATH}" "${BUILD_CONTEXT_TARGET_OUTPUT_REL}" "${BUILD_CONTEXT_SOURCE_ROOT}"; then
+                return 1
+            fi
+        done
+    fi
+}
+
 # builds a target, parallel if possible
 function marsh_build_target {  # marsh_build_target site_output_root target jobs sitemap sitemap_search templates_dir template markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links #template_overrides[@] template_overrides[@] skip_template_assets template_assets_path build_context_target_output_rel build_context_source_root
     local SITE_OUTPUT_ROOT TARGET JOBS SITEMAP TEMPLATES_DIR TEMPLATE SITEMAP_SEARCH
     local MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_REWRITE_LINKS
     local NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDES SKIP_TEMPLATE_ASSETS TEMPLATE_ASSETS_PATH
     local BUILD_CONTEXT_TARGET_OUTPUT_REL BUILD_CONTEXT_SOURCE_ROOT
-    local TARGET_OUTPUT_REL TEMPLATE_PREFIX DOCUMENTS DOCUMENT
+    local TARGET_OUTPUT_REL TEMPLATE_PREFIX DOCUMENTS
     local TARGET_OUTPUT_ROOT TARGET_SOURCE_ROOT SOURCE_DOCUMENT
-    local PARALLEL PARALLEL_MARKDOWN
 
     # init
     SITE_OUTPUT_ROOT="${1:-.}"
@@ -5270,23 +5330,9 @@ function marsh_build_target {  # marsh_build_target site_output_root target jobs
         echo "Document source root not found for target: ${TARGET_OUTPUT_ROOT}" >&2
         return 1
     fi
-    PARALLEL=$(command -v parallel 2>/dev/null)
-    PARALLEL_MARKDOWN=""
-    [[ "${MARKDOWN_COMMAND}" != "markdown" ]] && PARALLEL_MARKDOWN="${MARKDOWN_COMMAND}"
-    if [[ "${JOBS:-1}" -gt 1 ]] && [[ "${PARALLEL:-}" != "" ]] && [[ "$("${PARALLEL}" --version --no-notice 2>/dev/null | head -n 1 | grep -o 'GNU parallel')" == "GNU parallel" ]]; then
-        # in parallel
-        export -f marsh_build_document_and_template
-        if ! "${PARALLEL}" --halt now,fail=1 --quote --no-notice --env marsh_text_transform --env marsh_process_markdown --env marsh_build_document_and_template --jobs="${JOBS:-1}" "${SELF_DIR}/${SELF_NAME}" build-document-and-template --markdown="${PARALLEL_MARKDOWN}" --markdown-options="${MARKDOWN_OPTIONS_CSV}" --markdown-file-extensions="${MARKDOWN_FILEEXT_CSV}" --markdown-rewrite-links="${MARKDOWN_REWRITE_LINKS}" --marsh-temp="${MARSH_TEMP}" --marsh-config-file="${MARSH_CONFIG_FILE}" --marsh-config-file-dir="${MARSH_CONFIG_FILE_DIR}" --marsh-config-path="${MARSH_CONFIG_PATH}" --marsh-config-url="${MARSH_CONFIG_URL}" --marsh-build-context-target-output-rel="${TARGET_OUTPUT_REL}" --marsh-build-context-source-root="${TARGET_SOURCE_ROOT}" "${SITE_OUTPUT_ROOT}" "${TARGET_OUTPUT_REL}" {} "${SITEMAP}" "${SITEMAP_SEARCH}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_ASSETS_PATH}" ::: "${DOCUMENTS[@]}"; then
-            echo "Unable to build one or more documents in target: ${TARGET}" >&2
-            return 1
-        fi
-    else
-        # serially
-        for DOCUMENT in "${DOCUMENTS[@]}"; do
-            if ! marsh_build_document_and_template "${SITE_OUTPUT_ROOT}" "${TARGET_OUTPUT_REL}" "${DOCUMENT}" "${SITEMAP}" "${SITEMAP_SEARCH}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_FILEEXT_CSV}" "${MARKDOWN_REWRITE_LINKS}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_ASSETS_PATH}" "${TARGET_OUTPUT_REL}" "${TARGET_SOURCE_ROOT}"; then
-                return 1
-            fi
-        done
+    if ! marsh_build_target_documents "${SITE_OUTPUT_ROOT}" "${TARGET_OUTPUT_REL}" "${JOBS}" "${SITEMAP}" "${SITEMAP_SEARCH}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_FILEEXT_CSV}" "${MARKDOWN_REWRITE_LINKS}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_ASSETS_PATH}" "${TARGET_OUTPUT_REL}" "${TARGET_SOURCE_ROOT}" "${DOCUMENTS[@]}"; then
+        echo "Unable to build one or more documents in target: ${TARGET}" >&2
+        return 1
     fi
 }
 

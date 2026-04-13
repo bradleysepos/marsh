@@ -3108,6 +3108,61 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
+        marsh_copy_files:0)
+            TEST_NAME+=":file"
+            SOURCE_FILE="${TEST_TEMP_PREFIX}.source.txt"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            printf '%s\n' 'hello world' > "${SOURCE_FILE}"
+            mkdir -p "${TARGET_OUTPUT_ROOT}"
+            marsh_copy_files "${SOURCE_FILE}" "${TARGET_OUTPUT_ROOT}"
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" -eq "${EXPECTED}" ]]; then
+                ACTUAL="$(<"${TARGET_OUTPUT_ROOT}/$(basename "${SOURCE_FILE}")")"
+                EXPECTED="hello world"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${SOURCE_FILE}" "${TARGET_OUTPUT_ROOT}"
+            ;;
+        marsh_copy_files:1)
+            TEST_NAME+=":directory"
+            SOURCE_FILE="${TEST_TEMP_PREFIX}.source-dir"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            mkdir -p "${SOURCE_FILE}"
+            printf '%s\n' 'alpha' > "${SOURCE_FILE}/one.txt"
+            printf '%s\n' 'beta' > "${SOURCE_FILE}/two.txt"
+            marsh_copy_files "${SOURCE_FILE}" "${TARGET_OUTPUT_ROOT}"
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" -eq "${EXPECTED}" ]]; then
+                ACTUAL="$(<"${TARGET_OUTPUT_ROOT}/$(basename "${SOURCE_FILE}")/one.txt")"$'\n'"$(<"${TARGET_OUTPUT_ROOT}/$(basename "${SOURCE_FILE}")/two.txt")"
+                EXPECTED="alpha"$'\n'"beta"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${SOURCE_FILE}" "${TARGET_OUTPUT_ROOT}"
+            ;;
+        marsh_copy_files:2)
+            TEST_NAME+=":exists"
+            SOURCE_FILE="${TEST_TEMP_PREFIX}.source.txt"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            printf '%s\n' 'hello world' > "${SOURCE_FILE}"
+            mkdir -p "${TARGET_OUTPUT_ROOT}"
+            printf '%s\n' 'existing' > "${TARGET_OUTPUT_ROOT}/$(basename "${SOURCE_FILE}")"
+            marsh_copy_files "${SOURCE_FILE}" "${TARGET_OUTPUT_ROOT}" 2>/dev/null
+            ACTUAL=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" -eq "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            rm -rf "${SOURCE_FILE}" "${TARGET_OUTPUT_ROOT}"
+            ;;
         marsh_copy_planned_target_source_assets:0)
             TEST_NAME+=":glob_plan_records"
             SITE_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
@@ -3775,61 +3830,6 @@ function marsh_test {
                 RES="[PASS]"
             fi
             marsh_test_restore_env
-            ;;
-        marsh_get_files:0)
-            TEST_NAME+=":file"
-            SOURCE_FILE="${TEST_TEMP_PREFIX}.source.txt"
-            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
-            printf '%s\n' 'hello world' > "${SOURCE_FILE}"
-            mkdir -p "${TARGET_OUTPUT_ROOT}"
-            marsh_get_files "${SOURCE_FILE}" "${TARGET_OUTPUT_ROOT}"
-            ACTUAL=$?
-            EXPECTED=0
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" -eq "${EXPECTED}" ]]; then
-                ACTUAL="$(<"${TARGET_OUTPUT_ROOT}/$(basename "${SOURCE_FILE}")")"
-                EXPECTED="hello world"
-                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    RES="[PASS]"
-                fi
-            fi
-            rm -rf "${SOURCE_FILE}" "${TARGET_OUTPUT_ROOT}"
-            ;;
-        marsh_get_files:1)
-            TEST_NAME+=":directory"
-            SOURCE_FILE="${TEST_TEMP_PREFIX}.source-dir"
-            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
-            mkdir -p "${SOURCE_FILE}"
-            printf '%s\n' 'alpha' > "${SOURCE_FILE}/one.txt"
-            printf '%s\n' 'beta' > "${SOURCE_FILE}/two.txt"
-            marsh_get_files "${SOURCE_FILE}" "${TARGET_OUTPUT_ROOT}"
-            ACTUAL=$?
-            EXPECTED=0
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" -eq "${EXPECTED}" ]]; then
-                ACTUAL="$(<"${TARGET_OUTPUT_ROOT}/$(basename "${SOURCE_FILE}")/one.txt")"$'\n'"$(<"${TARGET_OUTPUT_ROOT}/$(basename "${SOURCE_FILE}")/two.txt")"
-                EXPECTED="alpha"$'\n'"beta"
-                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    RES="[PASS]"
-                fi
-            fi
-            rm -rf "${SOURCE_FILE}" "${TARGET_OUTPUT_ROOT}"
-            ;;
-        marsh_get_files:2)
-            TEST_NAME+=":exists"
-            SOURCE_FILE="${TEST_TEMP_PREFIX}.source.txt"
-            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
-            printf '%s\n' 'hello world' > "${SOURCE_FILE}"
-            mkdir -p "${TARGET_OUTPUT_ROOT}"
-            printf '%s\n' 'existing' > "${TARGET_OUTPUT_ROOT}/$(basename "${SOURCE_FILE}")"
-            marsh_get_files "${SOURCE_FILE}" "${TARGET_OUTPUT_ROOT}" 2>/dev/null
-            ACTUAL=$?
-            EXPECTED=1
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" -eq "${EXPECTED}" ]]; then
-                RES="[PASS]"
-            fi
-            rm -rf "${SOURCE_FILE}" "${TARGET_OUTPUT_ROOT}"
             ;;
         marsh_get_internal_parent_directory:0)
             TEST_NAME+=":root_document"
@@ -6933,6 +6933,7 @@ KNOWN_FUNCTIONS=(
     marsh_build_template
     marsh_check_dependencies
     marsh_clean_target_temp
+    marsh_copy_files
     marsh_copy_planned_target_source_assets
     marsh_copy_source_objects
     marsh_create_target_source_root
@@ -6947,7 +6948,6 @@ KNOWN_FUNCTIONS=(
     marsh_get_common_directory
     marsh_get_document_metadata
     marsh_get_document_temp_path
-    marsh_get_files
     marsh_get_internal_parent_directory
     marsh_get_local_declarations
     marsh_get_processed_sitemap

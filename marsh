@@ -2224,7 +2224,7 @@ function marsh_resolve_sitemap_source_path {  # marsh_resolve_sitemap_source_pat
 }
 
 # copies files from local sources
-function marsh_get_files {  # marsh_get_files source dest force
+function marsh_copy_files {  # marsh_copy_files source dest force
     local SOURCE DEST FORCE
     local SOURCE_DIR FILES_LIST FILE
 
@@ -5293,7 +5293,7 @@ function marsh_create_template_cache {  # marsh_create_template_cache templates_
     [[ "${TEMPLATE_SOURCE}" == "" ]] && return 1
 
     if [[ ! -e "${TEMPLATES_DIR}/${TEMPLATE}" ]]; then
-        marsh_get_files "${TEMPLATE_SOURCE}/*" \
+        marsh_copy_files "${TEMPLATE_SOURCE}/*" \
                 "${TEMPLATES_DIR}/${TEMPLATE}" \
                 false || return 1
     fi

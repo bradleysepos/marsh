@@ -5398,62 +5398,6 @@ function marsh_get_target_build_documents {  # marsh_get_target_build_documents 
     done < <(marsh_get_target_scope_paths "${SITE_OUTPUT_ROOT}" "${TARGET}" "${TARGET_OUTPUT_REL}" "${TARGET_SOURCE_ROOT}")
 }
 
-# returns synthetic archive documents that match an exact target request
-function marsh_get_target_archive_documents {  # marsh_get_target_archive_documents site_output_root target target_output_rel
-    local SITE_OUTPUT_ROOT TARGET TARGET_OUTPUT_REL REQUESTED_TARGET_SITE_REL REQUESTED_TARGET_REL DOCUMENT
-
-    SITE_OUTPUT_ROOT="${1:-}"
-    TARGET="${2:-}"
-    TARGET_OUTPUT_REL="${3:-.}"
-    [[ "${SITE_OUTPUT_ROOT}" == "" ]] && return 1
-    [[ "${TARGET}" == "" ]] && return 1
-    [[ "${TARGET_OUTPUT_REL}" == "" ]] && return 1
-
-    [[ "${TARGET}" != '*' ]] || return 0
-    [[ ! -d "${SITE_OUTPUT_ROOT}/${TARGET}" ]] || return 0
-
-    # archive temp artifacts are keyed by the site-relative request, but the
-    # executor still needs the document id relative to the current target root
-    REQUESTED_TARGET_SITE_REL="${TARGET#./}"
-    REQUESTED_TARGET_REL=$(marsh_get_target_request_relpath "${TARGET}" "${TARGET_OUTPUT_REL}") || return 1
-
-    DOCUMENT="${REQUESTED_TARGET_REL#./}"
-    if [[ -f "$(marsh_get_archive_temp_path "${SITE_OUTPUT_ROOT}" "${REQUESTED_TARGET_SITE_REL}" "source" 2>/dev/null)" ]]; then
-        printf '%s\n' "${DOCUMENT}"
-    fi
-}
-
-# returns planned documents for a target from ordinary source or synthetic archive inputs
-function marsh_get_target_planned_documents {  # marsh_get_target_planned_documents site_output_root target target_output_rel target_source_root markdown_fileext_csv
-    local SITE_OUTPUT_ROOT TARGET TARGET_OUTPUT_REL TARGET_SOURCE_ROOT MARKDOWN_FILEEXT_CSV
-    local DOCUMENT PLANNED_DOCUMENTS
-
-    SITE_OUTPUT_ROOT="${1:-}"
-    TARGET="${2:-}"
-    TARGET_OUTPUT_REL="${3:-.}"
-    TARGET_SOURCE_ROOT="${4:-}"
-    MARKDOWN_FILEEXT_CSV="${5:-}"
-    [[ "${SITE_OUTPUT_ROOT}" == "" ]] && return 1
-    [[ "${TARGET}" == "" ]] && return 1
-    [[ "${TARGET_OUTPUT_REL}" == "" ]] && return 1
-    [[ "${MARKDOWN_FILEEXT_CSV}" == "" ]] && return 1
-
-    PLANNED_DOCUMENTS=()
-    if [[ "${TARGET_SOURCE_ROOT}" != "" ]]; then
-        while IFS= read -r DOCUMENT; do
-            [[ "${DOCUMENT}" == "" ]] && continue
-            PLANNED_DOCUMENTS+=("${DOCUMENT}")
-        done < <(marsh_get_target_build_documents "${SITE_OUTPUT_ROOT}" "${TARGET}" "${TARGET_OUTPUT_REL}" "${TARGET_SOURCE_ROOT}" "${MARKDOWN_FILEEXT_CSV}")
-    fi
-    if [[ "${#PLANNED_DOCUMENTS[@]}" -eq 0 ]]; then
-        while IFS= read -r DOCUMENT; do
-            [[ "${DOCUMENT}" == "" ]] && continue
-            PLANNED_DOCUMENTS+=("${DOCUMENT}")
-        done < <(marsh_get_target_archive_documents "${SITE_OUTPUT_ROOT}" "${TARGET}" "${TARGET_OUTPUT_REL}")
-    fi
-    printf '%s\n' "${PLANNED_DOCUMENTS[@]}"
-}
-
 # plans target documents to build
 function marsh_plan_target_documents {  # marsh_plan_target_documents site_output_root target target_output_rel target_source_root markdown_fileext_csv
     local SITE_OUTPUT_ROOT TARGET TARGET_OUTPUT_REL TARGET_SOURCE_ROOT MARKDOWN_FILEEXT_CSV
@@ -5470,12 +5414,13 @@ function marsh_plan_target_documents {  # marsh_plan_target_documents site_outpu
     [[ "${MARKDOWN_FILEEXT_CSV}" == "" ]] && return 1
 
     TARGET_OUTPUT_REL=$(marsh_normalize_internal_path "${TARGET_OUTPUT_REL}") || return 1
+    [[ "${TARGET_SOURCE_ROOT}" != "" ]] || return 0
 
     # emit document plan records using shell-safe fields
     while IFS= read -r DOCUMENT_ID; do
         [[ "${DOCUMENT_ID}" == "" ]] && continue
         printf '%q\t%q\t%q\t%q\n' "${DOCUMENT_ID}" "${DOCUMENT_ID}" "${TARGET_OUTPUT_REL}" "${TARGET_SOURCE_ROOT}"
-    done < <(marsh_get_target_planned_documents "${SITE_OUTPUT_ROOT}" "${TARGET}" "${TARGET_OUTPUT_REL}" "${TARGET_SOURCE_ROOT}" "${MARKDOWN_FILEEXT_CSV}")
+    done < <(marsh_get_target_build_documents "${SITE_OUTPUT_ROOT}" "${TARGET}" "${TARGET_OUTPUT_REL}" "${TARGET_SOURCE_ROOT}" "${MARKDOWN_FILEEXT_CSV}")
 }
 
 # plans target sitemaps as file and source path pairs

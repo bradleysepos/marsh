@@ -2442,6 +2442,8 @@ function marsh_copy_planned_target_source_assets {  # marsh_copy_planned_target_
     shift 2
     [[ "${SITE_OUTPUT_ROOT}" == "" ]] && return 1
 
+    # first record establishes the shared target context for the batch
+    # later records must stay within the same TARGET_OUTPUT_REL and SOURCE_ROOT
     SOURCE_ROOT=""
     TARGET_OUTPUT_REL=""
     SOURCE_OBJECTS=()
@@ -2457,7 +2459,8 @@ function marsh_copy_planned_target_source_assets {  # marsh_copy_planned_target_
         [[ "${PLAN_TARGET_OUTPUT_REL}" == "" ]] && return 1
         [[ "${PLAN_SOURCE_ROOT}" == "" ]] && return 1
 
-        # keep the current executor narrow by expecting one target and one source root per plan batch
+        # consume one target-scoped source assets batch at a time
+        # mixed target contexts should be split by the caller
         if [[ "${SOURCE_ROOT}" == "" ]]; then
             SOURCE_ROOT="${PLAN_SOURCE_ROOT}"
             TARGET_OUTPUT_REL="${PLAN_TARGET_OUTPUT_REL}"
@@ -5409,6 +5412,8 @@ function marsh_build_planned_target_sitemaps {  # marsh_build_planned_target_sit
     [[ "${MARKDOWN_FILEEXT_CSV}" == "" ]] && return 1
     [[ "${MARKDOWN_REWRITE_LINKS}" == "" ]] && return 1
 
+    # sitemap records are self-contained, so we can stream them without establishing
+    # additional shared batch context
     TARGET_SITEMAP_FOUND=false
     while [[ "${#@}" -gt 0 ]]; do
         SITEMAP_RECORD="${1:-}"

@@ -2873,6 +2873,108 @@ function marsh_get_target_plan_root {  # marsh_get_target_plan_root target_outpu
     printf '%s\n' "${TARGET_BUILD_TEMP_ROOT}/plan"
 }
 
+# recreates the planner-owned target plan root for a target and prints its path
+function marsh_create_target_plan_root {  # marsh_create_target_plan_root target_output_root
+    local TARGET_OUTPUT_ROOT TARGET_PLAN_ROOT
+
+    TARGET_OUTPUT_ROOT="${1:-}"
+    [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
+
+    TARGET_PLAN_ROOT=$(marsh_get_target_plan_root "${TARGET_OUTPUT_ROOT}") || return 1
+    rm -rf "${TARGET_PLAN_ROOT}" >/dev/null 2>&1 || {
+        echo "Unable to clean target plan path: ${TARGET_PLAN_ROOT}" >&2
+        return 1
+    }
+    mkdir -p "${TARGET_PLAN_ROOT}" >/dev/null 2>&1 || {
+        echo "Unable to create target plan path: ${TARGET_PLAN_ROOT}" >&2
+        return 1
+    }
+    printf '%s\n' "${TARGET_PLAN_ROOT}"
+}
+
+# writes the target plan context used by the planned target executor
+function marsh_write_target_plan_context {  # marsh_write_target_plan_context target_plan_root target_output_rel force skip_template_assets sitemap sitemap_search templates_dir template #template_overrides[@] template_overrides[@] template_assets_path build_context_target_output_rel build_context_source_root
+    local TARGET_PLAN_ROOT TARGET_OUTPUT_REL FORCE SKIP_TEMPLATE_ASSETS SITEMAP SITEMAP_SEARCH TEMPLATES_DIR TEMPLATE
+    local NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDES TEMPLATE_ASSETS_PATH BUILD_CONTEXT_TARGET_OUTPUT_REL BUILD_CONTEXT_SOURCE_ROOT
+    local CONTEXT_FILE CONTEXT_TEMP TEMPLATE_OVERRIDE
+
+    TARGET_PLAN_ROOT="${1:-}"
+    TARGET_OUTPUT_REL="${2:-}"
+    FORCE="${3:-false}"
+    SKIP_TEMPLATE_ASSETS="${4:-false}"
+    SITEMAP="${5:-}"
+    SITEMAP_SEARCH="${6:-false}"
+    TEMPLATES_DIR="${7:-}"
+    TEMPLATE="${8:-}"
+    shift 8
+    [[ "${TARGET_PLAN_ROOT}" == "" ]] && return 1
+    [[ "${TARGET_OUTPUT_REL}" == "" ]] && return 1
+    NUM_TEMPLATE_OVERRIDES="${1:-0}"
+    shift 1
+    TEMPLATE_OVERRIDES=()
+    while [[ "${NUM_TEMPLATE_OVERRIDES}" -gt 0 ]] && [[ "${#@}" -gt 0 ]]; do
+        TEMPLATE_OVERRIDES+=("${1}")
+        NUM_TEMPLATE_OVERRIDES=$((NUM_TEMPLATE_OVERRIDES - 1))
+        shift 1
+    done
+    TEMPLATE_ASSETS_PATH="${1:-}"
+    BUILD_CONTEXT_TARGET_OUTPUT_REL="${2:-${TARGET_OUTPUT_REL}}"
+    BUILD_CONTEXT_SOURCE_ROOT="${3:-}"
+
+    CONTEXT_FILE="${TARGET_PLAN_ROOT}/context"
+    CONTEXT_TEMP=$(mktemp "${TARGET_PLAN_ROOT}/context-XXXXXX") || return 1
+    {
+        printf 'TARGET_OUTPUT_REL=%q\n' "${TARGET_OUTPUT_REL}"
+        printf 'TARGET_FORCE=%q\n' "${FORCE}"
+        printf 'TARGET_SKIP_TEMPLATE_ASSETS=%q\n' "${SKIP_TEMPLATE_ASSETS}"
+        printf 'TARGET_SITEMAP=%q\n' "${SITEMAP}"
+        printf 'TARGET_SITEMAP_SEARCH=%q\n' "${SITEMAP_SEARCH}"
+        printf 'TEMPLATES_DIR=%q\n' "${TEMPLATES_DIR}"
+        printf 'TEMPLATE=%q\n' "${TEMPLATE}"
+        printf 'TEMPLATE_ASSETS_PATH=%q\n' "${TEMPLATE_ASSETS_PATH}"
+        printf 'BUILD_CONTEXT_TARGET_OUTPUT_REL=%q\n' "${BUILD_CONTEXT_TARGET_OUTPUT_REL}"
+        printf 'BUILD_CONTEXT_SOURCE_ROOT=%q\n' "${BUILD_CONTEXT_SOURCE_ROOT}"
+        echo 'TEMPLATE_OVERRIDES=()'
+        for TEMPLATE_OVERRIDE in "${TEMPLATE_OVERRIDES[@]}"; do
+            printf 'TEMPLATE_OVERRIDES+=(%q)\n' "${TEMPLATE_OVERRIDE}"
+        done
+    } > "${CONTEXT_TEMP}" || {
+        rm -f "${CONTEXT_TEMP}"
+        return 1
+    }
+    mv "${CONTEXT_TEMP}" "${CONTEXT_FILE}" 2>/dev/null || {
+        rm -f "${CONTEXT_TEMP}"
+        return 1
+    }
+}
+
+# writes a named record file under the target plan root from the provided records
+function marsh_write_target_plan_records {  # marsh_write_target_plan_records target_plan_root record_name records[@]
+    local TARGET_PLAN_ROOT RECORD_NAME RECORD_FILE RECORD_TEMP RECORD
+
+    TARGET_PLAN_ROOT="${1:-}"
+    RECORD_NAME="${2:-}"
+    shift 2
+    [[ "${TARGET_PLAN_ROOT}" == "" ]] && return 1
+    [[ "${RECORD_NAME}" == "" ]] && return 1
+
+    RECORD_FILE="${TARGET_PLAN_ROOT}/${RECORD_NAME}"
+    RECORD_TEMP=$(mktemp "${TARGET_PLAN_ROOT}/${RECORD_NAME}-XXXXXX") || return 1
+    while [[ "${#@}" -gt 0 ]]; do
+        RECORD="${1:-}"
+        shift 1
+        [[ "${RECORD}" == "" ]] && continue
+        printf '%s\n' "${RECORD}"
+    done > "${RECORD_TEMP}" || {
+        rm -f "${RECORD_TEMP}"
+        return 1
+    }
+    mv "${RECORD_TEMP}" "${RECORD_FILE}" 2>/dev/null || {
+        rm -f "${RECORD_TEMP}"
+        return 1
+    }
+}
+
 # creates the cached source-root record for a target under MARSH_TEMP
 function marsh_create_target_source_root {  # marsh_create_target_source_root target_output_root source_root
     local TARGET_OUTPUT_ROOT SOURCE_ROOT TARGET_BUILD_TEMP_ROOT TARGET_SOURCE_ROOT_CACHE_FILE
@@ -5412,7 +5514,8 @@ function marsh_plan_target {  # marsh_plan_target site_source_root site_output_r
     local SITE_SOURCE_ROOT SITE_OUTPUT_ROOT TARGET FORCE SOURCE SITEMAP SITEMAP_SEARCH TEMPLATES_DIR TEMPLATE
     local NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDES TEMPLATE_ASSETS_PATH BUILD_CONTEXT_SOURCE_ROOT MARKDOWN_FILEEXT_CSV
     local TARGET_OUTPUT_REL TARGET_OUTPUT_ROOT TARGET_PLAN_ROOT
-    local CONTEXT_FILE CONTEXT_TEMP DOCUMENTS_FILE DOCUMENTS_TEMP SOURCE_ASSETS_FILE SOURCE_ASSETS_TEMP SITEMAPS_FILE SITEMAPS_TEMP
+    local DOCUMENTS_FILE DOCUMENTS_TEMP SOURCE_ASSETS_FILE SOURCE_ASSETS_TEMP SITEMAPS_FILE SITEMAPS_TEMP
+    local DOCUMENT_RECORDS SOURCE_ASSET_RECORDS SITEMAP_RECORDS PLAN_RECORD
 
     SITE_SOURCE_ROOT="${1:-}"
     SITE_OUTPUT_ROOT="${2:-}"
@@ -5442,98 +5545,42 @@ function marsh_plan_target {  # marsh_plan_target site_source_root site_output_r
     TARGET_OUTPUT_REL="${TARGET%/}"
     TARGET_OUTPUT_REL="${TARGET_OUTPUT_REL:-.}"
     TARGET_OUTPUT_ROOT=$(marsh_get_target_directory_path "${SITE_OUTPUT_ROOT}/${TARGET_OUTPUT_REL}") || return 1
-    TARGET_PLAN_ROOT=$(marsh_get_target_plan_root "${TARGET_OUTPUT_ROOT}") || return 1
-
-    # rebuild the target plan in one place so later execution does not re-plan
-    rm -rf "${TARGET_PLAN_ROOT}" >/dev/null 2>&1 || {
-        echo "Unable to clean target plan path: ${TARGET_PLAN_ROOT}" >&2
-        return 1
-    }
-    mkdir -p "${TARGET_PLAN_ROOT}" >/dev/null 2>&1 || {
-        echo "Unable to create target plan path: ${TARGET_PLAN_ROOT}" >&2
-        return 1
-    }
+    TARGET_PLAN_ROOT=$(marsh_create_target_plan_root "${TARGET_OUTPUT_ROOT}") || return 1
 
     if [[ "${BUILD_CONTEXT_SOURCE_ROOT}" != "" ]]; then
         marsh_create_target_source_root "${TARGET_OUTPUT_ROOT}" "${BUILD_CONTEXT_SOURCE_ROOT}" || return 1
     fi
 
-    CONTEXT_FILE="${TARGET_PLAN_ROOT}/context"
-    CONTEXT_TEMP=$(mktemp "${TARGET_PLAN_ROOT}/context-XXXXXX") || return 1
-    {
-        printf 'TARGET_OUTPUT_REL=%q\n' "${TARGET_OUTPUT_REL}"
-        printf 'TARGET_FORCE=%q\n' "${FORCE}"
-        printf 'TARGET_SITEMAP=%q\n' "${SITEMAP}"
-        printf 'TARGET_SITEMAP_SEARCH=%q\n' "${SITEMAP_SEARCH}"
-        printf 'TEMPLATES_DIR=%q\n' "${TEMPLATES_DIR}"
-        printf 'TEMPLATE=%q\n' "${TEMPLATE}"
-        printf 'TEMPLATE_ASSETS_PATH=%q\n' "${TEMPLATE_ASSETS_PATH}"
-        printf 'BUILD_CONTEXT_TARGET_OUTPUT_REL=%q\n' "${TARGET_OUTPUT_REL}"
-        printf 'BUILD_CONTEXT_SOURCE_ROOT=%q\n' "${BUILD_CONTEXT_SOURCE_ROOT}"
-        echo 'TEMPLATE_OVERRIDES=()'
-        for TEMPLATE in "${TEMPLATE_OVERRIDES[@]}"; do
-            printf 'TEMPLATE_OVERRIDES+=(%q)\n' "${TEMPLATE}"
-        done
-    } > "${CONTEXT_TEMP}" || {
-        rm -f "${CONTEXT_TEMP}"
-        return 1
-    }
-    mv "${CONTEXT_TEMP}" "${CONTEXT_FILE}" 2>/dev/null || {
-        rm -f "${CONTEXT_TEMP}"
-        return 1
-    }
+    marsh_write_target_plan_context "${TARGET_PLAN_ROOT}" "${TARGET_OUTPUT_REL}" "${FORCE}" false "${SITEMAP}" "${SITEMAP_SEARCH}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_ASSETS_PATH}" "${TARGET_OUTPUT_REL}" "${BUILD_CONTEXT_SOURCE_ROOT}" || return 1
 
-    DOCUMENTS_FILE="${TARGET_PLAN_ROOT}/documents"
-    DOCUMENTS_TEMP=$(mktemp "${TARGET_PLAN_ROOT}/documents-XXXXXX") || return 1
-    marsh_plan_target_documents "${SITE_OUTPUT_ROOT}" "${TARGET}" "${TARGET_OUTPUT_REL}" "${BUILD_CONTEXT_SOURCE_ROOT}" "${MARKDOWN_FILEEXT_CSV}" > "${DOCUMENTS_TEMP}" || {
-        rm -f "${DOCUMENTS_TEMP}"
-        return 1
-    }
-    mv "${DOCUMENTS_TEMP}" "${DOCUMENTS_FILE}" 2>/dev/null || {
-        rm -f "${DOCUMENTS_TEMP}"
-        return 1
-    }
+    DOCUMENT_RECORDS=()
+    while IFS= read -r PLAN_RECORD; do
+        [[ "${PLAN_RECORD}" == "" ]] && continue
+        DOCUMENT_RECORDS+=("${PLAN_RECORD}")
+    done < <(marsh_plan_target_documents "${SITE_OUTPUT_ROOT}" "${TARGET}" "${TARGET_OUTPUT_REL}" "${BUILD_CONTEXT_SOURCE_ROOT}" "${MARKDOWN_FILEEXT_CSV}") || return 1
+    marsh_write_target_plan_records "${TARGET_PLAN_ROOT}" "documents" "${DOCUMENT_RECORDS[@]}" || return 1
 
-    SOURCE_ASSETS_FILE="${TARGET_PLAN_ROOT}/source-assets"
-    SOURCE_ASSETS_TEMP=$(mktemp "${TARGET_PLAN_ROOT}/source-assets-XXXXXX") || return 1
+    SOURCE_ASSET_RECORDS=()
     if [[ "${SOURCE}" != "" ]]; then
-        marsh_plan_target_source_assets "${SOURCE}" "${SITE_OUTPUT_ROOT}" "${TARGET_OUTPUT_REL}" "${MARKDOWN_FILEEXT_CSV}" > "${SOURCE_ASSETS_TEMP}" || {
-            rm -f "${SOURCE_ASSETS_TEMP}"
-            return 1
-        }
-    else
-        : > "${SOURCE_ASSETS_TEMP}" || {
-            rm -f "${SOURCE_ASSETS_TEMP}"
-            return 1
-        }
+        while IFS= read -r PLAN_RECORD; do
+            [[ "${PLAN_RECORD}" == "" ]] && continue
+            SOURCE_ASSET_RECORDS+=("${PLAN_RECORD}")
+        done < <(marsh_plan_target_source_assets "${SOURCE}" "${SITE_OUTPUT_ROOT}" "${TARGET_OUTPUT_REL}" "${MARKDOWN_FILEEXT_CSV}") || return 1
     fi
-    mv "${SOURCE_ASSETS_TEMP}" "${SOURCE_ASSETS_FILE}" 2>/dev/null || {
-        rm -f "${SOURCE_ASSETS_TEMP}"
-        return 1
-    }
+    marsh_write_target_plan_records "${TARGET_PLAN_ROOT}" "source-assets" "${SOURCE_ASSET_RECORDS[@]}" || return 1
 
-    SITEMAPS_FILE="${TARGET_PLAN_ROOT}/sitemaps"
-    SITEMAPS_TEMP=$(mktemp "${TARGET_PLAN_ROOT}/sitemaps-XXXXXX") || return 1
+    SITEMAP_RECORDS=()
     if [[ "${SITEMAP}" != "" ]]; then
         [[ "${BUILD_CONTEXT_SOURCE_ROOT}" != "" ]] || {
-            rm -f "${SITEMAPS_TEMP}"
             echo "Unable to resolve target source root for sitemap: ${SITEMAP}" >&2
             return 1
         }
-        marsh_plan_target_sitemaps "${SITE_SOURCE_ROOT}" "${BUILD_CONTEXT_SOURCE_ROOT}" "${SITEMAP}" "${SITEMAP_SEARCH}" "${TARGET_OUTPUT_ROOT}" > "${SITEMAPS_TEMP}" || {
-            rm -f "${SITEMAPS_TEMP}"
-            return 1
-        }
-    else
-        : > "${SITEMAPS_TEMP}" || {
-            rm -f "${SITEMAPS_TEMP}"
-            return 1
-        }
+        while IFS= read -r PLAN_RECORD; do
+            [[ "${PLAN_RECORD}" == "" ]] && continue
+            SITEMAP_RECORDS+=("${PLAN_RECORD}")
+        done < <(marsh_plan_target_sitemaps "${SITE_SOURCE_ROOT}" "${BUILD_CONTEXT_SOURCE_ROOT}" "${SITEMAP}" "${SITEMAP_SEARCH}" "${TARGET_OUTPUT_ROOT}") || return 1
     fi
-    mv "${SITEMAPS_TEMP}" "${SITEMAPS_FILE}" 2>/dev/null || {
-        rm -f "${SITEMAPS_TEMP}"
-        return 1
-    }
+    marsh_write_target_plan_records "${TARGET_PLAN_ROOT}" "sitemaps" "${SITEMAP_RECORDS[@]}" || return 1
 
     printf '%s\n' "${TARGET_PLAN_ROOT}"
 }
@@ -5768,7 +5815,7 @@ function marsh_build_planned_target_sitemaps {  # marsh_build_planned_target_sit
 # builds a planned target
 function marsh_build_planned_target {  # marsh_build_planned_target site_output_root jobs markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links target_plan_root
     local SITE_OUTPUT_ROOT JOBS MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_REWRITE_LINKS TARGET_PLAN_ROOT
-    local TARGET_PLAN_CONTEXT TARGET_PLAN_CONTEXT_VARS TARGET_OUTPUT_REL TARGET_FORCE TARGET_SITEMAP TARGET_SITEMAP_SEARCH
+    local TARGET_PLAN_CONTEXT TARGET_PLAN_CONTEXT_VARS TARGET_OUTPUT_REL TARGET_FORCE TARGET_SKIP_TEMPLATE_ASSETS TARGET_SITEMAP TARGET_SITEMAP_SEARCH
     local TEMPLATES_DIR TEMPLATE TEMPLATE_ASSETS_PATH BUILD_CONTEXT_TARGET_OUTPUT_REL BUILD_CONTEXT_SOURCE_ROOT TEMPLATE_OVERRIDES
     local TARGET_OUTPUT_ROOT CONTEXT_FILE DOCUMENTS_FILE SOURCE_ASSETS_FILE SITEMAPS_FILE PLAN_RECORD
     local DOCUMENT_RECORDS SOURCE_ASSET_RECORDS SITEMAP_RECORDS
@@ -5822,7 +5869,7 @@ function marsh_build_planned_target {  # marsh_build_planned_target site_output_
         done < "${SITEMAPS_FILE}"
     fi
 
-    if [[ "${TEMPLATES_DIR}" != "" ]] && [[ "${TEMPLATE}" != "" ]]; then
+    if [[ "${TARGET_SKIP_TEMPLATE_ASSETS}" != true ]] && [[ "${TEMPLATES_DIR}" != "" ]] && [[ "${TEMPLATE}" != "" ]]; then
         marsh_copy_template_assets "${SITE_OUTPUT_ROOT}" "${TARGET_OUTPUT_REL}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_ASSETS_PATH}" || return 1
     fi
 
@@ -5979,87 +6026,6 @@ function marsh_build_planned_target_documents {  # marsh_build_planned_target_do
 
     [[ "${#DOCUMENTS[@]}" -gt 0 ]] || return 0
     marsh_build_target_documents "${SITE_OUTPUT_ROOT}" "${PLAN_TARGET_OUTPUT_REL}" "${JOBS}" "${SITEMAP}" "${SITEMAP_SEARCH}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_FILEEXT_CSV}" "${MARKDOWN_REWRITE_LINKS}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_ASSETS_PATH}" "${PLAN_TARGET_OUTPUT_REL}" "${PLAN_SOURCE_ROOT}" "${DOCUMENTS[@]}"
-}
-
-# builds a target, parallel if possible
-function marsh_build_target {  # marsh_build_target site_output_root target jobs sitemap sitemap_search templates_dir template markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links #template_overrides[@] template_overrides[@] skip_template_assets template_assets_path build_context_target_output_rel build_context_source_root [document_records[@]]
-    local SITE_OUTPUT_ROOT TARGET JOBS SITEMAP TEMPLATES_DIR TEMPLATE SITEMAP_SEARCH
-    local MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_REWRITE_LINKS
-    local NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDES SKIP_TEMPLATE_ASSETS TEMPLATE_ASSETS_PATH
-    local BUILD_CONTEXT_TARGET_OUTPUT_REL BUILD_CONTEXT_SOURCE_ROOT
-    local TARGET_OUTPUT_REL TEMPLATE_PREFIX DOCUMENT_RECORDS DOCUMENT_RECORD
-    local TARGET_OUTPUT_ROOT TARGET_SOURCE_ROOT SOURCE_DOCUMENT
-
-    # init
-    SITE_OUTPUT_ROOT="${1:-.}"
-    SITE_OUTPUT_ROOT="${SITE_OUTPUT_ROOT%/}"
-    TARGET="${2:-}"
-    TARGET="${TARGET%/}"
-    TARGET_OUTPUT_REL="${TARGET%/*}"
-    TARGET_OUTPUT_REL="${TARGET_OUTPUT_REL:-.}"
-    TARGET="${TARGET:-*}"
-    JOBS="${3:-1}"
-    SITEMAP="${4:-}"
-    SITEMAP_SEARCH="${5:-false}"
-    TEMPLATES_DIR="${6:-}"
-    TEMPLATE="${7:-}"
-    MARKDOWN_COMMAND="${8:-}"
-    MARKDOWN_OPTIONS_CSV="${9:-}"
-    MARKDOWN_FILEEXT_CSV="${10:-}"
-    MARKDOWN_REWRITE_LINKS="${11:-}"
-    shift 11
-    [[ "${MARKDOWN_COMMAND}" == "" ]] && return 1
-    [[ "${MARKDOWN_FILEEXT_CSV}" == "" ]] && return 1
-    [[ "${MARKDOWN_REWRITE_LINKS}" == "" ]] && return 1
-    NUM_TEMPLATE_OVERRIDES="${1:-0}"
-    shift 1
-    TEMPLATE_OVERRIDES=()
-    while [[ "${NUM_TEMPLATE_OVERRIDES}" -gt 0 ]] && [[ "${#@}" -gt 0 ]]; do
-        TEMPLATE_OVERRIDES+=("${1}")
-        NUM_TEMPLATE_OVERRIDES=$((NUM_TEMPLATE_OVERRIDES - 1))
-        shift 1
-    done
-    SKIP_TEMPLATE_ASSETS="${1:-false}"
-    TEMPLATE_ASSETS_PATH="${2:-}"
-    BUILD_CONTEXT_TARGET_OUTPUT_REL="${3:-${TARGET_OUTPUT_REL}}"
-    BUILD_CONTEXT_SOURCE_ROOT="${4:-}"
-    shift 4
-    BUILD_CONTEXT_TARGET_OUTPUT_REL="${BUILD_CONTEXT_TARGET_OUTPUT_REL%/}"
-    BUILD_CONTEXT_TARGET_OUTPUT_REL="${BUILD_CONTEXT_TARGET_OUTPUT_REL:-.}"
-    TARGET_OUTPUT_REL="${BUILD_CONTEXT_TARGET_OUTPUT_REL}"
-
-    # copy template assets
-    if [[ "${SKIP_TEMPLATE_ASSETS}" != true ]] && [[ "${TEMPLATES_DIR}" != "" ]] && [[ "${TEMPLATE}" != "" ]]; then
-        marsh_copy_template_assets "${SITE_OUTPUT_ROOT}" "${TARGET_OUTPUT_REL}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_ASSETS_PATH}" || return 1
-    fi
-
-    # build target documents
-    TARGET_OUTPUT_ROOT=$(marsh_get_target_directory_path "${SITE_OUTPUT_ROOT}/${TARGET_OUTPUT_REL}") || return 1
-    TARGET_SOURCE_ROOT="${BUILD_CONTEXT_SOURCE_ROOT}"
-    DOCUMENT_RECORDS=()
-    while [[ "${#@}" -gt 0 ]]; do
-        DOCUMENT_RECORD="${1:-}"
-        shift 1
-        [[ "${DOCUMENT_RECORD}" == "" ]] && continue
-        DOCUMENT_RECORDS+=("${DOCUMENT_RECORD}")
-    done
-
-    # callers may now provide explicit target document plan records
-    # keep a local fallback until all direct call sites move to planner-owned input
-    if [[ "${#DOCUMENT_RECORDS[@]}" -eq 0 ]]; then
-        while IFS= read -r DOCUMENT_RECORD; do
-            [[ "${DOCUMENT_RECORD}" == "" ]] && continue
-            DOCUMENT_RECORDS+=("${DOCUMENT_RECORD}")
-        done < <(marsh_plan_target_documents "${SITE_OUTPUT_ROOT}" "${TARGET}" "${TARGET_OUTPUT_REL}" "${TARGET_SOURCE_ROOT}" "${MARKDOWN_FILEEXT_CSV}")
-    fi
-    if [[ "${#DOCUMENT_RECORDS[@]}" -eq 0 ]] && [[ "${TARGET_SOURCE_ROOT}" == "" ]]; then
-        echo "Document source root not found for target: ${TARGET_OUTPUT_ROOT}" >&2
-        return 1
-    fi
-    if ! marsh_build_planned_target_documents "${SITE_OUTPUT_ROOT}" "${JOBS}" "${SITEMAP}" "${SITEMAP_SEARCH}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_FILEEXT_CSV}" "${MARKDOWN_REWRITE_LINKS}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_ASSETS_PATH}" "${DOCUMENT_RECORDS[@]}"; then
-        echo "Unable to build one or more documents in target: ${TARGET}" >&2
-        return 1
-    fi
 }
 
 # main function, entry point for command line interface

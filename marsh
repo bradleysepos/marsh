@@ -5281,9 +5281,9 @@ function marsh_build_document_and_template {  # marsh_build_document_and_templat
     return 0
 }
 
-# creates a cached template copy under the build template cache when needed
-function marsh_create_template_cache {  # marsh_create_template_cache templates_dir template template_source
-    local TEMPLATES_DIR TEMPLATE TEMPLATE_SOURCE
+# returns the cached template path, creating it when needed
+function marsh_get_template_cache_path {  # marsh_get_template_cache_path templates_dir template template_source
+    local TEMPLATES_DIR TEMPLATE TEMPLATE_SOURCE TEMPLATE_CACHE_PATH
 
     TEMPLATES_DIR="${1:-}"
     TEMPLATE="${2:-}"
@@ -5291,12 +5291,16 @@ function marsh_create_template_cache {  # marsh_create_template_cache templates_
     [[ "${TEMPLATES_DIR}" == "" ]] && return 1
     [[ "${TEMPLATE}" == "" ]] && return 1
     [[ "${TEMPLATE_SOURCE}" == "" ]] && return 1
+    TEMPLATE_CACHE_PATH="${TEMPLATES_DIR}/${TEMPLATE}"
 
-    if [[ ! -e "${TEMPLATES_DIR}/${TEMPLATE}" ]]; then
+    if [[ ! -e "${TEMPLATE_CACHE_PATH}" ]]; then
         marsh_copy_files "${TEMPLATE_SOURCE}/*" \
-                "${TEMPLATES_DIR}/${TEMPLATE}" \
+                "${TEMPLATE_CACHE_PATH}" \
                 false || return 1
     fi
+
+    [[ -e "${TEMPLATE_CACHE_PATH}" ]] || return 1
+    printf '%s\n' "${TEMPLATE_CACHE_PATH}"
 }
 
 # returns the request path relative to the current target root
@@ -6529,7 +6533,7 @@ function marsh_cli {
                     [[ "${TARGET_TEMPLATE_OVERRIDES[$I]:-}" == "" ]] && continue
                     TARGET_TEMPLATE_OVERRIDES[$I]=$(marsh_resolve_config_path "${MARSH_CONFIG_FILE_DIR}" "${TARGET_TEMPLATE_OVERRIDES[$I]}") || die_gracefully
                 done
-                marsh_create_template_cache "${TEMPLATES_DIR}" "${TARGET_TEMPLATE}" "${TARGET_TEMPLATE_SOURCE}" || die_gracefully
+                marsh_get_template_cache_path "${TEMPLATES_DIR}" "${TARGET_TEMPLATE}" "${TARGET_TEMPLATE_SOURCE}" >/dev/null || die_gracefully
             fi
 
             # get source files for target
@@ -6604,7 +6608,7 @@ function marsh_cli {
                             [[ "${TARGET_ARCHIVE_TEMPLATE_OVERRIDES[$J]:-}" == "" ]] && continue
                             TARGET_ARCHIVE_TEMPLATE_OVERRIDES[$J]=$(marsh_resolve_config_path "${MARSH_CONFIG_FILE_DIR}" "${TARGET_ARCHIVE_TEMPLATE_OVERRIDES[$J]}") || die_gracefully
                         done
-                        marsh_create_template_cache "${TEMPLATES_DIR}" "${TARGET_ARCHIVE_TEMPLATE}" "${TARGET_ARCHIVE_TEMPLATE_SOURCE}" || die_gracefully
+                        marsh_get_template_cache_path "${TEMPLATES_DIR}" "${TARGET_ARCHIVE_TEMPLATE}" "${TARGET_ARCHIVE_TEMPLATE_SOURCE}" >/dev/null || die_gracefully
                     fi
                     TARGET_ARCHIVE_ROOT="${TARGET_ARCHIVES_ROOT_PATH[$I]:-}"
                     if [[ "${TARGET_ARCHIVE_ROOT}" == "" ]]; then

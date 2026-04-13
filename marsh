@@ -5568,12 +5568,12 @@ function marsh_build_planned_target_documents {  # marsh_build_planned_target_do
 }
 
 # builds a target, parallel if possible
-function marsh_build_target {  # marsh_build_target site_output_root target jobs sitemap sitemap_search templates_dir template markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links #template_overrides[@] template_overrides[@] skip_template_assets template_assets_path build_context_target_output_rel build_context_source_root
+function marsh_build_target {  # marsh_build_target site_output_root target jobs sitemap sitemap_search templates_dir template markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links #template_overrides[@] template_overrides[@] skip_template_assets template_assets_path build_context_target_output_rel build_context_source_root [document_records[@]]
     local SITE_OUTPUT_ROOT TARGET JOBS SITEMAP TEMPLATES_DIR TEMPLATE SITEMAP_SEARCH
     local MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_REWRITE_LINKS
     local NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDES SKIP_TEMPLATE_ASSETS TEMPLATE_ASSETS_PATH
     local BUILD_CONTEXT_TARGET_OUTPUT_REL BUILD_CONTEXT_SOURCE_ROOT
-    local TARGET_OUTPUT_REL TEMPLATE_PREFIX DOCUMENTS DOCUMENT_RECORDS DOCUMENT_RECORD
+    local TARGET_OUTPUT_REL TEMPLATE_PREFIX DOCUMENT_RECORDS DOCUMENT_RECORD
     local TARGET_OUTPUT_ROOT TARGET_SOURCE_ROOT SOURCE_DOCUMENT
 
     # init
@@ -5609,6 +5609,7 @@ function marsh_build_target {  # marsh_build_target site_output_root target jobs
     TEMPLATE_ASSETS_PATH="${2:-}"
     BUILD_CONTEXT_TARGET_OUTPUT_REL="${3:-${TARGET_OUTPUT_REL}}"
     BUILD_CONTEXT_SOURCE_ROOT="${4:-}"
+    shift 4
     BUILD_CONTEXT_TARGET_OUTPUT_REL="${BUILD_CONTEXT_TARGET_OUTPUT_REL%/}"
     BUILD_CONTEXT_TARGET_OUTPUT_REL="${BUILD_CONTEXT_TARGET_OUTPUT_REL:-.}"
     TARGET_OUTPUT_REL="${BUILD_CONTEXT_TARGET_OUTPUT_REL}"
@@ -5622,10 +5623,21 @@ function marsh_build_target {  # marsh_build_target site_output_root target jobs
     TARGET_OUTPUT_ROOT=$(marsh_get_target_directory_path "${SITE_OUTPUT_ROOT}/${TARGET_OUTPUT_REL}") || return 1
     TARGET_SOURCE_ROOT="${BUILD_CONTEXT_SOURCE_ROOT}"
     DOCUMENT_RECORDS=()
-    while IFS= read -r DOCUMENT_RECORD; do
+    while [[ "${#@}" -gt 0 ]]; do
+        DOCUMENT_RECORD="${1:-}"
+        shift 1
         [[ "${DOCUMENT_RECORD}" == "" ]] && continue
         DOCUMENT_RECORDS+=("${DOCUMENT_RECORD}")
-    done < <(marsh_plan_target_documents "${SITE_OUTPUT_ROOT}" "${TARGET}" "${TARGET_OUTPUT_REL}" "${TARGET_SOURCE_ROOT}" "${MARKDOWN_FILEEXT_CSV}")
+    done
+
+    # callers may now provide explicit target document plan records
+    # keep a local fallback until all direct call sites move to planner-owned input
+    if [[ "${#DOCUMENT_RECORDS[@]}" -eq 0 ]]; then
+        while IFS= read -r DOCUMENT_RECORD; do
+            [[ "${DOCUMENT_RECORD}" == "" ]] && continue
+            DOCUMENT_RECORDS+=("${DOCUMENT_RECORD}")
+        done < <(marsh_plan_target_documents "${SITE_OUTPUT_ROOT}" "${TARGET}" "${TARGET_OUTPUT_REL}" "${TARGET_SOURCE_ROOT}" "${MARKDOWN_FILEEXT_CSV}")
+    fi
     if [[ "${#DOCUMENT_RECORDS[@]}" -eq 0 ]] && [[ "${TARGET_SOURCE_ROOT}" == "" ]]; then
         echo "Document source root not found for target: ${TARGET_OUTPUT_ROOT}" >&2
         return 1
@@ -5651,6 +5663,7 @@ function marsh_cli {
     local TARGET_ARCHIVE_TEMPLATE TARGET_ARCHIVE_TEMPLATE_SOURCE TARGET_ARCHIVE_TEMPLATE_ASSETS_PATH TARGET_ARCHIVE_TEMPLATE_OVERRIDES
     local SITE_SOURCE_ROOT TARGET_SOURCE_ROOT TARGET_SITEMAP_RESOLVED TARGET_SITEMAP_SEARCH TARGET_SITEMAP_MATCH TARGET_SITEMAP_REL TARGET_SITEMAP_FOUND TARGET_SITEMAP_FILE TARGET_SITEMAP_SOURCE TARGET_SITEMAP_RECORDS TARGET_SITEMAP_RECORD
     local TARGET_SOURCE_ASSET_RECORDS TARGET_SOURCE_ASSET_RECORD
+    local TARGET_DOCUMENT_RECORDS TARGET_DOCUMENT_RECORD
     local BUILD_SITE_OUTPUT_ROOT BUILD_TARGET_OUTPUT_REL BUILD_DOCUMENT BUILD_SITEMAP BUILD_SITEMAP_SEARCH
     local BUILD_CONTEXT_TARGET_OUTPUT_REL BUILD_CONTEXT_SOURCE_ROOT
     local BUILD_TEMPLATES_DIR BUILD_TEMPLATE BUILD_NUM_TEMPLATE_OVERRIDES BUILD_TEMPLATE_OVERRIDES BUILD_TEMPLATE_ASSETS_PATH
@@ -6186,6 +6199,13 @@ function marsh_cli {
                 fi
             fi
 
+            # get buildable documents for target
+            TARGET_DOCUMENT_RECORDS=()
+            while IFS= read -r TARGET_DOCUMENT_RECORD; do
+                [[ "${TARGET_DOCUMENT_RECORD}" == "" ]] && continue
+                TARGET_DOCUMENT_RECORDS+=("${TARGET_DOCUMENT_RECORD}")
+            done < <(marsh_plan_target_documents "${MARSH_CONFIG_PATH}" "${TARGET_PATH}" "${BUILD_CONTEXT_TARGET_OUTPUT_REL}" "${BUILD_CONTEXT_SOURCE_ROOT}" "${MARKDOWN_FILEEXT_CSV}") || die_gracefully
+
             # build target
             marsh_build_target "${MARSH_CONFIG_PATH}" \
                         "${TARGET_PATH}" \
@@ -6203,7 +6223,8 @@ function marsh_cli {
                         false \
                         "${TARGET_TEMPLATE_ASSETS_PATH:-}" \
                         "${BUILD_CONTEXT_TARGET_OUTPUT_REL}" \
-                        "${BUILD_CONTEXT_SOURCE_ROOT}" || die_gracefully
+                        "${BUILD_CONTEXT_SOURCE_ROOT}" \
+                        "${TARGET_DOCUMENT_RECORDS[@]}" || die_gracefully
 
             # archives
             TARGET_ARCHIVE_MANIFEST=""

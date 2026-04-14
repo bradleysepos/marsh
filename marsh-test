@@ -1063,7 +1063,7 @@ function marsh_test {
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}" "${SOURCE_ROOT}"
             marsh_test_restore_env
             ;;
-        marsh_build_planned_archive_pages:0)
+        marsh_build_planned_archive_documents:0)
             TEST_NAME+=":renders_archive"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
@@ -1074,7 +1074,7 @@ function marsh_test {
             marsh_test_create_archive_document "${TARGET_OUTPUT_ROOT}" "news/item.markdown" "post" "Item" "2026-01-01"
             marsh_build_archive_manifest "${TARGET_OUTPUT_ROOT}" > "${MANIFEST_FILE}"
             ARCHIVE_PLAN_ROOT=$(marsh_plan_archive_pages "${TARGET_OUTPUT_ROOT}" "html" "news/index.markdown" "News" "English" "en" "" "10" "1" "post" "0" "${MANIFEST_FILE}" "" "${TEMPLATE_DIR}" "sample" "" false 0 "" "." "")
-            marsh_build_planned_archive_pages "${TARGET_OUTPUT_ROOT}" "1" "marsh_test_markdown_command" "" "markdown,md" true "${ARCHIVE_PLAN_ROOT}" >/dev/null 2>&1
+            marsh_build_planned_archive_documents "${TARGET_OUTPUT_ROOT}" "1" "marsh_test_markdown_command" "" "markdown,md" true "${ARCHIVE_PLAN_ROOT}" >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
             ASSERTION="equals"
@@ -6942,7 +6942,7 @@ KNOWN_FUNCTIONS=(
     marsh_build_archive_manifest
     marsh_build_document
     marsh_build_document_and_template
-    marsh_build_planned_archive_pages
+    marsh_build_planned_archive_documents
     marsh_build_planned_target
     marsh_build_planned_target_documents
     marsh_build_planned_target_sitemaps

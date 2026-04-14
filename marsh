@@ -6781,8 +6781,8 @@ function marsh_cli {
             META_VARS=$(echo "${META}" | marsh_get_variables)
             eval "$(printf '%s\n' "${META_VARS}" | marsh_get_local_declarations)"
             eval "${META}"
-            echo "Target ${TARGET_NUMBER}: ${TARGET_NAME:-}"
-            echo "Target ${TARGET_NUMBER}: planning"
+            echo "Building target ${TARGET_NUMBER}: ${TARGET_NAME:-}"
+            echo "Target ${TARGET_NUMBER}: planning build"
 
             # get template
             if [[ "${TARGET_TEMPLATE_SOURCE:-}" != "" ]]; then

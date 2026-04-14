@@ -5445,6 +5445,8 @@ function marsh_write_target_archive_manifest {  # marsh_write_target_archive_man
     MANIFEST_FILE="${TARGET_PLAN_ROOT}/archive-manifest"
     MANIFEST_TEMP=$(mktemp "${TARGET_PLAN_ROOT}/archive-manifest-XXXXXX") || return 1
 
+    # prefer caller-supplied document records on the hot path, but fall back to the
+    # persisted target plan when archive planning is resumed from disk-only state
     while IFS=$'\t' read -r DOCUMENT_ID DOCUMENT_RECORD; do
         [[ "${DOCUMENT_ID}" == "" ]] && continue
         [[ "${DOCUMENT_RECORD}" == "" ]] && continue
@@ -5620,6 +5622,8 @@ function marsh_plan_target {  # marsh_plan_target site_source_root site_output_r
     fi
     marsh_write_target_plan_records "${TARGET_PLAN_ROOT}" "sitemaps" "${SITEMAP_RECORDS[@]}" || return 1
 
+    # directly pass through planned document records so archive planning can avoid
+    # rereading the just-written documents file in the same shell
     ARCHIVE_PLAN_ROOTS=()
     while IFS= read -r TARGET_ARCHIVE_PLAN_ROOT; do
         [[ "${TARGET_ARCHIVE_PLAN_ROOT}" == "" ]] && continue
@@ -5687,7 +5691,7 @@ function marsh_plan_archive_pages {  # marsh_plan_archive_pages target_output_ro
     BUILD_CONTEXT_TARGET_OUTPUT_REL="${2:-.}"
     BUILD_CONTEXT_SOURCE_ROOT="${3:-}"
 
-    # archive plans get their own directory under the target plan root
+    # persist archive plans under the target plan root so that the archive executor can consume them
     TARGET_OUTPUT_ROOT=$(marsh_get_target_directory_path "${TARGET_OUTPUT_ROOT}") || return 1
     TARGET_PLAN_ROOT=$(marsh_get_target_plan_root "${TARGET_OUTPUT_ROOT}") || return 1
     ARCHIVE_PLANS_ROOT="${TARGET_PLAN_ROOT}/archives"
@@ -5792,6 +5796,8 @@ function marsh_build_planned_archive_documents {  # marsh_build_planned_archive_
     [[ "${MARKDOWN_REWRITE_LINKS}" == "" ]] && return 1
     [[ "${ARCHIVE_PLAN_ROOT}" == "" ]] && return 1
 
+    # archive execution treats the archive plan root as the durable handoff surface,
+    # so this executor intentionally reloads its context and documents from disk
     CONTEXT_FILE="${ARCHIVE_PLAN_ROOT}/context"
     DOCUMENTS_FILE="${ARCHIVE_PLAN_ROOT}/documents"
     [[ -f "${CONTEXT_FILE}" ]] && [[ -r "${CONTEXT_FILE}" ]] || return 1
@@ -5838,6 +5844,8 @@ function marsh_plan_target_archives {  # marsh_plan_target_archives site_output_
     shift 3
     DOCUMENT_RECORDS_IN=("$@")
 
+    # archive planning rehydrates target context from the persisted target plan so
+    # direct callers can plan from disk state as well as the in-memory fast path
     CONTEXT_FILE="${TARGET_PLAN_ROOT}/context"
     [[ -f "${CONTEXT_FILE}" ]] && [[ -r "${CONTEXT_FILE}" ]] || return 1
     TARGET_PLAN_CONTEXT=$(<"${CONTEXT_FILE}") || return 1
@@ -5850,6 +5858,8 @@ function marsh_plan_target_archives {  # marsh_plan_target_archives site_output_
         return 0
     fi
 
+    # keep archive manifest creation internal to archive planning while still allowing
+    # the fast path to reuse in-memory document records instead of rereading from disk
     marsh_write_target_archive_manifest "${SITE_OUTPUT_ROOT}" "${MARKDOWN_FILEEXT_CSV}" "${TARGET_PLAN_ROOT}" "${DOCUMENT_RECORDS_IN[@]}" || return 1
 
     # archives for the same target share the same manifest

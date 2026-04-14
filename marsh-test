@@ -4550,54 +4550,6 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_get_target_scope_paths:0)
-            TEST_NAME+=":directory_scope"
-            SITE_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
-            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
-            marsh_test_set_env
-            mkdir -p "${SITE_OUTPUT_ROOT}/about" "${SOURCE_ROOT}/about/team"
-            printf '%s\n' '# about' > "${SOURCE_ROOT}/about/index.markdown"
-            printf '%s\n' '# team' > "${SOURCE_ROOT}/about/team/index.markdown"
-            printf '%s\n' '# home' > "${SOURCE_ROOT}/index.markdown"
-            TARGET_SCOPE="about"
-            TARGET_OUTPUT_REL="."
-            TARGET_SOURCE_ROOT_ARG="${SOURCE_ROOT}"
-            ACTUAL=$(marsh_get_target_scope_paths "${SITE_OUTPUT_ROOT}" "${TARGET_SCOPE}" "${TARGET_OUTPUT_REL}" "${TARGET_SOURCE_ROOT_ARG}")
-            EXPECTED=$(printf '%s\n' \
-                'about/index.markdown' \
-                'about/team/index.markdown' | sort)
-            ACTUAL=$(printf '%s\n' "${ACTUAL}" | sed '/^$/d' | sort)
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                RES="[PASS]"
-            fi
-            rm -rf "${SITE_OUTPUT_ROOT}" "${SOURCE_ROOT}"
-            marsh_test_restore_env
-            ;;
-        marsh_get_target_scope_paths:1)
-            TEST_NAME+=":nested_target_relative_scope"
-            SITE_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
-            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
-            marsh_test_set_env
-            mkdir -p "${SOURCE_ROOT}/about/team" "${SOURCE_ROOT}/about/news"
-            printf '%s\n' '# team' > "${SOURCE_ROOT}/about/team/index.markdown"
-            printf '%s\n' '# team member' > "${SOURCE_ROOT}/about/team/member.markdown"
-            printf '%s\n' '# news' > "${SOURCE_ROOT}/about/news/index.markdown"
-            TARGET_SCOPE="about/team"
-            TARGET_OUTPUT_REL="about"
-            TARGET_SOURCE_ROOT_ARG="${SOURCE_ROOT}/about"
-            ACTUAL=$(marsh_get_target_scope_paths "${SITE_OUTPUT_ROOT}" "${TARGET_SCOPE}" "${TARGET_OUTPUT_REL}" "${TARGET_SOURCE_ROOT_ARG}")
-            EXPECTED=$(printf '%s\n' \
-                'team/index.markdown' \
-                'team/member.markdown' | sort)
-            ACTUAL=$(printf '%s\n' "${ACTUAL}" | sed '/^$/d' | sort)
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                RES="[PASS]"
-            fi
-            rm -rf "${SITE_OUTPUT_ROOT}" "${SOURCE_ROOT}"
-            marsh_test_restore_env
-            ;;
         marsh_get_target_source_inventory:0)
             TEST_NAME+=":cached_within_target"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
@@ -5324,6 +5276,32 @@ function marsh_test {
                 printf '%s\t%s\t%s\t%s\n' "${DOCUMENT_ID}" "${SOURCE_RELPATH}" "${PLAN_TARGET_OUTPUT_REL}" "${PLAN_SOURCE_ROOT}"
             done <<< "${ACTUAL}")
             EXPECTED=$(printf '%s\t%s\t%s\t%s\n' 'team/index.markdown' 'team/index.markdown' 'about' "${SOURCE_ROOT}/about")
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            rm -rf "${SITE_OUTPUT_ROOT}" "${SOURCE_ROOT}"
+            marsh_test_restore_env
+            ;;
+        marsh_plan_target_documents:3)
+            TEST_NAME+=":directory_scope"
+            SITE_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
+            ACTUAL=""
+            marsh_test_set_env
+            mkdir -p "${SITE_OUTPUT_ROOT}/about" "${SOURCE_ROOT}/about/team"
+            printf '%s\n' '# about' > "${SOURCE_ROOT}/about/index.markdown"
+            printf '%s\n' '# team' > "${SOURCE_ROOT}/about/team/index.markdown"
+            printf '%s\n' '# home' > "${SOURCE_ROOT}/index.markdown"
+            ACTUAL=$(marsh_plan_target_documents "${SITE_OUTPUT_ROOT}" "about" "." "${SOURCE_ROOT}" "markdown,md")
+            ACTUAL=$(while IFS=$'\t' read -r DOCUMENT_ID_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC; do
+                [[ "${DOCUMENT_ID_ESC}" == "" ]] && continue
+                eval "DOCUMENT_ID=${DOCUMENT_ID_ESC}"
+                printf '%s\n' "${DOCUMENT_ID}"
+            done <<< "${ACTUAL}" | sort)
+            EXPECTED=$(printf '%s\n' \
+                'about/index.markdown' \
+                'about/team/index.markdown' | sort)
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -6862,7 +6840,6 @@ KNOWN_FUNCTIONS=(
     marsh_get_target_metadata
     marsh_get_target_output_path
     marsh_get_target_request_relpath
-    marsh_get_target_scope_paths
     marsh_get_target_source_inventory
     marsh_get_target_source_root_path
     marsh_get_target_temp_root

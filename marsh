@@ -5326,58 +5326,10 @@ function marsh_get_target_request_relpath {  # marsh_get_target_request_relpath 
     printf '%s\n' "${REQUESTED_TARGET_REL}"
 }
 
-# returns scoped source-relative paths for a target request
-function marsh_get_target_scope_paths {  # marsh_get_target_scope_paths site_output_root target target_output_rel target_source_root
-    local SITE_OUTPUT_ROOT TARGET TARGET_OUTPUT_REL TARGET_SOURCE_ROOT TARGET_OUTPUT_ROOT
-    local REQUESTED_TARGET_REL TARGET_IS_DIRECTORY_SCOPE SOURCE_DOCUMENT SOURCE_MATCHES_TARGET
-
-    SITE_OUTPUT_ROOT="${1:-}"
-    TARGET="${2:-}"
-    TARGET_OUTPUT_REL="${3:-.}"
-    TARGET_SOURCE_ROOT="${4:-}"
-    [[ "${SITE_OUTPUT_ROOT}" == "" ]] && return 1
-    [[ "${TARGET}" == "" ]] && return 1
-    [[ "${TARGET_OUTPUT_REL}" == "" ]] && return 1
-    [[ "${TARGET_SOURCE_ROOT}" == "" ]] && return 1
-
-    TARGET_OUTPUT_ROOT=$(marsh_get_target_directory_path "${SITE_OUTPUT_ROOT}/${TARGET_OUTPUT_REL}") || return 1
-
-    # scope matching runs against the current target root, not the site root
-    REQUESTED_TARGET_REL=$(marsh_get_target_request_relpath "${TARGET}" "${TARGET_OUTPUT_REL}") || return 1
-
-    # directory scopes include descendants while file scopes match exactly
-    TARGET_IS_DIRECTORY_SCOPE=false
-    if [[ -d "${SITE_OUTPUT_ROOT}/${TARGET}" ]]; then
-        TARGET_IS_DIRECTORY_SCOPE=true
-    elif [[ "${REQUESTED_TARGET_REL}" != "*" ]] && [[ "${REQUESTED_TARGET_REL}" != "." ]] && [[ "${REQUESTED_TARGET_REL}" != "" ]] && [[ -d "${TARGET_SOURCE_ROOT}/${REQUESTED_TARGET_REL}" ]]; then
-        TARGET_IS_DIRECTORY_SCOPE=true
-    fi
-
-    while IFS= read -r SOURCE_DOCUMENT; do
-        [[ "${SOURCE_DOCUMENT}" == "" ]] && continue
-        SOURCE_DOCUMENT="${SOURCE_DOCUMENT#./}"
-        # narrow the inventory to the requested file or subtree where necessary
-        if [[ "${REQUESTED_TARGET_REL}" != "*" ]] && [[ "${REQUESTED_TARGET_REL}" != "." ]] && [[ "${REQUESTED_TARGET_REL}" != "" ]]; then
-            SOURCE_MATCHES_TARGET=false
-            if [[ "${TARGET_IS_DIRECTORY_SCOPE}" == true ]]; then
-                if [[ "${SOURCE_DOCUMENT}" == "${REQUESTED_TARGET_REL}" ]] || [[ "${SOURCE_DOCUMENT}" == "${REQUESTED_TARGET_REL}/"* ]]; then
-                    SOURCE_MATCHES_TARGET=true
-                fi
-            elif [[ "${SOURCE_DOCUMENT}" == "${REQUESTED_TARGET_REL}" ]]; then
-                SOURCE_MATCHES_TARGET=true
-            fi
-            if [[ "${SOURCE_MATCHES_TARGET}" != true ]]; then
-                continue
-            fi
-        fi
-        printf '%s\n' "${SOURCE_DOCUMENT}"
-    done < <(marsh_get_target_source_inventory "${TARGET_OUTPUT_ROOT}" "${TARGET_SOURCE_ROOT}")
-}
-
 # plans target documents to build
 function marsh_plan_target_documents {  # marsh_plan_target_documents site_output_root target target_output_rel target_source_root markdown_fileext_csv
     local SITE_OUTPUT_ROOT TARGET TARGET_OUTPUT_REL TARGET_SOURCE_ROOT MARKDOWN_FILEEXT_CSV MARKDOWN_FILEEXT_REGEX
-    local DOCUMENT_ID
+    local DOCUMENT_ID TARGET_OUTPUT_ROOT REQUESTED_TARGET_REL TARGET_IS_DIRECTORY_SCOPE SOURCE_MATCHES_TARGET
 
     SITE_OUTPUT_ROOT="${1:-}"
     TARGET="${2:-}"
@@ -5392,13 +5344,37 @@ function marsh_plan_target_documents {  # marsh_plan_target_documents site_outpu
     TARGET_OUTPUT_REL=$(marsh_normalize_internal_path "${TARGET_OUTPUT_REL}") || return 1
     [[ "${TARGET_SOURCE_ROOT}" != "" ]] || return 0
     MARKDOWN_FILEEXT_REGEX="${MARKDOWN_FILEEXT_CSV//,/|}"
+    TARGET_OUTPUT_ROOT=$(marsh_get_target_directory_path "${SITE_OUTPUT_ROOT}/${TARGET_OUTPUT_REL}") || return 1
+
+    # scope matching runs against the current target root, not the site root
+    REQUESTED_TARGET_REL=$(marsh_get_target_request_relpath "${TARGET}" "${TARGET_OUTPUT_REL}") || return 1
+
+    # directory scopes include descendants while file scopes match exactly
+    TARGET_IS_DIRECTORY_SCOPE=false
+    if [[ -d "${SITE_OUTPUT_ROOT}/${TARGET}" ]]; then
+        TARGET_IS_DIRECTORY_SCOPE=true
+    elif [[ "${REQUESTED_TARGET_REL}" != "*" ]] && [[ "${REQUESTED_TARGET_REL}" != "." ]] && [[ "${REQUESTED_TARGET_REL}" != "" ]] && [[ -d "${TARGET_SOURCE_ROOT}/${REQUESTED_TARGET_REL}" ]]; then
+        TARGET_IS_DIRECTORY_SCOPE=true
+    fi
 
     # emit document plan records using shell-safe fields
     while IFS= read -r DOCUMENT_ID; do
         [[ "${DOCUMENT_ID}" == "" ]] && continue
+        DOCUMENT_ID="${DOCUMENT_ID#./}"
+        if [[ "${REQUESTED_TARGET_REL}" != "*" ]] && [[ "${REQUESTED_TARGET_REL}" != "." ]] && [[ "${REQUESTED_TARGET_REL}" != "" ]]; then
+            SOURCE_MATCHES_TARGET=false
+            if [[ "${TARGET_IS_DIRECTORY_SCOPE}" == true ]]; then
+                if [[ "${DOCUMENT_ID}" == "${REQUESTED_TARGET_REL}" ]] || [[ "${DOCUMENT_ID}" == "${REQUESTED_TARGET_REL}/"* ]]; then
+                    SOURCE_MATCHES_TARGET=true
+                fi
+            elif [[ "${DOCUMENT_ID}" == "${REQUESTED_TARGET_REL}" ]]; then
+                SOURCE_MATCHES_TARGET=true
+            fi
+            [[ "${SOURCE_MATCHES_TARGET}" == true ]] || continue
+        fi
         [[ "${DOCUMENT_ID}" =~ \.(${MARKDOWN_FILEEXT_REGEX})$ ]] || continue
         printf '%q\t%q\t%q\t%q\n' "${DOCUMENT_ID}" "${DOCUMENT_ID}" "${TARGET_OUTPUT_REL}" "${TARGET_SOURCE_ROOT}"
-    done < <(marsh_get_target_scope_paths "${SITE_OUTPUT_ROOT}" "${TARGET}" "${TARGET_OUTPUT_REL}" "${TARGET_SOURCE_ROOT}")
+    done < <(marsh_get_target_source_inventory "${TARGET_OUTPUT_ROOT}" "${TARGET_SOURCE_ROOT}")
 }
 
 # plans target sitemaps as file and source path pairs

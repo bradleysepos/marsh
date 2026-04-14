@@ -5807,37 +5807,6 @@ function marsh_plan_target_archives {  # marsh_plan_target_archives target_outpu
     done
 }
 
-# builds planned archives for a target
-function marsh_build_planned_target_archives {  # marsh_build_planned_target_archives site_output_root jobs markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links archive_plan_roots[@]
-    local SITE_OUTPUT_ROOT JOBS MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_REWRITE_LINKS
-    local TARGET_ARCHIVE_PLAN_ROOT
-
-    SITE_OUTPUT_ROOT="${1:-}"
-    JOBS="${2:-1}"
-    MARKDOWN_COMMAND="${3:-}"
-    MARKDOWN_OPTIONS_CSV="${4:-}"
-    MARKDOWN_FILEEXT_CSV="${5:-}"
-    MARKDOWN_REWRITE_LINKS="${6:-}"
-    shift 6
-    [[ "${SITE_OUTPUT_ROOT}" == "" ]] && return 1
-    [[ "${MARKDOWN_COMMAND}" == "" ]] && return 1
-    [[ "${MARKDOWN_FILEEXT_CSV}" == "" ]] && return 1
-    [[ "${MARKDOWN_REWRITE_LINKS}" == "" ]] && return 1
-
-    while [[ "${#@}" -gt 0 ]]; do
-        TARGET_ARCHIVE_PLAN_ROOT="${1:-}"
-        shift 1
-        [[ "${TARGET_ARCHIVE_PLAN_ROOT}" == "" ]] && continue
-        marsh_build_planned_archive_pages "${SITE_OUTPUT_ROOT}" \
-            "${JOBS}" \
-            "${MARKDOWN_COMMAND}" \
-            "${MARKDOWN_OPTIONS_CSV}" \
-            "${MARKDOWN_FILEEXT_CSV}" \
-            "${MARKDOWN_REWRITE_LINKS}" \
-            "${TARGET_ARCHIVE_PLAN_ROOT}" || return 1
-    done
-}
-
 # builds planned sitemap records for a target
 function marsh_build_planned_target_sitemaps {  # marsh_build_planned_target_sitemaps target_output_root markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links sitemap_records[@]
     local TARGET_OUTPUT_ROOT MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_REWRITE_LINKS
@@ -5989,7 +5958,16 @@ function marsh_build_planned_target {  # marsh_build_planned_target site_output_
     fi
 
     if [[ "${#ARCHIVE_PLAN_ROOTS[@]}" -gt 0 ]]; then
-        marsh_build_planned_target_archives "${SITE_OUTPUT_ROOT}" "${JOBS}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_FILEEXT_CSV}" "${MARKDOWN_REWRITE_LINKS}" "${ARCHIVE_PLAN_ROOTS[@]}" || return 1
+        for TARGET_ARCHIVE_PLAN_ROOT in "${ARCHIVE_PLAN_ROOTS[@]}"; do
+            [[ "${TARGET_ARCHIVE_PLAN_ROOT}" == "" ]] && continue
+            marsh_build_planned_archive_pages "${SITE_OUTPUT_ROOT}" \
+                "${JOBS}" \
+                "${MARKDOWN_COMMAND}" \
+                "${MARKDOWN_OPTIONS_CSV}" \
+                "${MARKDOWN_FILEEXT_CSV}" \
+                "${MARKDOWN_REWRITE_LINKS}" \
+                "${TARGET_ARCHIVE_PLAN_ROOT}" || return 1
+        done
     fi
 }
 

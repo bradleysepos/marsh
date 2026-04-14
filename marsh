@@ -5303,29 +5303,6 @@ function marsh_get_template_cache_path {  # marsh_get_template_cache_path templa
     printf '%s\n' "${TEMPLATE_CACHE_PATH}"
 }
 
-# returns the request path relative to the current target root
-function marsh_get_target_request_relpath {  # marsh_get_target_request_relpath target target_output_rel
-    local TARGET TARGET_OUTPUT_REL REQUESTED_TARGET_REL
-
-    TARGET="${1:-}"
-    TARGET_OUTPUT_REL="${2:-.}"
-    [[ "${TARGET}" == "" ]] && return 1
-    [[ "${TARGET_OUTPUT_REL}" == "" ]] && return 1
-
-    # nested targets receive site-relative requests, so strip the target
-    # prefix when present and keep '.' for an exact target-root request
-    REQUESTED_TARGET_REL="${TARGET#./}"
-    if [[ "${TARGET_OUTPUT_REL}" != "." ]]; then
-        if [[ "${REQUESTED_TARGET_REL}" == "${TARGET_OUTPUT_REL}" ]]; then
-            REQUESTED_TARGET_REL='.'
-        elif [[ "${REQUESTED_TARGET_REL}" == "${TARGET_OUTPUT_REL}/"* ]]; then
-            REQUESTED_TARGET_REL="${REQUESTED_TARGET_REL#${TARGET_OUTPUT_REL}/}"
-        fi
-    fi
-
-    printf '%s\n' "${REQUESTED_TARGET_REL}"
-}
-
 # plans target documents to build
 function marsh_plan_target_documents {  # marsh_plan_target_documents site_output_root target target_output_rel target_source_root markdown_fileext_csv
     local SITE_OUTPUT_ROOT TARGET TARGET_OUTPUT_REL TARGET_SOURCE_ROOT MARKDOWN_FILEEXT_CSV MARKDOWN_FILEEXT_REGEX
@@ -5347,7 +5324,14 @@ function marsh_plan_target_documents {  # marsh_plan_target_documents site_outpu
     TARGET_OUTPUT_ROOT=$(marsh_get_target_directory_path "${SITE_OUTPUT_ROOT}/${TARGET_OUTPUT_REL}") || return 1
 
     # scope matching runs against the current target root, not the site root
-    REQUESTED_TARGET_REL=$(marsh_get_target_request_relpath "${TARGET}" "${TARGET_OUTPUT_REL}") || return 1
+    REQUESTED_TARGET_REL="${TARGET#./}"
+    if [[ "${TARGET_OUTPUT_REL}" != "." ]]; then
+        if [[ "${REQUESTED_TARGET_REL}" == "${TARGET_OUTPUT_REL}" ]]; then
+            REQUESTED_TARGET_REL='.'
+        elif [[ "${REQUESTED_TARGET_REL}" == "${TARGET_OUTPUT_REL}/"* ]]; then
+            REQUESTED_TARGET_REL="${REQUESTED_TARGET_REL#${TARGET_OUTPUT_REL}/}"
+        fi
+    fi
 
     # directory scopes include descendants while file scopes match exactly
     TARGET_IS_DIRECTORY_SCOPE=false

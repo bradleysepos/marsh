@@ -1396,6 +1396,8 @@ function marsh_test {
             TARGET_ARCHIVES_TEMPLATE_OVERRIDES+=("")
             TARGET_ARCHIVES_TEMPLATE+=("archive")
             TARGET_PLAN_ROOT=$(marsh_plan_target "${SOURCE_ROOT}" "${TARGET_OUTPUT_ROOT}" "." false "${SOURCE_ROOT}" "" false "${TEMPLATE_DIR}" "sample" 0 "" "${SOURCE_ROOT}" "markdown,md" "${TEST_TEMP_PREFIX}.config" "News" "")
+            ARCHIVE_PLAN_ROOT=$(<"${TARGET_PLAN_ROOT}/archive-plans")
+            ARCHIVE_MANIFEST=$(<"${TARGET_PLAN_ROOT}/archive-manifest")
             TARGET_TEMPLATE_OVERRIDES=()
             TARGET_ARCHIVES=()
             TARGET_ARCHIVES_ENCODING=()
@@ -1417,7 +1419,12 @@ function marsh_test {
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 {
-                    [[ -f "${TARGET_PLAN_ROOT}/archive-plans" ]] \
+                    [[ -f "${TARGET_PLAN_ROOT}/archive-manifest" ]] \
+                        && [[ -f "${TARGET_PLAN_ROOT}/archive-plans" ]] \
+                        && [[ "${ARCHIVE_MANIFEST}" != "" ]] \
+                        && [[ -d "${ARCHIVE_PLAN_ROOT}" ]] \
+                        && [[ -f "${ARCHIVE_PLAN_ROOT}/context" ]] \
+                        && [[ -f "${ARCHIVE_PLAN_ROOT}/documents" ]] \
                         && [[ -e "${TARGET_OUTPUT_ROOT}/news/item.html" ]] \
                         && [[ -e "${TARGET_OUTPUT_ROOT}/news/index.html" ]]
                 }
@@ -5269,10 +5276,59 @@ function marsh_test {
             rm -rf "${SITE_OUTPUT_ROOT}" "${SOURCE_ROOT}"
             marsh_test_restore_env
             ;;
+        marsh_write_target_archive_manifest:0)
+            TEST_NAME+=":from_planned_documents"
+            SITE_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
+            TARGET_PLAN_ROOT=""
+            DOCUMENT_RECORDS=()
+            marsh_test_set_env
+            mkdir -p "${SOURCE_ROOT}/news/2026/01/02" "${SOURCE_ROOT}/news/2026/01/01"
+            printf '%s\n' \
+                '---' \
+                'Type: post' \
+                'Title: Second' \
+                'Date: 2026-01-02' \
+                'State:' \
+                '  - published' \
+                '...' \
+                '' \
+                '# Second' > "${SOURCE_ROOT}/news/2026/01/02/02-second.markdown"
+            printf '%s\n' \
+                '---' \
+                'Type: note' \
+                'Title: First' \
+                'Date: 2026-01-01' \
+                '...' \
+                '' \
+                '# First' > "${SOURCE_ROOT}/news/2026/01/01/01-first.markdown"
+            while IFS= read -r DOCUMENT_RECORD; do
+                [[ "${DOCUMENT_RECORD}" == "" ]] && continue
+                DOCUMENT_RECORDS+=("${DOCUMENT_RECORD}")
+            done < <(marsh_plan_target_documents "${SITE_OUTPUT_ROOT}" "." "." "${SOURCE_ROOT}" "markdown,md")
+            TARGET_PLAN_ROOT=$(marsh_create_target_plan_root "${SITE_OUTPUT_ROOT}")
+            marsh_write_target_plan_records "${TARGET_PLAN_ROOT}" "documents" "${DOCUMENT_RECORDS[@]}"
+            marsh_write_target_archive_manifest "${SITE_OUTPUT_ROOT}" "markdown,md" "${TARGET_PLAN_ROOT}"
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                ACTUAL=$(<"${TARGET_PLAN_ROOT}/archive-manifest")
+                EXPECTED="$(printf '%q\t%q\t%q\t%q\t%q\n' "news/2026/01/02/02-second.markdown" "post" "https://example.test/news/2026/01/02/02-second.html" "https://example.test/news/2026/01/02" "published")"$'\n'"$(printf '%q\t%q\t%q\t%q\t%q\n' "news/2026/01/01/01-first.markdown" "note" "https://example.test/news/2026/01/01/01-first.html" "https://example.test/news/2026/01/01" "")"
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${SITE_OUTPUT_ROOT}" "${SOURCE_ROOT}"
+            marsh_test_restore_env
+            ;;
         marsh_plan_target_archives:0)
             TEST_NAME+=":plans_archives"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            TARGET_PLAN_ROOT=""
             ARCHIVE_PLAN_ROOTS=()
             TARGET_TEMPLATE_OVERRIDES=()
             TARGET_ARCHIVES=()
@@ -5290,8 +5346,9 @@ function marsh_test {
             TARGET_ARCHIVES_TEMPLATE_OVERRIDES=()
             TARGET_ARCHIVES_TEMPLATE=()
             marsh_test_set_env
+            mkdir -p "${SOURCE_ROOT}/news"
             marsh_test_create_archive_template "${TEMPLATE_DIR}" "sample" "html" true
-            marsh_test_create_archive_document "${TARGET_OUTPUT_ROOT}" "news/item.markdown" "post" "Item" "2026-01-01"
+            printf '%s\n' '---'$'\n''Type: post'$'\n''Date: 2026-01-01'$'\n''Title: Item'$'\n''...'$'\n'''$'\n''# Item' > "${SOURCE_ROOT}/news/item.markdown"
             TARGET_ARCHIVES+=("news/index.markdown")
             TARGET_ARCHIVES_ENCODING+=("html")
             TARGET_ARCHIVES_NAME+=("News")
@@ -5306,16 +5363,21 @@ function marsh_test {
             TARGET_ARCHIVES_TEMPLATE_ASSETS_PATH+=("")
             TARGET_ARCHIVES_TEMPLATE_OVERRIDES+=("")
             TARGET_ARCHIVES_TEMPLATE+=("sample")
+            TARGET_PLAN_ROOT=$(marsh_create_target_plan_root "${TARGET_OUTPUT_ROOT}")
+            marsh_write_target_plan_context "${TARGET_PLAN_ROOT}" "." false false "" false "${TEMPLATE_DIR}" "sample" 0 "" "." "${SOURCE_ROOT}" "${TEST_TEMP_PREFIX}.config" "News" ""
+            marsh_write_target_plan_records "${TARGET_PLAN_ROOT}" "documents" "$(printf '%q\t%q\t%q\t%q\n' 'news/item.markdown' 'news/item.markdown' '.' "${SOURCE_ROOT}")"
             while IFS= read -r ARCHIVE_PLAN_ROOT; do
                 [[ "${ARCHIVE_PLAN_ROOT}" == "" ]] && continue
                 ARCHIVE_PLAN_ROOTS+=("${ARCHIVE_PLAN_ROOT}")
-            done < <(marsh_plan_target_archives "${TARGET_OUTPUT_ROOT}" "${TEST_TEMP_PREFIX}.config" "${TEMPLATE_DIR}" "News" "" false "sample" "" "" "." "")
+            done < <(marsh_plan_target_archives "${TARGET_OUTPUT_ROOT}" "markdown,md" "${TARGET_PLAN_ROOT}")
             ACTUAL="${#ARCHIVE_PLAN_ROOTS[@]}"
             EXPECTED="1"
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 {
-                    [[ -d "${ARCHIVE_PLAN_ROOTS[0]}" ]] \
+                    [[ -f "${TARGET_PLAN_ROOT}/archive-manifest" ]] \
+                        && [[ -s "${TARGET_PLAN_ROOT}/archive-manifest" ]] \
+                        && [[ -d "${ARCHIVE_PLAN_ROOTS[0]}" ]] \
                         && [[ -f "${ARCHIVE_PLAN_ROOTS[0]}/context" ]] \
                         && [[ -f "${ARCHIVE_PLAN_ROOTS[0]}/documents" ]]
                 }
@@ -5326,7 +5388,7 @@ function marsh_test {
                     RES="[PASS]"
                 fi
             fi
-            rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}"
+            rm -rf "${TARGET_OUTPUT_ROOT}" "${SOURCE_ROOT}" "${TEMPLATE_DIR}"
             marsh_test_restore_env
             ;;
         marsh_plan_target_documents:0)
@@ -7005,6 +7067,7 @@ KNOWN_FUNCTIONS=(
     marsh_process_markdown
     marsh_resolve_config_path
     marsh_resolve_relative_path
+    marsh_write_target_archive_manifest
     marsh_resolve_sitemap_source_path
     marsh_resolve_tag_metadata
     marsh_resolve_template_asset_output_path

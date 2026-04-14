@@ -5424,6 +5424,115 @@ function marsh_plan_target_sitemaps {  # marsh_plan_target_sitemaps site_source_
     printf '%s\t%s\n' "${SITEMAP_PATH}" "${SITEMAP_SOURCE}"
 }
 
+# writes an archive manifest under the target plan root from planned target documents
+function marsh_write_target_archive_manifest {  # marsh_write_target_archive_manifest site_output_root markdown_fileext_csv target_plan_root
+    local SITE_OUTPUT_ROOT MARKDOWN_FILEEXT_CSV TARGET_PLAN_ROOT DOCUMENTS_FILE MANIFEST_FILE MANIFEST_TEMP DOCUMENT_RECORD
+    local DOCUMENT_ID_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC
+    local DOCUMENT_ID SOURCE_RELPATH TARGET_OUTPUT_REL SOURCE_ROOT DOCUMENT_SOURCE_FILE
+    local META_TEMP_BASE META_FILE META_CACHE_FILE CONTENT_FILE META_ASSIGNMENTS META_VARS META_PREFIX TYPE_VAR
+    local TYPE URI ABSPATH STATE STATE_JOINED OIFS DOCUMENT_OUTPUT_REL
+
+    SITE_OUTPUT_ROOT="${1:-}"
+    MARKDOWN_FILEEXT_CSV="${2:-}"
+    TARGET_PLAN_ROOT="${3:-}"
+    [[ "${SITE_OUTPUT_ROOT}" == "" ]] && return 1
+    [[ "${MARKDOWN_FILEEXT_CSV}" == "" ]] && return 1
+    [[ "${TARGET_PLAN_ROOT}" == "" ]] && return 1
+
+    DOCUMENTS_FILE="${TARGET_PLAN_ROOT}/documents"
+    MANIFEST_FILE="${TARGET_PLAN_ROOT}/archive-manifest"
+    MANIFEST_TEMP=$(mktemp "${TARGET_PLAN_ROOT}/archive-manifest-XXXXXX") || return 1
+
+    while IFS=$'\t' read -r DOCUMENT_ID DOCUMENT_RECORD; do
+        [[ "${DOCUMENT_ID}" == "" ]] && continue
+        [[ "${DOCUMENT_RECORD}" == "" ]] && continue
+
+        IFS=$'\t' read -r DOCUMENT_ID_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC <<< "${DOCUMENT_RECORD}"
+        [[ "${DOCUMENT_ID_ESC}" == "" ]] && continue
+        eval "DOCUMENT_ID=${DOCUMENT_ID_ESC}"
+        eval "SOURCE_RELPATH=${SOURCE_RELPATH_ESC}"
+        eval "TARGET_OUTPUT_REL=${TARGET_OUTPUT_REL_ESC}"
+        eval "SOURCE_ROOT=${SOURCE_ROOT_ESC}"
+        [[ "${SOURCE_ROOT}" == "" ]] && {
+            rm -f "${MANIFEST_TEMP}"
+            return 1
+        }
+
+        DOCUMENT_SOURCE_FILE="${SOURCE_ROOT}/${SOURCE_RELPATH}"
+        [[ -f "${DOCUMENT_SOURCE_FILE}" ]] && [[ -r "${DOCUMENT_SOURCE_FILE}" ]] || {
+            rm -f "${MANIFEST_TEMP}"
+            return 1
+        }
+
+        TYPE=""
+        STATE=()
+        if [[ -f "${DOCUMENT_SOURCE_FILE}" ]] && marsh_has_frontmatter "${DOCUMENT_SOURCE_FILE}"; then
+            META_TEMP_BASE=$(mktemp "${MARSH_TEMP}/planned-archive-meta-XXXXXX") || return 1
+            META_FILE="${META_TEMP_BASE}.yaml"
+            META_CACHE_FILE="${META_TEMP_BASE}"
+            mv "${META_TEMP_BASE}" "${META_FILE}" 2>/dev/null || {
+                rm -f "${META_TEMP_BASE}"
+                return 1
+            }
+            CONTENT_FILE=$(mktemp "${MARSH_TEMP}/planned-archive-content-XXXXXX") || {
+                rm -f "${META_FILE}"
+                return 1
+            }
+            if ! marsh_extract_frontmatter "${DOCUMENT_SOURCE_FILE}" "${META_FILE}" "${CONTENT_FILE}"; then
+                rm -f "${META_FILE}" "${META_CACHE_FILE}" "${CONTENT_FILE}"
+                echo "Unable to plan archive metadata: ${DOCUMENT_SOURCE_FILE}" >&2
+                return 1
+            fi
+            META_PREFIX=$(echo "planned_archive_${META_FILE}_" | sed -E -e 's/[^A-Za-z0-9_]/_/g')
+            META_PREFIX=$(echo "${META_PREFIX}" | sed -E -e 's/_{2,}/_/g')
+            META_ASSIGNMENTS=$(marsh_get_document_metadata "${META_FILE}" "${META_PREFIX}") || {
+                rm -f "${META_FILE}" "${META_CACHE_FILE}" "${CONTENT_FILE}"
+                echo "Unable to plan archive metadata: ${DOCUMENT_SOURCE_FILE}" >&2
+                return 1
+            }
+            META_VARS=$(echo "${META_ASSIGNMENTS}" | marsh_get_variables)
+            eval "$(printf '%s\n' "${META_VARS}" | marsh_get_local_declarations)"
+            eval "${META_ASSIGNMENTS}"
+            TYPE_VAR="${META_PREFIX}Type"
+            TYPE="${!TYPE_VAR:-}"
+            eval "$(marsh_flat_to_array "STATE" "${META_PREFIX}State_")"
+            rm -f "${META_FILE}" "${META_CACHE_FILE}" "${CONTENT_FILE}"
+        else
+            echo "Unable to plan archive metadata: ${DOCUMENT_SOURCE_FILE}" >&2
+            return 1
+        fi
+
+        eval "$(marsh_get_target_document_paths "${DOCUMENT_ID}" "${SITE_OUTPUT_ROOT}" "${TARGET_OUTPUT_REL}" "${MARKDOWN_FILEEXT_CSV}")" || return 1
+        URI=$(marsh_get_absolute_output_path "${DOCUMENT_OUTPUT_REL}" "document") || return 1
+        ABSPATH=""
+        [[ "${URI}" =~ / ]] && ABSPATH="${URI%/*}"
+
+        OIFS="${IFS}"
+        IFS=$(printf '\034')
+        STATE_JOINED="${STATE[*]}"
+        IFS="${OIFS}"
+        printf '%q\t%q\t%q\t%q\t%q\n' "${DOCUMENT_ID}" "${TYPE}" "${URI}" "${ABSPATH}" "${STATE_JOINED}"
+    done < <(
+        if [[ -f "${DOCUMENTS_FILE}" ]] && [[ -r "${DOCUMENTS_FILE}" ]]; then
+            while IFS= read -r DOCUMENT_RECORD; do
+                [[ "${DOCUMENT_RECORD}" == "" ]] && continue
+                IFS=$'\t' read -r DOCUMENT_ID_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC <<< "${DOCUMENT_RECORD}"
+                [[ "${DOCUMENT_ID_ESC}" == "" ]] && continue
+                eval "DOCUMENT_ID=${DOCUMENT_ID_ESC}"
+                printf '%s\t%s\n' "${DOCUMENT_ID}" "${DOCUMENT_RECORD}"
+            done < "${DOCUMENTS_FILE}" | sort -nr -t/
+        fi
+    ) > "${MANIFEST_TEMP}" || {
+        rm -f "${MANIFEST_TEMP}"
+        return 1
+    }
+
+    mv "${MANIFEST_TEMP}" "${MANIFEST_FILE}" 2>/dev/null || {
+        rm -f "${MANIFEST_TEMP}"
+        return 1
+    }
+}
+
 # aggregates planner-owned target work under a target-local plan root
 function marsh_plan_target {  # marsh_plan_target site_source_root site_output_root target force source sitemap sitemap_search templates_dir template #template_overrides[@] template_overrides[@] template_assets_path build_context_source_root markdown_fileext_csv [config_file_dir] [target_name] [target_template_source]
     local SITE_SOURCE_ROOT SITE_OUTPUT_ROOT TARGET FORCE SOURCE SITEMAP SITEMAP_SEARCH TEMPLATES_DIR TEMPLATE
@@ -5431,7 +5540,7 @@ function marsh_plan_target {  # marsh_plan_target site_source_root site_output_r
     local CONFIG_FILE_DIR TARGET_NAME TARGET_TEMPLATE_SOURCE
     local TARGET_OUTPUT_REL TARGET_OUTPUT_ROOT TARGET_PLAN_ROOT
     local DOCUMENTS_FILE DOCUMENTS_TEMP SOURCE_ASSETS_FILE SOURCE_ASSETS_TEMP SITEMAPS_FILE SITEMAPS_TEMP
-    local DOCUMENT_RECORDS SOURCE_ASSET_RECORDS SITEMAP_RECORDS PLAN_RECORD
+    local DOCUMENT_RECORDS SOURCE_ASSET_RECORDS SITEMAP_RECORDS ARCHIVE_PLAN_ROOTS PLAN_RECORD TARGET_ARCHIVE_PLAN_ROOT
 
     SITE_SOURCE_ROOT="${1:-}"
     SITE_OUTPUT_ROOT="${2:-}"
@@ -5500,6 +5609,13 @@ function marsh_plan_target {  # marsh_plan_target site_source_root site_output_r
         done < <(marsh_plan_target_sitemaps "${SITE_SOURCE_ROOT}" "${BUILD_CONTEXT_SOURCE_ROOT}" "${SITEMAP}" "${SITEMAP_SEARCH}" "${TARGET_OUTPUT_ROOT}") || return 1
     fi
     marsh_write_target_plan_records "${TARGET_PLAN_ROOT}" "sitemaps" "${SITEMAP_RECORDS[@]}" || return 1
+
+    ARCHIVE_PLAN_ROOTS=()
+    while IFS= read -r TARGET_ARCHIVE_PLAN_ROOT; do
+        [[ "${TARGET_ARCHIVE_PLAN_ROOT}" == "" ]] && continue
+        ARCHIVE_PLAN_ROOTS+=("${TARGET_ARCHIVE_PLAN_ROOT}")
+    done < <(marsh_plan_target_archives "${SITE_OUTPUT_ROOT}" "${MARKDOWN_FILEEXT_CSV}" "${TARGET_PLAN_ROOT}") || return 1
+    marsh_write_target_plan_records "${TARGET_PLAN_ROOT}" "archive-plans" "${ARCHIVE_PLAN_ROOTS[@]}" || return 1
 
     printf '%s\n' "${TARGET_PLAN_ROOT}"
 }
@@ -5692,34 +5808,39 @@ function marsh_build_planned_archive_documents {  # marsh_build_planned_archive_
     marsh_build_planned_target_documents "${SITE_OUTPUT_ROOT}" "${JOBS}" "${TARGET_SITEMAP}" "${TARGET_SITEMAP_SEARCH}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_FILEEXT_CSV}" "${MARKDOWN_REWRITE_LINKS}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_ASSETS_PATH}" "${DOCUMENT_RECORDS[@]}"
 }
 
-# plans all archives configured for the current target scope
-function marsh_plan_target_archives {  # marsh_plan_target_archives target_output_root config_file_dir templates_dir target_name target_sitemap target_sitemap_search target_template target_template_source target_template_assets_path build_context_target_output_rel build_context_source_root
-    local TARGET_OUTPUT_ROOT CONFIG_FILE_DIR TEMPLATES_DIR TARGET_NAME TARGET_SITEMAP TARGET_SITEMAP_SEARCH
-    local TARGET_TEMPLATE TARGET_TEMPLATE_SOURCE TARGET_TEMPLATE_ASSETS_PATH BUILD_CONTEXT_TARGET_OUTPUT_REL BUILD_CONTEXT_SOURCE_ROOT
+# plans all archives configured for one target plan
+function marsh_plan_target_archives {  # marsh_plan_target_archives site_output_root markdown_fileext_csv target_plan_root
+    local SITE_OUTPUT_ROOT MARKDOWN_FILEEXT_CSV TARGET_PLAN_ROOT TARGET_PLAN_CONTEXT TARGET_PLAN_CONTEXT_VARS TARGET_OUTPUT_ROOT TARGET_OUTPUT_REL
+    local CONFIG_FILE_DIR TEMPLATES_DIR TARGET_NAME TARGET_SITEMAP TARGET_SITEMAP_SEARCH TEMPLATE TARGET_TEMPLATE_SOURCE TEMPLATE_ASSETS_PATH BUILD_CONTEXT_TARGET_OUTPUT_REL BUILD_CONTEXT_SOURCE_ROOT TEMPLATE_OVERRIDES
     local TARGET_ARCHIVE_MANIFEST TARGET_ARCHIVE_PLAN_ROOT TARGET_ARCHIVE_TYPES TARGET_ARCHIVE_EXCLUDED_STATES
     local TARGET_ARCHIVE_TEMPLATE TARGET_ARCHIVE_TEMPLATE_SOURCE TARGET_ARCHIVE_TEMPLATE_ASSETS_PATH TARGET_ARCHIVE_TEMPLATE_OVERRIDES
     local TARGET_ARCHIVE_ROOT TARGET_ARCHIVE_GROUP_PATHS TARGET_ARCHIVE_TYPES_KEY TARGET_ARCHIVE_EXCLUDED_STATES_KEY
     local TARGET_ARCHIVE_COMPARE_TYPES TARGET_ARCHIVE_COMPARE_EXCLUDED_STATES TARGET_ARCHIVE_COMPARE_TYPES_KEY TARGET_ARCHIVE_COMPARE_EXCLUDED_STATES_KEY
-    local I J OIFS
+    local CONTEXT_FILE I J OIFS
 
-    # init
-    TARGET_OUTPUT_ROOT="${1:-}"
-    CONFIG_FILE_DIR="${2:-}"
-    TEMPLATES_DIR="${3:-}"
-    TARGET_NAME="${4:-}"
-    TARGET_SITEMAP="${5:-}"
-    TARGET_SITEMAP_SEARCH="${6:-false}"
-    TARGET_TEMPLATE="${7:-}"
-    TARGET_TEMPLATE_SOURCE="${8:-}"
-    TARGET_TEMPLATE_ASSETS_PATH="${9:-}"
-    BUILD_CONTEXT_TARGET_OUTPUT_REL="${10:-.}"
-    BUILD_CONTEXT_SOURCE_ROOT="${11:-}"
-    [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
+    SITE_OUTPUT_ROOT="${1:-}"
+    MARKDOWN_FILEEXT_CSV="${2:-}"
+    TARGET_PLAN_ROOT="${3:-}"
+    [[ "${SITE_OUTPUT_ROOT}" == "" ]] && return 1
+    [[ "${MARKDOWN_FILEEXT_CSV}" == "" ]] && return 1
+    [[ "${TARGET_PLAN_ROOT}" == "" ]] && return 1
+
+    CONTEXT_FILE="${TARGET_PLAN_ROOT}/context"
+    [[ -f "${CONTEXT_FILE}" ]] && [[ -r "${CONTEXT_FILE}" ]] || return 1
+    TARGET_PLAN_CONTEXT=$(<"${CONTEXT_FILE}") || return 1
+    TARGET_PLAN_CONTEXT_VARS=$(echo "${TARGET_PLAN_CONTEXT}" | marsh_get_variables)
+    eval "$(printf '%s\n' "${TARGET_PLAN_CONTEXT_VARS}" | marsh_get_local_declarations)"
+    eval "${TARGET_PLAN_CONTEXT}"
+    TARGET_OUTPUT_ROOT=$(marsh_get_target_directory_path "${SITE_OUTPUT_ROOT}/${TARGET_OUTPUT_REL}") || return 1
+
+    if [[ "${#TARGET_ARCHIVES[@]}" -eq 0 ]]; then
+        return 0
+    fi
+
+    marsh_write_target_archive_manifest "${SITE_OUTPUT_ROOT}" "${MARKDOWN_FILEEXT_CSV}" "${TARGET_PLAN_ROOT}" || return 1
 
     # archives for the same target share the same manifest
-    if [[ "${#TARGET_ARCHIVES[@]}" -gt 0 ]]; then
-        TARGET_ARCHIVE_MANIFEST=$(marsh_get_archive_manifest "${TARGET_OUTPUT_ROOT}") || return 1
-    fi
+    TARGET_ARCHIVE_MANIFEST="${TARGET_PLAN_ROOT}/archive-manifest"
 
     for I in "${!TARGET_ARCHIVES[@]}"; do
         [[ "${TARGET_ARCHIVES[$I]:-}" == "" ]] && continue
@@ -5733,9 +5854,9 @@ function marsh_plan_target_archives {  # marsh_plan_target_archives target_outpu
         IFS="${OIFS}"
 
         # start from the target defaults, then let archive-specific settings override them
-        TARGET_ARCHIVE_TEMPLATE="${TARGET_TEMPLATE:-}"
+        TARGET_ARCHIVE_TEMPLATE="${TEMPLATE:-}"
         TARGET_ARCHIVE_TEMPLATE_SOURCE="${TARGET_TEMPLATE_SOURCE:-}"
-        TARGET_ARCHIVE_TEMPLATE_ASSETS_PATH="${TARGET_TEMPLATE_ASSETS_PATH:-}"
+        TARGET_ARCHIVE_TEMPLATE_ASSETS_PATH="${TEMPLATE_ASSETS_PATH:-}"
         if [[ "${TARGET_ARCHIVES_TEMPLATE_SOURCE[$I]:-}" != "" ]]; then
             TARGET_ARCHIVE_TEMPLATE="${TARGET_ARCHIVES_TEMPLATE[$I]:-}"
             TARGET_ARCHIVE_TEMPLATE_SOURCE="${TARGET_ARCHIVES_TEMPLATE_SOURCE[$I]:-}"
@@ -5931,30 +6052,12 @@ function marsh_build_planned_target {  # marsh_build_planned_target site_output_
         fi
     fi
 
-    # planned archives depend on document-derived manifest state
     ARCHIVE_PLAN_ROOTS=()
     if [[ -f "${ARCHIVE_PLANS_FILE}" ]] && [[ -r "${ARCHIVE_PLANS_FILE}" ]]; then
         while IFS= read -r PLAN_RECORD; do
             [[ "${PLAN_RECORD}" == "" ]] && continue
             ARCHIVE_PLAN_ROOTS+=("${PLAN_RECORD}")
         done < "${ARCHIVE_PLANS_FILE}"
-    elif [[ "${#TARGET_ARCHIVES[@]}" -gt 0 ]]; then
-        while IFS= read -r TARGET_ARCHIVE_PLAN_ROOT; do
-            [[ "${TARGET_ARCHIVE_PLAN_ROOT}" == "" ]] && continue
-            ARCHIVE_PLAN_ROOTS+=("${TARGET_ARCHIVE_PLAN_ROOT}")
-        done < <(marsh_plan_target_archives \
-            "${TARGET_OUTPUT_ROOT}" \
-            "${CONFIG_FILE_DIR}" \
-            "${TEMPLATES_DIR}" \
-            "${TARGET_NAME}" \
-            "${TARGET_SITEMAP}" \
-            "${TARGET_SITEMAP_SEARCH}" \
-            "${TEMPLATE:-}" \
-            "${TARGET_TEMPLATE_SOURCE:-}" \
-            "${TEMPLATE_ASSETS_PATH:-}" \
-            "${BUILD_CONTEXT_TARGET_OUTPUT_REL}" \
-            "${BUILD_CONTEXT_SOURCE_ROOT}") || return 1
-        marsh_write_target_plan_records "${TARGET_PLAN_ROOT}" "archive-plans" "${ARCHIVE_PLAN_ROOTS[@]}" || return 1
     fi
 
     if [[ "${#ARCHIVE_PLAN_ROOTS[@]}" -gt 0 ]]; then

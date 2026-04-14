@@ -1064,7 +1064,7 @@ function marsh_test {
             marsh_test_restore_env
             ;;
         marsh_build_planned_archive_pages:0)
-            TEST_NAME+=":renders_archive_batch"
+            TEST_NAME+=":renders_archive"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
             MANIFEST_FILE="${TEST_TEMP_PREFIX}.archive-manifest"
@@ -1127,7 +1127,7 @@ function marsh_test {
             marsh_test_restore_env
             ;;
         marsh_build_planned_target_archives:0)
-            TEST_NAME+=":renders_archive_batches"
+            TEST_NAME+=":renders_archives"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
             MANIFEST_FILE="${TEST_TEMP_PREFIX}.archive-manifest"
@@ -1380,6 +1380,82 @@ function marsh_test {
                 fi
             fi
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}"
+            marsh_test_restore_env
+            ;;
+        marsh_build_planned_target:4)
+            TEST_NAME+=":plans_and_renders_archives_from_target_context"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
+            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            TARGET_PLAN_ROOT=""
+            TARGET_TEMPLATE_OVERRIDES=()
+            TARGET_ARCHIVES=()
+            TARGET_ARCHIVES_ENCODING=()
+            TARGET_ARCHIVES_NAME=()
+            TARGET_ARCHIVES_LANGUAGE=()
+            TARGET_ARCHIVES_LANGUAGE_CODE=()
+            TARGET_ARCHIVES_ROOT_PATH=()
+            TARGET_ARCHIVES_COUNT=()
+            TARGET_ARCHIVES_PAGE_SIZE=()
+            TARGET_ARCHIVES_TYPES=()
+            TARGET_ARCHIVES_EXCLUDED_STATES=()
+            TARGET_ARCHIVES_TEMPLATE_SOURCE=()
+            TARGET_ARCHIVES_TEMPLATE_ASSETS_PATH=()
+            TARGET_ARCHIVES_TEMPLATE_OVERRIDES=()
+            TARGET_ARCHIVES_TEMPLATE=()
+            marsh_test_set_env
+            mkdir -p "${SOURCE_ROOT}/news"
+            marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
+            marsh_test_create_archive_template "${TEMPLATE_DIR}" "archive" "html" true
+            printf '%s\n' '---'$'\n''Type: post'$'\n''Date: 2026-01-01'$'\n''Title: Item'$'\n''...'$'\n'''$'\n''# Item' > "${SOURCE_ROOT}/news/item.markdown"
+            TARGET_ARCHIVES+=("news/index.markdown")
+            TARGET_ARCHIVES_ENCODING+=("html")
+            TARGET_ARCHIVES_NAME+=("News")
+            TARGET_ARCHIVES_LANGUAGE+=("English")
+            TARGET_ARCHIVES_LANGUAGE_CODE+=("en")
+            TARGET_ARCHIVES_ROOT_PATH+=("")
+            TARGET_ARCHIVES_COUNT+=("")
+            TARGET_ARCHIVES_PAGE_SIZE+=("10")
+            TARGET_ARCHIVES_TYPES+=("post")
+            TARGET_ARCHIVES_EXCLUDED_STATES+=("")
+            TARGET_ARCHIVES_TEMPLATE_SOURCE+=("${TEMPLATE_DIR}/archive")
+            TARGET_ARCHIVES_TEMPLATE_ASSETS_PATH+=("")
+            TARGET_ARCHIVES_TEMPLATE_OVERRIDES+=("")
+            TARGET_ARCHIVES_TEMPLATE+=("archive")
+            TARGET_PLAN_ROOT=$(marsh_plan_target "${SOURCE_ROOT}" "${TARGET_OUTPUT_ROOT}" "." false "${SOURCE_ROOT}" "" false "${TEMPLATE_DIR}" "sample" 0 "" "${SOURCE_ROOT}" "markdown,md" "${TEST_TEMP_PREFIX}.config" "News" "")
+            TARGET_TEMPLATE_OVERRIDES=()
+            TARGET_ARCHIVES=()
+            TARGET_ARCHIVES_ENCODING=()
+            TARGET_ARCHIVES_NAME=()
+            TARGET_ARCHIVES_LANGUAGE=()
+            TARGET_ARCHIVES_LANGUAGE_CODE=()
+            TARGET_ARCHIVES_ROOT_PATH=()
+            TARGET_ARCHIVES_COUNT=()
+            TARGET_ARCHIVES_PAGE_SIZE=()
+            TARGET_ARCHIVES_TYPES=()
+            TARGET_ARCHIVES_EXCLUDED_STATES=()
+            TARGET_ARCHIVES_TEMPLATE_SOURCE=()
+            TARGET_ARCHIVES_TEMPLATE_ASSETS_PATH=()
+            TARGET_ARCHIVES_TEMPLATE_OVERRIDES=()
+            TARGET_ARCHIVES_TEMPLATE=()
+            marsh_build_planned_target "${TARGET_OUTPUT_ROOT}" "1" "marsh_test_markdown_command" "" "markdown,md" true "${TARGET_PLAN_ROOT}" >/dev/null 2>&1
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                {
+                    [[ -f "${TARGET_PLAN_ROOT}/archive-plans" ]] \
+                        && [[ -e "${TARGET_OUTPUT_ROOT}/news/item.html" ]] \
+                        && [[ -e "${TARGET_OUTPUT_ROOT}/news/index.html" ]]
+                }
+                ACTUAL=$?
+                EXPECTED=0
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${TARGET_OUTPUT_ROOT}" "${SOURCE_ROOT}" "${TEMPLATE_DIR}"
             marsh_test_restore_env
             ;;
         marsh_build_target_documents:0)
@@ -5134,7 +5210,7 @@ function marsh_test {
             fi
             ;;
         marsh_plan_archive_pages:0)
-            TEST_NAME+=":writes_archive_batch_plan"
+            TEST_NAME+=":writes_archive_plan"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
             MANIFEST_FILE="${TEST_TEMP_PREFIX}.archive-manifest"
@@ -5221,7 +5297,7 @@ function marsh_test {
             marsh_test_restore_env
             ;;
         marsh_plan_target_archives:0)
-            TEST_NAME+=":plans_archive_batches"
+            TEST_NAME+=":plans_archives"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
             ARCHIVE_PLAN_ROOTS=()

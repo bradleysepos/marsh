@@ -276,6 +276,24 @@ function marsh_in_array {  # marsh_in_array needle haystack[@]
     return 1
 }
 
+# formats a count plus a simple singular or plural label derived from the input
+# not a true inflector, but useful for simple cases like "1 plan" vs "2 plans"
+function marsh_inflect {  # marsh_inflect string count
+    local STRING_VALUE COUNT_VALUE LABEL
+
+    STRING_VALUE="${1:-}"
+    COUNT_VALUE="${2:-0}"
+    [[ "${STRING_VALUE}" == "" ]] && return 1
+    [[ "${COUNT_VALUE}" =~ ^[0-9]+$ ]] || return 1
+
+    LABEL="${STRING_VALUE}"
+    if [[ "${COUNT_VALUE}" -ne 1 ]]; then
+        LABEL="${LABEL}s"
+    fi
+
+    printf '%s %s\n' "${COUNT_VALUE}" "${LABEL}"
+}
+
 # creates an array from the contents of flat variables
 # TEST_0="foo"; TEST_1="bar"; TEST_2="baz"
 # eval $(marsh_flat_to_array "TEST" "TEST_")  # loops over TEST_{0..2}
@@ -6089,21 +6107,21 @@ function marsh_build_planned_target {  # marsh_build_planned_target site_output_
             TEMPLATE_ASSETS_COUNT=$((TEMPLATE_ASSETS_COUNT + 1))
         done <<< "${TEMPLATE_ASSETS}"
         if [[ "${TARGET_NUMBER}" != "" ]] && [[ "${TEMPLATE_ASSETS_COUNT}" -gt 0 ]]; then
-            echo "Target ${TARGET_NUMBER}: copying ${TEMPLATE_ASSETS_COUNT} template static assets"
+            echo "Target ${TARGET_NUMBER}: copying $(marsh_inflect 'template static asset' "${TEMPLATE_ASSETS_COUNT}")"
         fi
         marsh_copy_template_assets "${SITE_OUTPUT_ROOT}" "${TARGET_OUTPUT_REL}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_ASSETS_PATH}" || return 1
     fi
 
     if [[ "${#SOURCE_ASSET_RECORDS[@]}" -gt 0 ]]; then
         if [[ "${TARGET_NUMBER}" != "" ]]; then
-            echo "Target ${TARGET_NUMBER}: copying ${#SOURCE_ASSET_RECORDS[@]} source tree objects"
+            echo "Target ${TARGET_NUMBER}: copying $(marsh_inflect 'source tree object' "${#SOURCE_ASSET_RECORDS[@]}")"
         fi
         marsh_copy_planned_target_source_assets "${SITE_OUTPUT_ROOT}" "${TARGET_FORCE}" "${SOURCE_ASSET_RECORDS[@]}" || return 1
     fi
 
     if [[ "${#SITEMAP_RECORDS[@]}" -gt 0 ]]; then
         if [[ "${TARGET_NUMBER}" != "" ]]; then
-            echo "Target ${TARGET_NUMBER}: building ${#SITEMAP_RECORDS[@]} sitemaps"
+            echo "Target ${TARGET_NUMBER}: building $(marsh_inflect 'sitemap' "${#SITEMAP_RECORDS[@]}")"
         fi
         if ! marsh_build_planned_target_sitemaps "${TARGET_OUTPUT_ROOT}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_FILEEXT_CSV}" "${MARKDOWN_REWRITE_LINKS}" "${SITEMAP_RECORDS[@]}"; then
             echo "Unable to resolve sitemap source path: ${TARGET_SITEMAP}" >&2
@@ -6117,7 +6135,7 @@ function marsh_build_planned_target {  # marsh_build_planned_target site_output_
     fi
     if [[ "${#DOCUMENT_RECORDS[@]}" -gt 0 ]]; then
         if [[ "${TARGET_NUMBER}" != "" ]]; then
-            echo "Target ${TARGET_NUMBER}: building ${#DOCUMENT_RECORDS[@]} documents"
+            echo "Target ${TARGET_NUMBER}: building $(marsh_inflect 'document' "${#DOCUMENT_RECORDS[@]}")"
         fi
         if ! marsh_build_planned_target_documents "${SITE_OUTPUT_ROOT}" "${JOBS}" "${TARGET_SITEMAP}" "${TARGET_SITEMAP_SEARCH}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_FILEEXT_CSV}" "${MARKDOWN_REWRITE_LINKS}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_ASSETS_PATH}" "${DOCUMENT_RECORDS[@]}"; then
             echo "Unable to build one or more documents in target: ${TARGET_OUTPUT_REL}" >&2
@@ -6144,7 +6162,7 @@ function marsh_build_planned_target {  # marsh_build_planned_target site_output_
             fi
         done
         if [[ "${TARGET_NUMBER}" != "" ]]; then
-            echo "Target ${TARGET_NUMBER}: building ${#ARCHIVE_PLAN_ROOTS[@]} archives with ${ARCHIVE_DOCUMENTS_COUNT} outputs"
+            echo "Target ${TARGET_NUMBER}: building $(marsh_inflect 'archive' "${#ARCHIVE_PLAN_ROOTS[@]}") with $(marsh_inflect 'output' "${ARCHIVE_DOCUMENTS_COUNT}")"
         fi
         for TARGET_ARCHIVE_PLAN_ROOT in "${ARCHIVE_PLAN_ROOTS[@]}"; do
             [[ "${TARGET_ARCHIVE_PLAN_ROOT}" == "" ]] && continue
@@ -6762,11 +6780,7 @@ function marsh_cli {
             TARGET_COUNT_INDEX=$((TARGET_COUNT_INDEX + 1))
             TARGET_COUNT_PREFIX="CONFIG_Build_Targets_${TARGET_COUNT_INDEX}_"
         done
-        if [[ "${TARGET_COUNT}" -eq 1 ]]; then
-            echo "Building 1 target"
-        else
-            echo "Building ${TARGET_COUNT} targets"
-        fi
+        echo "Building $(marsh_inflect 'target' "${TARGET_COUNT}")"
 
         SITE_SOURCE_ROOT=$(marsh_get_site_source_root_path "${MARSH_CONFIG_FILE_DIR:-.}") || {
             echo "Unable to resolve site source root from target sources" >&2

@@ -4877,6 +4877,24 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
+        marsh_inflect:0)
+            TEST_NAME+=":singular"
+            ACTUAL=$(marsh_inflect "plan" 1)
+            EXPECTED="1 plan"
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_inflect:1)
+            TEST_NAME+=":plural"
+            ACTUAL=$(marsh_inflect "plan" 2)
+            EXPECTED="2 plans"
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
         marsh_is_markdown_extension:0)
             TEST_NAME+=":true"
             marsh_is_markdown_extension "MD" "markdown,md"
@@ -7171,6 +7189,7 @@ KNOWN_FUNCTIONS=(
     marsh_get_variables
     marsh_has_frontmatter
     marsh_in_array
+    marsh_inflect
     marsh_is_markdown_extension
     marsh_normalize_internal_path
     marsh_normalize_path

@@ -297,6 +297,39 @@ function marsh_inflect {  # marsh_inflect string count
     printf '%s %s\n' "${COUNT_VALUE}" "${LABEL}"
 }
 
+# returns a shell-native timestamp for elapsed-time measurement
+function marsh_get_shell_timestamp {  # marsh_get_shell_timestamp
+    local NOW
+
+    if [[ "${EPOCHREALTIME:-}" != "" ]]; then
+        printf '%s\n' "${EPOCHREALTIME}"
+        return 0
+    fi
+
+    NOW="${SECONDS:-0}"
+    printf '%s.000\n' "${NOW}"
+}
+
+# formats elapsed seconds as XmY.ZZZs
+function marsh_format_elapsed_time {  # marsh_format_elapsed_time elapsed_seconds
+    local ELAPSED_SECONDS
+
+    ELAPSED_SECONDS="${1:-}"
+    [[ "${ELAPSED_SECONDS}" == "" ]] && return 1
+    awk -v elapsed_seconds="${ELAPSED_SECONDS}" '
+    BEGIN {
+        elapsed = elapsed_seconds + 0
+        if (elapsed < 0) {
+            elapsed = 0
+        }
+        elapsed_millis = int((elapsed * 1000) + 0.5)
+        minutes = int(elapsed_millis / 60000)
+        seconds = (elapsed_millis % 60000) / 1000
+        printf "%dm%.3fs\n", minutes, seconds
+    }
+    '
+}
+
 # prints a single build artifact output path formatted for verbose mode
 function marsh_print_verbose_output_path {  # marsh_print_verbose_output_path output_path
     local OUTPUT_PATH
@@ -6374,6 +6407,8 @@ function marsh_cli {
     local MARKDOWN_OPTIONS_CSV MARKDOWN_OPTIONS_CLIARGS MARKDOWN_FILEEXT_CSV
     local INDEX PREFIX META META_VARS CONFIG_VARS OIFS I J
     local TARGET_COUNT TARGET_COUNT_INDEX TARGET_COUNT_PREFIX TARGET_NUMBER
+    local BUILD_START_TIME BUILD_END_TIME BUILD_ELAPSED
+    local TARGET_START_TIME TARGET_END_TIME TARGET_ELAPSED
     local TARGET_ARCHIVE_TYPES TARGET_ARCHIVE_EXCLUDED_STATES TARGET_ARCHIVE_MANIFEST
     local TARGET_ARCHIVE_TEMPLATE TARGET_ARCHIVE_TEMPLATE_SOURCE TARGET_ARCHIVE_TEMPLATE_ASSETS_PATH TARGET_ARCHIVE_TEMPLATE_OVERRIDES
     local SITE_SOURCE_ROOT TARGET_SOURCE_ROOT TARGET_SITEMAP_RESOLVED TARGET_SITEMAP_SEARCH TARGET_SITEMAP_MATCH TARGET_SITEMAP_REL TARGET_SITEMAP_FOUND TARGET_SITEMAP_FILE TARGET_SITEMAP_SOURCE TARGET_SITEMAP_RECORDS TARGET_SITEMAP_RECORD
@@ -6871,6 +6906,10 @@ function marsh_cli {
         TARGET_NUMBER=1
         PREFIX="CONFIG_Build_Targets_${INDEX}_"
         while META=$(marsh_get_target_metadata "${PREFIX}" "TARGET_"); do
+            TARGET_START_TIME=$(marsh_get_shell_timestamp) || die_gracefully
+            if [[ "${BUILD_START_TIME:-}" == "" ]]; then
+                BUILD_START_TIME="${TARGET_START_TIME}"
+            fi
             META_VARS=$(echo "${META}" | marsh_get_variables)
             eval "$(printf '%s\n' "${META_VARS}" | marsh_get_local_declarations)"
             eval "${META}"
@@ -6933,10 +6972,21 @@ function marsh_cli {
                         "${TARGET_NUMBER}" || die_gracefully
 
             marsh_clean_target_temp "${MARSH_CONFIG_PATH}/${TARGET_PATH}" || die_gracefully
+            TARGET_END_TIME=$(marsh_get_shell_timestamp) || die_gracefully
+            BUILD_END_TIME="${TARGET_END_TIME}"
+            TARGET_ELAPSED=$(awk -v start_time="${TARGET_START_TIME}" -v end_time="${TARGET_END_TIME}" 'BEGIN { printf "%.6f", (end_time - start_time) }') || die_gracefully
+            echo "Target ${TARGET_NUMBER}: completed in $(marsh_format_elapsed_time "${TARGET_ELAPSED}")"
             INDEX=$((INDEX+1))
             TARGET_NUMBER=$((TARGET_NUMBER + 1))
             PREFIX="CONFIG_Build_Targets_${INDEX}_"
         done
+
+        if [[ "${BUILD_START_TIME:-}" == "" ]] || [[ "${BUILD_END_TIME:-}" == "" ]]; then
+            BUILD_ELAPSED="0.000000"
+        else
+            BUILD_ELAPSED=$(awk -v start_time="${BUILD_START_TIME}" -v end_time="${BUILD_END_TIME}" 'BEGIN { printf "%.6f", (end_time - start_time) }') || die_gracefully
+        fi
+        echo "Completed $(marsh_inflect 'target' "${TARGET_COUNT}") in $(marsh_format_elapsed_time "${BUILD_ELAPSED}")"
 
         # clean up
         rm -rf "${MARSH_TEMP}"

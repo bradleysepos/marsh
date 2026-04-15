@@ -3492,6 +3492,33 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
+        marsh_format_elapsed_time:0)
+            TEST_NAME+=":subsecond"
+            ACTUAL=$(marsh_format_elapsed_time "0.312")
+            EXPECTED="0m0.312s"
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_format_elapsed_time:1)
+            TEST_NAME+=":minutes"
+            ACTUAL=$(marsh_format_elapsed_time "176.220")
+            EXPECTED="2m56.220s"
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_format_elapsed_time:2)
+            TEST_NAME+=":rounds_milliseconds"
+            ACTUAL=$(marsh_format_elapsed_time "1.2346")
+            EXPECTED="0m1.235s"
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
         marsh_get_absolute_output_path:0)
             TEST_NAME+=":directory_with_base_url"
             marsh_test_set_env
@@ -7157,6 +7184,7 @@ KNOWN_FUNCTIONS=(
     marsh_escape_substitution
     marsh_extract_frontmatter
     marsh_flat_to_array
+    marsh_format_elapsed_time
     marsh_get_absolute_output_path
     marsh_get_archive_manifest
     marsh_get_archive_metadata

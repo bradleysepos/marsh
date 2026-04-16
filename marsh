@@ -2526,7 +2526,10 @@ function marsh_plan_target_source_assets {  # marsh_plan_target_source_assets so
     while IFS= read -r TARGET_SOURCE_INVENTORY_LINE; do
         [[ "${TARGET_SOURCE_INVENTORY_LINE}" == "" ]] && continue
         TARGET_SOURCE_INVENTORY_RECORDS+=("${TARGET_SOURCE_INVENTORY_LINE}")
-    done < <(marsh_get_target_source_inventory "${TARGET_OUTPUT_ROOT}" "${SOURCE_ROOT}") || return 1
+    done < <(
+        marsh_get_target_plan_source_inventory "${TARGET_OUTPUT_ROOT}" "${SOURCE_ROOT}" 2>/dev/null ||
+        marsh_get_target_source_inventory "${TARGET_OUTPUT_ROOT}" "${SOURCE_ROOT}"
+    ) || return 1
 
     marsh_plan_target_source_assets_from_inventory "${SOURCE}" "${TARGET_OUTPUT_REL}" "${SOURCE_ROOT}" "${MARKDOWN_FILEEXT_CSV}" "${TARGET_SOURCE_INVENTORY_RECORDS[@]}"
 }
@@ -3138,6 +3141,26 @@ function marsh_write_target_plan_records {  # marsh_write_target_plan_records ta
         rm -f "${RECORD_TEMP}"
         return 1
     }
+}
+
+# returns the persisted planner-owned source inventory for a target when available
+function marsh_get_target_plan_source_inventory {  # marsh_get_target_plan_source_inventory target_output_root [source_root]
+    local TARGET_OUTPUT_ROOT SOURCE_ROOT TARGET_PLAN_ROOT SOURCE_INVENTORY_FILE TARGET_PLAN_SOURCE_ROOT
+
+    TARGET_OUTPUT_ROOT="${1:-}"
+    SOURCE_ROOT="${2:-}"
+    [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
+
+    TARGET_PLAN_ROOT=$(marsh_get_target_plan_root "${TARGET_OUTPUT_ROOT}") || return 1
+    SOURCE_INVENTORY_FILE="${TARGET_PLAN_ROOT}/source-inventory"
+    [[ -f "${SOURCE_INVENTORY_FILE}" ]] && [[ -r "${SOURCE_INVENTORY_FILE}" ]] || return 1
+
+    if [[ "${SOURCE_ROOT}" != "" ]]; then
+        TARGET_PLAN_SOURCE_ROOT=$(marsh_get_target_source_root_path "${TARGET_OUTPUT_ROOT}") || return 1
+        [[ "${TARGET_PLAN_SOURCE_ROOT}" == "${SOURCE_ROOT}" ]] || return 1
+    fi
+
+    cat "${SOURCE_INVENTORY_FILE}"
 }
 
 # creates the cached source-root record for a target under MARSH_TEMP
@@ -5553,7 +5576,10 @@ function marsh_plan_target_documents {  # marsh_plan_target_documents site_outpu
     while IFS= read -r TARGET_SOURCE_INVENTORY_LINE; do
         [[ "${TARGET_SOURCE_INVENTORY_LINE}" == "" ]] && continue
         TARGET_SOURCE_INVENTORY_RECORDS+=("${TARGET_SOURCE_INVENTORY_LINE}")
-    done < <(marsh_get_target_source_inventory "${TARGET_OUTPUT_ROOT}" "${TARGET_SOURCE_ROOT}") || return 1
+    done < <(
+        marsh_get_target_plan_source_inventory "${TARGET_OUTPUT_ROOT}" "${TARGET_SOURCE_ROOT}" 2>/dev/null ||
+        marsh_get_target_source_inventory "${TARGET_OUTPUT_ROOT}" "${TARGET_SOURCE_ROOT}"
+    ) || return 1
 
     marsh_plan_target_documents_from_inventory "${SITE_OUTPUT_ROOT}" "${TARGET}" "${TARGET_OUTPUT_REL}" "${TARGET_SOURCE_ROOT}" "${MARKDOWN_FILEEXT_CSV}" "${TARGET_SOURCE_INVENTORY_RECORDS[@]}"
 }
@@ -5615,7 +5641,10 @@ function marsh_plan_target_sitemaps {  # marsh_plan_target_sitemaps site_source_
         while IFS= read -r TARGET_SOURCE_INVENTORY_LINE; do
             [[ "${TARGET_SOURCE_INVENTORY_LINE}" == "" ]] && continue
             TARGET_SOURCE_INVENTORY_RECORDS+=("${TARGET_SOURCE_INVENTORY_LINE}")
-        done < <(marsh_get_target_source_inventory "${TARGET_OUTPUT_ROOT}" "${TARGET_SOURCE_ROOT}" true) || return 1
+        done < <(
+            marsh_get_target_plan_source_inventory "${TARGET_OUTPUT_ROOT}" "${TARGET_SOURCE_ROOT}" 2>/dev/null ||
+            marsh_get_target_source_inventory "${TARGET_OUTPUT_ROOT}" "${TARGET_SOURCE_ROOT}" true
+        ) || return 1
 
         marsh_plan_target_sitemaps_from_inventory "${SITE_SOURCE_ROOT}" "${TARGET_SOURCE_ROOT}" "${SITEMAP_PATH}" "${SITEMAP_SEARCH}" "${TARGET_SOURCE_INVENTORY_RECORDS[@]}"
         return 0

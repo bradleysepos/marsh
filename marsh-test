@@ -4705,6 +4705,45 @@ function marsh_test {
             rm -rf "${TARGET_OUTPUT_ROOT}"
             marsh_test_restore_env
             ;;
+        marsh_get_target_plan_source_inventory:0)
+            TEST_NAME+=":reads_persisted_inventory"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
+            TARGET_PLAN_ROOT=""
+            marsh_test_set_env
+            mkdir -p "${SOURCE_ROOT}"
+            marsh_create_target_source_root "${TARGET_OUTPUT_ROOT}" "${SOURCE_ROOT}" || return 1
+            TARGET_PLAN_ROOT=$(marsh_create_target_plan_root "${TARGET_OUTPUT_ROOT}") || return 1
+            marsh_write_target_plan_records "${TARGET_PLAN_ROOT}" "source-inventory" 'docs/first.markdown' 'docs/second.txt' || return 1
+            ACTUAL=$(marsh_get_target_plan_source_inventory "${TARGET_OUTPUT_ROOT}" "${SOURCE_ROOT}")
+            EXPECTED=$(printf '%s\n' 'docs/first.markdown' 'docs/second.txt')
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            rm -rf "${TARGET_OUTPUT_ROOT}" "${SOURCE_ROOT}"
+            marsh_test_restore_env
+            ;;
+        marsh_get_target_plan_source_inventory:1)
+            TEST_NAME+=":rejects_mismatched_source_root"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
+            TARGET_PLAN_ROOT=""
+            marsh_test_set_env
+            mkdir -p "${SOURCE_ROOT}"
+            marsh_create_target_source_root "${TARGET_OUTPUT_ROOT}" "${SOURCE_ROOT}" || return 1
+            TARGET_PLAN_ROOT=$(marsh_create_target_plan_root "${TARGET_OUTPUT_ROOT}") || return 1
+            marsh_write_target_plan_records "${TARGET_PLAN_ROOT}" "source-inventory" 'docs/first.markdown' || return 1
+            marsh_get_target_plan_source_inventory "${TARGET_OUTPUT_ROOT}" "${TEST_TEMP_PREFIX}.other" 2>/dev/null
+            ACTUAL=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" -eq "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            rm -rf "${TARGET_OUTPUT_ROOT}" "${SOURCE_ROOT}"
+            marsh_test_restore_env
+            ;;
         marsh_get_target_temp_root:0)
             TEST_NAME+=":root_target"
             marsh_test_set_env
@@ -5683,6 +5722,34 @@ function marsh_test {
             rm -rf "${SITE_OUTPUT_ROOT}" "${SOURCE_ROOT}"
             marsh_test_restore_env
             ;;
+        marsh_plan_target_documents:5)
+            TEST_NAME+=":prefers_persisted_plan_inventory"
+            SITE_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
+            TARGET_OUTPUT_ROOT="${SITE_OUTPUT_ROOT}"
+            TARGET_PLAN_ROOT=""
+            ACTUAL=""
+            marsh_test_set_env
+            mkdir -p "${SOURCE_ROOT}/docs"
+            printf '%s\n' '# first' > "${SOURCE_ROOT}/docs/first.markdown"
+            printf '%s\n' '# second' > "${SOURCE_ROOT}/docs/second.markdown"
+            marsh_create_target_source_root "${TARGET_OUTPUT_ROOT}" "${SOURCE_ROOT}" || return 1
+            TARGET_PLAN_ROOT=$(marsh_create_target_plan_root "${TARGET_OUTPUT_ROOT}") || return 1
+            marsh_write_target_plan_records "${TARGET_PLAN_ROOT}" "source-inventory" 'docs/first.markdown' || return 1
+            ACTUAL=$(marsh_plan_target_documents "${SITE_OUTPUT_ROOT}" "." "." "${SOURCE_ROOT}" "markdown,md")
+            ACTUAL=$(while IFS=$'\t' read -r DOCUMENT_ID_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC; do
+                [[ "${DOCUMENT_ID_ESC}" == "" ]] && continue
+                eval "DOCUMENT_ID=${DOCUMENT_ID_ESC}"
+                printf '%s\n' "${DOCUMENT_ID}"
+            done <<< "${ACTUAL}")
+            EXPECTED='docs/first.markdown'
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            rm -rf "${SITE_OUTPUT_ROOT}" "${SOURCE_ROOT}"
+            marsh_test_restore_env
+            ;;
         marsh_plan_target_documents_from_inventory:0)
             TEST_NAME+=":filters_directory_scope_from_inventory_records"
             SITE_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
@@ -5773,6 +5840,28 @@ function marsh_test {
             EXPECTED=$(printf '%s\t%s\n' 'team/site-map.markdown' "${TARGET_SOURCE_ROOT}/team/site-map.markdown")
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]] && [[ "${ACTUAL_SECOND}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            rm -rf "${TARGET_OUTPUT_ROOT}" "${SITE_SOURCE_ROOT}"
+            marsh_test_restore_env
+            ;;
+        marsh_plan_target_sitemaps:3)
+            TEST_NAME+=":search_prefers_persisted_plan_inventory"
+            SITE_SOURCE_ROOT="${TEST_TEMP_PREFIX}.site-source"
+            TARGET_SOURCE_ROOT="${SITE_SOURCE_ROOT}/about"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            TARGET_PLAN_ROOT=""
+            marsh_test_set_env
+            mkdir -p "${TARGET_SOURCE_ROOT}/team" "${TARGET_SOURCE_ROOT}/news"
+            printf '%s\n' '# team sitemap' > "${TARGET_SOURCE_ROOT}/team/site-map.markdown"
+            printf '%s\n' '# news sitemap' > "${TARGET_SOURCE_ROOT}/news/site-map.markdown"
+            marsh_create_target_source_root "${TARGET_OUTPUT_ROOT}" "${TARGET_SOURCE_ROOT}" || return 1
+            TARGET_PLAN_ROOT=$(marsh_create_target_plan_root "${TARGET_OUTPUT_ROOT}") || return 1
+            marsh_write_target_plan_records "${TARGET_PLAN_ROOT}" "source-inventory" 'team/site-map.markdown' || return 1
+            ACTUAL=$(marsh_plan_target_sitemaps "${SITE_SOURCE_ROOT}" "${TARGET_SOURCE_ROOT}" 'site-map.markdown' true "${TARGET_OUTPUT_ROOT}")
+            EXPECTED=$(printf '%s\t%s\n' 'team/site-map.markdown' "${TARGET_SOURCE_ROOT}/team/site-map.markdown")
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
             rm -rf "${TARGET_OUTPUT_ROOT}" "${SITE_SOURCE_ROOT}"
@@ -5880,6 +5969,33 @@ function marsh_test {
             EXPECTED='docs/logo.txt'
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]] && [[ "${ACTUAL_SECOND}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            rm -rf "${SITE_OUTPUT_ROOT}" "${SOURCE_ROOT}"
+            marsh_test_restore_env
+            ;;
+        marsh_plan_target_source_assets:3)
+            TEST_NAME+=":prefers_persisted_plan_inventory"
+            SITE_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
+            TARGET_OUTPUT_ROOT="${SITE_OUTPUT_ROOT}"
+            TARGET_PLAN_ROOT=""
+            marsh_test_set_env
+            mkdir -p "${SOURCE_ROOT}/docs"
+            printf '%s\n' 'logo' > "${SOURCE_ROOT}/docs/logo.txt"
+            printf '%s\n' 'second' > "${SOURCE_ROOT}/docs/second.txt"
+            marsh_create_target_source_root "${TARGET_OUTPUT_ROOT}" "${SOURCE_ROOT}" || return 1
+            TARGET_PLAN_ROOT=$(marsh_create_target_plan_root "${TARGET_OUTPUT_ROOT}") || return 1
+            marsh_write_target_plan_records "${TARGET_PLAN_ROOT}" "source-inventory" 'docs/logo.txt' || return 1
+            ACTUAL=$(marsh_plan_target_source_assets "${SOURCE_ROOT}/*" "${SITE_OUTPUT_ROOT}" "." "markdown,md")
+            ACTUAL=$(while IFS=$'\t' read -r ASSET_RELPATH_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC; do
+                [[ "${ASSET_RELPATH_ESC}" == "" ]] && continue
+                eval "ASSET_RELPATH=${ASSET_RELPATH_ESC}"
+                printf '%s\n' "${ASSET_RELPATH}"
+            done <<< "${ACTUAL}")
+            EXPECTED='docs/logo.txt'
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
             rm -rf "${SITE_OUTPUT_ROOT}" "${SOURCE_ROOT}"
@@ -7298,6 +7414,7 @@ KNOWN_FUNCTIONS=(
     marsh_get_target_document_paths
     marsh_get_target_metadata
     marsh_get_target_output_path
+    marsh_get_target_plan_source_inventory
     marsh_get_target_source_inventory
     marsh_get_target_source_root_path
     marsh_get_target_temp_root

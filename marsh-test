@@ -5458,6 +5458,51 @@ function marsh_test {
             rm -rf "${SITE_OUTPUT_ROOT}" "${SOURCE_ROOT}"
             marsh_test_restore_env
             ;;
+        marsh_write_target_archive_manifest:2)
+            TEST_NAME+=":prefers_in_memory_documents_over_persisted_plan"
+            SITE_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
+            TARGET_PLAN_ROOT=""
+            DOCUMENT_RECORDS=()
+            marsh_test_set_env
+            mkdir -p "${SOURCE_ROOT}/news/2026/01/02" "${SOURCE_ROOT}/news/2026/01/01"
+            printf '%s\n' \
+                '---' \
+                'Type: post' \
+                'Title: Current' \
+                'Date: 2026-01-02' \
+                '...' \
+                '' \
+                '# Current' > "${SOURCE_ROOT}/news/2026/01/02/02-current.markdown"
+            printf '%s\n' \
+                '---' \
+                'Type: note' \
+                'Title: Stale' \
+                'Date: 2026-01-01' \
+                '...' \
+                '' \
+                '# Stale' > "${SOURCE_ROOT}/news/2026/01/01/01-stale.markdown"
+            while IFS= read -r DOCUMENT_RECORD; do
+                [[ "${DOCUMENT_RECORD}" == "" ]] && continue
+                DOCUMENT_RECORDS+=("${DOCUMENT_RECORD}")
+            done < <(marsh_plan_target_documents "${SITE_OUTPUT_ROOT}" "news/2026/01/02/02-current.markdown" "." "${SOURCE_ROOT}" "markdown,md")
+            TARGET_PLAN_ROOT=$(marsh_create_target_plan_root "${SITE_OUTPUT_ROOT}")
+            marsh_write_target_plan_records "${TARGET_PLAN_ROOT}" "documents" "$(printf '%q\t%q\t%q\t%q\n' 'news/2026/01/01/01-stale.markdown' 'news/2026/01/01/01-stale.markdown' '.' "${SOURCE_ROOT}")"
+            marsh_write_target_archive_manifest "${SITE_OUTPUT_ROOT}" "markdown,md" "${TARGET_PLAN_ROOT}" "${DOCUMENT_RECORDS[@]}"
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                ACTUAL=$(<"${TARGET_PLAN_ROOT}/archive-manifest")
+                EXPECTED="$(printf '%q\t%q\t%q\t%q\t%q\n' "news/2026/01/02/02-current.markdown" "post" "https://example.test/news/2026/01/02/02-current.html" "https://example.test/news/2026/01/02" "")"
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${SITE_OUTPUT_ROOT}" "${SOURCE_ROOT}"
+            marsh_test_restore_env
+            ;;
         marsh_plan_target_archives:0)
             TEST_NAME+=":plans_archives"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
@@ -5591,6 +5636,73 @@ function marsh_test {
                 }
                 ACTUAL=$?
                 EXPECTED=0
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${TARGET_OUTPUT_ROOT}" "${SOURCE_ROOT}" "${TEMPLATE_DIR}"
+            marsh_test_restore_env
+            ;;
+        marsh_plan_target_archives:2)
+            TEST_NAME+=":prefers_in_memory_documents_over_persisted_plan"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
+            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            TARGET_PLAN_ROOT=""
+            ARCHIVE_PLAN_ROOTS=()
+            DOCUMENT_RECORDS=()
+            TARGET_TEMPLATE_OVERRIDES=()
+            TARGET_ARCHIVES=()
+            TARGET_ARCHIVES_ENCODING=()
+            TARGET_ARCHIVES_NAME=()
+            TARGET_ARCHIVES_LANGUAGE=()
+            TARGET_ARCHIVES_LANGUAGE_CODE=()
+            TARGET_ARCHIVES_ROOT_PATH=()
+            TARGET_ARCHIVES_COUNT=()
+            TARGET_ARCHIVES_PAGE_SIZE=()
+            TARGET_ARCHIVES_TYPES=()
+            TARGET_ARCHIVES_EXCLUDED_STATES=()
+            TARGET_ARCHIVES_TEMPLATE_SOURCE=()
+            TARGET_ARCHIVES_TEMPLATE_ASSETS_PATH=()
+            TARGET_ARCHIVES_TEMPLATE_OVERRIDES=()
+            TARGET_ARCHIVES_TEMPLATE=()
+            marsh_test_set_env
+            mkdir -p "${SOURCE_ROOT}/news/2026/01/02" "${SOURCE_ROOT}/news/2026/01/01"
+            marsh_test_create_archive_template "${TEMPLATE_DIR}" "sample" "html" true
+            printf '%s\n' '---'$'\n''Type: post'$'\n''Date: 2026-01-02'$'\n''Title: Current'$'\n''...'$'\n'''$'\n''# Current' > "${SOURCE_ROOT}/news/2026/01/02/02-current.markdown"
+            printf '%s\n' '---'$'\n''Type: note'$'\n''Date: 2026-01-01'$'\n''Title: Stale'$'\n''...'$'\n'''$'\n''# Stale' > "${SOURCE_ROOT}/news/2026/01/01/01-stale.markdown"
+            TARGET_ARCHIVES+=("news/index.markdown")
+            TARGET_ARCHIVES_ENCODING+=("html")
+            TARGET_ARCHIVES_NAME+=("News")
+            TARGET_ARCHIVES_LANGUAGE+=("English")
+            TARGET_ARCHIVES_LANGUAGE_CODE+=("en")
+            TARGET_ARCHIVES_ROOT_PATH+=("")
+            TARGET_ARCHIVES_COUNT+=("")
+            TARGET_ARCHIVES_PAGE_SIZE+=("10")
+            TARGET_ARCHIVES_TYPES+=("post")
+            TARGET_ARCHIVES_EXCLUDED_STATES+=("")
+            TARGET_ARCHIVES_TEMPLATE_SOURCE+=("")
+            TARGET_ARCHIVES_TEMPLATE_ASSETS_PATH+=("")
+            TARGET_ARCHIVES_TEMPLATE_OVERRIDES+=("")
+            TARGET_ARCHIVES_TEMPLATE+=("sample")
+            while IFS= read -r DOCUMENT_RECORD; do
+                [[ "${DOCUMENT_RECORD}" == "" ]] && continue
+                DOCUMENT_RECORDS+=("${DOCUMENT_RECORD}")
+            done < <(marsh_plan_target_documents "${TARGET_OUTPUT_ROOT}" "news/2026/01/02/02-current.markdown" "." "${SOURCE_ROOT}" "markdown,md")
+            TARGET_PLAN_ROOT=$(marsh_create_target_plan_root "${TARGET_OUTPUT_ROOT}")
+            marsh_write_target_plan_context "${TARGET_PLAN_ROOT}" "." false false "" false "${TEMPLATE_DIR}" "sample" 0 "" "." "${SOURCE_ROOT}" "${TEST_TEMP_PREFIX}.config" "News" ""
+            marsh_write_target_plan_records "${TARGET_PLAN_ROOT}" "documents" "$(printf '%q\t%q\t%q\t%q\n' 'news/2026/01/01/01-stale.markdown' 'news/2026/01/01/01-stale.markdown' '.' "${SOURCE_ROOT}")"
+            while IFS= read -r ARCHIVE_PLAN_ROOT; do
+                [[ "${ARCHIVE_PLAN_ROOT}" == "" ]] && continue
+                ARCHIVE_PLAN_ROOTS+=("${ARCHIVE_PLAN_ROOT}")
+            done < <(marsh_plan_target_archives "${TARGET_OUTPUT_ROOT}" "markdown,md" "${TARGET_PLAN_ROOT}" "${DOCUMENT_RECORDS[@]}")
+            ACTUAL="${#ARCHIVE_PLAN_ROOTS[@]}"
+            EXPECTED="1"
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                ACTUAL=$(<"${TARGET_PLAN_ROOT}/archive-manifest")
+                EXPECTED="$(printf '%q\t%q\t%q\t%q\t%q\n' "news/2026/01/02/02-current.markdown" "post" "https://example.test/news/2026/01/02/02-current.html" "https://example.test/news/2026/01/02" "")"
                 ASSERTION="equals"
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                     RES="[PASS]"

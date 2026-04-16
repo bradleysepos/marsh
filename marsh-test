@@ -5683,6 +5683,38 @@ function marsh_test {
             rm -rf "${SITE_OUTPUT_ROOT}" "${SOURCE_ROOT}"
             marsh_test_restore_env
             ;;
+        marsh_plan_target_documents_from_inventory:0)
+            TEST_NAME+=":filters_directory_scope_from_inventory_records"
+            SITE_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
+            ACTUAL=""
+            marsh_test_set_env
+            mkdir -p "${SITE_OUTPUT_ROOT}/about" "${SOURCE_ROOT}/about/team"
+            ACTUAL=$(marsh_plan_target_documents_from_inventory \
+                "${SITE_OUTPUT_ROOT}" \
+                "about" \
+                "." \
+                "${SOURCE_ROOT}" \
+                "markdown,md" \
+                'about/index.markdown' \
+                'about/team/index.markdown' \
+                'about/team/member.json' \
+                'index.markdown')
+            ACTUAL=$(while IFS=$'\t' read -r DOCUMENT_ID_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC; do
+                [[ "${DOCUMENT_ID_ESC}" == "" ]] && continue
+                eval "DOCUMENT_ID=${DOCUMENT_ID_ESC}"
+                printf '%s\n' "${DOCUMENT_ID}"
+            done <<< "${ACTUAL}" | sort)
+            EXPECTED=$(printf '%s\n' \
+                'about/index.markdown' \
+                'about/team/index.markdown' | sort)
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            rm -rf "${SITE_OUTPUT_ROOT}" "${SOURCE_ROOT}"
+            marsh_test_restore_env
+            ;;
         marsh_plan_target_sitemaps:0)
             TEST_NAME+=":explicit"
             SITE_SOURCE_ROOT="${TEST_TEMP_PREFIX}.site-source"
@@ -5826,6 +5858,33 @@ function marsh_test {
                 RES="[PASS]"
             fi
             rm -rf "${SITE_OUTPUT_ROOT}" "${SOURCE_ROOT}"
+            marsh_test_restore_env
+            ;;
+        marsh_plan_target_source_assets_from_inventory:0)
+            TEST_NAME+=":filters_glob_selection_from_inventory_records"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
+            marsh_test_set_env
+            mkdir -p "${SOURCE_ROOT}/docs"
+            ACTUAL=$(marsh_plan_target_source_assets_from_inventory \
+                "${SOURCE_ROOT}/*" \
+                "." \
+                "${SOURCE_ROOT}" \
+                "markdown,md" \
+                'readme.markdown' \
+                'download.bin' \
+                'docs/guide.pdf' \
+                'docs/note.markdown')
+            ACTUAL=$(while IFS=$'\t' read -r ASSET_RELPATH_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC; do
+                [[ "${ASSET_RELPATH_ESC}" == "" ]] && continue
+                eval "ASSET_RELPATH=${ASSET_RELPATH_ESC}"
+                printf '%s\n' "${ASSET_RELPATH}"
+            done <<< "${ACTUAL}" | sort)
+            EXPECTED=$(printf '%s\n' 'docs/guide.pdf' 'download.bin' | sort)
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            rm -rf "${SOURCE_ROOT}"
             marsh_test_restore_env
             ;;
         marsh_publish_processed_output:0)
@@ -7230,8 +7289,10 @@ KNOWN_FUNCTIONS=(
     marsh_plan_target
     marsh_plan_target_archives
     marsh_plan_target_documents
+    marsh_plan_target_documents_from_inventory
     marsh_plan_target_sitemaps
     marsh_plan_target_source_assets
+    marsh_plan_target_source_assets_from_inventory
     marsh_parse_template_metadata
     marsh_parse_yaml
     marsh_publish_processed_output

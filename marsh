@@ -2471,9 +2471,45 @@ function marsh_copy_source_objects {  # marsh_copy_source_objects source_dir tar
 }
 
 # creates a plan for direct copy of source assets for a target
+function marsh_plan_target_source_assets_from_inventory {  # marsh_plan_target_source_assets_from_inventory source target_output_rel source_root markdown_fileext_csv inventory_records[@]
+    local SOURCE TARGET_OUTPUT_REL SOURCE_ROOT MARKDOWN_FILEEXT_CSV
+    local SOURCE_PATH_PATTERN REL_PATH MATCH_REL_PATH
+
+    SOURCE="${1:-}"
+    TARGET_OUTPUT_REL="${2:-}"
+    SOURCE_ROOT="${3:-}"
+    MARKDOWN_FILEEXT_CSV="${4:-}"
+    [[ "${SOURCE}" == "" ]] && return 1
+    [[ "${TARGET_OUTPUT_REL}" == "" ]] && return 1
+    [[ "${SOURCE_ROOT}" == "" ]] && return 1
+    [[ "${MARKDOWN_FILEEXT_CSV}" == "" ]] && return 1
+
+    shift 4
+    SOURCE_PATH_PATTERN="${SOURCE##*/}"
+    [[ -d "${SOURCE}" ]] && SOURCE_PATH_PATTERN=""
+    TARGET_OUTPUT_REL=$(marsh_normalize_internal_path "${TARGET_OUTPUT_REL}") || return 1
+
+    # emit source asset records from the provided inventory
+    while [[ "${#@}" -gt 0 ]]; do
+        REL_PATH="${1:-}"
+        shift 1
+        [[ "${REL_PATH}" == "" ]] && continue
+        if [[ "${SOURCE_PATH_PATTERN}" != "" ]]; then
+            MATCH_REL_PATH="${REL_PATH%%/*}"
+            [[ "${REL_PATH}" == */* ]] || MATCH_REL_PATH="${REL_PATH}"
+            [[ "${MATCH_REL_PATH}" == ${SOURCE_PATH_PATTERN} ]] || continue
+        fi
+        # markdown files are rendered instead of copied directly
+        if marsh_is_markdown_extension "${REL_PATH##*.}" "${MARKDOWN_FILEEXT_CSV}"; then
+            continue
+        fi
+        printf '%q\t%q\t%q\t%q\n' "${REL_PATH}" "${REL_PATH}" "${TARGET_OUTPUT_REL}" "${SOURCE_ROOT}"
+    done
+}
+
 function marsh_plan_target_source_assets {  # marsh_plan_target_source_assets source site_output_root target_output_rel markdown_fileext_csv
     local SOURCE SITE_OUTPUT_ROOT TARGET_OUTPUT_REL MARKDOWN_FILEEXT_CSV
-    local SOURCE_ROOT TARGET_OUTPUT_ROOT SOURCE_PATH_PATTERN TARGET_SOURCE_INVENTORY REL_PATH MATCH_REL_PATH
+    local SOURCE_ROOT TARGET_OUTPUT_ROOT TARGET_SOURCE_INVENTORY_RECORDS TARGET_SOURCE_INVENTORY_LINE
 
     SOURCE="${1:-}"
     SITE_OUTPUT_ROOT="${2:-}"
@@ -2486,25 +2522,13 @@ function marsh_plan_target_source_assets {  # marsh_plan_target_source_assets so
 
     SOURCE_ROOT=$(marsh_get_source_root_path "${SOURCE}") || return 1
     TARGET_OUTPUT_ROOT=$(marsh_get_target_directory_path "${SITE_OUTPUT_ROOT}/${TARGET_OUTPUT_REL}") || return 1
-    SOURCE_PATH_PATTERN="${SOURCE##*/}"
-    [[ -d "${SOURCE}" ]] && SOURCE_PATH_PATTERN=""
-    TARGET_SOURCE_INVENTORY=$(marsh_get_target_source_inventory "${TARGET_OUTPUT_ROOT}" "${SOURCE_ROOT}") || return 1
-    TARGET_OUTPUT_REL=$(marsh_normalize_internal_path "${TARGET_OUTPUT_REL}") || return 1
+    TARGET_SOURCE_INVENTORY_RECORDS=()
+    while IFS= read -r TARGET_SOURCE_INVENTORY_LINE; do
+        [[ "${TARGET_SOURCE_INVENTORY_LINE}" == "" ]] && continue
+        TARGET_SOURCE_INVENTORY_RECORDS+=("${TARGET_SOURCE_INVENTORY_LINE}")
+    done < <(marsh_get_target_source_inventory "${TARGET_OUTPUT_ROOT}" "${SOURCE_ROOT}") || return 1
 
-    # emit source asset records from the target-scoped cached inventory
-    while IFS= read -r REL_PATH; do
-        [[ "${REL_PATH}" == "" ]] && continue
-        if [[ "${SOURCE_PATH_PATTERN}" != "" ]]; then
-            MATCH_REL_PATH="${REL_PATH%%/*}"
-            [[ "${REL_PATH}" == */* ]] || MATCH_REL_PATH="${REL_PATH}"
-            [[ "${MATCH_REL_PATH}" == ${SOURCE_PATH_PATTERN} ]] || continue
-        fi
-        # markdown files are rendered instead of copied directly
-        if marsh_is_markdown_extension "${REL_PATH##*.}" "${MARKDOWN_FILEEXT_CSV}"; then
-            continue
-        fi
-        printf '%q\t%q\t%q\t%q\n' "${REL_PATH}" "${REL_PATH}" "${TARGET_OUTPUT_REL}" "${SOURCE_ROOT}"
-    done <<< "${TARGET_SOURCE_INVENTORY}"
+    marsh_plan_target_source_assets_from_inventory "${SOURCE}" "${TARGET_OUTPUT_REL}" "${SOURCE_ROOT}" "${MARKDOWN_FILEEXT_CSV}" "${TARGET_SOURCE_INVENTORY_RECORDS[@]}"
 }
 
 # copies planned source assets for a target
@@ -5450,9 +5474,9 @@ function marsh_get_template_cache_path {  # marsh_get_template_cache_path templa
 }
 
 # plans target documents to build
-function marsh_plan_target_documents {  # marsh_plan_target_documents site_output_root target target_output_rel target_source_root markdown_fileext_csv
+function marsh_plan_target_documents_from_inventory {  # marsh_plan_target_documents_from_inventory site_output_root target target_output_rel target_source_root markdown_fileext_csv inventory_records[@]
     local SITE_OUTPUT_ROOT TARGET TARGET_OUTPUT_REL TARGET_SOURCE_ROOT MARKDOWN_FILEEXT_CSV MARKDOWN_FILEEXT_REGEX
-    local DOCUMENT_ID TARGET_OUTPUT_ROOT REQUESTED_TARGET_REL TARGET_IS_DIRECTORY_SCOPE SOURCE_MATCHES_TARGET
+    local DOCUMENT_ID REQUESTED_TARGET_REL TARGET_IS_DIRECTORY_SCOPE SOURCE_MATCHES_TARGET
 
     SITE_OUTPUT_ROOT="${1:-}"
     TARGET="${2:-}"
@@ -5464,10 +5488,10 @@ function marsh_plan_target_documents {  # marsh_plan_target_documents site_outpu
     [[ "${TARGET_OUTPUT_REL}" == "" ]] && return 1
     [[ "${MARKDOWN_FILEEXT_CSV}" == "" ]] && return 1
 
+    shift 5
     TARGET_OUTPUT_REL=$(marsh_normalize_internal_path "${TARGET_OUTPUT_REL}") || return 1
     [[ "${TARGET_SOURCE_ROOT}" != "" ]] || return 0
     MARKDOWN_FILEEXT_REGEX="${MARKDOWN_FILEEXT_CSV//,/|}"
-    TARGET_OUTPUT_ROOT=$(marsh_get_target_directory_path "${SITE_OUTPUT_ROOT}/${TARGET_OUTPUT_REL}") || return 1
 
     # scope matching runs against the current target root, not the site root
     REQUESTED_TARGET_REL="${TARGET#./}"
@@ -5488,7 +5512,9 @@ function marsh_plan_target_documents {  # marsh_plan_target_documents site_outpu
     fi
 
     # emit document plan records using shell-safe fields
-    while IFS= read -r DOCUMENT_ID; do
+    while [[ "${#@}" -gt 0 ]]; do
+        DOCUMENT_ID="${1:-}"
+        shift 1
         [[ "${DOCUMENT_ID}" == "" ]] && continue
         DOCUMENT_ID="${DOCUMENT_ID#./}"
         if [[ "${REQUESTED_TARGET_REL}" != "*" ]] && [[ "${REQUESTED_TARGET_REL}" != "." ]] && [[ "${REQUESTED_TARGET_REL}" != "" ]]; then
@@ -5504,7 +5530,32 @@ function marsh_plan_target_documents {  # marsh_plan_target_documents site_outpu
         fi
         [[ "${DOCUMENT_ID}" =~ \.(${MARKDOWN_FILEEXT_REGEX})$ ]] || continue
         printf '%q\t%q\t%q\t%q\n' "${DOCUMENT_ID}" "${DOCUMENT_ID}" "${TARGET_OUTPUT_REL}" "${TARGET_SOURCE_ROOT}"
-    done < <(marsh_get_target_source_inventory "${TARGET_OUTPUT_ROOT}" "${TARGET_SOURCE_ROOT}")
+    done
+}
+
+function marsh_plan_target_documents {  # marsh_plan_target_documents site_output_root target target_output_rel target_source_root markdown_fileext_csv
+    local SITE_OUTPUT_ROOT TARGET TARGET_OUTPUT_REL TARGET_SOURCE_ROOT MARKDOWN_FILEEXT_CSV
+    local TARGET_OUTPUT_ROOT TARGET_SOURCE_INVENTORY_RECORDS TARGET_SOURCE_INVENTORY_LINE
+
+    SITE_OUTPUT_ROOT="${1:-}"
+    TARGET="${2:-}"
+    TARGET_OUTPUT_REL="${3:-.}"
+    TARGET_SOURCE_ROOT="${4:-}"
+    MARKDOWN_FILEEXT_CSV="${5:-}"
+    [[ "${SITE_OUTPUT_ROOT}" == "" ]] && return 1
+    [[ "${TARGET}" == "" ]] && return 1
+    [[ "${TARGET_OUTPUT_REL}" == "" ]] && return 1
+    [[ "${MARKDOWN_FILEEXT_CSV}" == "" ]] && return 1
+
+    [[ "${TARGET_SOURCE_ROOT}" != "" ]] || return 0
+    TARGET_OUTPUT_ROOT=$(marsh_get_target_directory_path "${SITE_OUTPUT_ROOT}/${TARGET_OUTPUT_REL}") || return 1
+    TARGET_SOURCE_INVENTORY_RECORDS=()
+    while IFS= read -r TARGET_SOURCE_INVENTORY_LINE; do
+        [[ "${TARGET_SOURCE_INVENTORY_LINE}" == "" ]] && continue
+        TARGET_SOURCE_INVENTORY_RECORDS+=("${TARGET_SOURCE_INVENTORY_LINE}")
+    done < <(marsh_get_target_source_inventory "${TARGET_OUTPUT_ROOT}" "${TARGET_SOURCE_ROOT}") || return 1
+
+    marsh_plan_target_documents_from_inventory "${SITE_OUTPUT_ROOT}" "${TARGET}" "${TARGET_OUTPUT_REL}" "${TARGET_SOURCE_ROOT}" "${MARKDOWN_FILEEXT_CSV}" "${TARGET_SOURCE_INVENTORY_RECORDS[@]}"
 }
 
 # plans target sitemaps as file and source path pairs
@@ -5671,6 +5722,7 @@ function marsh_plan_target {  # marsh_plan_target site_source_root site_output_r
     local TARGET_OUTPUT_REL TARGET_OUTPUT_ROOT TARGET_PLAN_ROOT
     local DOCUMENTS_FILE DOCUMENTS_TEMP SOURCE_ASSETS_FILE SOURCE_ASSETS_TEMP SITEMAPS_FILE SITEMAPS_TEMP
     local SOURCE_INVENTORY_RECORDS DOCUMENT_RECORDS SOURCE_ASSET_RECORDS SITEMAP_RECORDS ARCHIVE_PLAN_ROOTS PLAN_RECORD TARGET_ARCHIVE_PLAN_ROOT
+    local SOURCE_SCOPE_ROOT
 
     SITE_SOURCE_ROOT="${1:-}"
     SITE_OUTPUT_ROOT="${2:-}"
@@ -5724,15 +5776,22 @@ function marsh_plan_target {  # marsh_plan_target site_source_root site_output_r
     while IFS= read -r PLAN_RECORD; do
         [[ "${PLAN_RECORD}" == "" ]] && continue
         DOCUMENT_RECORDS+=("${PLAN_RECORD}")
-    done < <(marsh_plan_target_documents "${SITE_OUTPUT_ROOT}" "${TARGET}" "${TARGET_OUTPUT_REL}" "${BUILD_CONTEXT_SOURCE_ROOT}" "${MARKDOWN_FILEEXT_CSV}") || return 1
+    done < <(marsh_plan_target_documents_from_inventory "${SITE_OUTPUT_ROOT}" "${TARGET}" "${TARGET_OUTPUT_REL}" "${BUILD_CONTEXT_SOURCE_ROOT}" "${MARKDOWN_FILEEXT_CSV}" "${SOURCE_INVENTORY_RECORDS[@]}") || return 1
     marsh_write_target_plan_records "${TARGET_PLAN_ROOT}" "documents" "${DOCUMENT_RECORDS[@]}" || return 1
 
     SOURCE_ASSET_RECORDS=()
     if [[ "${SOURCE}" != "" ]]; then
+        SOURCE_SCOPE_ROOT=$(marsh_get_source_root_path "${SOURCE}") || return 1
         while IFS= read -r PLAN_RECORD; do
             [[ "${PLAN_RECORD}" == "" ]] && continue
             SOURCE_ASSET_RECORDS+=("${PLAN_RECORD}")
-        done < <(marsh_plan_target_source_assets "${SOURCE}" "${SITE_OUTPUT_ROOT}" "${TARGET_OUTPUT_REL}" "${MARKDOWN_FILEEXT_CSV}") || return 1
+        done < <(
+            if [[ "${SOURCE_SCOPE_ROOT}" == "${BUILD_CONTEXT_SOURCE_ROOT}" ]]; then
+                marsh_plan_target_source_assets_from_inventory "${SOURCE}" "${TARGET_OUTPUT_REL}" "${SOURCE_SCOPE_ROOT}" "${MARKDOWN_FILEEXT_CSV}" "${SOURCE_INVENTORY_RECORDS[@]}"
+            else
+                marsh_plan_target_source_assets "${SOURCE}" "${SITE_OUTPUT_ROOT}" "${TARGET_OUTPUT_REL}" "${MARKDOWN_FILEEXT_CSV}"
+            fi
+        ) || return 1
     fi
     marsh_write_target_plan_records "${TARGET_PLAN_ROOT}" "source-assets" "${SOURCE_ASSET_RECORDS[@]}" || return 1
 

@@ -5633,9 +5633,8 @@ function marsh_test {
             TARGET_ARCHIVES_TEMPLATE_OVERRIDES+=("")
             TARGET_ARCHIVES_TEMPLATE+=("sample")
             TARGET_PLAN_ROOT=$(marsh_create_target_plan_root "${TARGET_OUTPUT_ROOT}")
-            marsh_write_target_plan_context "${TARGET_PLAN_ROOT}" "." false false "" false "${TEMPLATE_DIR}" "sample" 0 "" "." "${SOURCE_ROOT}" "${TEST_TEMP_PREFIX}.config" "News" ""
             marsh_write_target_plan_records "${TARGET_PLAN_ROOT}" "documents" "$(printf '%q\t%q\t%q\t%q\n' 'news/item.markdown' 'news/item.markdown' '.' "${SOURCE_ROOT}")"
-            ARCHIVE_PLAN_OUTPUT=$(marsh_plan_target_archives "${TARGET_OUTPUT_ROOT}" "markdown,md" "${TARGET_PLAN_ROOT}" 2>/dev/null)
+            ARCHIVE_PLAN_OUTPUT=$(marsh_plan_target_archives "${TARGET_OUTPUT_ROOT}" "markdown,md" "${TARGET_PLAN_ROOT}" "." "${TEST_TEMP_PREFIX}.config" "${TEMPLATE_DIR}" "News" "" false "sample" "" "" "." "${SOURCE_ROOT}" 0 2>/dev/null)
             ACTUAL=$?
             EXPECTED="1"
             ASSERTION="equals"
@@ -5693,11 +5692,10 @@ function marsh_test {
                 DOCUMENT_RECORDS+=("${DOCUMENT_RECORD}")
             done < <(marsh_plan_target_documents "${TARGET_OUTPUT_ROOT}" "." "." "${SOURCE_ROOT}" "markdown,md")
             TARGET_PLAN_ROOT=$(marsh_create_target_plan_root "${TARGET_OUTPUT_ROOT}")
-            marsh_write_target_plan_context "${TARGET_PLAN_ROOT}" "." false false "" false "${TEMPLATE_DIR}" "sample" 0 "" "." "${SOURCE_ROOT}" "${TEST_TEMP_PREFIX}.config" "News" ""
             while IFS= read -r ARCHIVE_PLAN_ROOT; do
                 [[ "${ARCHIVE_PLAN_ROOT}" == "" ]] && continue
                 ARCHIVE_PLAN_ROOTS+=("${ARCHIVE_PLAN_ROOT}")
-            done < <(marsh_plan_target_archives "${TARGET_OUTPUT_ROOT}" "markdown,md" "${TARGET_PLAN_ROOT}" "${DOCUMENT_RECORDS[@]}")
+            done < <(marsh_plan_target_archives "${TARGET_OUTPUT_ROOT}" "markdown,md" "${TARGET_PLAN_ROOT}" "." "${TEST_TEMP_PREFIX}.config" "${TEMPLATE_DIR}" "News" "" false "sample" "" "" "." "${SOURCE_ROOT}" 0 "${DOCUMENT_RECORDS[@]}")
             ACTUAL="${#ARCHIVE_PLAN_ROOTS[@]}"
             EXPECTED="1"
             ASSERTION="equals"
@@ -5767,12 +5765,11 @@ function marsh_test {
                 DOCUMENT_RECORDS+=("${DOCUMENT_RECORD}")
             done < <(marsh_plan_target_documents "${TARGET_OUTPUT_ROOT}" "news/2026/01/02/02-current.markdown" "." "${SOURCE_ROOT}" "markdown,md")
             TARGET_PLAN_ROOT=$(marsh_create_target_plan_root "${TARGET_OUTPUT_ROOT}")
-            marsh_write_target_plan_context "${TARGET_PLAN_ROOT}" "." false false "" false "${TEMPLATE_DIR}" "sample" 0 "" "." "${SOURCE_ROOT}" "${TEST_TEMP_PREFIX}.config" "News" ""
             marsh_write_target_plan_records "${TARGET_PLAN_ROOT}" "documents" "$(printf '%q\t%q\t%q\t%q\n' 'news/2026/01/01/01-stale.markdown' 'news/2026/01/01/01-stale.markdown' '.' "${SOURCE_ROOT}")"
             while IFS= read -r ARCHIVE_PLAN_ROOT; do
                 [[ "${ARCHIVE_PLAN_ROOT}" == "" ]] && continue
                 ARCHIVE_PLAN_ROOTS+=("${ARCHIVE_PLAN_ROOT}")
-            done < <(marsh_plan_target_archives "${TARGET_OUTPUT_ROOT}" "markdown,md" "${TARGET_PLAN_ROOT}" "${DOCUMENT_RECORDS[@]}")
+            done < <(marsh_plan_target_archives "${TARGET_OUTPUT_ROOT}" "markdown,md" "${TARGET_PLAN_ROOT}" "." "${TEST_TEMP_PREFIX}.config" "${TEMPLATE_DIR}" "News" "" false "sample" "" "" "." "${SOURCE_ROOT}" 0 "${DOCUMENT_RECORDS[@]}")
             ACTUAL="${#ARCHIVE_PLAN_ROOTS[@]}"
             EXPECTED="1"
             ASSERTION="equals"
@@ -5828,10 +5825,9 @@ function marsh_test {
             TARGET_ARCHIVES_TEMPLATE_OVERRIDES+=("")
             TARGET_ARCHIVES_TEMPLATE+=("sample")
             TARGET_PLAN_ROOT=$(marsh_create_target_plan_root "${TARGET_OUTPUT_ROOT}")
-            marsh_write_target_plan_context "${TARGET_PLAN_ROOT}" "." false false "" false "${TEMPLATE_DIR}" "sample" 0 "" "." "${SOURCE_ROOT}" "${TEST_TEMP_PREFIX}.config" "News" ""
             marsh_write_target_plan_records "${TARGET_PLAN_ROOT}" "documents" "$(printf '%q\t%q\t%q\t%q\n' 'news/2026/01/01/01-persisted.markdown' 'news/2026/01/01/01-persisted.markdown' '.' "${SOURCE_ROOT}")"
             INVALID_DOCUMENT_RECORD=$(printf '%q\t%q\t%q\t%q\n' 'news/2026/01/03/03-missing.markdown' 'news/2026/01/03/03-missing.markdown' '.' "${SOURCE_ROOT}")
-            marsh_plan_target_archives "${TARGET_OUTPUT_ROOT}" "markdown,md" "${TARGET_PLAN_ROOT}" "${INVALID_DOCUMENT_RECORD}" >/dev/null 2>&1
+            marsh_plan_target_archives "${TARGET_OUTPUT_ROOT}" "markdown,md" "${TARGET_PLAN_ROOT}" "." "${TEST_TEMP_PREFIX}.config" "${TEMPLATE_DIR}" "News" "" false "sample" "" "" "." "${SOURCE_ROOT}" 0 "${INVALID_DOCUMENT_RECORD}" >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=1
             ASSERTION="equals"

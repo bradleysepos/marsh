@@ -3157,6 +3157,8 @@ function marsh_get_target_plan_source_inventory {  # marsh_get_target_plan_sourc
 
     if [[ "${SOURCE_ROOT}" != "" ]]; then
         TARGET_PLAN_SOURCE_ROOT=$(marsh_get_target_source_root_path "${TARGET_OUTPUT_ROOT}") || return 1
+        SOURCE_ROOT=$(marsh_get_source_root_path "${SOURCE_ROOT}") || return 1
+        TARGET_PLAN_SOURCE_ROOT=$(marsh_get_source_root_path "${TARGET_PLAN_SOURCE_ROOT}") || return 1
         [[ "${TARGET_PLAN_SOURCE_ROOT}" == "${SOURCE_ROOT}" ]] || return 1
     fi
 
@@ -5782,7 +5784,7 @@ function marsh_plan_target {  # marsh_plan_target site_source_root site_output_r
     local TARGET_OUTPUT_REL TARGET_OUTPUT_ROOT TARGET_PLAN_ROOT
     local DOCUMENTS_FILE DOCUMENTS_TEMP SOURCE_ASSETS_FILE SOURCE_ASSETS_TEMP SITEMAPS_FILE SITEMAPS_TEMP
     local SOURCE_INVENTORY_RECORDS DOCUMENT_RECORDS SOURCE_ASSET_RECORDS SITEMAP_RECORDS ARCHIVE_PLAN_ROOTS PLAN_RECORD TARGET_ARCHIVE_PLAN_ROOT
-    local SOURCE_SCOPE_ROOT
+    local SOURCE_SCOPE_ROOT BUILD_CONTEXT_COMPARE_SOURCE_ROOT
 
     SITE_SOURCE_ROOT="${1:-}"
     SITE_OUTPUT_ROOT="${2:-}"
@@ -5842,12 +5844,17 @@ function marsh_plan_target {  # marsh_plan_target site_source_root site_output_r
     SOURCE_ASSET_RECORDS=()
     if [[ "${SOURCE}" != "" ]]; then
         SOURCE_SCOPE_ROOT=$(marsh_get_source_root_path "${SOURCE}") || return 1
+        # compare source scope root to the canonical physical path of the build context source root
+        BUILD_CONTEXT_COMPARE_SOURCE_ROOT="${BUILD_CONTEXT_SOURCE_ROOT}"
+        if [[ "${BUILD_CONTEXT_COMPARE_SOURCE_ROOT}" != "" ]]; then
+            BUILD_CONTEXT_COMPARE_SOURCE_ROOT=$(marsh_get_source_root_path "${BUILD_CONTEXT_COMPARE_SOURCE_ROOT}") || return 1
+        fi
         while IFS= read -r PLAN_RECORD; do
             [[ "${PLAN_RECORD}" == "" ]] && continue
             SOURCE_ASSET_RECORDS+=("${PLAN_RECORD}")
         done < <(
-            if [[ "${SOURCE_SCOPE_ROOT}" == "${BUILD_CONTEXT_SOURCE_ROOT}" ]]; then
-                marsh_plan_target_source_assets_from_inventory "${SOURCE}" "${TARGET_OUTPUT_REL}" "${SOURCE_SCOPE_ROOT}" "${MARKDOWN_FILEEXT_CSV}" "${SOURCE_INVENTORY_RECORDS[@]}"
+            if [[ "${SOURCE_SCOPE_ROOT}" == "${BUILD_CONTEXT_COMPARE_SOURCE_ROOT}" ]]; then
+                marsh_plan_target_source_assets_from_inventory "${SOURCE}" "${TARGET_OUTPUT_REL}" "${BUILD_CONTEXT_SOURCE_ROOT}" "${MARKDOWN_FILEEXT_CSV}" "${SOURCE_INVENTORY_RECORDS[@]}"
             else
                 marsh_plan_target_source_assets "${SOURCE}" "${SITE_OUTPUT_ROOT}" "${TARGET_OUTPUT_REL}" "${MARKDOWN_FILEEXT_CSV}"
             fi

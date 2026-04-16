@@ -122,6 +122,23 @@ function marsh_test_markdown_command {
     cat
 }
 
+function marsh_test_get_physical_path {
+    local TARGET_PATH TARGET_DIR TARGET_NAME
+
+    TARGET_PATH="${1:-}"
+    [[ "${TARGET_PATH}" == "" ]] && return 1
+    if [[ -d "${TARGET_PATH}" ]]; then
+        cd "${TARGET_PATH}" && (pwd -P . 2>/dev/null || command pwd)
+        return $?
+    fi
+    TARGET_DIR="${TARGET_PATH%/*}"
+    TARGET_NAME="${TARGET_PATH##*/}"
+    TARGET_DIR="${TARGET_DIR:-.}"
+    [[ -d "${TARGET_DIR}" ]] || return 1
+    TARGET_DIR=$(cd "${TARGET_DIR}" && (pwd -P . 2>/dev/null || command pwd)) || return 1
+    printf '%s\n' "${TARGET_DIR}/${TARGET_NAME}"
+}
+
 function marsh_test_create_archive_document {
     local TARGET_OUTPUT_ROOT DOCUMENT TYPE TITLE DATE_VALUE STATE_VALUE
 
@@ -4070,7 +4087,7 @@ function marsh_test {
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             mkdir -p "${TARGET_OUTPUT_ROOT}/source/about" "${TARGET_OUTPUT_ROOT}/source/news"
             ACTUAL=$(CONFIG_Build_Targets_0_Path='.' CONFIG_Build_Targets_0_Source='source/*' CONFIG_Build_Targets_1_Path='news' CONFIG_Build_Targets_1_Source='source/news' marsh_get_site_source_root_path "${TARGET_OUTPUT_ROOT}")
-            EXPECTED="${TARGET_OUTPUT_ROOT}/source"
+            EXPECTED=$(marsh_test_get_physical_path "${TARGET_OUTPUT_ROOT}/source")
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -4373,7 +4390,7 @@ function marsh_test {
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             mkdir -p "${TARGET_OUTPUT_ROOT}/source/news"
             ACTUAL=$(marsh_get_source_root_path "${TARGET_OUTPUT_ROOT}/source/*")
-            EXPECTED="${TARGET_OUTPUT_ROOT}/source"
+            EXPECTED=$(marsh_test_get_physical_path "${TARGET_OUTPUT_ROOT}/source")
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -5348,7 +5365,7 @@ function marsh_test {
                     EXPECTED=$(printf '%s\n' 'docs/manual.txt' 'index.markdown' 'site-map.markdown' | sort)
                     ASSERTION="equals"
                     if [[ "${SOURCE_INVENTORY_ACTUAL}" == "${EXPECTED}" ]]; then
-                        EXPECTED=$(printf '%s\t%s\n' 'site-map.markdown' "${SOURCE_ROOT}/site-map.markdown")
+                        EXPECTED=$(printf '%s\t%s\n' 'site-map.markdown' "$(marsh_test_get_physical_path "${SOURCE_ROOT}/site-map.markdown")")
                         ASSERTION="equals"
                         if [[ "${SITEMAPS_ACTUAL}" == "${EXPECTED}" ]]; then
                             <"${TARGET_PLAN_ROOT}/context" grep -F 'BUILD_CONTEXT_SOURCE_ROOT=' >/dev/null 2>&1
@@ -6019,7 +6036,7 @@ function marsh_test {
             TARGET_SITEMAP_PATH="../shared/site-map.markdown"
             TARGET_SITEMAP_SEARCH=false
             ACTUAL=$(marsh_plan_target_sitemaps "${SITE_SOURCE_ROOT}" "${TARGET_SOURCE_ROOT}" "${TARGET_SITEMAP_PATH}" "${TARGET_SITEMAP_SEARCH}" "${TARGET_OUTPUT_ROOT}")
-            EXPECTED=$(printf '%s\t%s\n' "${TARGET_SITEMAP_PATH}" "${SITE_SOURCE_ROOT}/shared/site-map.markdown")
+            EXPECTED=$(printf '%s\t%s\n' "${TARGET_SITEMAP_PATH}" "$(marsh_test_get_physical_path "${SITE_SOURCE_ROOT}/shared/site-map.markdown")")
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -6168,12 +6185,14 @@ function marsh_test {
             TEST_NAME+=":glob_source_selection"
             SITE_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
+            EXPECTED_SOURCE_ROOT=""
             marsh_test_set_env
             mkdir -p "${SOURCE_ROOT}/docs"
             printf '%s\n' '# readme' > "${SOURCE_ROOT}/readme.markdown"
             printf '%s\n' 'download' > "${SOURCE_ROOT}/download.bin"
             printf '%s\n' 'guide' > "${SOURCE_ROOT}/docs/guide.pdf"
             printf '%s\n' '# note' > "${SOURCE_ROOT}/docs/note.markdown"
+            EXPECTED_SOURCE_ROOT=$(marsh_test_get_physical_path "${SOURCE_ROOT}")
             ACTUAL=$(marsh_plan_target_source_assets "${SOURCE_ROOT}/*" "${SITE_OUTPUT_ROOT}" "." "markdown,md")
             ACTUAL=$(while IFS=$'\t' read -r ASSET_RELPATH_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC; do
                 [[ "${ASSET_RELPATH_ESC}" == "" ]] && continue
@@ -6185,8 +6204,8 @@ function marsh_test {
             done <<< "${ACTUAL}" | sort)
             ASSERTION="equals"
             EXPECTED=$(printf '%s\t%s\t%s\t%s\n' \
-                'docs/guide.pdf' 'docs/guide.pdf' '.' "${SOURCE_ROOT}" \
-                'download.bin' 'download.bin' '.' "${SOURCE_ROOT}" | sort)
+                'docs/guide.pdf' 'docs/guide.pdf' '.' "${EXPECTED_SOURCE_ROOT}" \
+                'download.bin' 'download.bin' '.' "${EXPECTED_SOURCE_ROOT}" | sort)
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
@@ -6197,10 +6216,12 @@ function marsh_test {
             TEST_NAME+=":directory_source_selection"
             SITE_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
+            EXPECTED_SOURCE_ROOT=""
             marsh_test_set_env
             mkdir -p "${SOURCE_ROOT}/images"
             printf '%s\n' 'pngdata' > "${SOURCE_ROOT}/images/logo.png"
             printf '%s\n' '# example' > "${SOURCE_ROOT}/index.markdown"
+            EXPECTED_SOURCE_ROOT=$(marsh_test_get_physical_path "${SOURCE_ROOT}")
             ACTUAL=$(marsh_plan_target_source_assets "${SOURCE_ROOT}" "${SITE_OUTPUT_ROOT}" "www" "markdown,md")
             ACTUAL=$(while IFS=$'\t' read -r ASSET_RELPATH_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC; do
                 [[ "${ASSET_RELPATH_ESC}" == "" ]] && continue
@@ -6211,7 +6232,7 @@ function marsh_test {
                 printf '%s\t%s\t%s\t%s\n' "${ASSET_RELPATH}" "${SOURCE_RELPATH}" "${PLAN_TARGET_OUTPUT_REL}" "${PLAN_SOURCE_ROOT}"
             done <<< "${ACTUAL}")
             ASSERTION="equals"
-            EXPECTED=$(printf '%s\t%s\t%s\t%s\n' 'images/logo.png' 'images/logo.png' 'www' "${SOURCE_ROOT}")
+            EXPECTED=$(printf '%s\t%s\t%s\t%s\n' 'images/logo.png' 'images/logo.png' 'www' "${EXPECTED_SOURCE_ROOT}")
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
@@ -6399,7 +6420,7 @@ function marsh_test {
             mkdir -p "${TARGET_OUTPUT_ROOT}/source/about" "${TARGET_OUTPUT_ROOT}/source/site-map"
             printf '%s\n' 'Site Map' > "${TARGET_OUTPUT_ROOT}/source/site-map/index.markdown"
             ACTUAL=$(marsh_resolve_sitemap_source_path "${TARGET_OUTPUT_ROOT}/source" "${TARGET_OUTPUT_ROOT}/source/about" "../site-map/index.markdown")
-            EXPECTED="${TARGET_OUTPUT_ROOT}/source/site-map/index.markdown"
+            EXPECTED=$(marsh_test_get_physical_path "${TARGET_OUTPUT_ROOT}/source/site-map/index.markdown")
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"

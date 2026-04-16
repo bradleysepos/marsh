@@ -5296,24 +5296,29 @@ function marsh_test {
                 eval "PLAN_SOURCE_ROOT=${SOURCE_ROOT_ESC}"
                 printf '%s\t%s\t%s\t%s\n' "${ASSET_RELPATH}" "${SOURCE_RELPATH}" "${PLAN_TARGET_OUTPUT_REL}" "${PLAN_SOURCE_ROOT}"
             done < "${TARGET_PLAN_ROOT}/source-assets")
+            SOURCE_INVENTORY_ACTUAL=$(sort < "${TARGET_PLAN_ROOT}/source-inventory")
             SITEMAPS_ACTUAL=$(<"${TARGET_PLAN_ROOT}/sitemaps")
             EXPECTED=$(printf '%s\t%s\t%s\t%s\n' \
                 'index.markdown' 'index.markdown' '.' "${SOURCE_ROOT}" \
                 'site-map.markdown' 'site-map.markdown' '.' "${SOURCE_ROOT}" | sort)
             ASSERTION="equals"
-            if [[ -d "${TARGET_PLAN_ROOT}" ]] && [[ -f "${TARGET_PLAN_ROOT}/context" ]] && [[ "${DOCUMENTS_ACTUAL}" == "${EXPECTED}" ]]; then
+            if [[ -d "${TARGET_PLAN_ROOT}" ]] && [[ -f "${TARGET_PLAN_ROOT}/context" ]] && [[ -f "${TARGET_PLAN_ROOT}/source-inventory" ]] && [[ "${DOCUMENTS_ACTUAL}" == "${EXPECTED}" ]]; then
                 EXPECTED=$(printf '%s\t%s\t%s\t%s\n' 'docs/manual.txt' 'docs/manual.txt' '.' "${SOURCE_ROOT}")
                 ASSERTION="equals"
                 if [[ "${SOURCE_ASSETS_ACTUAL}" == "${EXPECTED}" ]]; then
-                    EXPECTED=$(printf '%s\t%s\n' 'site-map.markdown' "${SOURCE_ROOT}/site-map.markdown")
+                    EXPECTED=$(printf '%s\n' 'docs/manual.txt' 'index.markdown' 'site-map.markdown' | sort)
                     ASSERTION="equals"
-                    if [[ "${SITEMAPS_ACTUAL}" == "${EXPECTED}" ]]; then
-                        <"${TARGET_PLAN_ROOT}/context" grep -F 'BUILD_CONTEXT_SOURCE_ROOT=' >/dev/null 2>&1
-                        ACTUAL=$?
-                        EXPECTED=0
+                    if [[ "${SOURCE_INVENTORY_ACTUAL}" == "${EXPECTED}" ]]; then
+                        EXPECTED=$(printf '%s\t%s\n' 'site-map.markdown' "${SOURCE_ROOT}/site-map.markdown")
                         ASSERTION="equals"
-                        if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                            RES="[PASS]"
+                        if [[ "${SITEMAPS_ACTUAL}" == "${EXPECTED}" ]]; then
+                            <"${TARGET_PLAN_ROOT}/context" grep -F 'BUILD_CONTEXT_SOURCE_ROOT=' >/dev/null 2>&1
+                            ACTUAL=$?
+                            EXPECTED=0
+                            ASSERTION="equals"
+                            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                                RES="[PASS]"
+                            fi
                         fi
                     fi
                 fi

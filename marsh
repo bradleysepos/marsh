@@ -5670,7 +5670,7 @@ function marsh_plan_target {  # marsh_plan_target site_source_root site_output_r
     local CONFIG_FILE_DIR TARGET_NAME TARGET_TEMPLATE_SOURCE
     local TARGET_OUTPUT_REL TARGET_OUTPUT_ROOT TARGET_PLAN_ROOT
     local DOCUMENTS_FILE DOCUMENTS_TEMP SOURCE_ASSETS_FILE SOURCE_ASSETS_TEMP SITEMAPS_FILE SITEMAPS_TEMP
-    local DOCUMENT_RECORDS SOURCE_ASSET_RECORDS SITEMAP_RECORDS ARCHIVE_PLAN_ROOTS PLAN_RECORD TARGET_ARCHIVE_PLAN_ROOT
+    local SOURCE_INVENTORY_RECORDS DOCUMENT_RECORDS SOURCE_ASSET_RECORDS SITEMAP_RECORDS ARCHIVE_PLAN_ROOTS PLAN_RECORD TARGET_ARCHIVE_PLAN_ROOT
 
     SITE_SOURCE_ROOT="${1:-}"
     SITE_OUTPUT_ROOT="${2:-}"
@@ -5710,6 +5710,15 @@ function marsh_plan_target {  # marsh_plan_target site_source_root site_output_r
     fi
 
     marsh_write_target_plan_context "${TARGET_PLAN_ROOT}" "${TARGET_OUTPUT_REL}" "${FORCE}" false "${SITEMAP}" "${SITEMAP_SEARCH}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_ASSETS_PATH}" "${TARGET_OUTPUT_REL}" "${BUILD_CONTEXT_SOURCE_ROOT}" "${CONFIG_FILE_DIR}" "${TARGET_NAME}" "${TARGET_TEMPLATE_SOURCE}" || return 1
+
+    SOURCE_INVENTORY_RECORDS=()
+    if [[ "${BUILD_CONTEXT_SOURCE_ROOT}" != "" ]]; then
+        while IFS= read -r PLAN_RECORD; do
+            [[ "${PLAN_RECORD}" == "" ]] && continue
+            SOURCE_INVENTORY_RECORDS+=("${PLAN_RECORD}")
+        done < <(marsh_get_target_source_inventory "${TARGET_OUTPUT_ROOT}" "${BUILD_CONTEXT_SOURCE_ROOT}") || return 1
+    fi
+    marsh_write_target_plan_records "${TARGET_PLAN_ROOT}" "source-inventory" "${SOURCE_INVENTORY_RECORDS[@]}" || return 1
 
     DOCUMENT_RECORDS=()
     while IFS= read -r PLAN_RECORD; do

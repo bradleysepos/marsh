@@ -5641,12 +5641,11 @@ function marsh_write_target_archive_manifest {  # marsh_write_target_archive_man
     shift 3
     DOCUMENT_RECORDS_IN=("$@")
 
-    DOCUMENTS_FILE="${TARGET_PLAN_ROOT}/documents"
     MANIFEST_FILE="${TARGET_PLAN_ROOT}/archive-manifest"
     MANIFEST_TEMP=$(mktemp "${TARGET_PLAN_ROOT}/archive-manifest-XXXXXX") || return 1
+    [[ "${#DOCUMENT_RECORDS_IN[@]}" -gt 0 ]] || return 1
 
-    # prefer caller-supplied document records on the hot path, but fall back to the
-    # persisted target plan when archive planning is resumed from disk-only state
+    # require caller-supplied document records on the fast path
     while IFS=$'\t' read -r DOCUMENT_ID DOCUMENT_RECORD; do
         [[ "${DOCUMENT_ID}" == "" ]] && continue
         [[ "${DOCUMENT_RECORD}" == "" ]] && continue
@@ -5717,23 +5716,13 @@ function marsh_write_target_archive_manifest {  # marsh_write_target_archive_man
         IFS="${OIFS}"
         printf '%q\t%q\t%q\t%q\t%q\n' "${DOCUMENT_ID}" "${TYPE}" "${URI}" "${ABSPATH}" "${STATE_JOINED}"
     done < <(
-        if [[ "${#DOCUMENT_RECORDS_IN[@]}" -gt 0 ]]; then
-            for DOCUMENT_RECORD in "${DOCUMENT_RECORDS_IN[@]}"; do
-                [[ "${DOCUMENT_RECORD}" == "" ]] && continue
-                IFS=$'\t' read -r DOCUMENT_ID_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC <<< "${DOCUMENT_RECORD}"
-                [[ "${DOCUMENT_ID_ESC}" == "" ]] && continue
-                eval "DOCUMENT_ID=${DOCUMENT_ID_ESC}"
-                printf '%s\t%s\n' "${DOCUMENT_ID}" "${DOCUMENT_RECORD}"
-            done | sort -nr -t/
-        elif [[ -f "${DOCUMENTS_FILE}" ]] && [[ -r "${DOCUMENTS_FILE}" ]]; then
-            while IFS= read -r DOCUMENT_RECORD; do
-                [[ "${DOCUMENT_RECORD}" == "" ]] && continue
-                IFS=$'\t' read -r DOCUMENT_ID_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC <<< "${DOCUMENT_RECORD}"
-                [[ "${DOCUMENT_ID_ESC}" == "" ]] && continue
-                eval "DOCUMENT_ID=${DOCUMENT_ID_ESC}"
-                printf '%s\t%s\n' "${DOCUMENT_ID}" "${DOCUMENT_RECORD}"
-            done < "${DOCUMENTS_FILE}" | sort -nr -t/
-        fi
+        for DOCUMENT_RECORD in "${DOCUMENT_RECORDS_IN[@]}"; do
+            [[ "${DOCUMENT_RECORD}" == "" ]] && continue
+            IFS=$'\t' read -r DOCUMENT_ID_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC <<< "${DOCUMENT_RECORD}"
+            [[ "${DOCUMENT_ID_ESC}" == "" ]] && continue
+            eval "DOCUMENT_ID=${DOCUMENT_ID_ESC}"
+            printf '%s\t%s\n' "${DOCUMENT_ID}" "${DOCUMENT_RECORD}"
+        done | sort -nr -t/
     ) > "${MANIFEST_TEMP}" || {
         rm -f "${MANIFEST_TEMP}"
         return 1

@@ -5558,10 +5558,46 @@ function marsh_plan_target_documents {  # marsh_plan_target_documents site_outpu
     marsh_plan_target_documents_from_inventory "${SITE_OUTPUT_ROOT}" "${TARGET}" "${TARGET_OUTPUT_REL}" "${TARGET_SOURCE_ROOT}" "${MARKDOWN_FILEEXT_CSV}" "${TARGET_SOURCE_INVENTORY_RECORDS[@]}"
 }
 
+# plans target sitemaps as file and source path pairs from provided inventory records
+function marsh_plan_target_sitemaps_from_inventory {  # marsh_plan_target_sitemaps_from_inventory site_source_root target_source_root sitemap_path [search] [inventory_records[@]]
+    local SITE_SOURCE_ROOT TARGET_SOURCE_ROOT SITEMAP_PATH SITEMAP_SEARCH
+    local SOURCE_DOCUMENT SOURCE_MATCHES_SITEMAP SITEMAP_SOURCE
+
+    SITE_SOURCE_ROOT="${1:-}"
+    TARGET_SOURCE_ROOT="${2:-}"
+    SITEMAP_PATH="${3:-}"
+    SITEMAP_SEARCH="${4:-false}"
+    [[ "${SITE_SOURCE_ROOT}" == "" ]] && return 1
+    [[ "${TARGET_SOURCE_ROOT}" == "" ]] && return 1
+    [[ "${SITEMAP_PATH}" == "" ]] && return 1
+
+    shift 4
+    if [[ "${SITEMAP_SEARCH}" == true ]]; then
+        while [[ "${#@}" -gt 0 ]]; do
+            SOURCE_DOCUMENT="${1:-}"
+            shift 1
+            [[ "${SOURCE_DOCUMENT}" == "" ]] && continue
+            [[ -L "${TARGET_SOURCE_ROOT}/${SOURCE_DOCUMENT}" ]] && continue
+            SOURCE_MATCHES_SITEMAP=false
+            if [[ "${SOURCE_DOCUMENT}" == "${SITEMAP_PATH}" ]] || [[ "${SOURCE_DOCUMENT}" == */"${SITEMAP_PATH}" ]]; then
+                SOURCE_MATCHES_SITEMAP=true
+            fi
+            if [[ "${SOURCE_MATCHES_SITEMAP}" != true ]]; then
+                continue
+            fi
+            printf '%s\t%s\n' "${SOURCE_DOCUMENT}" "${TARGET_SOURCE_ROOT}/${SOURCE_DOCUMENT}"
+        done
+        return 0
+    fi
+
+    SITEMAP_SOURCE=$(marsh_resolve_sitemap_source_path "${SITE_SOURCE_ROOT}" "${TARGET_SOURCE_ROOT}" "${SITEMAP_PATH}") || return 1
+    printf '%s\t%s\n' "${SITEMAP_PATH}" "${SITEMAP_SOURCE}"
+}
+
 # plans target sitemaps as file and source path pairs
 function marsh_plan_target_sitemaps {  # marsh_plan_target_sitemaps site_source_root target_source_root sitemap_path [search] [target_output_root]
     local SITE_SOURCE_ROOT TARGET_SOURCE_ROOT SITEMAP_PATH SITEMAP_SEARCH TARGET_OUTPUT_ROOT
-    local SOURCE_DOCUMENT SOURCE_MATCHES_SITEMAP SITEMAP_SOURCE
+    local TARGET_SOURCE_INVENTORY_RECORDS TARGET_SOURCE_INVENTORY_LINE
 
     SITE_SOURCE_ROOT="${1:-}"
     TARGET_SOURCE_ROOT="${2:-}"
@@ -5575,22 +5611,17 @@ function marsh_plan_target_sitemaps {  # marsh_plan_target_sitemaps site_source_
     if [[ "${SITEMAP_SEARCH}" == true ]]; then
         # search mode needs target output root for cached inventory reuse
         [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
-        while IFS= read -r SOURCE_DOCUMENT; do
-            [[ "${SOURCE_DOCUMENT}" == "" ]] && continue
-            SOURCE_MATCHES_SITEMAP=false
-            if [[ "${SOURCE_DOCUMENT}" == "${SITEMAP_PATH}" ]] || [[ "${SOURCE_DOCUMENT}" == */"${SITEMAP_PATH}" ]]; then
-                SOURCE_MATCHES_SITEMAP=true
-            fi
-            if [[ "${SOURCE_MATCHES_SITEMAP}" != true ]]; then
-                continue
-            fi
-            printf '%s\t%s\n' "${SOURCE_DOCUMENT}" "${TARGET_SOURCE_ROOT}/${SOURCE_DOCUMENT}"
-        done < <(marsh_get_target_source_inventory "${TARGET_OUTPUT_ROOT}" "${TARGET_SOURCE_ROOT}" true)
+        TARGET_SOURCE_INVENTORY_RECORDS=()
+        while IFS= read -r TARGET_SOURCE_INVENTORY_LINE; do
+            [[ "${TARGET_SOURCE_INVENTORY_LINE}" == "" ]] && continue
+            TARGET_SOURCE_INVENTORY_RECORDS+=("${TARGET_SOURCE_INVENTORY_LINE}")
+        done < <(marsh_get_target_source_inventory "${TARGET_OUTPUT_ROOT}" "${TARGET_SOURCE_ROOT}" true) || return 1
+
+        marsh_plan_target_sitemaps_from_inventory "${SITE_SOURCE_ROOT}" "${TARGET_SOURCE_ROOT}" "${SITEMAP_PATH}" "${SITEMAP_SEARCH}" "${TARGET_SOURCE_INVENTORY_RECORDS[@]}"
         return 0
     fi
 
-    SITEMAP_SOURCE=$(marsh_resolve_sitemap_source_path "${SITE_SOURCE_ROOT}" "${TARGET_SOURCE_ROOT}" "${SITEMAP_PATH}") || return 1
-    printf '%s\t%s\n' "${SITEMAP_PATH}" "${SITEMAP_SOURCE}"
+    marsh_plan_target_sitemaps_from_inventory "${SITE_SOURCE_ROOT}" "${TARGET_SOURCE_ROOT}" "${SITEMAP_PATH}" "${SITEMAP_SEARCH}"
 }
 
 # writes an archive manifest under the target plan root from planned target documents
@@ -5804,7 +5835,13 @@ function marsh_plan_target {  # marsh_plan_target site_source_root site_output_r
         while IFS= read -r PLAN_RECORD; do
             [[ "${PLAN_RECORD}" == "" ]] && continue
             SITEMAP_RECORDS+=("${PLAN_RECORD}")
-        done < <(marsh_plan_target_sitemaps "${SITE_SOURCE_ROOT}" "${BUILD_CONTEXT_SOURCE_ROOT}" "${SITEMAP}" "${SITEMAP_SEARCH}" "${TARGET_OUTPUT_ROOT}") || return 1
+        done < <(
+            if [[ "${SITEMAP_SEARCH}" == true ]]; then
+                marsh_plan_target_sitemaps_from_inventory "${SITE_SOURCE_ROOT}" "${BUILD_CONTEXT_SOURCE_ROOT}" "${SITEMAP}" "${SITEMAP_SEARCH}" "${SOURCE_INVENTORY_RECORDS[@]}"
+            else
+                marsh_plan_target_sitemaps "${SITE_SOURCE_ROOT}" "${BUILD_CONTEXT_SOURCE_ROOT}" "${SITEMAP}" "${SITEMAP_SEARCH}" "${TARGET_OUTPUT_ROOT}"
+            fi
+        ) || return 1
     fi
     marsh_write_target_plan_records "${TARGET_PLAN_ROOT}" "sitemaps" "${SITEMAP_RECORDS[@]}" || return 1
 

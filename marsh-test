@@ -5439,6 +5439,72 @@ function marsh_test {
             rm -rf "${SITE_OUTPUT_ROOT}" "${SOURCE_ROOT}"
             marsh_test_restore_env
             ;;
+        marsh_plan_target:1)
+            TEST_NAME+=":loads_source_inventory_once"
+            SITE_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
+            TARGET_PLAN_ROOT=""
+            CALLS_FILE="${TEST_TEMP_PREFIX}.inventory.calls"
+            ORIGINAL_GET_TARGET_SOURCE_INVENTORY=""
+            marsh_test_set_env
+            mkdir -p "${SOURCE_ROOT}/docs"
+            printf '%s\n' '# Home' > "${SOURCE_ROOT}/index.markdown"
+            printf '%s\n' '# Site Map' > "${SOURCE_ROOT}/site-map.markdown"
+            printf '%s\n' 'manual' > "${SOURCE_ROOT}/docs/manual.txt"
+            ORIGINAL_GET_TARGET_SOURCE_INVENTORY=$(declare -f marsh_get_target_source_inventory)
+            eval "${ORIGINAL_GET_TARGET_SOURCE_INVENTORY/marsh_get_target_source_inventory/marsh_test_original_get_target_source_inventory}"
+            function marsh_get_target_source_inventory {
+                printf '%s\n' 'call' >> "${CALLS_FILE}"
+                marsh_test_original_get_target_source_inventory "$@"
+            }
+            TARGET_PLAN_ROOT=$(marsh_plan_target "${SOURCE_ROOT}" "${SITE_OUTPUT_ROOT}" "." false "${SOURCE_ROOT}" "site-map.markdown" true "${TEST_TEMP_PREFIX}.templates" "sample" 0 "" "${SOURCE_ROOT}" "markdown,md")
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                DOCUMENTS_ACTUAL=$(while IFS=$'\t' read -r DOCUMENT_ID_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC; do
+                    [[ "${DOCUMENT_ID_ESC}" == "" ]] && continue
+                    eval "DOCUMENT_ID=${DOCUMENT_ID_ESC}"
+                    eval "SOURCE_RELPATH=${SOURCE_RELPATH_ESC}"
+                    eval "PLAN_TARGET_OUTPUT_REL=${TARGET_OUTPUT_REL_ESC}"
+                    eval "PLAN_SOURCE_ROOT=${SOURCE_ROOT_ESC}"
+                    printf '%s\t%s\t%s\t%s\n' "${DOCUMENT_ID}" "${SOURCE_RELPATH}" "${PLAN_TARGET_OUTPUT_REL}" "${PLAN_SOURCE_ROOT}"
+                done < "${TARGET_PLAN_ROOT}/documents" | sort)
+                SOURCE_ASSETS_ACTUAL=$(while IFS=$'\t' read -r ASSET_RELPATH_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC; do
+                    [[ "${ASSET_RELPATH_ESC}" == "" ]] && continue
+                    eval "ASSET_RELPATH=${ASSET_RELPATH_ESC}"
+                    eval "SOURCE_RELPATH=${SOURCE_RELPATH_ESC}"
+                    eval "PLAN_TARGET_OUTPUT_REL=${TARGET_OUTPUT_REL_ESC}"
+                    eval "PLAN_SOURCE_ROOT=${SOURCE_ROOT_ESC}"
+                    printf '%s\t%s\t%s\t%s\n' "${ASSET_RELPATH}" "${SOURCE_RELPATH}" "${PLAN_TARGET_OUTPUT_REL}" "${PLAN_SOURCE_ROOT}"
+                done < "${TARGET_PLAN_ROOT}/source-assets")
+                SITEMAPS_ACTUAL=$(<"${TARGET_PLAN_ROOT}/sitemaps")
+                INVENTORY_CALLS=$(wc -l < "${CALLS_FILE}" | awk '{ print $1 }')
+                EXPECTED=$(printf '%s\t%s\t%s\t%s\n' \
+                    'index.markdown' 'index.markdown' '.' "${SOURCE_ROOT}" \
+                    'site-map.markdown' 'site-map.markdown' '.' "${SOURCE_ROOT}" | sort)
+                ASSERTION="equals"
+                if [[ "${DOCUMENTS_ACTUAL}" == "${EXPECTED}" ]]; then
+                    EXPECTED=$(printf '%s\t%s\t%s\t%s\n' 'docs/manual.txt' 'docs/manual.txt' '.' "${SOURCE_ROOT}")
+                    ASSERTION="equals"
+                    if [[ "${SOURCE_ASSETS_ACTUAL}" == "${EXPECTED}" ]]; then
+                        EXPECTED=$(printf '%s\t%s\n' 'site-map.markdown' "${SOURCE_ROOT}/site-map.markdown")
+                        ASSERTION="equals"
+                        if [[ "${SITEMAPS_ACTUAL}" == "${EXPECTED}" ]]; then
+                            EXPECTED='1'
+                            ASSERTION="equals"
+                            if [[ "${INVENTORY_CALLS}" == "${EXPECTED}" ]]; then
+                                RES="[PASS]"
+                            fi
+                        fi
+                    fi
+                fi
+            fi
+            unset -f marsh_get_target_source_inventory marsh_test_original_get_target_source_inventory
+            eval "${ORIGINAL_GET_TARGET_SOURCE_INVENTORY}"
+            rm -rf "${SITE_OUTPUT_ROOT}" "${SOURCE_ROOT}" "${CALLS_FILE}"
+            marsh_test_restore_env
+            ;;
         marsh_write_document_artifacts:0)
             TEST_NAME+=":frontmatter_reuses_existing_artifacts"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"

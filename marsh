@@ -6391,7 +6391,7 @@ function marsh_build_planned_target {  # marsh_build_planned_target site_output_
     fi
 }
 
-# builds a planned document list for a target, in parallel if possible
+# builds a provided document list for a target, in parallel if possible
 function marsh_build_target_documents {  # marsh_build_target_documents site_output_root target_output_rel verbose jobs sitemap sitemap_search templates_dir template markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links #template_overrides[@] template_overrides[@] template_assets_path build_context_target_output_rel build_context_source_root documents[@]
     local SITE_OUTPUT_ROOT TARGET_OUTPUT_REL VERBOSE JOBS SITEMAP SITEMAP_SEARCH TEMPLATES_DIR TEMPLATE
     local MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_REWRITE_LINKS

@@ -4427,46 +4427,6 @@ function marsh_test {
             fi
             rm -rf "${SOURCE_ROOT}"
             ;;
-        marsh_get_source_objects:0)
-            TEST_NAME+=":directory_source_excludes_markdown"
-            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
-            mkdir -p "${SOURCE_ROOT}/nested"
-            printf '%s\n' '# page' > "${SOURCE_ROOT}/index.markdown"
-            printf '%s\n' '# nested page' > "${SOURCE_ROOT}/nested/page.markdown"
-            printf '%s\n' 'image' > "${SOURCE_ROOT}/image.png"
-            printf '%s\n' 'document' > "${SOURCE_ROOT}/nested/doc.pdf"
-            ln -s "${SOURCE_ROOT}/image.png" "${SOURCE_ROOT}/image-link.png"
-            ACTUAL=$(marsh_get_source_objects "${SOURCE_ROOT}" "markdown,md")
-            EXPECTED=$(printf '%s\n' \
-                'image-link.png' \
-                'image.png' \
-                'nested/doc.pdf' | sort)
-            ACTUAL=$(printf '%s\n' "${ACTUAL}" | sed '/^$/d' | sort)
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                RES="[PASS]"
-            fi
-            rm -rf "${SOURCE_ROOT}"
-            ;;
-        marsh_get_source_objects:1)
-            TEST_NAME+=":glob_expands_matched_directories"
-            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
-            mkdir -p "${SOURCE_ROOT}/docs"
-            printf '%s\n' 'download' > "${SOURCE_ROOT}/download.bin"
-            printf '%s\n' '# readme' > "${SOURCE_ROOT}/readme.markdown"
-            printf '%s\n' 'guide' > "${SOURCE_ROOT}/docs/guide.pdf"
-            printf '%s\n' '# note' > "${SOURCE_ROOT}/docs/note.markdown"
-            ACTUAL=$(marsh_get_source_objects "${SOURCE_ROOT}/*" "markdown,md")
-            EXPECTED=$(printf '%s\n' \
-                'docs/guide.pdf' \
-                'download.bin' | sort)
-            ACTUAL=$(printf '%s\n' "${ACTUAL}" | sed '/^$/d' | sort)
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                RES="[PASS]"
-            fi
-            rm -rf "${SOURCE_ROOT}"
-            ;;
         marsh_get_source_root_path:0)
             TEST_NAME+=":glob_parent"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
@@ -4764,37 +4724,6 @@ function marsh_test {
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             marsh_test_set_env
             marsh_get_target_source_inventory "${TARGET_OUTPUT_ROOT}" "${TEST_TEMP_PREFIX}.missing" 2>/dev/null
-            ACTUAL=$?
-            EXPECTED=1
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" -eq "${EXPECTED}" ]]; then
-                RES="[PASS]"
-            fi
-            rm -rf "${TARGET_OUTPUT_ROOT}"
-            marsh_test_restore_env
-            ;;
-        marsh_get_target_source_root_path:0)
-            TEST_NAME+=":cached"
-            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
-            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
-            marsh_test_set_env
-            TARGET_SOURCE_ROOT_CACHE_FILE="$(marsh_get_target_temp_root "${TARGET_OUTPUT_ROOT}")/source-root"
-            mkdir -p "${SOURCE_ROOT}" "${TARGET_SOURCE_ROOT_CACHE_FILE%/*}"
-            printf '%s\n' "${SOURCE_ROOT}" > "${TARGET_SOURCE_ROOT_CACHE_FILE}"
-            ACTUAL=$(marsh_get_target_source_root_path "${TARGET_OUTPUT_ROOT}")
-            EXPECTED="${SOURCE_ROOT}"
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                RES="[PASS]"
-            fi
-            rm -rf "${TARGET_OUTPUT_ROOT}" "${SOURCE_ROOT}"
-            marsh_test_restore_env
-            ;;
-        marsh_get_target_source_root_path:1)
-            TEST_NAME+=":missing"
-            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
-            marsh_test_set_env
-            marsh_get_target_source_root_path "${TARGET_OUTPUT_ROOT}" 2>/dev/null
             ACTUAL=$?
             EXPECTED=1
             ASSERTION="equals"
@@ -7678,14 +7607,12 @@ KNOWN_FUNCTIONS=(
     marsh_get_sitemap_rendered_path
     marsh_get_sitemap_temp_path
     marsh_get_source_inventory
-    marsh_get_source_objects
     marsh_get_source_root_path
     marsh_get_target_directory_path
     marsh_get_target_document_paths
     marsh_get_target_metadata
     marsh_get_target_output_path
     marsh_get_target_source_inventory
-    marsh_get_target_source_root_path
     marsh_get_target_temp_root
     marsh_get_template_cache_path
     marsh_get_template_metadata

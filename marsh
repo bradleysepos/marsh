@@ -2369,55 +2369,6 @@ function marsh_get_source_inventory {  # marsh_get_source_inventory source_root 
     fi
 }
 
-# returns copyable source objects for a source path or glob
-function marsh_get_source_objects {  # marsh_get_source_objects source markdown_fileext_csv
-    local SOURCE MARKDOWN_FILEEXT_CSV SOURCE_DIR FILES_LIST MATCH MATCHES REL_PATH
-
-    SOURCE="${1:-}"
-    MARKDOWN_FILEEXT_CSV="${2:-}"
-    [[ "${SOURCE}" == "" ]] && return 1
-    [[ "${MARKDOWN_FILEEXT_CSV}" == "" ]] && return 1
-
-    SOURCE_DIR="${SOURCE%/*}"
-    SOURCE_DIR="${SOURCE_DIR:-.}"
-
-    if [[ -d "${SOURCE}" ]]; then
-        FILES_LIST=$(marsh_get_source_inventory "${SOURCE}") || {
-            echo "Unable to change into directory: ${SOURCE}" >&2
-            return 1
-        }
-    else
-        FILES_LIST=$(cd "${SOURCE_DIR}" >/dev/null 2>&1 && find . -maxdepth 1 -name "${SOURCE##*/}" | sed -e 's/^\.\///' -e 's/^\.$//') || {
-            echo "Unable to change into directory: ${SOURCE_DIR}" >&2
-            return 1
-        }
-
-        # expand matched directories into relative descendant paths
-        MATCHES=()
-        while IFS= read -r MATCH; do
-            [[ "${MATCH}" == "" ]] && continue
-            if [[ -d "${SOURCE_DIR}/${MATCH}" ]]; then
-                while IFS= read -r REL_PATH; do
-                    [[ "${REL_PATH}" == "" ]] && continue
-                    MATCHES+=("${MATCH%/}/${REL_PATH}")
-                done < <(marsh_get_source_inventory "${SOURCE_DIR}/${MATCH}")
-            else
-                MATCHES+=("${MATCH}")
-            fi
-        done <<< "${FILES_LIST}"
-        FILES_LIST=$(printf '%s\n' "${MATCHES[@]}")
-    fi
-
-    while IFS= read -r REL_PATH; do
-        [[ "${REL_PATH}" == "" ]] && continue
-        # markdown files are rendered instead of copied directly
-        if marsh_is_markdown_extension "${REL_PATH##*.}" "${MARKDOWN_FILEEXT_CSV}"; then
-            continue
-        fi
-        printf '%s\n' "${REL_PATH}"
-    done <<< "${FILES_LIST}"
-}
-
 # copies source-relative objects into a resolved target output root
 function marsh_copy_source_objects {  # marsh_copy_source_objects source_dir target_output_root verbose force source_objects[@]
     local SOURCE_DIR TARGET_OUTPUT_ROOT VERBOSE FORCE REL_PATH OUTPUT_PATH TARGET_OUTPUT_REL OUTPUT_RELPATH
@@ -3191,23 +3142,6 @@ function marsh_get_target_source_inventory {  # marsh_get_target_source_inventor
     fi
 
     cat "${INVENTORY_FILE}"
-}
-
-# returns the configured source root for a target when cached under MARSH_TEMP
-function marsh_get_target_source_root_path {  # marsh_get_target_source_root_path target_output_root
-    local TARGET_OUTPUT_ROOT TARGET_BUILD_TEMP_ROOT TARGET_SOURCE_ROOT_CACHE_FILE SOURCE_ROOT
-
-    TARGET_OUTPUT_ROOT="${1:-}"
-    [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
-
-    TARGET_BUILD_TEMP_ROOT=$(marsh_get_target_temp_root "${TARGET_OUTPUT_ROOT}") || return 1
-    TARGET_SOURCE_ROOT_CACHE_FILE="${TARGET_BUILD_TEMP_ROOT}/source-root"
-    [[ -f "${TARGET_SOURCE_ROOT_CACHE_FILE}" ]] && [[ -r "${TARGET_SOURCE_ROOT_CACHE_FILE}" ]] || return 1
-
-    SOURCE_ROOT=$(<"${TARGET_SOURCE_ROOT_CACHE_FILE}")
-    [[ "${SOURCE_ROOT}" != "" ]] || return 1
-    [[ -d "${SOURCE_ROOT}" ]] || return 1
-    printf '%s\n' "${SOURCE_ROOT}"
 }
 
 # removes the temporary working directory for a target under MARSH_TEMP

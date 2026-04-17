@@ -5236,6 +5236,47 @@ function marsh_write_document_artifacts {  # marsh_write_document_artifacts targ
     cp "${SOURCE_FILE}" "${DOCUMENT_ARTIFACT_CONTENT}" || return 1
 }
 
+# writes only the document metadata artifacts for one target build context
+function marsh_write_document_metadata_artifacts {  # marsh_write_document_metadata_artifacts target_output_root document source_file
+    local TARGET_OUTPUT_ROOT DOCUMENT SOURCE_FILE
+    local DOCUMENT_ARTIFACT_PATHS DOCUMENT_ARTIFACT_ROOT DOCUMENT_ARTIFACT_CONTENT DOCUMENT_ARTIFACT_META_YAML DOCUMENT_ARTIFACT_META DOCUMENT_ARTIFACT_ARCHIVE_META
+    local DOCUMENT_META_TEMP_CONTENT
+
+    TARGET_OUTPUT_ROOT="${1:-}"
+    DOCUMENT="${2:-}"
+    SOURCE_FILE="${3:-}"
+    [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
+    [[ "${DOCUMENT}" == "" ]] && return 1
+    [[ "${SOURCE_FILE}" == "" ]] && return 1
+    [[ -f "${SOURCE_FILE}" ]] && [[ -r "${SOURCE_FILE}" ]] || return 1
+    marsh_has_frontmatter "${SOURCE_FILE}" || return 1
+
+    DOCUMENT_ARTIFACT_PATHS=$(marsh_get_document_artifacts "${TARGET_OUTPUT_ROOT}" "${DOCUMENT}") || return 1
+    eval "${DOCUMENT_ARTIFACT_PATHS}"
+
+    mkdir -p "${DOCUMENT_ARTIFACT_ROOT}" >/dev/null 2>&1 || return 1
+
+    if [[ -f "${DOCUMENT_ARTIFACT_META_YAML}" ]] && [[ -r "${DOCUMENT_ARTIFACT_META_YAML}" ]]; then
+        if [[ -f "${DOCUMENT_ARTIFACT_META}" ]] && [[ -r "${DOCUMENT_ARTIFACT_META}" ]]; then
+            return 0
+        fi
+        marsh_get_document_metadata "${DOCUMENT_ARTIFACT_META_YAML}" "" >/dev/null || return 1
+        return 0
+    fi
+
+    rm -f "${DOCUMENT_ARTIFACT_META_YAML}" "${DOCUMENT_ARTIFACT_META}"
+    DOCUMENT_META_TEMP_CONTENT=$(mktemp "${MARSH_TEMP}/document-meta-content-XXXXXX") || return 1
+    marsh_extract_frontmatter "${SOURCE_FILE}" "${DOCUMENT_ARTIFACT_META_YAML}" "${DOCUMENT_META_TEMP_CONTENT}" || {
+        rm -f "${DOCUMENT_ARTIFACT_META_YAML}" "${DOCUMENT_ARTIFACT_META}" "${DOCUMENT_META_TEMP_CONTENT}"
+        return 1
+    }
+    rm -f "${DOCUMENT_META_TEMP_CONTENT}"
+    marsh_get_document_metadata "${DOCUMENT_ARTIFACT_META_YAML}" "" >/dev/null || {
+        rm -f "${DOCUMENT_ARTIFACT_META_YAML}" "${DOCUMENT_ARTIFACT_META}"
+        return 1
+    }
+}
+
 # builds a document from a single file
 function marsh_build_document {  # marsh_build_document site_output_root target_output_rel document markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links build_context_target_output_rel build_context_source_root
     local SITE_OUTPUT_ROOT TARGET_OUTPUT_REL DOCUMENT DOCUMENT_EXT DOCUMENT_DIR TEXT_TRANSFORM
@@ -5629,8 +5670,8 @@ function marsh_plan_target_sitemaps {  # marsh_plan_target_sitemaps site_source_
 function marsh_write_target_archive_manifest {  # marsh_write_target_archive_manifest site_output_root markdown_fileext_csv target_plan_root [document_records[@]]
     local SITE_OUTPUT_ROOT MARKDOWN_FILEEXT_CSV TARGET_PLAN_ROOT DOCUMENTS_FILE MANIFEST_FILE MANIFEST_TEMP DOCUMENT_RECORD DOCUMENT_RECORDS_IN
     local DOCUMENT_ID_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC
-    local DOCUMENT_ID SOURCE_RELPATH TARGET_OUTPUT_REL SOURCE_ROOT DOCUMENT_SOURCE_FILE
-    local META_TEMP_BASE META_FILE META_CACHE_FILE CONTENT_FILE META_ASSIGNMENTS META_VARS META_PREFIX TYPE_VAR
+    local DOCUMENT_ID SOURCE_RELPATH TARGET_OUTPUT_REL SOURCE_ROOT DOCUMENT_SOURCE_FILE BUILD_CONTEXT_OUTPUT_ROOT
+    local DOCUMENT_ARTIFACT_PATHS DOCUMENT_ARTIFACT_ROOT DOCUMENT_ARTIFACT_CONTENT DOCUMENT_ARTIFACT_META_YAML DOCUMENT_ARTIFACT_META DOCUMENT_ARTIFACT_ARCHIVE_META META_ASSIGNMENTS META_VARS META_PREFIX TYPE_VAR
     local TYPE URI ABSPATH STATE STATE_JOINED OIFS DOCUMENT_OUTPUT_REL
 
     SITE_OUTPUT_ROOT="${1:-}"
@@ -5667,31 +5708,30 @@ function marsh_write_target_archive_manifest {  # marsh_write_target_archive_man
             rm -f "${MANIFEST_TEMP}"
             return 1
         }
+        BUILD_CONTEXT_OUTPUT_ROOT=$(marsh_get_target_directory_path "${SITE_OUTPUT_ROOT}/${TARGET_OUTPUT_REL}") || {
+            rm -f "${MANIFEST_TEMP}"
+            return 1
+        }
 
         TYPE=""
         STATE=()
         if [[ -f "${DOCUMENT_SOURCE_FILE}" ]] && marsh_has_frontmatter "${DOCUMENT_SOURCE_FILE}"; then
-            META_TEMP_BASE=$(mktemp "${MARSH_TEMP}/planned-archive-meta-XXXXXX") || return 1
-            META_FILE="${META_TEMP_BASE}.yaml"
-            META_CACHE_FILE="${META_TEMP_BASE}"
-            mv "${META_TEMP_BASE}" "${META_FILE}" 2>/dev/null || {
-                rm -f "${META_TEMP_BASE}"
-                return 1
-            }
-            CONTENT_FILE=$(mktemp "${MARSH_TEMP}/planned-archive-content-XXXXXX") || {
-                rm -f "${META_FILE}"
-                return 1
-            }
-            if ! marsh_extract_frontmatter "${DOCUMENT_SOURCE_FILE}" "${META_FILE}" "${CONTENT_FILE}"; then
-                rm -f "${META_FILE}" "${META_CACHE_FILE}" "${CONTENT_FILE}"
+            # archive planning must not seed raw content artifacts, only metadata artifacts
+            if ! marsh_write_document_metadata_artifacts "${BUILD_CONTEXT_OUTPUT_ROOT}" "${DOCUMENT_ID}" "${DOCUMENT_SOURCE_FILE}"; then
                 echo "Unable to plan archive metadata: ${DOCUMENT_SOURCE_FILE}" >&2
+                rm -f "${MANIFEST_TEMP}"
                 return 1
             fi
-            META_PREFIX=$(echo "planned_archive_${META_FILE}_" | sed -E -e 's/[^A-Za-z0-9_]/_/g')
+            DOCUMENT_ARTIFACT_PATHS=$(marsh_get_document_artifacts "${BUILD_CONTEXT_OUTPUT_ROOT}" "${DOCUMENT_ID}") || {
+                rm -f "${MANIFEST_TEMP}"
+                return 1
+            }
+            eval "${DOCUMENT_ARTIFACT_PATHS}"
+            META_PREFIX=$(echo "planned_archive_${DOCUMENT_ARTIFACT_META_YAML}_" | sed -E -e 's/[^A-Za-z0-9_]/_/g')
             META_PREFIX=$(echo "${META_PREFIX}" | sed -E -e 's/_{2,}/_/g')
-            META_ASSIGNMENTS=$(marsh_get_document_metadata "${META_FILE}" "${META_PREFIX}") || {
-                rm -f "${META_FILE}" "${META_CACHE_FILE}" "${CONTENT_FILE}"
+            META_ASSIGNMENTS=$(marsh_get_document_metadata "${DOCUMENT_ARTIFACT_META_YAML}" "${META_PREFIX}") || {
                 echo "Unable to plan archive metadata: ${DOCUMENT_SOURCE_FILE}" >&2
+                rm -f "${MANIFEST_TEMP}"
                 return 1
             }
             META_VARS=$(echo "${META_ASSIGNMENTS}" | marsh_get_variables)
@@ -5700,9 +5740,9 @@ function marsh_write_target_archive_manifest {  # marsh_write_target_archive_man
             TYPE_VAR="${META_PREFIX}Type"
             TYPE="${!TYPE_VAR:-}"
             eval "$(marsh_flat_to_array "STATE" "${META_PREFIX}State_")"
-            rm -f "${META_FILE}" "${META_CACHE_FILE}" "${CONTENT_FILE}"
         else
             echo "Unable to plan archive metadata: ${DOCUMENT_SOURCE_FILE}" >&2
+            rm -f "${MANIFEST_TEMP}"
             return 1
         fi
 

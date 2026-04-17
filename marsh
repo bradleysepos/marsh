@@ -3115,7 +3115,7 @@ function marsh_create_target_source_root {  # marsh_create_target_source_root ta
 
 # returns a cached source inventory for a target source root, building it on miss
 function marsh_get_target_source_inventory {  # marsh_get_target_source_inventory target_output_root source_root [skip_links]
-    local TARGET_OUTPUT_ROOT SOURCE_ROOT SKIP_LINKS TARGET_BUILD_TEMP_ROOT INVENTORY_CACHE_DIR INVENTORY_KEY INVENTORY_FILE
+    local TARGET_OUTPUT_ROOT SOURCE_ROOT SKIP_LINKS INVENTORY_CACHE_DIR INVENTORY_KEY INVENTORY_FILE
 
     TARGET_OUTPUT_ROOT="${1:-}"
     SOURCE_ROOT="${2:-}"
@@ -3125,8 +3125,12 @@ function marsh_get_target_source_inventory {  # marsh_get_target_source_inventor
     [[ -d "${SOURCE_ROOT}" ]] || return 1
     [[ "${SKIP_LINKS}" == true || "${SKIP_LINKS}" == false ]] || return 1
 
-    TARGET_BUILD_TEMP_ROOT=$(marsh_get_target_temp_root "${TARGET_OUTPUT_ROOT}") || return 1
-    INVENTORY_CACHE_DIR="${TARGET_BUILD_TEMP_ROOT}/source-inventory"
+    # validate target directory path and source root
+    marsh_get_target_directory_path "${TARGET_OUTPUT_ROOT}" >/dev/null || return 1
+    SOURCE_ROOT=$(marsh_get_source_root_path "${SOURCE_ROOT}") || return 1
+
+    # share one source inventory cache across targets within the same build
+    INVENTORY_CACHE_DIR="${MARSH_TEMP}/source-inventory"
     INVENTORY_KEY=$(printf '%s\034%s\n' "${SOURCE_ROOT}" "${SKIP_LINKS}" | marsh_text_transform hash:md5) || return 1
     INVENTORY_FILE="${INVENTORY_CACHE_DIR}/${INVENTORY_KEY}"
 

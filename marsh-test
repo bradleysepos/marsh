@@ -4786,6 +4786,25 @@ function marsh_test {
             marsh_test_restore_env
             ;;
         marsh_get_target_source_inventory:1)
+            TEST_NAME+=":cached_across_targets"
+            FIRST_TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.first.target"
+            SECOND_TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.second.target"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
+            marsh_test_set_env
+            mkdir -p "${SOURCE_ROOT}/news"
+            printf '%s\n' '# first' > "${SOURCE_ROOT}/news/first.markdown"
+            ACTUAL=$(marsh_get_target_source_inventory "${FIRST_TARGET_OUTPUT_ROOT}" "${SOURCE_ROOT}")
+            printf '%s\n' '# second' > "${SOURCE_ROOT}/news/second.markdown"
+            ACTUAL_SECOND=$(marsh_get_target_source_inventory "${SECOND_TARGET_OUTPUT_ROOT}" "${SOURCE_ROOT}")
+            EXPECTED='news/first.markdown'
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]] && [[ "${ACTUAL_SECOND}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            rm -rf "${FIRST_TARGET_OUTPUT_ROOT}" "${SECOND_TARGET_OUTPUT_ROOT}" "${SOURCE_ROOT}"
+            marsh_test_restore_env
+            ;;
+        marsh_get_target_source_inventory:2)
             TEST_NAME+=":missing_source_root"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             marsh_test_set_env

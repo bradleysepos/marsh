@@ -5266,6 +5266,35 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
+        marsh_copy_template_assets:0)
+            TEST_NAME+=":unchanged_assets_skipped_with_manifest"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            marsh_test_set_env
+            rm -rf "${MARSH_TEMP}/asset-copy-cache"
+            marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
+            marsh_copy_template_assets "${TARGET_OUTPUT_ROOT}" "." false "${TEMPLATE_DIR}" "sample" 0 "" >/dev/null 2>&1
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                printf '%s\n' 'local change' > "${TARGET_OUTPUT_ROOT}/css/site.css"
+                marsh_copy_template_assets "${TARGET_OUTPUT_ROOT}" "." false "${TEMPLATE_DIR}" "sample" 0 "" >/dev/null 2>&1
+                ACTUAL=$?
+                EXPECTED=0
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    ACTUAL="$(<"${TARGET_OUTPUT_ROOT}/css/site.css")"$'\001'"$(find "${MARSH_TEST_TEMP}/asset-copy-cache" -maxdepth 1 -name '*.manifest' 2>/dev/null | marsh_text_transform items:count)"$'\001'"$(find "${MARSH_TEST_TEMP}/asset-copy-cache" -maxdepth 1 -name '*.copied' 2>/dev/null | marsh_text_transform items:count)"
+                    EXPECTED='local change'$'\001''1'$'\001''0'
+                    ASSERTION="equals"
+                    if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                        RES="[PASS]"
+                    fi
+                fi
+            fi
+            rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}" "${MARSH_TEMP}/asset-copy-cache"
+            marsh_test_restore_env
+            ;;
         marsh_parse_template_metadata:0)
             TEST_NAME+=":normal"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.template"
@@ -8150,6 +8179,7 @@ KNOWN_FUNCTIONS=(
     marsh_build_template
     marsh_check_dependencies
     marsh_clean_target_temp
+    marsh_copy_template_assets
     marsh_copy_files
     marsh_copy_planned_target_source_assets
     marsh_copy_source_objects

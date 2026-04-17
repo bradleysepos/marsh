@@ -2639,7 +2639,10 @@ function marsh_get_template_assets {  # marsh_get_template_assets templates_dir 
 # copies template assets into the build output, resolving output paths relative to the target root
 function marsh_copy_template_assets {  # marsh_copy_template_assets site_output_root target_output_rel verbose templates_dir template #template_overrides[@] template_overrides[@] template_assets_path
     local SITE_OUTPUT_ROOT TARGET_OUTPUT_REL VERBOSE TEMPLATES_DIR TEMPLATE NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDES TEMPLATE_ASSETS_PATH TEMPLATE_ASSETS
-    local ASSET ASSET_PATH ASSET_OUTPUT_REL ASSET_SOURCE ASSET_DEST_PATH ASSET_COPY_CACHE_DIR ASSET_COPY_CACHE_KEY ASSET_COPY_CACHE_FILE
+    local ASSET ASSET_PATH ASSET_OUTPUT_REL ASSET_SOURCE ASSET_DEST_PATH
+    local ASSET_COPY_CACHE_DIR ASSET_COPY_CACHE_KEY ASSET_COPY_CACHE_FILE ASSET_COPY_CACHE_TEMP
+    local TEMPLATE_ASSET_RECORDS TEMPLATE_ASSET_RECORD ASSET_SOURCE_ESC ASSET_DEST_PATH_ESC ASSET_OUTPUT_REL_ESC
+    local EXPECTED_MANIFEST MANIFEST_VALID
 
     # init
     SITE_OUTPUT_ROOT="${1:-}"
@@ -2676,6 +2679,7 @@ function marsh_copy_template_assets {  # marsh_copy_template_assets site_output_
         return 1
     }
 
+    TEMPLATE_ASSET_RECORDS=()
     while IFS= read -r ASSET; do
         [[ "${ASSET}" == "" ]] && continue
         ASSET_PATH="${ASSET%\?*}"
@@ -2686,9 +2690,42 @@ function marsh_copy_template_assets {  # marsh_copy_template_assets site_output_
         ASSET_SOURCE="${TEMPLATES_DIR}/${TEMPLATE}/${ASSET_PATH}"
         ASSET_DEST_PATH="${SITE_OUTPUT_ROOT}/${ASSET_OUTPUT_REL}"
         [[ -e "${ASSET_SOURCE}" ]] && [[ -r "${ASSET_SOURCE}" ]] || continue
-        ASSET_COPY_CACHE_KEY=$(printf '%s\034%s\n' "${ASSET_SOURCE}" "${ASSET_DEST_PATH}" | marsh_text_transform hash:md5)
-        ASSET_COPY_CACHE_FILE="${ASSET_COPY_CACHE_DIR}/${ASSET_COPY_CACHE_KEY}.copied"
-        [[ -e "${ASSET_COPY_CACHE_FILE}" ]] && continue
+        TEMPLATE_ASSET_RECORDS+=("$(printf '%q\t%q\t%q\n' "${ASSET_SOURCE}" "${ASSET_DEST_PATH}" "${ASSET_OUTPUT_REL}")")
+    done <<< "${TEMPLATE_ASSETS}"
+
+    [[ "${#TEMPLATE_ASSET_RECORDS[@]}" -gt 0 ]] || return 0
+    ASSET_COPY_CACHE_KEY=$({
+        printf '%s\034%s\034%s\034%s\034%s\n' "${SITE_OUTPUT_ROOT}" "${TARGET_OUTPUT_REL}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${TEMPLATE_ASSETS_PATH}"
+        printf '%s\n' "${TEMPLATE_OVERRIDES[@]}"
+        printf '%s\n' "${TEMPLATE_ASSET_RECORDS[@]}"
+    } | marsh_text_transform hash:md5) || return 1
+    ASSET_COPY_CACHE_FILE="${ASSET_COPY_CACHE_DIR}/${ASSET_COPY_CACHE_KEY}.manifest"
+
+    if [[ -f "${ASSET_COPY_CACHE_FILE}" ]] && [[ -r "${ASSET_COPY_CACHE_FILE}" ]]; then
+        EXPECTED_MANIFEST=$(printf '%s\n' "${TEMPLATE_ASSET_RECORDS[@]}")
+        if [[ "$(<"${ASSET_COPY_CACHE_FILE}")" == "${EXPECTED_MANIFEST}" ]]; then
+            MANIFEST_VALID=true
+            while IFS= read -r TEMPLATE_ASSET_RECORD; do
+                [[ "${TEMPLATE_ASSET_RECORD}" == "" ]] && continue
+                IFS=$'\t' read -r ASSET_SOURCE_ESC ASSET_DEST_PATH_ESC ASSET_OUTPUT_REL_ESC <<< "${TEMPLATE_ASSET_RECORD}"
+                eval "ASSET_DEST_PATH=${ASSET_DEST_PATH_ESC}"
+                if [[ ! -e "${ASSET_DEST_PATH}" ]]; then
+                    MANIFEST_VALID=false
+                    break
+                fi
+            done < "${ASSET_COPY_CACHE_FILE}"
+            if [[ "${MANIFEST_VALID}" == true ]]; then
+                return 0
+            fi
+        fi
+    fi
+
+    for TEMPLATE_ASSET_RECORD in "${TEMPLATE_ASSET_RECORDS[@]}"; do
+        [[ "${TEMPLATE_ASSET_RECORD}" == "" ]] && continue
+        IFS=$'\t' read -r ASSET_SOURCE_ESC ASSET_DEST_PATH_ESC ASSET_OUTPUT_REL_ESC <<< "${TEMPLATE_ASSET_RECORD}"
+        eval "ASSET_SOURCE=${ASSET_SOURCE_ESC}"
+        eval "ASSET_DEST_PATH=${ASSET_DEST_PATH_ESC}"
+        eval "ASSET_OUTPUT_REL=${ASSET_OUTPUT_REL_ESC}"
         mkdir -p "${ASSET_DEST_PATH%/*}" || {
             echo "Unable to create asset path: ${ASSET_DEST_PATH%/*}" >&2
             return 1
@@ -2701,16 +2738,25 @@ function marsh_copy_template_assets {  # marsh_copy_template_assets site_output_
             echo "Unable to copy asset: ${ASSET_SOURCE} -> ${ASSET_DEST_PATH}" >&2
             return 1
         }
-        : > "${ASSET_COPY_CACHE_FILE}" || {
-            echo "Unable to write asset cache file: ${ASSET_COPY_CACHE_FILE}" >&2
-            return 1
-        }
 
         # verbose output
         if [[ "${VERBOSE}" == true ]]; then
             marsh_print_verbose_output_path "${ASSET_OUTPUT_REL}" || return 1
         fi
-    done <<< "${TEMPLATE_ASSETS}"
+    done
+
+    ASSET_COPY_CACHE_TEMP=$(mktemp "${ASSET_COPY_CACHE_DIR}/manifest-XXXXXX") || {
+        echo "Unable to create asset cache manifest: ${ASSET_COPY_CACHE_DIR}/manifest-XXXXXX" >&2
+        return 1
+    }
+    printf '%s\n' "${TEMPLATE_ASSET_RECORDS[@]}" > "${ASSET_COPY_CACHE_TEMP}" && mv "${ASSET_COPY_CACHE_TEMP}" "${ASSET_COPY_CACHE_FILE}" 2>/dev/null || {
+        if [[ ! -f "${ASSET_COPY_CACHE_FILE}" ]]; then
+            rm -f "${ASSET_COPY_CACHE_TEMP}"
+            echo "Unable to write asset cache manifest: ${ASSET_COPY_CACHE_FILE}" >&2
+            return 1
+        fi
+        rm -f "${ASSET_COPY_CACHE_TEMP}"
+    }
 }
 
 # resolves a config-relative path against the config file directory without

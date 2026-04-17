@@ -897,6 +897,55 @@ function marsh_test {
             rm -rf "${TARGET_OUTPUT_ROOT}" "${SOURCE_ROOT}"
             marsh_test_restore_env
             ;;
+        marsh_build_document:4)
+            TEST_NAME+=":reuses_existing_artifacts_within_target_context"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
+            FIRST_STATE=""
+            marsh_test_set_env
+            mkdir -p "${SOURCE_ROOT}"
+            printf '%s\n' \
+                '---' \
+                'Type: page' \
+                'Title: First' \
+                'Project: Sample Site' \
+                '...' \
+                '' \
+                '# First' > "${SOURCE_ROOT}/index.markdown"
+            marsh_build_document "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" "." "${SOURCE_ROOT}" >/dev/null 2>&1
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                CONTENT_FILE=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "index.markdown" "content")
+                META_FILE=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "index.markdown" "meta-yaml")
+                CACHE_FILE=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "index.markdown" "meta")
+                INDEX_FILE=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "index.markdown" "archive-meta")
+                FIRST_STATE="$(<"${CONTENT_FILE}")"$'\001'"$(<"${META_FILE}")"$'\001'"$(<"${CACHE_FILE}")"$'\001'"$(<"${INDEX_FILE}")"
+                printf '%s\n' \
+                    '---' \
+                    'Type: page' \
+                    'Title: Second' \
+                    'Project: Changed Site' \
+                    '...' \
+                    '' \
+                    '# Second' > "${SOURCE_ROOT}/index.markdown"
+                marsh_build_document "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" "." "${SOURCE_ROOT}" >/dev/null 2>&1
+                ACTUAL=$?
+                EXPECTED=0
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    ACTUAL="$(<"${CONTENT_FILE}")"$'\001'"$(<"${META_FILE}")"$'\001'"$(<"${CACHE_FILE}")"$'\001'"$(<"${INDEX_FILE}")"
+                    EXPECTED="${FIRST_STATE}"
+                    ASSERTION="equals"
+                    if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                        RES="[PASS]"
+                    fi
+                fi
+            fi
+            rm -rf "${TARGET_OUTPUT_ROOT}" "${SOURCE_ROOT}"
+            marsh_test_restore_env
+            ;;
         marsh_build_document_and_template:0)
             TEST_NAME+=":with_template"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"

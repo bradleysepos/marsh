@@ -5241,6 +5241,8 @@ function marsh_build_document {  # marsh_build_document site_output_root target_
     local SITE_OUTPUT_ROOT TARGET_OUTPUT_REL DOCUMENT DOCUMENT_EXT DOCUMENT_DIR TEXT_TRANSFORM
     local MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_REWRITE_LINKS
     local TARGET_OUTPUT_ROOT DOCUMENT_SOURCE_FILE DOCUMENT_SOURCE_DIR TARGET_SOURCE_ROOT ARCHIVE_SOURCE_FILE DOCUMENT_SITE_REL DOCUMENT_TEMP_ROOT DOCUMENT_META DOCUMENT_META_CACHE DOCUMENT_CONTENT ARCHIVE_META ARCHIVE_META_TEMP DOCUMENT_OUTPUT_REL DOCUMENT_BASE_REL
+    local DOCUMENT_ARTIFACT_PATHS DOCUMENT_ARTIFACT_ROOT DOCUMENT_ARTIFACT_CONTENT DOCUMENT_ARTIFACT_META_YAML DOCUMENT_ARTIFACT_META DOCUMENT_ARTIFACT_ARCHIVE_META
+    local DOCUMENT_CONTENT_READY DOCUMENT_ARCHIVE_META_READY
     local BUILD_CONTEXT_TARGET_OUTPUT_REL BUILD_CONTEXT_SOURCE_ROOT BUILD_CONTEXT_OUTPUT_ROOT
 
     # init
@@ -5278,11 +5280,13 @@ function marsh_build_document {  # marsh_build_document site_output_root target_
         echo "Document source root not found for target: ${BUILD_CONTEXT_OUTPUT_ROOT}" >&2
         return 1
     fi
-    DOCUMENT_TEMP_ROOT=$(marsh_get_document_temp_path "${BUILD_CONTEXT_OUTPUT_ROOT}" "${DOCUMENT}" "root") || return 1
-    DOCUMENT_META=$(marsh_get_document_temp_path "${BUILD_CONTEXT_OUTPUT_ROOT}" "${DOCUMENT}" "meta-yaml") || return 1
-    DOCUMENT_META_CACHE=$(marsh_get_document_temp_path "${BUILD_CONTEXT_OUTPUT_ROOT}" "${DOCUMENT}" "meta") || return 1
-    DOCUMENT_CONTENT=$(marsh_get_document_temp_path "${BUILD_CONTEXT_OUTPUT_ROOT}" "${DOCUMENT}" "content") || return 1
-    ARCHIVE_META=$(marsh_get_document_temp_path "${BUILD_CONTEXT_OUTPUT_ROOT}" "${DOCUMENT}" "archive-meta") || return 1
+    DOCUMENT_ARTIFACT_PATHS=$(marsh_get_document_artifacts "${BUILD_CONTEXT_OUTPUT_ROOT}" "${DOCUMENT}") || return 1
+    eval "${DOCUMENT_ARTIFACT_PATHS}"
+    DOCUMENT_TEMP_ROOT="${DOCUMENT_ARTIFACT_ROOT}"
+    DOCUMENT_META="${DOCUMENT_ARTIFACT_META_YAML}"
+    DOCUMENT_META_CACHE="${DOCUMENT_ARTIFACT_META}"
+    DOCUMENT_CONTENT="${DOCUMENT_ARTIFACT_CONTENT}"
+    ARCHIVE_META="${DOCUMENT_ARTIFACT_ARCHIVE_META}"
     [[ -f "${DOCUMENT_SOURCE_FILE}" ]] && [[ -r "${DOCUMENT_SOURCE_FILE}" ]] || {
         if [[ "${TARGET_SOURCE_ROOT}" != "" ]]; then
             echo "Document source not found: ${TARGET_SOURCE_ROOT}/${DOCUMENT}" >&2
@@ -5293,37 +5297,24 @@ function marsh_build_document {  # marsh_build_document site_output_root target_
     }
     DOCUMENT_SOURCE_DIR="${DOCUMENT_SOURCE_FILE%/*}"
     [[ "${DOCUMENT_SOURCE_DIR}" == "${DOCUMENT_SOURCE_FILE}" ]] && DOCUMENT_SOURCE_DIR='.'
-    mkdir -p "${DOCUMENT_TEMP_ROOT}" >/dev/null 2>&1 || {
-        echo "Unable to create document temp directory: ${DOCUMENT_TEMP_ROOT}" >&2
-        return 1
-    }
 
     # normalize extensions
     if marsh_is_markdown_extension "${DOCUMENT_EXT}" "${MARKDOWN_FILEEXT_CSV}"; then
         DOCUMENT_EXT="markdown"
     fi
 
-    # remove stale metadata caches before rebuilding metadata outputs
-    rm -f "${DOCUMENT_META}" "${DOCUMENT_META_CACHE}" "${ARCHIVE_META}"
+    DOCUMENT_CONTENT_READY=false
+    [[ -f "${DOCUMENT_CONTENT}" ]] && [[ -r "${DOCUMENT_CONTENT}" ]] && DOCUMENT_CONTENT_READY=true
+    DOCUMENT_ARCHIVE_META_READY=false
+    [[ -f "${ARCHIVE_META}" ]] && [[ -r "${ARCHIVE_META}" ]] && DOCUMENT_ARCHIVE_META_READY=true
 
-    # extract frontmatter metadata and document content
-    if marsh_has_frontmatter "${DOCUMENT_SOURCE_FILE}"; then
-        marsh_extract_frontmatter "${DOCUMENT_SOURCE_FILE}" "${DOCUMENT_META}" "${DOCUMENT_CONTENT}" || {
-            echo "Unable to extract document frontmatter: ${DOCUMENT_SOURCE_FILE}" >&2
-            return 1
-        }
-        marsh_get_document_metadata "${DOCUMENT_META}" "" >/dev/null || {
-            echo "Unable to build document metadata cache: ${DOCUMENT_META}" >&2
-            return 1
-        }
-    else
-        cp "${DOCUMENT_SOURCE_FILE}" "${DOCUMENT_CONTENT}" || {
-            echo "Unable to copy document content: ${DOCUMENT_SOURCE_FILE}" >&2
-            return 1
-        }
-    fi
+    # reuse the current build-local artifact set when it already exists
+    marsh_write_document_artifacts "${BUILD_CONTEXT_OUTPUT_ROOT}" "${DOCUMENT}" "${DOCUMENT_SOURCE_FILE}" || {
+        echo "Unable to write document artifacts: ${DOCUMENT_SOURCE_FILE}" >&2
+        return 1
+    }
 
-    if [[ "${DOCUMENT_EXT}" == "markdown" ]]; then
+    if [[ "${DOCUMENT_EXT}" == "markdown" ]] && [[ "${DOCUMENT_CONTENT_READY}" != true ]]; then
         # preprocess markdown to convert markdown links to html
         # preprocess markdown to add implicit figures
         # convert preprocessed markdown to html
@@ -5393,7 +5384,7 @@ function marsh_build_document {  # marsh_build_document site_output_root target_
     fi
 
     # build archive metadata from the document metadata
-    if [[ -f "${DOCUMENT_META}" ]] && [[ -r "${DOCUMENT_META}" ]]; then
+    if [[ -f "${DOCUMENT_META}" ]] && [[ -r "${DOCUMENT_META}" ]] && [[ "${DOCUMENT_ARCHIVE_META_READY}" != true ]]; then
         ARCHIVE_META_TEMP=$(mktemp "${MARSH_TEMP}/archive-meta-XXXXXX") || {
             echo "Unable to create archive metadata file: ${MARSH_TEMP}/archive-meta-XXXXXX" >&2
             return 1

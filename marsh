@@ -1703,6 +1703,7 @@ function marsh_get_archive_manifest {  # marsh_get_archive_manifest target_outpu
 function marsh_get_sitemap_lookup_path {  # marsh_get_sitemap_lookup_path target_output_root document sitemap_file sitemap_search
     local TARGET_OUTPUT_ROOT DOCUMENT SITEMAP_FILE SITEMAP_SEARCH
     local CURRENT_DIR CURRENT_BASE CANDIDATE SITEMAP_RENDER_FILE
+    local LOOKUP_BASE_DIR LOOKUP_CACHE_DIR LOOKUP_CACHE_KEY LOOKUP_CACHE_FILE LOOKUP_CACHE_TEMP CACHED_LOOKUP_PATH
 
     TARGET_OUTPUT_ROOT="${1:-}"
     DOCUMENT="${2:-}"
@@ -1721,11 +1722,42 @@ function marsh_get_sitemap_lookup_path {  # marsh_get_sitemap_lookup_path target
     fi
 
     CURRENT_DIR=$(marsh_get_internal_parent_directory "${DOCUMENT}") || return 1
+    LOOKUP_BASE_DIR=$(marsh_normalize_internal_path "${CURRENT_DIR}" "directory") || return 1
+    LOOKUP_CACHE_DIR="$(marsh_get_target_temp_root "${TARGET_OUTPUT_ROOT}")/sitemaps/lookup"
+    LOOKUP_CACHE_KEY=$(printf '%s\034%s\n' "${SITEMAP_FILE}" "${LOOKUP_BASE_DIR}" | marsh_text_transform hash:md5) || return 1
+    LOOKUP_CACHE_FILE="${LOOKUP_CACHE_DIR}/${LOOKUP_CACHE_KEY}"
+
+    if [[ -f "${LOOKUP_CACHE_FILE}" ]] && [[ -r "${LOOKUP_CACHE_FILE}" ]]; then
+        CACHED_LOOKUP_PATH=$(<"${LOOKUP_CACHE_FILE}")
+        if [[ "${CACHED_LOOKUP_PATH}" != "" ]]; then
+            SITEMAP_RENDER_FILE=$(marsh_get_sitemap_render_path "${TARGET_OUTPUT_ROOT}" "${CACHED_LOOKUP_PATH}") || return 1
+            if [[ -f "${SITEMAP_RENDER_FILE}" ]] && [[ -r "${SITEMAP_RENDER_FILE}" ]]; then
+                printf '%s\n' "${CACHED_LOOKUP_PATH}"
+                return 0
+            fi
+        fi
+    fi
+
     while true; do
         CURRENT_BASE=$(marsh_normalize_internal_path "${CURRENT_DIR}" "directory") || return 1
         CANDIDATE=$(marsh_resolve_relative_path "${CURRENT_BASE}" "${SITEMAP_FILE}") || return 1
         SITEMAP_RENDER_FILE=$(marsh_get_sitemap_render_path "${TARGET_OUTPUT_ROOT}" "${CANDIDATE}") || return 1
         if [[ -f "${SITEMAP_RENDER_FILE}" ]] && [[ -r "${SITEMAP_RENDER_FILE}" ]]; then
+            mkdir -p "${LOOKUP_CACHE_DIR}" >/dev/null 2>&1 || {
+                echo "Unable to create sitemap lookup cache directory: ${LOOKUP_CACHE_DIR}" >&2
+                return 1
+            }
+            LOOKUP_CACHE_TEMP=$(mktemp "${LOOKUP_CACHE_DIR}/lookup-XXXXXX") || {
+                echo "Unable to create sitemap lookup cache file: ${LOOKUP_CACHE_DIR}/lookup-XXXXXX" >&2
+                return 1
+            }
+            printf '%s\n' "${CANDIDATE}" > "${LOOKUP_CACHE_TEMP}" && mv "${LOOKUP_CACHE_TEMP}" "${LOOKUP_CACHE_FILE}" 2>/dev/null || {
+                if [[ ! -f "${LOOKUP_CACHE_FILE}" ]]; then
+                    rm -f "${LOOKUP_CACHE_TEMP}"
+                    return 1
+                fi
+                rm -f "${LOOKUP_CACHE_TEMP}"
+            }
             printf '%s\n' "${CANDIDATE}"
             return 0
         fi

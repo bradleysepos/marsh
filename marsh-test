@@ -4381,6 +4381,36 @@ function marsh_test {
             rm -rf "${TARGET_OUTPUT_ROOT}"
             marsh_test_restore_env
             ;;
+        marsh_get_sitemap_lookup_path:4)
+            TEST_NAME+=":search_same_directory_reuses_cached_result"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            marsh_test_set_env
+            mkdir -p "${TARGET_OUTPUT_ROOT}"
+            SITEMAP_RENDER_FILE=$(marsh_get_sitemap_render_path "${TARGET_OUTPUT_ROOT}" "news/sitemap.markdown")
+            mkdir -p "${SITEMAP_RENDER_FILE%/*}"
+            : > "${SITEMAP_RENDER_FILE}"
+            ACTUAL=$(marsh_get_sitemap_lookup_path "${TARGET_OUTPUT_ROOT}" "news/world/one.markdown" "sitemap.markdown" true)
+            EXPECTED="news/sitemap.markdown"
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                SITEMAP_RENDER_FILE=$(marsh_get_sitemap_render_path "${TARGET_OUTPUT_ROOT}" "news/world/sitemap.markdown")
+                mkdir -p "${SITEMAP_RENDER_FILE%/*}"
+                : > "${SITEMAP_RENDER_FILE}"
+                ACTUAL=$(marsh_get_sitemap_lookup_path "${TARGET_OUTPUT_ROOT}" "news/world/two.markdown" "sitemap.markdown" true)
+                EXPECTED="news/sitemap.markdown"
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    ACTUAL=$(find "$(marsh_get_target_temp_root "${TARGET_OUTPUT_ROOT}")/sitemaps/lookup" -maxdepth 1 -type f 2>/dev/null | marsh_text_transform items:count)
+                    EXPECTED='1'
+                    ASSERTION="equals"
+                    if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                        RES="[PASS]"
+                    fi
+                fi
+            fi
+            rm -rf "${TARGET_OUTPUT_ROOT}"
+            marsh_test_restore_env
+            ;;
         marsh_get_sitemap_render_path:0)
             TEST_NAME+=":root_target"
             marsh_test_set_env

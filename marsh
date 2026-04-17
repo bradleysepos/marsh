@@ -5160,6 +5160,82 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
     fi
 }
 
+# returns the document artifact paths for one target build context
+function marsh_get_document_artifacts {  # marsh_get_document_artifacts target_output_root document
+    local TARGET_OUTPUT_ROOT DOCUMENT DOCUMENT_ARTIFACT_ROOT DOCUMENT_ARTIFACT_CONTENT DOCUMENT_ARTIFACT_META_YAML DOCUMENT_ARTIFACT_META DOCUMENT_ARTIFACT_ARCHIVE_META
+
+    TARGET_OUTPUT_ROOT="${1:-}"
+    DOCUMENT="${2:-}"
+    [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
+    [[ "${DOCUMENT}" == "" ]] && return 1
+
+    DOCUMENT_ARTIFACT_ROOT=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "${DOCUMENT}" "root") || return 1
+    DOCUMENT_ARTIFACT_CONTENT=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "${DOCUMENT}" "content") || return 1
+    DOCUMENT_ARTIFACT_META_YAML=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "${DOCUMENT}" "meta-yaml") || return 1
+    DOCUMENT_ARTIFACT_META=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "${DOCUMENT}" "meta") || return 1
+    DOCUMENT_ARTIFACT_ARCHIVE_META=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "${DOCUMENT}" "archive-meta") || return 1
+
+    printf 'DOCUMENT_ARTIFACT_ROOT=%q\n' "${DOCUMENT_ARTIFACT_ROOT}"
+    printf 'DOCUMENT_ARTIFACT_CONTENT=%q\n' "${DOCUMENT_ARTIFACT_CONTENT}"
+    printf 'DOCUMENT_ARTIFACT_META_YAML=%q\n' "${DOCUMENT_ARTIFACT_META_YAML}"
+    printf 'DOCUMENT_ARTIFACT_META=%q\n' "${DOCUMENT_ARTIFACT_META}"
+    printf 'DOCUMENT_ARTIFACT_ARCHIVE_META=%q\n' "${DOCUMENT_ARTIFACT_ARCHIVE_META}"
+}
+
+# writes the document content and metadata artifacts for one target build context
+function marsh_write_document_artifacts {  # marsh_write_document_artifacts target_output_root document source_file
+    local TARGET_OUTPUT_ROOT DOCUMENT SOURCE_FILE
+    local DOCUMENT_ARTIFACT_PATHS
+    local DOCUMENT_ARTIFACT_ROOT DOCUMENT_ARTIFACT_CONTENT DOCUMENT_ARTIFACT_META_YAML DOCUMENT_ARTIFACT_META DOCUMENT_ARTIFACT_ARCHIVE_META
+    local SOURCE_HAS_FRONTMATTER
+
+    TARGET_OUTPUT_ROOT="${1:-}"
+    DOCUMENT="${2:-}"
+    SOURCE_FILE="${3:-}"
+    [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
+    [[ "${DOCUMENT}" == "" ]] && return 1
+    [[ "${SOURCE_FILE}" == "" ]] && return 1
+    [[ -f "${SOURCE_FILE}" ]] && [[ -r "${SOURCE_FILE}" ]] || return 1
+
+    DOCUMENT_ARTIFACT_PATHS=$(marsh_get_document_artifacts "${TARGET_OUTPUT_ROOT}" "${DOCUMENT}") || return 1
+    eval "${DOCUMENT_ARTIFACT_PATHS}"
+
+    mkdir -p "${DOCUMENT_ARTIFACT_ROOT}" >/dev/null 2>&1 || return 1
+
+    SOURCE_HAS_FRONTMATTER=false
+    if marsh_has_frontmatter "${SOURCE_FILE}"; then
+        SOURCE_HAS_FRONTMATTER=true
+    fi
+
+    # reuse the current build artifacts when the expected set already exists
+    if [[ "${SOURCE_HAS_FRONTMATTER}" == true ]]; then
+        if [[ -f "${DOCUMENT_ARTIFACT_CONTENT}" ]] \
+        && [[ -r "${DOCUMENT_ARTIFACT_CONTENT}" ]] \
+        && [[ -f "${DOCUMENT_ARTIFACT_META_YAML}" ]] \
+        && [[ -r "${DOCUMENT_ARTIFACT_META_YAML}" ]]; then
+            if [[ ! -f "${DOCUMENT_ARTIFACT_META}" ]] || [[ ! -r "${DOCUMENT_ARTIFACT_META}" ]]; then
+                marsh_get_document_metadata "${DOCUMENT_ARTIFACT_META_YAML}" "" >/dev/null || return 1
+            fi
+            return 0
+        fi
+    elif [[ -f "${DOCUMENT_ARTIFACT_CONTENT}" ]] \
+        && [[ -r "${DOCUMENT_ARTIFACT_CONTENT}" ]] \
+        && [[ ! -e "${DOCUMENT_ARTIFACT_META_YAML}" ]] \
+        && [[ ! -e "${DOCUMENT_ARTIFACT_META}" ]]; then
+        return 0
+    fi
+
+    # rebuild the artifact set when any expected file is missing
+    rm -f "${DOCUMENT_ARTIFACT_CONTENT}" "${DOCUMENT_ARTIFACT_META_YAML}" "${DOCUMENT_ARTIFACT_META}"
+    if [[ "${SOURCE_HAS_FRONTMATTER}" == true ]]; then
+        marsh_extract_frontmatter "${SOURCE_FILE}" "${DOCUMENT_ARTIFACT_META_YAML}" "${DOCUMENT_ARTIFACT_CONTENT}" || return 1
+        marsh_get_document_metadata "${DOCUMENT_ARTIFACT_META_YAML}" "" >/dev/null || return 1
+        return 0
+    fi
+
+    cp "${SOURCE_FILE}" "${DOCUMENT_ARTIFACT_CONTENT}" || return 1
+}
+
 # builds a document from a single file
 function marsh_build_document {  # marsh_build_document site_output_root target_output_rel document markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links build_context_target_output_rel build_context_source_root
     local SITE_OUTPUT_ROOT TARGET_OUTPUT_REL DOCUMENT DOCUMENT_EXT DOCUMENT_DIR TEXT_TRANSFORM

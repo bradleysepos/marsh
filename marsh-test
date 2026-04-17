@@ -3890,6 +3890,23 @@ function marsh_test {
             fi
             marsh_test_restore_env
             ;;
+        marsh_get_document_artifacts:0)
+            TEST_NAME+=":nested_target"
+            marsh_test_set_env
+            MARSH_CONFIG_PATH="/site/public"
+            ACTUAL=$(marsh_get_document_artifacts "/site/public/blog" "guides/index.markdown")
+            EXPECTED=$(printf '%s\n' \
+                "DOCUMENT_ARTIFACT_ROOT=${MARSH_TEST_TEMP}/build/targets/blog/documents/guides/index.markdown" \
+                "DOCUMENT_ARTIFACT_CONTENT=${MARSH_TEST_TEMP}/build/targets/blog/documents/guides/index.markdown/content" \
+                "DOCUMENT_ARTIFACT_META_YAML=${MARSH_TEST_TEMP}/build/targets/blog/documents/guides/index.markdown/meta.yaml" \
+                "DOCUMENT_ARTIFACT_META=${MARSH_TEST_TEMP}/build/targets/blog/documents/guides/index.markdown/meta" \
+                "DOCUMENT_ARTIFACT_ARCHIVE_META=${MARSH_TEST_TEMP}/build/targets/blog/documents/guides/index.markdown/archive-meta")
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            marsh_test_restore_env
+            ;;
         marsh_get_document_metadata:0)
             TEST_NAME+=":parsed"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
@@ -5352,6 +5369,79 @@ function marsh_test {
                 fi
             fi
             rm -rf "${SITE_OUTPUT_ROOT}" "${SOURCE_ROOT}"
+            marsh_test_restore_env
+            ;;
+        marsh_write_document_artifacts:0)
+            TEST_NAME+=":frontmatter_reuses_existing_artifacts"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
+            marsh_test_set_env
+            mkdir -p "${SOURCE_ROOT}/docs"
+            printf '%s\n' \
+                '---' \
+                'Type: page' \
+                'Title: First' \
+                '...' \
+                '' \
+                '# First' > "${SOURCE_ROOT}/docs/index.markdown"
+            marsh_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "docs/index.markdown" "${SOURCE_ROOT}/docs/index.markdown"
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                eval "$(marsh_get_document_artifacts "${TARGET_OUTPUT_ROOT}" "docs/index.markdown")"
+                rm -f "${DOCUMENT_ARTIFACT_META}"
+                printf '%s\n' \
+                    '---' \
+                    'Type: page' \
+                    'Title: Second' \
+                    '...' \
+                    '' \
+                    '# Second' > "${SOURCE_ROOT}/docs/index.markdown"
+                marsh_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "docs/index.markdown" "${SOURCE_ROOT}/docs/index.markdown"
+                ACTUAL=$?
+                EXPECTED=0
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    ACTUAL="$(<"${DOCUMENT_ARTIFACT_CONTENT}")"$'\001'"$(<"${DOCUMENT_ARTIFACT_META_YAML}")"$'\001'"$(<"${DOCUMENT_ARTIFACT_META}")"$'\001'"$(find "${DOCUMENT_ARTIFACT_ROOT}" -maxdepth 1 \( -name '*.temp' -o -name '*.scratch' -o -name '*.backup' \) 2>/dev/null | marsh_text_transform items:count)"
+                    EXPECTED=$'\n''# First'$'\001''---'$'\n''Type: page'$'\n''Title: First'$'\n''...'$'\001''Type="page"'$'\n''Title="First"'$'\001''0'
+                    ASSERTION="equals"
+                    if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                        RES="[PASS]"
+                    fi
+                fi
+            fi
+            rm -rf "${TARGET_OUTPUT_ROOT}" "${SOURCE_ROOT}"
+            marsh_test_restore_env
+            ;;
+        marsh_write_document_artifacts:1)
+            TEST_NAME+=":without_frontmatter_reuses_existing_content"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
+            marsh_test_set_env
+            mkdir -p "${SOURCE_ROOT}/docs"
+            printf '%s\n' '# First' > "${SOURCE_ROOT}/docs/index.markdown"
+            marsh_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "docs/index.markdown" "${SOURCE_ROOT}/docs/index.markdown"
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                eval "$(marsh_get_document_artifacts "${TARGET_OUTPUT_ROOT}" "docs/index.markdown")"
+                printf '%s\n' '# Second' > "${SOURCE_ROOT}/docs/index.markdown"
+                marsh_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "docs/index.markdown" "${SOURCE_ROOT}/docs/index.markdown"
+                ACTUAL=$?
+                EXPECTED=0
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    ACTUAL="$(<"${DOCUMENT_ARTIFACT_CONTENT}")"$'\001'"$(find "${DOCUMENT_ARTIFACT_ROOT}" -maxdepth 1 \( -name '*.temp' -o -name '*.scratch' -o -name '*.backup' \) 2>/dev/null | marsh_text_transform items:count)"
+                    EXPECTED='# First'$'\001''0'
+                    ASSERTION="equals"
+                    if [[ "${ACTUAL}" == "${EXPECTED}" ]] && [[ ! -e "${DOCUMENT_ARTIFACT_META_YAML}" ]] && [[ ! -e "${DOCUMENT_ARTIFACT_META}" ]]; then
+                        RES="[PASS]"
+                    fi
+                fi
+            fi
+            rm -rf "${TARGET_OUTPUT_ROOT}" "${SOURCE_ROOT}"
             marsh_test_restore_env
             ;;
         marsh_write_target_archive_manifest:0)
@@ -7594,6 +7684,7 @@ KNOWN_FUNCTIONS=(
     marsh_get_archive_metadata
     marsh_get_archive_temp_path
     marsh_get_common_directory
+    marsh_get_document_artifacts
     marsh_get_document_metadata
     marsh_get_document_temp_path
     marsh_get_internal_parent_directory
@@ -7638,6 +7729,7 @@ KNOWN_FUNCTIONS=(
     marsh_process_markdown
     marsh_resolve_config_path
     marsh_resolve_relative_path
+    marsh_write_document_artifacts
     marsh_write_target_archive_manifest
     marsh_resolve_sitemap_source_path
     marsh_resolve_tag_metadata

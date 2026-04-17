@@ -4493,7 +4493,7 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
     local TEMPLATE_NAV_ESC TEMPLATE_NOTICE_ESC
     local DOCUMENT_META DOCUMENT_META_VARS DOCUMENT_META_PATH DOCUMENT_CONTENT
     local SUBDOCUMENTS_LIST SUBDOCUMENTS SUBDOCUMENT_URIS SUBDOCUMENT_ABSPATHS NUM_SUBDOCUMENTS
-    local SUBDOCUMENT SUBDOCUMENT_SOURCE SUBDOCUMENT_CONTENT SUBDOCUMENT_CONTENT_ESC SUBDOCUMENT_META SUBDOCUMENT_META_VARS SUBDOCUMENT_REL_TO_SITE SUBDOCUMENT_META_FILE SUBDOCUMENT_CONTENT_FILE
+    local SUBDOCUMENT SUBDOCUMENT_SOURCE SUBDOCUMENT_CONTENT SUBDOCUMENT_CONTENT_ESC SUBDOCUMENT_META SUBDOCUMENT_META_VARS SUBDOCUMENT_REL_TO_SITE SUBDOCUMENT_META_FILE SUBDOCUMENT_CONTENT_FILE SUBDOCUMENT_ARCHIVE_META_FILE
     local SUBDOCUMENT_RENDER SUBDOCUMENT_TEMPLATE SUBDOCUMENT_RENDER_FILE SUBDOCUMENT_URI SUBDOCUMENT_ABSPATH SUBDOCUMENT_HREF
     local SUBDOCUMENT_OUTPUT_PATH SUBDOCUMENT_OUTPUT_EXT
     local SUBDOCUMENTS_MANIFEST SUBDOCUMENT_URI_FROM_MANIFEST SUBDOCUMENT_ABSPATH_FROM_MANIFEST
@@ -4501,6 +4501,7 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
     local SUBDOCUMENTS_FILE
     local DEST_SCRATCH
     local TEXT_TRANSFORM UTIL_JSON_SEPARATOR I J
+    local SUBDOCUMENT_CONTENT_IS_RENDERED SUBDOCUMENT_CONTENT_USE_ONCE
     local DOCUMENT_State SUBDOCUMENT_State
     local SITEMAP SITEMAP_DIR SITEMAP_NAME SITEMAP_OUTPUT_PATH SITEMAP_HREF SITEMAP_RENDER_PATH PROCESSED_SITEMAP_PATH SITEMAP_LOOKUP_PATH
     local DOCUMENT_HREF_ESC
@@ -4958,14 +4959,18 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
                 }
                 SUBDOCUMENT_CONTENT_FILE=""
                 SUBDOCUMENT_META_FILE=""
+                SUBDOCUMENT_ARCHIVE_META_FILE=""
                 SUBDOCUMENT_URI=""
                 SUBDOCUMENT_ABSPATH=""
                 SUBDOCUMENT_URI_FROM_MANIFEST="${SUBDOCUMENT_URIS[$J]:-}"
                 SUBDOCUMENT_ABSPATH_FROM_MANIFEST="${SUBDOCUMENT_ABSPATHS[$J]:-}"
                 SUBDOCUMENT_META=""
                 SUBDOCUMENT_META_VARS=""
+                SUBDOCUMENT_CONTENT_IS_RENDERED=false
+                SUBDOCUMENT_CONTENT_USE_ONCE=false
                 SUBDOCUMENT_CONTENT_FILE=$(marsh_get_document_temp_path "${BUILD_CONTEXT_OUTPUT_ROOT}" "${SUBDOCUMENT_REL_TO_SITE}" "content" 2>/dev/null) || SUBDOCUMENT_CONTENT_FILE=""
                 SUBDOCUMENT_META_FILE=$(marsh_get_document_temp_path "${BUILD_CONTEXT_OUTPUT_ROOT}" "${SUBDOCUMENT_REL_TO_SITE}" "meta-yaml" 2>/dev/null) || SUBDOCUMENT_META_FILE=""
+                SUBDOCUMENT_ARCHIVE_META_FILE=$(marsh_get_document_temp_path "${BUILD_CONTEXT_OUTPUT_ROOT}" "${SUBDOCUMENT_REL_TO_SITE}" "archive-meta" 2>/dev/null) || SUBDOCUMENT_ARCHIVE_META_FILE=""
                 # document metadata
                 if [[ -f "${SUBDOCUMENT_META_FILE}" ]] && [[ -r "${SUBDOCUMENT_META_FILE}" ]]; then
                     # parse metadata
@@ -4985,6 +4990,10 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
                 SUBDOCUMENT_OUTPUT_EXT="${SUBDOCUMENT_OUTPUT_PATH##*.}"
                 if marsh_is_markdown_extension "${SUBDOCUMENT_OUTPUT_EXT}" "${MARKDOWN_FILEEXT_CSV}"; then
                     SUBDOCUMENT_OUTPUT_PATH="${SUBDOCUMENT_OUTPUT_PATH%.*}.html"
+                    if [[ -f "${SUBDOCUMENT_ARCHIVE_META_FILE}" ]] && [[ -r "${SUBDOCUMENT_ARCHIVE_META_FILE}" ]]; then
+                        # rendered temporary artifact already exists
+                        SUBDOCUMENT_CONTENT_IS_RENDERED=true
+                    fi
                 fi
                 SUBDOCUMENT_OUTPUT_PATH="${SUBDOCUMENT_OUTPUT_PATH#./}"
                 SUBDOCUMENT_OUTPUT_PATH="${SUBDOCUMENT_OUTPUT_PATH#/}"
@@ -4997,20 +5006,28 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
                 eval $(marsh_flat_to_array "SUBDOCUMENT_State" "SUBDOCUMENT_State_")
                 SUBDOCUMENT_TEMPLATE=$(<"${SUBDOCUMENT_CONTENT_FILE}")
                 if [[ "${DOCUMENT_Type}" == "archive" ]]; then
-                    # markdown to html
-                    TEXT_TRANSFORM=
-                    if [[ "${MARKDOWN_REWRITE_LINKS}" == true ]]; then
-                        TEXT_TRANSFORM="links:replace-ext:${MARKDOWN_FILEEXT_CSV}:html"
+                    # convert subdocument markdown to html only where necessary
+                    if [[ "${SUBDOCUMENT_CONTENT_IS_RENDERED}" == true ]]; then
+                        # reuse existing rendered temporary artifact
+                        SUBDOCUMENT_CONTENT="${SUBDOCUMENT_CONTENT_FILE}"
+                    else
+                        # rendered temporary artifact does not exist
+                        # fall back to creating it for one-time use in this archive context
+                        SUBDOCUMENT_CONTENT_USE_ONCE=true
+                        TEXT_TRANSFORM=
+                        if [[ "${MARKDOWN_REWRITE_LINKS}" == true ]]; then
+                            TEXT_TRANSFORM="links:replace-ext:${MARKDOWN_FILEEXT_CSV}:html"
+                        fi
+                        SUBDOCUMENT_CONTENT=$(mktemp "${MARSH_TEMP}/subdocument-content-XXXXXX") || {
+                            echo "Unable to create subdocument render file: ${MARSH_TEMP}/subdocument-content-XXXXXX" >&2
+                            return 1
+                        }
+                        <"${SUBDOCUMENT_CONTENT_FILE}" marsh_text_transform ${TEXT_TRANSFORM} | marsh_process_markdown "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" > "${SUBDOCUMENT_CONTENT}" || {
+                            echo "Unable to process subdocument markdown: ${SUBDOCUMENT_SOURCE}" >&2
+                            rm -f "${SUBDOCUMENT_CONTENT}"
+                            return 1
+                        }
                     fi
-                    SUBDOCUMENT_CONTENT=$(mktemp "${MARSH_TEMP}/subdocument-content-XXXXXX") || {
-                        echo "Unable to create subdocument render file: ${MARSH_TEMP}/subdocument-content-XXXXXX" >&2
-                        return 1
-                    }
-                    <"${SUBDOCUMENT_CONTENT_FILE}" marsh_text_transform ${TEXT_TRANSFORM} | marsh_process_markdown "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" > "${SUBDOCUMENT_CONTENT}" || {
-                        echo "Unable to process subdocument markdown: ${SUBDOCUMENT_SOURCE}" >&2
-                        rm -f "${SUBDOCUMENT_CONTENT}"
-                        return 1
-                    }
                 else
                     SUBDOCUMENT_CONTENT="${SUBDOCUMENT_CONTENT_FILE}"
                 fi
@@ -5024,25 +5041,25 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
                     SUBDOCUMENT_RENDER=$(printf '%s' "${SUBDOCUMENT_RENDER}" | sed -E -e 's/\{\{[ ]*util.json-separator[ ]*\}\}//g')
                 fi
                 SUBDOCUMENT_RENDER_FILE=$(mktemp "${MARSH_TEMP}/subdocument-render-XXXXXX") || {
-                    [[ "${DOCUMENT_Type}" != "archive-atom" ]] && [[ "${DOCUMENT_Type}" != "archive-json" ]] && rm -f "${SUBDOCUMENT_CONTENT}"
+                    [[ "${SUBDOCUMENT_CONTENT_USE_ONCE}" == true ]] && rm -f "${SUBDOCUMENT_CONTENT}"
                     echo "Unable to create rendered subdocument file: ${MARSH_TEMP}/subdocument-render-XXXXXX" >&2
                     return 1
                 }
                 printf '%s\n' "${SUBDOCUMENT_RENDER}" > "${SUBDOCUMENT_RENDER_FILE}" || {
-                    [[ "${DOCUMENT_Type}" != "archive-atom" ]] && [[ "${DOCUMENT_Type}" != "archive-json" ]] && rm -f "${SUBDOCUMENT_CONTENT}"
+                    [[ "${SUBDOCUMENT_CONTENT_USE_ONCE}" == true ]] && rm -f "${SUBDOCUMENT_CONTENT}"
                     rm -f "${SUBDOCUMENT_RENDER_FILE}"
                     echo "Unable to write rendered subdocument: ${SUBDOCUMENT_SOURCE}" >&2
                     return 1
                 }
                 replace_tags "${SUBDOCUMENT_RENDER_FILE}" "SUBDOCUMENT_" "${SUBDOCUMENT_META_VARS:-}" || {
-                    [[ "${DOCUMENT_Type}" != "archive-atom" ]] && [[ "${DOCUMENT_Type}" != "archive-json" ]] && rm -f "${SUBDOCUMENT_CONTENT}"
+                    [[ "${SUBDOCUMENT_CONTENT_USE_ONCE}" == true ]] && rm -f "${SUBDOCUMENT_CONTENT}"
                     rm -f "${SUBDOCUMENT_RENDER_FILE}"
                     echo "Unable to replace tags in subdocument: ${SUBDOCUMENT_SOURCE}" >&2
                     return 1
                 }
                 # combine with previous subdocuments
                 cat "${SUBDOCUMENT_RENDER_FILE}" >> "${SUBDOCUMENTS_FILE}"
-                [[ "${DOCUMENT_Type}" != "archive-atom" ]] && [[ "${DOCUMENT_Type}" != "archive-json" ]] && rm -f "${SUBDOCUMENT_CONTENT}"
+                [[ "${SUBDOCUMENT_CONTENT_USE_ONCE}" == true ]] && rm -f "${SUBDOCUMENT_CONTENT}"
                 rm -f "${SUBDOCUMENT_RENDER_FILE}"
             done
             awk -v subdocuments_file="${SUBDOCUMENTS_FILE}" '

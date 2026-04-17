@@ -2749,6 +2749,79 @@ function marsh_test {
             marsh_test_restore_env
             ;;
         marsh_build_template:22)
+            TEST_NAME+=":archive_subdocument_content_reuse"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
+            marsh_test_set_env
+            mkdir -p "${TARGET_OUTPUT_ROOT}/news" "${SOURCE_ROOT}/news"
+            marsh_test_create_archive_template "${TEMPLATE_DIR}" "sample" "html" true
+            printf '%s\n' '{{ subdocuments }}' > "${TEMPLATE_DIR}/sample/partials/archive-body.html"
+            printf '%s\n' '<entry>{{ document.content }}</entry>' > "${TEMPLATE_DIR}/sample/partials/archive-document.html"
+            function marsh_test_archive_rendered_markdown_command {
+                sed -E -e 's/^\[([^][]+)\]\(([^)]+)\)$/<p><a href="\2">\1<\/a><\/p>/'
+            }
+            function marsh_test_archive_reprocess_markdown_command {
+                sed -E -e 's/^/<processed>/' -e 's/$/<\/processed>/'
+            }
+            printf '%s\n' \
+                '---' \
+                'Type: post' \
+                'Title: Cached Item' \
+                'Date: 2026-01-01' \
+                '...' \
+                '' \
+                '[About](about.markdown)' > "${SOURCE_ROOT}/news/item.markdown"
+            marsh_build_document "${TARGET_OUTPUT_ROOT}" "." "news/item.markdown" "marsh_test_archive_rendered_markdown_command" "" "markdown,md" "true" "." "${SOURCE_ROOT}" >/dev/null 2>&1
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                printf '%s\n' \
+                    '---' \
+                    'Type: post' \
+                    'Title: Broken Item' \
+                    'Date: 2026-01-02' \
+                    '...' \
+                    '' \
+                    '[Broken](broken.markdown)' > "${SOURCE_ROOT}/news/item.markdown"
+                ACTUAL=$(marsh_build_archive "html" "${TARGET_OUTPUT_ROOT}" "index.markdown" "Archive" "English" "en" "" "" "1" "post" "0" 2>/dev/null)
+                EXPECTED='index.markdown'
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    marsh_build_document "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" >/dev/null 2>&1
+                    ACTUAL=$?
+                    EXPECTED=0
+                    ASSERTION="equals"
+                    if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                        marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "" false "${TEMPLATE_DIR}" "sample" false "marsh_test_archive_reprocess_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+                        ACTUAL=$?
+                        EXPECTED=0
+                        ASSERTION="equals"
+                        if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                            ACTUAL=$(<"${TARGET_OUTPUT_ROOT}/index.html")
+                            ASSERTION="contains"
+                            EXPECTED='<a href="about.html">About</a>'
+                            if printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
+                                ASSERTION="not-contains"
+                                EXPECTED='<processed>'
+                                if ! printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
+                                    ASSERTION="not-contains"
+                                    EXPECTED='broken.markdown'
+                                    if ! printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
+                                        RES="[PASS]"
+                                    fi
+                                fi
+                            fi
+                        fi
+                    fi
+                fi
+            fi
+            unset -f marsh_test_archive_rendered_markdown_command marsh_test_archive_reprocess_markdown_command
+            rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}" "${SOURCE_ROOT}"
+            marsh_test_restore_env
+            ;;
+        marsh_build_template:23)
             TEST_NAME+=":conditional_cache_reuse"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
@@ -2801,7 +2874,7 @@ function marsh_test {
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}" "${MARSH_TEST_TEMP}/conditional-partial-cache" "${MARSH_TEST_TEMP}/conditional-tag-cache"
             marsh_test_restore_env
             ;;
-        marsh_build_template:23)
+        marsh_build_template:24)
             TEST_NAME+=":conditional_cache_distinct_outcomes"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
@@ -2854,7 +2927,7 @@ function marsh_test {
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}" "${MARSH_TEST_TEMP}/conditional-partial-cache" "${MARSH_TEST_TEMP}/conditional-tag-cache"
             marsh_test_restore_env
             ;;
-        marsh_build_template:24)
+        marsh_build_template:25)
             TEST_NAME+=":processed_sitemap_cache_selected_link"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
@@ -2912,7 +2985,7 @@ function marsh_test {
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}" "${SOURCE_DIR}"
             marsh_test_restore_env
             ;;
-        marsh_build_template:25)
+        marsh_build_template:26)
             TEST_NAME+=":archive_render_temp_publish_html"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
@@ -2964,7 +3037,7 @@ function marsh_test {
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}"
             marsh_test_restore_env
             ;;
-        marsh_build_template:26)
+        marsh_build_template:27)
             TEST_NAME+=":archive_render_temp_publish_json"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
@@ -3007,7 +3080,7 @@ function marsh_test {
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}"
             marsh_test_restore_env
             ;;
-        marsh_build_template:27)
+        marsh_build_template:28)
             TEST_NAME+=":document_render_temp_publish_html"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
@@ -3052,7 +3125,7 @@ function marsh_test {
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}"
             marsh_test_restore_env
             ;;
-        marsh_build_template:28)
+        marsh_build_template:29)
             TEST_NAME+=":document_render_temp_publish_without_template"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             marsh_test_set_env
@@ -3093,7 +3166,7 @@ function marsh_test {
             rm -rf "${TARGET_OUTPUT_ROOT}"
             marsh_test_restore_env
             ;;
-        marsh_build_template:29)
+        marsh_build_template:30)
             TEST_NAME+=":render_tree_has_no_adjacent_scratch_files"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
@@ -3139,7 +3212,7 @@ function marsh_test {
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}"
             marsh_test_restore_env
             ;;
-        marsh_build_template:30)
+        marsh_build_template:31)
             TEST_NAME+=":source_root_preferred_over_output_tree"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
@@ -3167,7 +3240,7 @@ function marsh_test {
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}" "${SOURCE_ROOT}"
             marsh_test_restore_env
             ;;
-        marsh_build_template:31)
+        marsh_build_template:32)
             TEST_NAME+=":missing_source_root"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"

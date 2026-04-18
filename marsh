@@ -2636,6 +2636,97 @@ function marsh_get_template_assets {  # marsh_get_template_assets templates_dir 
     done
 }
 
+# loads cached target-relative template asset output paths for one template context
+function marsh_get_template_asset_output_paths {  # marsh_get_template_asset_output_paths target_output_rel templates_dir template #template_overrides[@] template_overrides[@] template_assets_path
+    local TARGET_OUTPUT_REL TEMPLATES_DIR TEMPLATE NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDES TEMPLATE_ASSETS_PATH
+    local CACHE_DIR CACHE_KEY CACHE_FILE CACHE_TEMP TEMPLATE_PREFIX TEMPLATE_META TEMPLATE_META_VARS
+    local ASSET_TYPES ASSET_TYPE ASSETS_VAR ASSETS ASSET ASSET_PATH ASSET_OUTPUT_PATH
+    local OUTPUT OIFS
+
+    # init
+    TARGET_OUTPUT_REL="${1:-}"
+    TEMPLATES_DIR="${2:-}"
+    TEMPLATE="${3:-}"
+    [[ "${TARGET_OUTPUT_REL}" == "" ]] && return 1
+    [[ "${TEMPLATES_DIR}" == "" ]] && return 1
+    [[ "${TEMPLATE}" == "" ]] && return 1
+    shift 3
+    NUM_TEMPLATE_OVERRIDES="${1:-0}"
+    shift 1
+    TEMPLATE_OVERRIDES=()
+    while [[ "${NUM_TEMPLATE_OVERRIDES}" -gt 0 ]] && [[ "${#@}" -gt 0 ]]; do
+        TEMPLATE_OVERRIDES+=("${1}")
+        NUM_TEMPLATE_OVERRIDES=$((NUM_TEMPLATE_OVERRIDES - 1))
+        shift 1
+    done
+    TEMPLATE_ASSETS_PATH="${1:-}"
+
+    # normalize cache inputs so equivalent paths share one entry
+    TARGET_OUTPUT_REL=$(marsh_normalize_internal_path "${TARGET_OUTPUT_REL}") || return 1
+    TEMPLATE_ASSETS_PATH="${TEMPLATE_ASSETS_PATH#/}"
+    if [[ "${TEMPLATE_ASSETS_PATH}" != "" ]]; then
+        TEMPLATE_ASSETS_PATH=$(marsh_normalize_internal_path "${TEMPLATE_ASSETS_PATH}") || return 1
+        [[ "${TEMPLATE_ASSETS_PATH}" == "." ]] && TEMPLATE_ASSETS_PATH=""
+    fi
+
+    CACHE_DIR="${MARSH_TEMP}/template-asset-output-cache"
+    mkdir -p "${CACHE_DIR}" >/dev/null 2>&1 || {
+        echo "Unable to create template asset output cache directory: ${CACHE_DIR}" >&2
+        return 1
+    }
+    CACHE_KEY=$({
+        printf '%s\034%s\034%s\034' "${TARGET_OUTPUT_REL}" "${TEMPLATES_DIR}/${TEMPLATE}" "${TEMPLATE_ASSETS_PATH}"
+        printf '%s\034' "${TEMPLATE_OVERRIDES[@]}"
+    } | marsh_text_transform hash:md5) || return 1
+    CACHE_FILE="${CACHE_DIR}/${CACHE_KEY}.paths"
+    # reuse precomputed target-relative outputs for the same template context
+    if [[ -f "${CACHE_FILE}" ]] && [[ -r "${CACHE_FILE}" ]]; then
+        cat "${CACHE_FILE}"
+        return 0
+    fi
+
+    # load template metadata once before resolving each asset type
+    TEMPLATE_PREFIX="TEMPLATE_"
+    TEMPLATE_META=$(marsh_get_template_metadata "${TEMPLATE_PREFIX}" "${TEMPLATES_DIR}/${TEMPLATE}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}") || {
+        echo "Unable to load template metadata: ${TEMPLATES_DIR}/${TEMPLATE}" >&2
+        return 1
+    }
+    TEMPLATE_META_VARS=$(echo "${TEMPLATE_META}" | marsh_get_variables)
+    eval "$(printf '%s\n' "${TEMPLATE_META_VARS}" | marsh_get_local_declarations)"
+    eval "${TEMPLATE_META}"
+
+    # store shell assignments so callers can eval one cached output map
+    ASSET_TYPES=('FONTS' 'STYLES' 'SCRIPTS' 'IMAGES' 'AUDIO' 'VIDEO' 'DOCUMENTS' 'BINARIES' 'OTHER')
+    OUTPUT=""
+    for ASSET_TYPE in "${ASSET_TYPES[@]}"; do
+        OUTPUT+="TEMPLATE_ASSET_OUTPUT_PATHS_${ASSET_TYPE}=()"$'\n'
+        ASSETS_VAR="TEMPLATE_ASSETS_${ASSET_TYPE}[@]"
+        OIFS="${IFS}"
+        IFS=$'\n'
+        ASSETS=(${!ASSETS_VAR})
+        IFS="${OIFS}"
+        for ASSET in "${ASSETS[@]}"; do
+            [[ "${ASSET}" == "" ]] && continue
+            ASSET_PATH="${ASSET%\?*}"
+            ASSET_OUTPUT_PATH=$(marsh_resolve_template_asset_output_path "${TARGET_OUTPUT_REL}" "${ASSET_PATH}" "${TEMPLATE_ASSETS_PATH}") || return 1
+            OUTPUT+="TEMPLATE_ASSET_OUTPUT_PATHS_${ASSET_TYPE}+=(\"${ASSET_OUTPUT_PATH//\"/\\\"}\")"$'\n'
+        done
+    done
+
+    # write the cached output map atomically
+    CACHE_TEMP=$(mktemp "${CACHE_DIR}/paths-XXXXXX") || {
+        echo "Unable to create template asset output cache file: ${CACHE_DIR}/paths-XXXXXX" >&2
+        return 1
+    }
+    printf '%s' "${OUTPUT}" > "${CACHE_TEMP}" || {
+        echo "Unable to write template asset output cache file: ${CACHE_TEMP}" >&2
+        rm -f "${CACHE_TEMP}"
+        return 1
+    }
+    mv "${CACHE_TEMP}" "${CACHE_FILE}" 2>/dev/null || rm -f "${CACHE_TEMP}"
+    printf '%s' "${OUTPUT}"
+}
+
 # copies template assets into the build output, resolving output paths relative to the target root
 function marsh_copy_template_assets {  # marsh_copy_template_assets site_output_root target_output_rel verbose templates_dir template #template_overrides[@] template_overrides[@] template_assets_path
     local SITE_OUTPUT_ROOT TARGET_OUTPUT_REL VERBOSE TEMPLATES_DIR TEMPLATE NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDES TEMPLATE_ASSETS_PATH TEMPLATE_ASSETS
@@ -4567,6 +4658,8 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
     local TEMPLATE_ASSET_TYPES TEMPLATE_ASSET_TYPE ASSET ASSET_PATH ASSET_OUTPUT_PATH ASSET_QUERY ASSET_HREF
     local TEMPLATE_TAG_ASSETS_FONTS TEMPLATE_TAG_ASSETS_STYLES TEMPLATE_TAG_ASSETS_SCRIPTS TEMPLATE_TAG_ASSETS_IMAGES
     local TEMPLATE_TAG_ASSETS_AUDIO TEMPLATE_TAG_ASSETS_VIDEO TEMPLATE_TAG_ASSETS_DOCUMENTS TEMPLATE_TAG_ASSETS_BINARIES TEMPLATE_TAG_ASSETS_OTHER
+    local TEMPLATE_ASSET_OUTPUT_PATHS_FONTS TEMPLATE_ASSET_OUTPUT_PATHS_STYLES TEMPLATE_ASSET_OUTPUT_PATHS_SCRIPTS TEMPLATE_ASSET_OUTPUT_PATHS_IMAGES
+    local TEMPLATE_ASSET_OUTPUT_PATHS_AUDIO TEMPLATE_ASSET_OUTPUT_PATHS_VIDEO TEMPLATE_ASSET_OUTPUT_PATHS_DOCUMENTS TEMPLATE_ASSET_OUTPUT_PATHS_BINARIES TEMPLATE_ASSET_OUTPUT_PATHS_OTHER
     local TEMPLATE_HEAD_ESC TEMPLATE_BODY_ESC TEMPLATE_DOCUMENT_ESC TEMPLATE_HEADER_ESC TEMPLATE_FOOTER_ESC
     local TEMPLATE_NAV_ESC TEMPLATE_NOTICE_ESC
     local DOCUMENT_META DOCUMENT_META_VARS DOCUMENT_META_PATH DOCUMENT_CONTENT
@@ -4578,7 +4671,7 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
     local SUBDOCUMENT_DOCUMENT_ESC SUBDOCUMENT_URI_ESC SUBDOCUMENT_ABSPATH_ESC
     local SUBDOCUMENTS_FILE
     local DEST_SCRATCH
-    local TEXT_TRANSFORM UTIL_JSON_SEPARATOR I J
+    local TEXT_TRANSFORM UTIL_JSON_SEPARATOR I J ASSET_INDEX
     local SUBDOCUMENT_CONTENT_IS_RENDERED SUBDOCUMENT_CONTENT_USE_ONCE
     local DOCUMENT_State SUBDOCUMENT_State
     local SITEMAP SITEMAP_DIR SITEMAP_NAME SITEMAP_OUTPUT_PATH SITEMAP_HREF SITEMAP_RENDER_PATH PROCESSED_SITEMAP_PATH SITEMAP_LOOKUP_PATH
@@ -4853,6 +4946,7 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
         TEMPLATE_TAG_ASSETS_DOCUMENTS=()
         TEMPLATE_TAG_ASSETS_BINARIES=()
         TEMPLATE_TAG_ASSETS_OTHER=()
+        eval "$(marsh_get_template_asset_output_paths "${TARGET_OUTPUT_REL:-.}" "${TEMPLATE_DIR}" "${TEMPLATE}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_ASSETS_PATH}")" || return 1
 
         # sitemap
         TARGET_SITEMAP=""
@@ -4901,82 +4995,100 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
         for TEMPLATE_ASSET_TYPE in "${TEMPLATE_ASSET_TYPES[@]}"; do
             case "${TEMPLATE_ASSET_TYPE}" in
                 FONTS)
-                    for ASSET in "${TEMPLATE_ASSETS_FONTS[@]}"; do
+                    for ASSET_INDEX in "${!TEMPLATE_ASSETS_FONTS[@]}"; do
+                        ASSET="${TEMPLATE_ASSETS_FONTS[$ASSET_INDEX]}"
                         ASSET_PATH="${ASSET%\?*}"
                         ASSET_QUERY="${ASSET#${ASSET_PATH}}"
-                        ASSET_OUTPUT_PATH=$(marsh_resolve_template_asset_output_path "${TARGET_OUTPUT_REL:-.}" "${ASSET_PATH}" "${TEMPLATE_ASSETS_PATH}") || return 1
+                        ASSET_OUTPUT_PATH="${TEMPLATE_ASSET_OUTPUT_PATHS_FONTS[$ASSET_INDEX]:-}"
+                        [[ "${ASSET_OUTPUT_PATH}" != "" ]] || return 1
                         ASSET_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_REL}" "${ASSET_OUTPUT_PATH}") || return 1
                         TEMPLATE_TAG_ASSETS_FONTS+=("${ASSET_HREF}${ASSET_QUERY}")
                     done
                     ;;
                 STYLES)
-                    for ASSET in "${TEMPLATE_ASSETS_STYLES[@]}"; do
+                    for ASSET_INDEX in "${!TEMPLATE_ASSETS_STYLES[@]}"; do
+                        ASSET="${TEMPLATE_ASSETS_STYLES[$ASSET_INDEX]}"
                         ASSET_PATH="${ASSET%\?*}"
                         ASSET_QUERY="${ASSET#${ASSET_PATH}}"
-                        ASSET_OUTPUT_PATH=$(marsh_resolve_template_asset_output_path "${TARGET_OUTPUT_REL:-.}" "${ASSET_PATH}" "${TEMPLATE_ASSETS_PATH}") || return 1
+                        ASSET_OUTPUT_PATH="${TEMPLATE_ASSET_OUTPUT_PATHS_STYLES[$ASSET_INDEX]:-}"
+                        [[ "${ASSET_OUTPUT_PATH}" != "" ]] || return 1
                         ASSET_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_REL}" "${ASSET_OUTPUT_PATH}") || return 1
                         TEMPLATE_TAG_ASSETS_STYLES+=("${ASSET_HREF}${ASSET_QUERY}")
                     done
                     ;;
                 SCRIPTS)
-                    for ASSET in "${TEMPLATE_ASSETS_SCRIPTS[@]}"; do
+                    for ASSET_INDEX in "${!TEMPLATE_ASSETS_SCRIPTS[@]}"; do
+                        ASSET="${TEMPLATE_ASSETS_SCRIPTS[$ASSET_INDEX]}"
                         ASSET_PATH="${ASSET%\?*}"
                         ASSET_QUERY="${ASSET#${ASSET_PATH}}"
-                        ASSET_OUTPUT_PATH=$(marsh_resolve_template_asset_output_path "${TARGET_OUTPUT_REL:-.}" "${ASSET_PATH}" "${TEMPLATE_ASSETS_PATH}") || return 1
+                        ASSET_OUTPUT_PATH="${TEMPLATE_ASSET_OUTPUT_PATHS_SCRIPTS[$ASSET_INDEX]:-}"
+                        [[ "${ASSET_OUTPUT_PATH}" != "" ]] || return 1
                         ASSET_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_REL}" "${ASSET_OUTPUT_PATH}") || return 1
                         TEMPLATE_TAG_ASSETS_SCRIPTS+=("${ASSET_HREF}${ASSET_QUERY}")
                     done
                     ;;
                 IMAGES)
-                    for ASSET in "${TEMPLATE_ASSETS_IMAGES[@]}"; do
+                    for ASSET_INDEX in "${!TEMPLATE_ASSETS_IMAGES[@]}"; do
+                        ASSET="${TEMPLATE_ASSETS_IMAGES[$ASSET_INDEX]}"
                         ASSET_PATH="${ASSET%\?*}"
                         ASSET_QUERY="${ASSET#${ASSET_PATH}}"
-                        ASSET_OUTPUT_PATH=$(marsh_resolve_template_asset_output_path "${TARGET_OUTPUT_REL:-.}" "${ASSET_PATH}" "${TEMPLATE_ASSETS_PATH}") || return 1
+                        ASSET_OUTPUT_PATH="${TEMPLATE_ASSET_OUTPUT_PATHS_IMAGES[$ASSET_INDEX]:-}"
+                        [[ "${ASSET_OUTPUT_PATH}" != "" ]] || return 1
                         ASSET_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_REL}" "${ASSET_OUTPUT_PATH}") || return 1
                         TEMPLATE_TAG_ASSETS_IMAGES+=("${ASSET_HREF}${ASSET_QUERY}")
                     done
                     ;;
                 AUDIO)
-                    for ASSET in "${TEMPLATE_ASSETS_AUDIO[@]}"; do
+                    for ASSET_INDEX in "${!TEMPLATE_ASSETS_AUDIO[@]}"; do
+                        ASSET="${TEMPLATE_ASSETS_AUDIO[$ASSET_INDEX]}"
                         ASSET_PATH="${ASSET%\?*}"
                         ASSET_QUERY="${ASSET#${ASSET_PATH}}"
-                        ASSET_OUTPUT_PATH=$(marsh_resolve_template_asset_output_path "${TARGET_OUTPUT_REL:-.}" "${ASSET_PATH}" "${TEMPLATE_ASSETS_PATH}") || return 1
+                        ASSET_OUTPUT_PATH="${TEMPLATE_ASSET_OUTPUT_PATHS_AUDIO[$ASSET_INDEX]:-}"
+                        [[ "${ASSET_OUTPUT_PATH}" != "" ]] || return 1
                         ASSET_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_REL}" "${ASSET_OUTPUT_PATH}") || return 1
                         TEMPLATE_TAG_ASSETS_AUDIO+=("${ASSET_HREF}${ASSET_QUERY}")
                     done
                     ;;
                 VIDEO)
-                    for ASSET in "${TEMPLATE_ASSETS_VIDEO[@]}"; do
+                    for ASSET_INDEX in "${!TEMPLATE_ASSETS_VIDEO[@]}"; do
+                        ASSET="${TEMPLATE_ASSETS_VIDEO[$ASSET_INDEX]}"
                         ASSET_PATH="${ASSET%\?*}"
                         ASSET_QUERY="${ASSET#${ASSET_PATH}}"
-                        ASSET_OUTPUT_PATH=$(marsh_resolve_template_asset_output_path "${TARGET_OUTPUT_REL:-.}" "${ASSET_PATH}" "${TEMPLATE_ASSETS_PATH}") || return 1
+                        ASSET_OUTPUT_PATH="${TEMPLATE_ASSET_OUTPUT_PATHS_VIDEO[$ASSET_INDEX]:-}"
+                        [[ "${ASSET_OUTPUT_PATH}" != "" ]] || return 1
                         ASSET_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_REL}" "${ASSET_OUTPUT_PATH}") || return 1
                         TEMPLATE_TAG_ASSETS_VIDEO+=("${ASSET_HREF}${ASSET_QUERY}")
                     done
                     ;;
                 DOCUMENTS)
-                    for ASSET in "${TEMPLATE_ASSETS_DOCUMENTS[@]}"; do
+                    for ASSET_INDEX in "${!TEMPLATE_ASSETS_DOCUMENTS[@]}"; do
+                        ASSET="${TEMPLATE_ASSETS_DOCUMENTS[$ASSET_INDEX]}"
                         ASSET_PATH="${ASSET%\?*}"
                         ASSET_QUERY="${ASSET#${ASSET_PATH}}"
-                        ASSET_OUTPUT_PATH=$(marsh_resolve_template_asset_output_path "${TARGET_OUTPUT_REL:-.}" "${ASSET_PATH}" "${TEMPLATE_ASSETS_PATH}") || return 1
+                        ASSET_OUTPUT_PATH="${TEMPLATE_ASSET_OUTPUT_PATHS_DOCUMENTS[$ASSET_INDEX]:-}"
+                        [[ "${ASSET_OUTPUT_PATH}" != "" ]] || return 1
                         ASSET_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_REL}" "${ASSET_OUTPUT_PATH}") || return 1
                         TEMPLATE_TAG_ASSETS_DOCUMENTS+=("${ASSET_HREF}${ASSET_QUERY}")
                     done
                     ;;
                 BINARIES)
-                    for ASSET in "${TEMPLATE_ASSETS_BINARIES[@]}"; do
+                    for ASSET_INDEX in "${!TEMPLATE_ASSETS_BINARIES[@]}"; do
+                        ASSET="${TEMPLATE_ASSETS_BINARIES[$ASSET_INDEX]}"
                         ASSET_PATH="${ASSET%\?*}"
                         ASSET_QUERY="${ASSET#${ASSET_PATH}}"
-                        ASSET_OUTPUT_PATH=$(marsh_resolve_template_asset_output_path "${TARGET_OUTPUT_REL:-.}" "${ASSET_PATH}" "${TEMPLATE_ASSETS_PATH}") || return 1
+                        ASSET_OUTPUT_PATH="${TEMPLATE_ASSET_OUTPUT_PATHS_BINARIES[$ASSET_INDEX]:-}"
+                        [[ "${ASSET_OUTPUT_PATH}" != "" ]] || return 1
                         ASSET_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_REL}" "${ASSET_OUTPUT_PATH}") || return 1
                         TEMPLATE_TAG_ASSETS_BINARIES+=("${ASSET_HREF}${ASSET_QUERY}")
                     done
                     ;;
                 OTHER)
-                    for ASSET in "${TEMPLATE_ASSETS_OTHER[@]}"; do
+                    for ASSET_INDEX in "${!TEMPLATE_ASSETS_OTHER[@]}"; do
+                        ASSET="${TEMPLATE_ASSETS_OTHER[$ASSET_INDEX]}"
                         ASSET_PATH="${ASSET%\?*}"
                         ASSET_QUERY="${ASSET#${ASSET_PATH}}"
-                        ASSET_OUTPUT_PATH=$(marsh_resolve_template_asset_output_path "${TARGET_OUTPUT_REL:-.}" "${ASSET_PATH}" "${TEMPLATE_ASSETS_PATH}") || return 1
+                        ASSET_OUTPUT_PATH="${TEMPLATE_ASSET_OUTPUT_PATHS_OTHER[$ASSET_INDEX]:-}"
+                        [[ "${ASSET_OUTPUT_PATH}" != "" ]] || return 1
                         ASSET_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_REL}" "${ASSET_OUTPUT_PATH}") || return 1
                         TEMPLATE_TAG_ASSETS_OTHER+=("${ASSET_HREF}${ASSET_QUERY}")
                     done

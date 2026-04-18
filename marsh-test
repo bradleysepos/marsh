@@ -4321,79 +4321,6 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_get_sitemap_rendered_path:0)
-            TEST_NAME+=":target_level"
-            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
-            mkdir -p "${TARGET_OUTPUT_ROOT}"
-            SITEMAP_RENDER_FILE=$(marsh_get_sitemap_render_path "${TARGET_OUTPUT_ROOT}" "nav.html")
-            mkdir -p "${SITEMAP_RENDER_FILE%/*}"
-            : > "${SITEMAP_RENDER_FILE}"
-            ACTUAL=$(marsh_get_sitemap_rendered_path "${TARGET_OUTPUT_ROOT}" "news/article.markdown" "nav.html")
-            EXPECTED="${SITEMAP_RENDER_FILE#${TARGET_OUTPUT_ROOT}/}"
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                RES="[PASS]"
-            fi
-            rm -rf "${TARGET_OUTPUT_ROOT}"
-            ;;
-        marsh_get_sitemap_rendered_path:1)
-            TEST_NAME+=":relative_path_key"
-            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
-            mkdir -p "${TARGET_OUTPUT_ROOT}"
-            SITEMAP_RENDER_FILE=$(marsh_get_sitemap_render_path "${TARGET_OUTPUT_ROOT}" "../site-map/index.markdown")
-            mkdir -p "${SITEMAP_RENDER_FILE%/*}"
-            : > "${SITEMAP_RENDER_FILE}"
-            ACTUAL=$(marsh_get_sitemap_rendered_path "${TARGET_OUTPUT_ROOT}" "news/world/article.markdown" "../site-map/index.markdown")
-            EXPECTED="${SITEMAP_RENDER_FILE#${TARGET_OUTPUT_ROOT}/}"
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                RES="[PASS]"
-            fi
-            rm -rf "${TARGET_OUTPUT_ROOT}"
-            ;;
-        marsh_get_sitemap_rendered_path:2)
-            TEST_NAME+=":missing"
-            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
-            mkdir -p "${TARGET_OUTPUT_ROOT}/news"
-            marsh_get_sitemap_rendered_path "${TARGET_OUTPUT_ROOT}" "news/article.markdown" "nav.html" 2>/dev/null
-            ACTUAL=$?
-            EXPECTED=1
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" -eq "${EXPECTED}" ]]; then
-                RES="[PASS]"
-            fi
-            rm -rf "${TARGET_OUTPUT_ROOT}"
-            ;;
-        marsh_get_sitemap_rendered_path:3)
-            TEST_NAME+=":search_nearest"
-            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
-            mkdir -p "${TARGET_OUTPUT_ROOT}"
-            SITEMAP_RENDER_FILE=$(marsh_get_sitemap_render_path "${TARGET_OUTPUT_ROOT}" "news/world/sitemap.markdown")
-            mkdir -p "${SITEMAP_RENDER_FILE%/*}"
-            : > "${SITEMAP_RENDER_FILE}"
-            ACTUAL=$(marsh_get_sitemap_rendered_path "${TARGET_OUTPUT_ROOT}" "news/world/article.markdown" "sitemap.markdown" true)
-            EXPECTED="${SITEMAP_RENDER_FILE#${TARGET_OUTPUT_ROOT}/}"
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                RES="[PASS]"
-            fi
-            rm -rf "${TARGET_OUTPUT_ROOT}"
-            ;;
-        marsh_get_sitemap_rendered_path:4)
-            TEST_NAME+=":search_parent"
-            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
-            mkdir -p "${TARGET_OUTPUT_ROOT}"
-            SITEMAP_RENDER_FILE=$(marsh_get_sitemap_render_path "${TARGET_OUTPUT_ROOT}" "news/sitemap.markdown")
-            mkdir -p "${SITEMAP_RENDER_FILE%/*}"
-            : > "${SITEMAP_RENDER_FILE}"
-            ACTUAL=$(marsh_get_sitemap_rendered_path "${TARGET_OUTPUT_ROOT}" "news/world/article.markdown" "sitemap.markdown" true)
-            EXPECTED="${SITEMAP_RENDER_FILE#${TARGET_OUTPUT_ROOT}/}"
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                RES="[PASS]"
-            fi
-            rm -rf "${TARGET_OUTPUT_ROOT}"
-            ;;
         marsh_get_sitemap_temp_path:0)
             TEST_NAME+=":root_target_content"
             MARSH_CONFIG_PATH="/site/public"
@@ -7995,7 +7922,6 @@ KNOWN_FUNCTIONS=(
     marsh_get_site_source_root_path
     marsh_get_sitemap_lookup_path
     marsh_get_sitemap_render_path
-    marsh_get_sitemap_rendered_path
     marsh_get_sitemap_temp_path
     marsh_get_source_inventory
     marsh_get_source_root_path

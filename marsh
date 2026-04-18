@@ -1773,28 +1773,6 @@ function marsh_get_sitemap_lookup_path {  # marsh_get_sitemap_lookup_path target
     return 1
 }
 
-function marsh_get_sitemap_rendered_path {  # marsh_get_sitemap_rendered_path target_output_root document sitemap_file [sitemap_search]
-    local TARGET_OUTPUT_ROOT DOCUMENT SITEMAP_FILE SITEMAP_SEARCH SITEMAP_LOOKUP_PATH SITEMAP_RENDER_FILE
-
-    # init
-    TARGET_OUTPUT_ROOT="${1:-}"
-    DOCUMENT="${2:-}"
-    SITEMAP_FILE="${3:-}"
-    SITEMAP_SEARCH="${4:-false}"
-    [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
-    [[ "${DOCUMENT}" == "" ]] && return 1
-    [[ "${SITEMAP_FILE}" == "" ]] && return 1
-    TARGET_OUTPUT_ROOT=$(marsh_get_target_directory_path "${TARGET_OUTPUT_ROOT}") || return 1
-
-    SITEMAP_LOOKUP_PATH=$(marsh_get_sitemap_lookup_path "${TARGET_OUTPUT_ROOT}" "${DOCUMENT}" "${SITEMAP_FILE}" "${SITEMAP_SEARCH}") || return 1
-    SITEMAP_RENDER_FILE=$(marsh_get_sitemap_render_path "${TARGET_OUTPUT_ROOT}" "${SITEMAP_LOOKUP_PATH}") || return 1
-    if [[ -f "${SITEMAP_RENDER_FILE}" ]] && [[ -r "${SITEMAP_RENDER_FILE}" ]]; then
-        printf '%s\n' "${SITEMAP_RENDER_FILE#${TARGET_OUTPUT_ROOT}/}"
-        return 0
-    fi
-    return 1
-}
-
 # checks for required external tools
 function marsh_check_dependencies {  # marsh_check_dependencies $DEP1 $DEP2 ...
     local DEPS ERRORS DEPS_EACH DEPS_MULTI FOUND DEP

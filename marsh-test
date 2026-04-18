@@ -101,6 +101,14 @@ if [[ "${MARSH_FOUND}" == false ]]; then
     echo "Error: marsh not found at '${MARSH}'" >&2
     exit 1
 fi
+MD5_FOUND=false
+if command -v md5 >/dev/null 2>&1 || command -v md5sum >/dev/null 2>&1; then
+    MD5_FOUND=true
+fi
+if [[ "${MD5_FOUND}" == false ]]; then
+    echo "Error: md5|md5sum not found" >&2
+    exit 1
+fi
 
 # temp dir
 TEMP_DIR="${TMPDIR:-/tmp}"

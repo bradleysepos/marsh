@@ -7909,6 +7909,8 @@ KNOWN_FUNCTIONS=(
     marsh_get_absolute_output_path
     marsh_get_archive_manifest
     marsh_get_archive_metadata
+    marsh_get_archive_page_uri
+    marsh_get_archive_root_path
     marsh_get_archive_temp_path
     marsh_get_common_directory
     marsh_get_document_artifacts

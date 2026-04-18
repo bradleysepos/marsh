@@ -1227,120 +1227,6 @@ function marsh_test {
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}" "${MANIFEST_FILE}"
             ;;
         marsh_build_planned_target:0)
-            TEST_NAME+=":executes_target_plan"
-            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
-            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
-            SOURCE_SCOPE="${SOURCE_ROOT}/pages"
-            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
-            TARGET_PLAN_ROOT=""
-            mkdir -p "${SOURCE_SCOPE}/assets"
-            marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
-            printf '%s\n' '---'$'\n''Title: Home'$'\n''...'$'\n'''$'\n''# Home' > "${SOURCE_SCOPE}/index.markdown"
-            printf '%s\n' '# Site Map' > "${SOURCE_ROOT}/site-map.markdown"
-            printf '%s\n' 'download' > "${SOURCE_SCOPE}/assets/manual.txt"
-            TARGET_PLAN_ROOT=$(marsh_plan_target "${SOURCE_ROOT}" "${TARGET_OUTPUT_ROOT}" "." false "${SOURCE_SCOPE}" "../site-map.markdown" false "${TEMPLATE_DIR}" "sample" 0 "" "${SOURCE_SCOPE}" "markdown,md")
-            marsh_build_planned_target "${TARGET_OUTPUT_ROOT}" false "1" "marsh_test_markdown_command" "" "markdown,md" true "${TARGET_PLAN_ROOT}" >/dev/null 2>&1
-            ACTUAL=$?
-            EXPECTED=0
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                SITEMAP_RENDER=$(marsh_get_sitemap_render_path "${TARGET_OUTPUT_ROOT}" "../site-map.markdown")
-                {
-                    [[ -e "${TARGET_OUTPUT_ROOT}/index.html" ]] \
-                        && [[ -e "${TARGET_OUTPUT_ROOT}/assets/manual.txt" ]] \
-                        && [[ -e "${TARGET_OUTPUT_ROOT}/css/site.css" ]] \
-                        && [[ -e "${SITEMAP_RENDER}" ]]
-                }
-                ACTUAL=$?
-                EXPECTED=0
-                ASSERTION="equals"
-                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    RES="[PASS]"
-                fi
-            fi
-            rm -rf "${TARGET_OUTPUT_ROOT}" "${SOURCE_ROOT}" "${TEMPLATE_DIR}"
-            ;;
-        marsh_build_planned_target_documents:0)
-            TEST_NAME+=":serial_success"
-            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
-            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
-            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
-            DOCUMENT_RECORDS=()
-            mkdir -p "${SOURCE_ROOT}/about"
-            marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
-            printf '%s\n' '---'$'\n''Title: Home'$'\n''...'$'\n'''$'\n''# Home' > "${SOURCE_ROOT}/index.markdown"
-            printf '%s\n' '---'$'\n''Title: About'$'\n''...'$'\n'''$'\n''# About' > "${SOURCE_ROOT}/about/index.markdown"
-            while IFS= read -r DOCUMENT_RECORD; do
-                [[ "${DOCUMENT_RECORD}" == "" ]] && continue
-                DOCUMENT_RECORDS+=("${DOCUMENT_RECORD}")
-            done < <(marsh_plan_target_documents "${TARGET_OUTPUT_ROOT}" "." "." "${SOURCE_ROOT}" "markdown,md")
-            marsh_build_planned_target_documents "${TARGET_OUTPUT_ROOT}" false "1" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" true 0 "" "${DOCUMENT_RECORDS[@]}" >/dev/null 2>&1
-            ACTUAL=$?
-            EXPECTED=0
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                {
-                    [[ -e "${TARGET_OUTPUT_ROOT}/index.html" ]] \
-                        && [[ -e "${TARGET_OUTPUT_ROOT}/about/index.html" ]]
-                }
-                ACTUAL=$?
-                EXPECTED=0
-                ASSERTION="equals"
-                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    RES="[PASS]"
-                fi
-            fi
-            rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}" "${SOURCE_ROOT}"
-            ;;
-        marsh_build_planned_target_documents:1)
-            TEST_NAME+=":empty_batch_noop"
-            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
-            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
-            mkdir -p "${TARGET_OUTPUT_ROOT}"
-            marsh_test_create_archive_template "${TEMPLATE_DIR}" "sample" "html" true
-            marsh_build_planned_target_documents "${TARGET_OUTPUT_ROOT}" false "1" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" true 0 "" >/dev/null 2>&1
-            ACTUAL=$?
-            EXPECTED=0
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                [[ ! -e "${TARGET_OUTPUT_ROOT}/news/index.html" ]]
-                ACTUAL=$?
-                EXPECTED=0
-                ASSERTION="equals"
-                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    RES="[PASS]"
-                fi
-            fi
-            rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}"
-            ;;
-        marsh_build_planned_target_sitemaps:0)
-            TEST_NAME+=":explicit"
-            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
-            SITE_SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
-            TARGET_SITEMAP_RECORDS=()
-            mkdir -p "${SITE_SOURCE_ROOT}/site-map"
-            printf '%s\n' '# Site Map' > "${SITE_SOURCE_ROOT}/site-map/index.markdown"
-            while IFS= read -r TARGET_SITEMAP_RECORD; do
-                [[ "${TARGET_SITEMAP_RECORD}" == "" ]] && continue
-                TARGET_SITEMAP_RECORDS+=("${TARGET_SITEMAP_RECORD}")
-            done < <(marsh_plan_target_sitemaps "${SITE_SOURCE_ROOT}" "${SITE_SOURCE_ROOT}" "site-map/index.markdown" false "${TARGET_OUTPUT_ROOT}")
-            marsh_build_planned_target_sitemaps "${TARGET_OUTPUT_ROOT}" false "marsh_test_markdown_command" "" "markdown,md" true "${TARGET_SITEMAP_RECORDS[@]}" >/dev/null 2>&1
-            ACTUAL=$?
-            EXPECTED=0
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                SITEMAP_RENDER=$(marsh_get_sitemap_render_path "${TARGET_OUTPUT_ROOT}" "site-map/index.markdown")
-                [[ -e "${SITEMAP_RENDER}" ]]
-                ACTUAL=$?
-                EXPECTED=0
-                ASSERTION="equals"
-                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    RES="[PASS]"
-                fi
-            fi
-            rm -rf "${TARGET_OUTPUT_ROOT}" "${SITE_SOURCE_ROOT}"
-            ;;
-        marsh_build_planned_target_sitemaps:1)
             TEST_NAME+=":search"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             SITE_SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
@@ -1476,6 +1362,182 @@ function marsh_test {
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}"
             ;;
         marsh_build_planned_target:4)
+            TEST_NAME+=":executes_target_plan"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
+            SOURCE_SCOPE="${SOURCE_ROOT}/pages"
+            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            TARGET_PLAN_ROOT=""
+            mkdir -p "${SOURCE_SCOPE}/assets"
+            marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
+            printf '%s\n' '---'$'\n''Title: Home'$'\n''...'$'\n'''$'\n''# Home' > "${SOURCE_SCOPE}/index.markdown"
+            printf '%s\n' '# Site Map' > "${SOURCE_ROOT}/site-map.markdown"
+            printf '%s\n' 'download' > "${SOURCE_SCOPE}/assets/manual.txt"
+            TARGET_PLAN_ROOT=$(marsh_plan_target "${SOURCE_ROOT}" "${TARGET_OUTPUT_ROOT}" "." false "${SOURCE_SCOPE}" "../site-map.markdown" false "${TEMPLATE_DIR}" "sample" 0 "" "${SOURCE_SCOPE}" "markdown,md")
+            marsh_build_planned_target "${TARGET_OUTPUT_ROOT}" false "1" "marsh_test_markdown_command" "" "markdown,md" true "${TARGET_PLAN_ROOT}" >/dev/null 2>&1
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                SITEMAP_RENDER=$(marsh_get_sitemap_render_path "${TARGET_OUTPUT_ROOT}" "../site-map.markdown")
+                {
+                    [[ -e "${TARGET_OUTPUT_ROOT}/index.html" ]] \
+                        && [[ -e "${TARGET_OUTPUT_ROOT}/assets/manual.txt" ]] \
+                        && [[ -e "${TARGET_OUTPUT_ROOT}/css/site.css" ]] \
+                        && [[ -e "${SITEMAP_RENDER}" ]]
+                }
+                ACTUAL=$?
+                EXPECTED=0
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${TARGET_OUTPUT_ROOT}" "${SOURCE_ROOT}" "${TEMPLATE_DIR}"
+            ;;
+        marsh_build_planned_target_documents:0)
+            TEST_NAME+=":serial_success"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
+            DOCUMENT_RECORDS=()
+            mkdir -p "${SOURCE_ROOT}/about"
+            marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
+            printf '%s\n' '---'$'\n''Title: Home'$'\n''...'$'\n'''$'\n''# Home' > "${SOURCE_ROOT}/index.markdown"
+            printf '%s\n' '---'$'\n''Title: About'$'\n''...'$'\n'''$'\n''# About' > "${SOURCE_ROOT}/about/index.markdown"
+            while IFS= read -r DOCUMENT_RECORD; do
+                [[ "${DOCUMENT_RECORD}" == "" ]] && continue
+                DOCUMENT_RECORDS+=("${DOCUMENT_RECORD}")
+            done < <(marsh_plan_target_documents "${TARGET_OUTPUT_ROOT}" "." "." "${SOURCE_ROOT}" "markdown,md")
+            marsh_build_planned_target_documents "${TARGET_OUTPUT_ROOT}" false "1" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" true 0 "" "${DOCUMENT_RECORDS[@]}" >/dev/null 2>&1
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                {
+                    [[ -e "${TARGET_OUTPUT_ROOT}/index.html" ]] \
+                        && [[ -e "${TARGET_OUTPUT_ROOT}/about/index.html" ]]
+                }
+                ACTUAL=$?
+                EXPECTED=0
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}" "${SOURCE_ROOT}"
+            ;;
+        marsh_build_planned_target_documents:1)
+            TEST_NAME+=":empty_batch_noop"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            mkdir -p "${TARGET_OUTPUT_ROOT}"
+            marsh_test_create_archive_template "${TEMPLATE_DIR}" "sample" "html" true
+            marsh_build_planned_target_documents "${TARGET_OUTPUT_ROOT}" false "1" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" true 0 "" >/dev/null 2>&1
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                [[ ! -e "${TARGET_OUTPUT_ROOT}/news/index.html" ]]
+                ACTUAL=$?
+                EXPECTED=0
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}"
+            ;;
+        marsh_build_planned_target_sitemaps:0)
+            TEST_NAME+=":explicit"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            SITE_SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
+            TARGET_SITEMAP_RECORDS=()
+            mkdir -p "${SITE_SOURCE_ROOT}/site-map"
+            printf '%s\n' '# Site Map' > "${SITE_SOURCE_ROOT}/site-map/index.markdown"
+            while IFS= read -r TARGET_SITEMAP_RECORD; do
+                [[ "${TARGET_SITEMAP_RECORD}" == "" ]] && continue
+                TARGET_SITEMAP_RECORDS+=("${TARGET_SITEMAP_RECORD}")
+            done < <(marsh_plan_target_sitemaps "${SITE_SOURCE_ROOT}" "${SITE_SOURCE_ROOT}" "site-map/index.markdown" false "${TARGET_OUTPUT_ROOT}")
+            marsh_build_planned_target_sitemaps "${TARGET_OUTPUT_ROOT}" false "marsh_test_markdown_command" "" "markdown,md" true "${TARGET_SITEMAP_RECORDS[@]}" >/dev/null 2>&1
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                SITEMAP_RENDER=$(marsh_get_sitemap_render_path "${TARGET_OUTPUT_ROOT}" "site-map/index.markdown")
+                [[ -e "${SITEMAP_RENDER}" ]]
+                ACTUAL=$?
+                EXPECTED=0
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${TARGET_OUTPUT_ROOT}" "${SITE_SOURCE_ROOT}"
+            ;;
+        marsh_build_planned_target_sitemaps:1)
+            TEST_NAME+=":template_asset_output_path_cache_shared_across_depths"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            rm -rf "${MARSH_TEST_TEMP}/template-asset-output-cache"
+            mkdir -p "${TARGET_OUTPUT_ROOT}/about" "${TARGET_OUTPUT_ROOT}/news/2026"
+            marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
+            printf '%s\n' '{{ template.assets.styles | items:wrap-type:html-style-link }}'$'\n''{{ template.assets.scripts | items:wrap-type:html-script-src }}' > "${TEMPLATE_DIR}/sample/partials/body.html"
+            printf '%s\n' '@media print { body { color: black; } }' > "${TEMPLATE_DIR}/sample/css/print.css"
+            printf '%s\n' 'console.log("feature");' > "${TEMPLATE_DIR}/sample/js/feature.js"
+            printf '%s\n' \
+                '---' \
+                'Template:' \
+                '  Partials:' \
+                '    Base: partials/base.html' \
+                '    Head: partials/head.html' \
+                '    Body: partials/body.html' \
+                '  Assets:' \
+                '    Styles:' \
+                '      - css/site.css' \
+                '      - css/print.css' \
+                '    Scripts:' \
+                '      - js/site.js' \
+                '      - js/feature.js' \
+                '...' > "${TEMPLATE_DIR}/sample/template.yaml"
+            marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "about/index.markdown" "content" 'Example'
+            marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "about/index.markdown" "meta-yaml" '---' 'Title: About' '...'
+            marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "news/2026/index.markdown" "content" 'Example'
+            marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "news/2026/index.markdown" "meta-yaml" '---' 'Title: News' '...'
+            {
+                marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "about/index.markdown" "" false "${TEMPLATE_DIR}" "sample" false "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1 \
+                    && marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "news/2026/index.markdown" "" false "${TEMPLATE_DIR}" "sample" false "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+            }
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                ACTUAL=$(find "${MARSH_TEST_TEMP}/template-asset-output-cache" -maxdepth 1 -name '*.paths' 2>/dev/null | marsh_text_transform items:count)
+                EXPECTED='1'
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    ACTUAL=$(<"${TARGET_OUTPUT_ROOT}/about/index.html")
+                    ASSERTION="contains"
+                    EXPECTED='<link rel="stylesheet" href="../css/site.css" /><link rel="stylesheet" href="../css/print.css" />'
+                    if printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
+                        EXPECTED='<script src="../js/site.js"></script><script src="../js/feature.js"></script>'
+                        if printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
+                            ACTUAL=$(<"${TARGET_OUTPUT_ROOT}/news/2026/index.html")
+                            EXPECTED='<link rel="stylesheet" href="../../css/site.css" /><link rel="stylesheet" href="../../css/print.css" />'
+                            ASSERTION="contains"
+                            if printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
+                                EXPECTED='<script src="../../js/site.js"></script><script src="../../js/feature.js"></script>'
+                                if printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
+                                    RES="[PASS]"
+                                fi
+                            fi
+                        fi
+                    fi
+                fi
+            fi
+            rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}" "${MARSH_TEST_TEMP}/template-asset-output-cache"
+            ;;
+        marsh_build_sitemap:0)
             TEST_NAME+=":plans_and_renders_archives_from_target_context"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
@@ -3173,68 +3235,6 @@ function marsh_test {
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}"
             ;;
         marsh_build_template:33)
-            TEST_NAME+=":template_asset_output_path_cache_shared_across_depths"
-            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
-            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
-            rm -rf "${MARSH_TEST_TEMP}/template-asset-output-cache"
-            mkdir -p "${TARGET_OUTPUT_ROOT}/about" "${TARGET_OUTPUT_ROOT}/news/2026"
-            marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
-            printf '%s\n' '{{ template.assets.styles | items:wrap-type:html-style-link }}'$'\n''{{ template.assets.scripts | items:wrap-type:html-script-src }}' > "${TEMPLATE_DIR}/sample/partials/body.html"
-            printf '%s\n' '@media print { body { color: black; } }' > "${TEMPLATE_DIR}/sample/css/print.css"
-            printf '%s\n' 'console.log("feature");' > "${TEMPLATE_DIR}/sample/js/feature.js"
-            printf '%s\n' \
-                '---' \
-                'Template:' \
-                '  Partials:' \
-                '    Base: partials/base.html' \
-                '    Head: partials/head.html' \
-                '    Body: partials/body.html' \
-                '  Assets:' \
-                '    Styles:' \
-                '      - css/site.css' \
-                '      - css/print.css' \
-                '    Scripts:' \
-                '      - js/site.js' \
-                '      - js/feature.js' \
-                '...' > "${TEMPLATE_DIR}/sample/template.yaml"
-            marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "about/index.markdown" "content" 'Example'
-            marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "about/index.markdown" "meta-yaml" '---' 'Title: About' '...'
-            marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "news/2026/index.markdown" "content" 'Example'
-            marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "news/2026/index.markdown" "meta-yaml" '---' 'Title: News' '...'
-            {
-                marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "about/index.markdown" "" false "${TEMPLATE_DIR}" "sample" false "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1 \
-                    && marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "news/2026/index.markdown" "" false "${TEMPLATE_DIR}" "sample" false "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
-            }
-            ACTUAL=$?
-            EXPECTED=0
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                ACTUAL=$(find "${MARSH_TEST_TEMP}/template-asset-output-cache" -maxdepth 1 -name '*.paths' 2>/dev/null | marsh_text_transform items:count)
-                EXPECTED='1'
-                ASSERTION="equals"
-                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    ACTUAL=$(<"${TARGET_OUTPUT_ROOT}/about/index.html")
-                    ASSERTION="contains"
-                    EXPECTED='<link rel="stylesheet" href="../css/site.css" /><link rel="stylesheet" href="../css/print.css" />'
-                    if printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
-                        EXPECTED='<script src="../js/site.js"></script><script src="../js/feature.js"></script>'
-                        if printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
-                            ACTUAL=$(<"${TARGET_OUTPUT_ROOT}/news/2026/index.html")
-                            EXPECTED='<link rel="stylesheet" href="../../css/site.css" /><link rel="stylesheet" href="../../css/print.css" />'
-                            ASSERTION="contains"
-                            if printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
-                                EXPECTED='<script src="../../js/site.js"></script><script src="../../js/feature.js"></script>'
-                                if printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
-                                    RES="[PASS]"
-                                fi
-                            fi
-                        fi
-                    fi
-                fi
-            fi
-            rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}" "${MARSH_TEST_TEMP}/template-asset-output-cache"
-            ;;
-        marsh_build_sitemap:0)
             TEST_NAME+=":frontmatter_no_adjacent_scratch_files"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             SOURCE_DIR="${TEST_TEMP_PREFIX}.source"
@@ -3515,6 +3515,15 @@ function marsh_test {
             rm -rf "${SOURCE_DIR}" "${TARGET_OUTPUT_ROOT}"
             ;;
         marsh_copy_source_objects:1)
+            TEST_NAME+=":document_relative_nested_index"
+            ACTUAL=$(marsh_normalize_path "./news/index.html" "document")
+            EXPECTED="./news/"
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_copy_template_assets:0)
             TEST_NAME+=":existing_path_without_force"
             SOURCE_DIR="${TEST_TEMP_PREFIX}.source"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
@@ -5035,15 +5044,6 @@ function marsh_test {
             fi
             ;;
         marsh_normalize_path:7)
-            TEST_NAME+=":document_relative_nested_index"
-            ACTUAL=$(marsh_normalize_path "./news/index.html" "document")
-            EXPECTED="./news/"
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                RES="[PASS]"
-            fi
-            ;;
-        marsh_copy_template_assets:0)
             TEST_NAME+=":unchanged_assets_skipped_with_manifest"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
@@ -5343,473 +5343,6 @@ function marsh_test {
             rm -rf "${SITE_OUTPUT_ROOT}" "${SOURCE_ROOT}"
             ;;
         marsh_plan_target:1)
-            TEST_NAME+=":loads_source_inventory_once"
-            SITE_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
-            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
-            TARGET_PLAN_ROOT=""
-            CALLS_FILE="${TEST_TEMP_PREFIX}.inventory.calls"
-            ORIGINAL_GET_TARGET_SOURCE_INVENTORY=""
-            mkdir -p "${SOURCE_ROOT}/docs"
-            printf '%s\n' '# Home' > "${SOURCE_ROOT}/index.markdown"
-            printf '%s\n' '# Site Map' > "${SOURCE_ROOT}/site-map.markdown"
-            printf '%s\n' 'manual' > "${SOURCE_ROOT}/docs/manual.txt"
-            ORIGINAL_GET_TARGET_SOURCE_INVENTORY=$(declare -f marsh_get_target_source_inventory)
-            eval "${ORIGINAL_GET_TARGET_SOURCE_INVENTORY/marsh_get_target_source_inventory/marsh_test_original_get_target_source_inventory}"
-            function marsh_get_target_source_inventory {
-                printf '%s\n' 'call' >> "${CALLS_FILE}"
-                marsh_test_original_get_target_source_inventory "$@"
-            }
-            TARGET_PLAN_ROOT=$(marsh_plan_target "${SOURCE_ROOT}" "${SITE_OUTPUT_ROOT}" "." false "${SOURCE_ROOT}" "site-map.markdown" true "${TEST_TEMP_PREFIX}.templates" "sample" 0 "" "${SOURCE_ROOT}" "markdown,md")
-            ACTUAL=$?
-            EXPECTED=0
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                DOCUMENTS_ACTUAL=$(while IFS=$'\t' read -r DOCUMENT_ID_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC; do
-                    [[ "${DOCUMENT_ID_ESC}" == "" ]] && continue
-                    eval "DOCUMENT_ID=${DOCUMENT_ID_ESC}"
-                    eval "SOURCE_RELPATH=${SOURCE_RELPATH_ESC}"
-                    eval "PLAN_TARGET_OUTPUT_REL=${TARGET_OUTPUT_REL_ESC}"
-                    eval "PLAN_SOURCE_ROOT=${SOURCE_ROOT_ESC}"
-                    printf '%s\t%s\t%s\t%s\n' "${DOCUMENT_ID}" "${SOURCE_RELPATH}" "${PLAN_TARGET_OUTPUT_REL}" "${PLAN_SOURCE_ROOT}"
-                done < "${TARGET_PLAN_ROOT}/documents" | sort)
-                SOURCE_ASSETS_ACTUAL=$(while IFS=$'\t' read -r ASSET_RELPATH_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC; do
-                    [[ "${ASSET_RELPATH_ESC}" == "" ]] && continue
-                    eval "ASSET_RELPATH=${ASSET_RELPATH_ESC}"
-                    eval "SOURCE_RELPATH=${SOURCE_RELPATH_ESC}"
-                    eval "PLAN_TARGET_OUTPUT_REL=${TARGET_OUTPUT_REL_ESC}"
-                    eval "PLAN_SOURCE_ROOT=${SOURCE_ROOT_ESC}"
-                    printf '%s\t%s\t%s\t%s\n' "${ASSET_RELPATH}" "${SOURCE_RELPATH}" "${PLAN_TARGET_OUTPUT_REL}" "${PLAN_SOURCE_ROOT}"
-                done < "${TARGET_PLAN_ROOT}/source-assets")
-                SITEMAPS_ACTUAL=$(<"${TARGET_PLAN_ROOT}/sitemaps")
-                INVENTORY_CALLS=$(wc -l < "${CALLS_FILE}" | awk '{ print $1 }')
-                EXPECTED=$(printf '%s\t%s\t%s\t%s\n' \
-                    'index.markdown' 'index.markdown' '.' "${SOURCE_ROOT}" \
-                    'site-map.markdown' 'site-map.markdown' '.' "${SOURCE_ROOT}" | sort)
-                ASSERTION="equals"
-                if [[ "${DOCUMENTS_ACTUAL}" == "${EXPECTED}" ]]; then
-                    EXPECTED=$(printf '%s\t%s\t%s\t%s\n' 'docs/manual.txt' 'docs/manual.txt' '.' "${SOURCE_ROOT}")
-                    ASSERTION="equals"
-                    if [[ "${SOURCE_ASSETS_ACTUAL}" == "${EXPECTED}" ]]; then
-                        EXPECTED=$(printf '%s\t%s\n' 'site-map.markdown' "${SOURCE_ROOT}/site-map.markdown")
-                        ASSERTION="equals"
-                        if [[ "${SITEMAPS_ACTUAL}" == "${EXPECTED}" ]]; then
-                            EXPECTED='1'
-                            ASSERTION="equals"
-                            if [[ "${INVENTORY_CALLS}" == "${EXPECTED}" ]]; then
-                                RES="[PASS]"
-                            fi
-                        fi
-                    fi
-                fi
-            fi
-            unset -f marsh_get_target_source_inventory marsh_test_original_get_target_source_inventory
-            eval "${ORIGINAL_GET_TARGET_SOURCE_INVENTORY}"
-            rm -rf "${SITE_OUTPUT_ROOT}" "${SOURCE_ROOT}" "${CALLS_FILE}"
-            ;;
-        marsh_write_document_artifacts:0)
-            TEST_NAME+=":frontmatter_reuses_existing_artifacts"
-            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
-            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
-            mkdir -p "${SOURCE_ROOT}/docs"
-            printf '%s\n' \
-                '---' \
-                'Type: page' \
-                'Title: First' \
-                '...' \
-                '' \
-                '# First' > "${SOURCE_ROOT}/docs/index.markdown"
-            marsh_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "docs/index.markdown" "${SOURCE_ROOT}/docs/index.markdown"
-            ACTUAL=$?
-            EXPECTED=0
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                eval "$(marsh_get_document_artifacts "${TARGET_OUTPUT_ROOT}" "docs/index.markdown")"
-                rm -f "${DOCUMENT_ARTIFACT_META}"
-                printf '%s\n' \
-                    '---' \
-                    'Type: page' \
-                    'Title: Second' \
-                    '...' \
-                    '' \
-                    '# Second' > "${SOURCE_ROOT}/docs/index.markdown"
-                marsh_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "docs/index.markdown" "${SOURCE_ROOT}/docs/index.markdown"
-                ACTUAL=$?
-                EXPECTED=0
-                ASSERTION="equals"
-                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    ACTUAL="$(<"${DOCUMENT_ARTIFACT_CONTENT}")"$'\001'"$(<"${DOCUMENT_ARTIFACT_META_YAML}")"$'\001'"$(<"${DOCUMENT_ARTIFACT_META}")"$'\001'"$(find "${DOCUMENT_ARTIFACT_ROOT}" -maxdepth 1 \( -name '*.temp' -o -name '*.scratch' -o -name '*.backup' \) 2>/dev/null | marsh_text_transform items:count)"
-                    EXPECTED=$'\n''# First'$'\001''---'$'\n''Type: page'$'\n''Title: First'$'\n''...'$'\001''Type="page"'$'\n''Title="First"'$'\001''0'
-                    ASSERTION="equals"
-                    if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                        RES="[PASS]"
-                    fi
-                fi
-            fi
-            rm -rf "${TARGET_OUTPUT_ROOT}" "${SOURCE_ROOT}"
-            ;;
-        marsh_write_document_artifacts:1)
-            TEST_NAME+=":without_frontmatter_reuses_existing_content"
-            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
-            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
-            mkdir -p "${SOURCE_ROOT}/docs"
-            printf '%s\n' '# First' > "${SOURCE_ROOT}/docs/index.markdown"
-            marsh_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "docs/index.markdown" "${SOURCE_ROOT}/docs/index.markdown"
-            ACTUAL=$?
-            EXPECTED=0
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                eval "$(marsh_get_document_artifacts "${TARGET_OUTPUT_ROOT}" "docs/index.markdown")"
-                printf '%s\n' '# Second' > "${SOURCE_ROOT}/docs/index.markdown"
-                marsh_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "docs/index.markdown" "${SOURCE_ROOT}/docs/index.markdown"
-                ACTUAL=$?
-                EXPECTED=0
-                ASSERTION="equals"
-                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    ACTUAL="$(<"${DOCUMENT_ARTIFACT_CONTENT}")"$'\001'"$(find "${DOCUMENT_ARTIFACT_ROOT}" -maxdepth 1 \( -name '*.temp' -o -name '*.scratch' -o -name '*.backup' \) 2>/dev/null | marsh_text_transform items:count)"
-                    EXPECTED='# First'$'\001''0'
-                    ASSERTION="equals"
-                    if [[ "${ACTUAL}" == "${EXPECTED}" ]] && [[ ! -e "${DOCUMENT_ARTIFACT_META_YAML}" ]] && [[ ! -e "${DOCUMENT_ARTIFACT_META}" ]]; then
-                        RES="[PASS]"
-                    fi
-                fi
-            fi
-            rm -rf "${TARGET_OUTPUT_ROOT}" "${SOURCE_ROOT}"
-            ;;
-        marsh_write_document_metadata_artifacts:0)
-            TEST_NAME+=":writes_metadata_without_content"
-            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
-            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
-            mkdir -p "${SOURCE_ROOT}/docs"
-            printf '%s\n' \
-                '---' \
-                'Type: page' \
-                'Title: Example' \
-                'Project: Sample Site' \
-                '...' \
-                '' \
-                '# Example' > "${SOURCE_ROOT}/docs/index.markdown"
-            marsh_write_document_metadata_artifacts "${TARGET_OUTPUT_ROOT}" "docs/index.markdown" "${SOURCE_ROOT}/docs/index.markdown"
-            ACTUAL=$?
-            EXPECTED=0
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                eval "$(marsh_get_document_artifacts "${TARGET_OUTPUT_ROOT}" "docs/index.markdown")"
-                {
-                    [[ -e "${DOCUMENT_ARTIFACT_META_YAML}" ]] \
-                        && [[ -e "${DOCUMENT_ARTIFACT_META}" ]] \
-                        && [[ ! -e "${DOCUMENT_ARTIFACT_CONTENT}" ]]
-                }
-                ACTUAL=$?
-                EXPECTED=0
-                ASSERTION="equals"
-                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    ACTUAL="$(<"${DOCUMENT_ARTIFACT_META_YAML}")"$'\001'"$(<"${DOCUMENT_ARTIFACT_META}")"
-                    EXPECTED='---'$'\n''Type: page'$'\n''Title: Example'$'\n''Project: Sample Site'$'\n''...'$'\001''Type="page"'$'\n''Title="Example"'$'\n''Project="Sample Site"'
-                    ASSERTION="equals"
-                    if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                        RES="[PASS]"
-                    fi
-                fi
-            fi
-            rm -rf "${TARGET_OUTPUT_ROOT}" "${SOURCE_ROOT}"
-            ;;
-        marsh_write_document_metadata_artifacts:1)
-            TEST_NAME+=":reuses_existing_metadata_without_content"
-            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
-            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
-            mkdir -p "${SOURCE_ROOT}/docs"
-            printf '%s\n' \
-                '---' \
-                'Type: page' \
-                'Title: First' \
-                '...' \
-                '' \
-                '# First' > "${SOURCE_ROOT}/docs/index.markdown"
-            marsh_write_document_metadata_artifacts "${TARGET_OUTPUT_ROOT}" "docs/index.markdown" "${SOURCE_ROOT}/docs/index.markdown"
-            ACTUAL=$?
-            EXPECTED=0
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                eval "$(marsh_get_document_artifacts "${TARGET_OUTPUT_ROOT}" "docs/index.markdown")"
-                printf '%s\n' \
-                    '---' \
-                    'Type: page' \
-                    'Title: Second' \
-                    '...' \
-                    '' \
-                    '# Second' > "${SOURCE_ROOT}/docs/index.markdown"
-                marsh_write_document_metadata_artifacts "${TARGET_OUTPUT_ROOT}" "docs/index.markdown" "${SOURCE_ROOT}/docs/index.markdown"
-                ACTUAL=$?
-                EXPECTED=0
-                ASSERTION="equals"
-                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    ACTUAL="$(<"${DOCUMENT_ARTIFACT_META_YAML}")"$'\001'"$(<"${DOCUMENT_ARTIFACT_META}")"$'\001'"$(find "${DOCUMENT_ARTIFACT_ROOT}" -maxdepth 1 \( -name '*.temp' -o -name '*.scratch' -o -name '*.backup' \) 2>/dev/null | marsh_text_transform items:count)"
-                    EXPECTED='---'$'\n''Type: page'$'\n''Title: First'$'\n''...'$'\001''Type="page"'$'\n''Title="First"'$'\001''0'
-                    ASSERTION="equals"
-                    if [[ "${ACTUAL}" == "${EXPECTED}" ]] && [[ ! -e "${DOCUMENT_ARTIFACT_CONTENT}" ]]; then
-                        RES="[PASS]"
-                    fi
-                fi
-            fi
-            rm -rf "${TARGET_OUTPUT_ROOT}" "${SOURCE_ROOT}"
-            ;;
-        marsh_write_document_metadata_artifacts:2)
-            TEST_NAME+=":rebuilds_missing_cache_without_content"
-            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
-            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
-            mkdir -p "${SOURCE_ROOT}/docs"
-            printf '%s\n' \
-                '---' \
-                'Type: page' \
-                'Title: First' \
-                'Project: Sample Site' \
-                '...' \
-                '' \
-                '# First' > "${SOURCE_ROOT}/docs/index.markdown"
-            marsh_write_document_metadata_artifacts "${TARGET_OUTPUT_ROOT}" "docs/index.markdown" "${SOURCE_ROOT}/docs/index.markdown"
-            ACTUAL=$?
-            EXPECTED=0
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                eval "$(marsh_get_document_artifacts "${TARGET_OUTPUT_ROOT}" "docs/index.markdown")"
-                rm -f "${DOCUMENT_ARTIFACT_META}"
-                printf '%s\n' \
-                    '---' \
-                    'Type: page' \
-                    'Title: Second' \
-                    'Project: Changed Site' \
-                    '...' \
-                    '' \
-                    '# Second' > "${SOURCE_ROOT}/docs/index.markdown"
-                marsh_write_document_metadata_artifacts "${TARGET_OUTPUT_ROOT}" "docs/index.markdown" "${SOURCE_ROOT}/docs/index.markdown"
-                ACTUAL=$?
-                EXPECTED=0
-                ASSERTION="equals"
-                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    ACTUAL="$(<"${DOCUMENT_ARTIFACT_META_YAML}")"$'\001'"$(<"${DOCUMENT_ARTIFACT_META}")"$'\001'"$(find "${DOCUMENT_ARTIFACT_ROOT}" -maxdepth 1 \( -name '*.temp' -o -name '*.scratch' -o -name '*.backup' \) 2>/dev/null | marsh_text_transform items:count)"
-                    EXPECTED='---'$'\n''Type: page'$'\n''Title: First'$'\n''Project: Sample Site'$'\n''...'$'\001''Type="page"'$'\n''Title="First"'$'\n''Project="Sample Site"'$'\001''0'
-                    ASSERTION="equals"
-                    if [[ "${ACTUAL}" == "${EXPECTED}" ]] && [[ ! -e "${DOCUMENT_ARTIFACT_CONTENT}" ]]; then
-                        RES="[PASS]"
-                    fi
-                fi
-            fi
-            rm -rf "${TARGET_OUTPUT_ROOT}" "${SOURCE_ROOT}"
-            ;;
-        marsh_write_target_archive_manifest:0)
-            TEST_NAME+=":requires_explicit_document_records"
-            SITE_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
-            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
-            TARGET_PLAN_ROOT=""
-            DOCUMENT_RECORDS=()
-            mkdir -p "${SOURCE_ROOT}/news/2026/01/02" "${SOURCE_ROOT}/news/2026/01/01"
-            printf '%s\n' \
-                '---' \
-                'Type: post' \
-                'Title: Second' \
-                'Date: 2026-01-02' \
-                'State:' \
-                '  - published' \
-                '...' \
-                '' \
-                '# Second' > "${SOURCE_ROOT}/news/2026/01/02/02-second.markdown"
-            printf '%s\n' \
-                '---' \
-                'Type: note' \
-                'Title: First' \
-                'Date: 2026-01-01' \
-                '...' \
-                '' \
-                '# First' > "${SOURCE_ROOT}/news/2026/01/01/01-first.markdown"
-            while IFS= read -r DOCUMENT_RECORD; do
-                [[ "${DOCUMENT_RECORD}" == "" ]] && continue
-                DOCUMENT_RECORDS+=("${DOCUMENT_RECORD}")
-            done < <(marsh_plan_target_documents "${SITE_OUTPUT_ROOT}" "." "." "${SOURCE_ROOT}" "markdown,md")
-            TARGET_PLAN_ROOT=$(marsh_create_target_plan_root "${SITE_OUTPUT_ROOT}")
-            marsh_write_target_plan_records "${TARGET_PLAN_ROOT}" "documents" "${DOCUMENT_RECORDS[@]}"
-            marsh_write_target_archive_manifest "${SITE_OUTPUT_ROOT}" "markdown,md" "${TARGET_PLAN_ROOT}" 2>/dev/null
-            ACTUAL=$?
-            EXPECTED=1
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                if [[ ! -f "${TARGET_PLAN_ROOT}/archive-manifest" ]]; then
-                    RES="[PASS]"
-                fi
-            fi
-            rm -rf "${SITE_OUTPUT_ROOT}" "${SOURCE_ROOT}"
-            ;;
-        marsh_write_target_archive_manifest:1)
-            TEST_NAME+=":writes_manifest_from_document_records"
-            SITE_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
-            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
-            TARGET_PLAN_ROOT=""
-            DOCUMENT_RECORDS=()
-            mkdir -p "${SOURCE_ROOT}/news/2026/01/02" "${SOURCE_ROOT}/news/2026/01/01"
-            printf '%s\n' \
-                '---' \
-                'Type: post' \
-                'Title: Second' \
-                'Date: 2026-01-02' \
-                'State:' \
-                '  - published' \
-                '...' \
-                '' \
-                '# Second' > "${SOURCE_ROOT}/news/2026/01/02/02-second.markdown"
-            printf '%s\n' \
-                '---' \
-                'Type: note' \
-                'Title: First' \
-                'Date: 2026-01-01' \
-                '...' \
-                '' \
-                '# First' > "${SOURCE_ROOT}/news/2026/01/01/01-first.markdown"
-            while IFS= read -r DOCUMENT_RECORD; do
-                [[ "${DOCUMENT_RECORD}" == "" ]] && continue
-                DOCUMENT_RECORDS+=("${DOCUMENT_RECORD}")
-            done < <(marsh_plan_target_documents "${SITE_OUTPUT_ROOT}" "." "." "${SOURCE_ROOT}" "markdown,md")
-            TARGET_PLAN_ROOT=$(marsh_create_target_plan_root "${SITE_OUTPUT_ROOT}")
-            marsh_write_target_archive_manifest "${SITE_OUTPUT_ROOT}" "markdown,md" "${TARGET_PLAN_ROOT}" "${DOCUMENT_RECORDS[@]}"
-            ACTUAL=$?
-            EXPECTED=0
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                ACTUAL=$(<"${TARGET_PLAN_ROOT}/archive-manifest")
-                EXPECTED="$(printf '%q\t%q\t%q\t%q\t%q\n' "news/2026/01/02/02-second.markdown" "post" "https://example.test/news/2026/01/02/02-second.html" "https://example.test/news/2026/01/02" "published")"$'\n'"$(printf '%q\t%q\t%q\t%q\t%q\n' "news/2026/01/01/01-first.markdown" "note" "https://example.test/news/2026/01/01/01-first.html" "https://example.test/news/2026/01/01" "")"
-                ASSERTION="equals"
-                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    RES="[PASS]"
-                fi
-            fi
-            rm -rf "${SITE_OUTPUT_ROOT}" "${SOURCE_ROOT}"
-            ;;
-        marsh_write_target_archive_manifest:2)
-            TEST_NAME+=":writes_manifest_from_provided_document_records"
-            SITE_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
-            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
-            TARGET_PLAN_ROOT=""
-            DOCUMENT_RECORDS=()
-            mkdir -p "${SOURCE_ROOT}/news/2026/01/02" "${SOURCE_ROOT}/news/2026/01/01"
-            printf '%s\n' \
-                '---' \
-                'Type: post' \
-                'Title: Current' \
-                'Date: 2026-01-02' \
-                '...' \
-                '' \
-                '# Current' > "${SOURCE_ROOT}/news/2026/01/02/02-current.markdown"
-            printf '%s\n' \
-                '---' \
-                'Type: note' \
-                'Title: Stale' \
-                'Date: 2026-01-01' \
-                '...' \
-                '' \
-                '# Stale' > "${SOURCE_ROOT}/news/2026/01/01/01-stale.markdown"
-            while IFS= read -r DOCUMENT_RECORD; do
-                [[ "${DOCUMENT_RECORD}" == "" ]] && continue
-                DOCUMENT_RECORDS+=("${DOCUMENT_RECORD}")
-            done < <(marsh_plan_target_documents "${SITE_OUTPUT_ROOT}" "news/2026/01/02/02-current.markdown" "." "${SOURCE_ROOT}" "markdown,md")
-            TARGET_PLAN_ROOT=$(marsh_create_target_plan_root "${SITE_OUTPUT_ROOT}")
-            marsh_write_target_plan_records "${TARGET_PLAN_ROOT}" "documents" "$(printf '%q\t%q\t%q\t%q\n' 'news/2026/01/01/01-stale.markdown' 'news/2026/01/01/01-stale.markdown' '.' "${SOURCE_ROOT}")"
-            marsh_write_target_archive_manifest "${SITE_OUTPUT_ROOT}" "markdown,md" "${TARGET_PLAN_ROOT}" "${DOCUMENT_RECORDS[@]}"
-            ACTUAL=$?
-            EXPECTED=0
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                ACTUAL=$(<"${TARGET_PLAN_ROOT}/archive-manifest")
-                EXPECTED="$(printf '%q\t%q\t%q\t%q\t%q\n' "news/2026/01/02/02-current.markdown" "post" "https://example.test/news/2026/01/02/02-current.html" "https://example.test/news/2026/01/02" "")"
-                ASSERTION="equals"
-                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    RES="[PASS]"
-                fi
-            fi
-            rm -rf "${SITE_OUTPUT_ROOT}" "${SOURCE_ROOT}"
-            ;;
-        marsh_write_target_archive_manifest:3)
-            TEST_NAME+=":rejects_invalid_document_records"
-            SITE_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
-            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
-            TARGET_PLAN_ROOT=""
-            INVALID_DOCUMENT_RECORD=""
-            mkdir -p "${SOURCE_ROOT}/news/2026/01/01"
-            printf '%s\n' \
-                '---' \
-                'Type: note' \
-                'Title: Persisted' \
-                'Date: 2026-01-01' \
-                '...' \
-                '' \
-                '# Persisted' > "${SOURCE_ROOT}/news/2026/01/01/01-persisted.markdown"
-            TARGET_PLAN_ROOT=$(marsh_create_target_plan_root "${SITE_OUTPUT_ROOT}")
-            marsh_write_target_plan_records "${TARGET_PLAN_ROOT}" "documents" "$(printf '%q\t%q\t%q\t%q\n' 'news/2026/01/01/01-persisted.markdown' 'news/2026/01/01/01-persisted.markdown' '.' "${SOURCE_ROOT}")"
-            INVALID_DOCUMENT_RECORD=$(printf '%q\t%q\t%q\t%q\n' 'news/2026/01/03/03-missing.markdown' 'news/2026/01/03/03-missing.markdown' '.' "${SOURCE_ROOT}")
-            marsh_write_target_archive_manifest "${SITE_OUTPUT_ROOT}" "markdown,md" "${TARGET_PLAN_ROOT}" "${INVALID_DOCUMENT_RECORD}" 2>/dev/null
-            ACTUAL=$?
-            EXPECTED=1
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" -eq "${EXPECTED}" ]]; then
-                if [[ ! -f "${TARGET_PLAN_ROOT}/archive-manifest" ]]; then
-                    RES="[PASS]"
-                fi
-            fi
-            rm -rf "${SITE_OUTPUT_ROOT}" "${SOURCE_ROOT}"
-            ;;
-        marsh_write_target_archive_manifest:4)
-            TEST_NAME+=":reuses_metadata_artifacts_within_target_context"
-            SITE_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
-            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
-            TARGET_PLAN_ROOT=""
-            DOCUMENT_RECORDS=()
-            FIRST_STATE=""
-            mkdir -p "${SOURCE_ROOT}/news/2026/01/02"
-            printf '%s\n' \
-                '---' \
-                'Type: post' \
-                'Title: First' \
-                'Date: 2026-01-02' \
-                'State:' \
-                '  - published' \
-                '...' \
-                '' \
-                '# First' > "${SOURCE_ROOT}/news/2026/01/02/02-first.markdown"
-            while IFS= read -r DOCUMENT_RECORD; do
-                [[ "${DOCUMENT_RECORD}" == "" ]] && continue
-                DOCUMENT_RECORDS+=("${DOCUMENT_RECORD}")
-            done < <(marsh_plan_target_documents "${SITE_OUTPUT_ROOT}" "." "." "${SOURCE_ROOT}" "markdown,md")
-            TARGET_PLAN_ROOT=$(marsh_create_target_plan_root "${SITE_OUTPUT_ROOT}")
-            marsh_write_target_archive_manifest "${SITE_OUTPUT_ROOT}" "markdown,md" "${TARGET_PLAN_ROOT}" "${DOCUMENT_RECORDS[@]}"
-            ACTUAL=$?
-            EXPECTED=0
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                eval "$(marsh_get_document_artifacts "${SITE_OUTPUT_ROOT}" "news/2026/01/02/02-first.markdown")"
-                FIRST_STATE="$(<"${TARGET_PLAN_ROOT}/archive-manifest")"$'\001'"$(<"${DOCUMENT_ARTIFACT_META_YAML}")"$'\001'"$(<"${DOCUMENT_ARTIFACT_META}")"
-                printf '%s\n' \
-                    '---' \
-                    'Type: post' \
-                    'Title: Second' \
-                    'Date: 2026-01-03' \
-                    'State:' \
-                    '  - draft' \
-                    '...' \
-                    '' \
-                    '# Second' > "${SOURCE_ROOT}/news/2026/01/02/02-first.markdown"
-                marsh_write_target_archive_manifest "${SITE_OUTPUT_ROOT}" "markdown,md" "${TARGET_PLAN_ROOT}" "${DOCUMENT_RECORDS[@]}"
-                ACTUAL=$?
-                EXPECTED=0
-                ASSERTION="equals"
-                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    ACTUAL="$(<"${TARGET_PLAN_ROOT}/archive-manifest")"$'\001'"$(<"${DOCUMENT_ARTIFACT_META_YAML}")"$'\001'"$(<"${DOCUMENT_ARTIFACT_META}")"
-                    EXPECTED="${FIRST_STATE}"
-                    ASSERTION="equals"
-                    if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                        RES="[PASS]"
-                    fi
-                fi
-            fi
-            rm -rf "${SITE_OUTPUT_ROOT}" "${SOURCE_ROOT}"
-            ;;
-        marsh_write_target_archive_manifest:5)
             TEST_NAME+=":does_not_seed_raw_content_artifacts"
             SITE_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
@@ -6509,31 +6042,6 @@ function marsh_test {
             rm -rf "${SITE_OUTPUT_ROOT}" "${SOURCE_ROOT}"
             ;;
         marsh_plan_target_source_assets_from_inventory:0)
-            TEST_NAME+=":filters_glob_selection_from_inventory_records"
-            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
-            mkdir -p "${SOURCE_ROOT}/docs"
-            ACTUAL=$(marsh_plan_target_source_assets_from_inventory \
-                "${SOURCE_ROOT}/*" \
-                "." \
-                "${SOURCE_ROOT}" \
-                "markdown,md" \
-                'readme.markdown' \
-                'download.bin' \
-                'docs/guide.pdf' \
-                'docs/note.markdown')
-            ACTUAL=$(while IFS=$'\t' read -r ASSET_RELPATH_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC; do
-                [[ "${ASSET_RELPATH_ESC}" == "" ]] && continue
-                eval "ASSET_RELPATH=${ASSET_RELPATH_ESC}"
-                printf '%s\n' "${ASSET_RELPATH}"
-            done <<< "${ACTUAL}" | sort)
-            EXPECTED=$(printf '%s\n' 'docs/guide.pdf' 'download.bin' | sort)
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                RES="[PASS]"
-            fi
-            rm -rf "${SOURCE_ROOT}"
-            ;;
-        marsh_publish_processed_output:0)
             TEST_NAME+=":copy_and_replace"
             SOURCE_FILE="${TEST_TEMP_PREFIX}.source.txt"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
@@ -6564,6 +6072,31 @@ function marsh_test {
             fi
             ;;
         marsh_process_markdown:1)
+            TEST_NAME+=":filters_glob_selection_from_inventory_records"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
+            mkdir -p "${SOURCE_ROOT}/docs"
+            ACTUAL=$(marsh_plan_target_source_assets_from_inventory \
+                "${SOURCE_ROOT}/*" \
+                "." \
+                "${SOURCE_ROOT}" \
+                "markdown,md" \
+                'readme.markdown' \
+                'download.bin' \
+                'docs/guide.pdf' \
+                'docs/note.markdown')
+            ACTUAL=$(while IFS=$'\t' read -r ASSET_RELPATH_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC; do
+                [[ "${ASSET_RELPATH_ESC}" == "" ]] && continue
+                eval "ASSET_RELPATH=${ASSET_RELPATH_ESC}"
+                printf '%s\n' "${ASSET_RELPATH}"
+            done <<< "${ACTUAL}" | sort)
+            EXPECTED=$(printf '%s\n' 'docs/guide.pdf' 'download.bin' | sort)
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            rm -rf "${SOURCE_ROOT}"
+            ;;
+        marsh_publish_processed_output:0)
             TEST_NAME+=":rel_footnote"
             ACTUAL=$(printf '%s\n' '<a href="#fn:note" rel="footnote">note</a>' | marsh_process_markdown marsh_test_markdown_command "")
             EXPECTED='<a href="#fn:note">note</a>'
@@ -7828,6 +7361,473 @@ function marsh_test {
             fi
             ;;
         marsh_text_transform_headings:5)
+            TEST_NAME+=":loads_source_inventory_once"
+            SITE_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
+            TARGET_PLAN_ROOT=""
+            CALLS_FILE="${TEST_TEMP_PREFIX}.inventory.calls"
+            ORIGINAL_GET_TARGET_SOURCE_INVENTORY=""
+            mkdir -p "${SOURCE_ROOT}/docs"
+            printf '%s\n' '# Home' > "${SOURCE_ROOT}/index.markdown"
+            printf '%s\n' '# Site Map' > "${SOURCE_ROOT}/site-map.markdown"
+            printf '%s\n' 'manual' > "${SOURCE_ROOT}/docs/manual.txt"
+            ORIGINAL_GET_TARGET_SOURCE_INVENTORY=$(declare -f marsh_get_target_source_inventory)
+            eval "${ORIGINAL_GET_TARGET_SOURCE_INVENTORY/marsh_get_target_source_inventory/marsh_test_original_get_target_source_inventory}"
+            function marsh_get_target_source_inventory {
+                printf '%s\n' 'call' >> "${CALLS_FILE}"
+                marsh_test_original_get_target_source_inventory "$@"
+            }
+            TARGET_PLAN_ROOT=$(marsh_plan_target "${SOURCE_ROOT}" "${SITE_OUTPUT_ROOT}" "." false "${SOURCE_ROOT}" "site-map.markdown" true "${TEST_TEMP_PREFIX}.templates" "sample" 0 "" "${SOURCE_ROOT}" "markdown,md")
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                DOCUMENTS_ACTUAL=$(while IFS=$'\t' read -r DOCUMENT_ID_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC; do
+                    [[ "${DOCUMENT_ID_ESC}" == "" ]] && continue
+                    eval "DOCUMENT_ID=${DOCUMENT_ID_ESC}"
+                    eval "SOURCE_RELPATH=${SOURCE_RELPATH_ESC}"
+                    eval "PLAN_TARGET_OUTPUT_REL=${TARGET_OUTPUT_REL_ESC}"
+                    eval "PLAN_SOURCE_ROOT=${SOURCE_ROOT_ESC}"
+                    printf '%s\t%s\t%s\t%s\n' "${DOCUMENT_ID}" "${SOURCE_RELPATH}" "${PLAN_TARGET_OUTPUT_REL}" "${PLAN_SOURCE_ROOT}"
+                done < "${TARGET_PLAN_ROOT}/documents" | sort)
+                SOURCE_ASSETS_ACTUAL=$(while IFS=$'\t' read -r ASSET_RELPATH_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC; do
+                    [[ "${ASSET_RELPATH_ESC}" == "" ]] && continue
+                    eval "ASSET_RELPATH=${ASSET_RELPATH_ESC}"
+                    eval "SOURCE_RELPATH=${SOURCE_RELPATH_ESC}"
+                    eval "PLAN_TARGET_OUTPUT_REL=${TARGET_OUTPUT_REL_ESC}"
+                    eval "PLAN_SOURCE_ROOT=${SOURCE_ROOT_ESC}"
+                    printf '%s\t%s\t%s\t%s\n' "${ASSET_RELPATH}" "${SOURCE_RELPATH}" "${PLAN_TARGET_OUTPUT_REL}" "${PLAN_SOURCE_ROOT}"
+                done < "${TARGET_PLAN_ROOT}/source-assets")
+                SITEMAPS_ACTUAL=$(<"${TARGET_PLAN_ROOT}/sitemaps")
+                INVENTORY_CALLS=$(wc -l < "${CALLS_FILE}" | awk '{ print $1 }')
+                EXPECTED=$(printf '%s\t%s\t%s\t%s\n' \
+                    'index.markdown' 'index.markdown' '.' "${SOURCE_ROOT}" \
+                    'site-map.markdown' 'site-map.markdown' '.' "${SOURCE_ROOT}" | sort)
+                ASSERTION="equals"
+                if [[ "${DOCUMENTS_ACTUAL}" == "${EXPECTED}" ]]; then
+                    EXPECTED=$(printf '%s\t%s\t%s\t%s\n' 'docs/manual.txt' 'docs/manual.txt' '.' "${SOURCE_ROOT}")
+                    ASSERTION="equals"
+                    if [[ "${SOURCE_ASSETS_ACTUAL}" == "${EXPECTED}" ]]; then
+                        EXPECTED=$(printf '%s\t%s\n' 'site-map.markdown' "${SOURCE_ROOT}/site-map.markdown")
+                        ASSERTION="equals"
+                        if [[ "${SITEMAPS_ACTUAL}" == "${EXPECTED}" ]]; then
+                            EXPECTED='1'
+                            ASSERTION="equals"
+                            if [[ "${INVENTORY_CALLS}" == "${EXPECTED}" ]]; then
+                                RES="[PASS]"
+                            fi
+                        fi
+                    fi
+                fi
+            fi
+            unset -f marsh_get_target_source_inventory marsh_test_original_get_target_source_inventory
+            eval "${ORIGINAL_GET_TARGET_SOURCE_INVENTORY}"
+            rm -rf "${SITE_OUTPUT_ROOT}" "${SOURCE_ROOT}" "${CALLS_FILE}"
+            ;;
+        marsh_write_document_artifacts:0)
+            TEST_NAME+=":frontmatter_reuses_existing_artifacts"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
+            mkdir -p "${SOURCE_ROOT}/docs"
+            printf '%s\n' \
+                '---' \
+                'Type: page' \
+                'Title: First' \
+                '...' \
+                '' \
+                '# First' > "${SOURCE_ROOT}/docs/index.markdown"
+            marsh_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "docs/index.markdown" "${SOURCE_ROOT}/docs/index.markdown"
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                eval "$(marsh_get_document_artifacts "${TARGET_OUTPUT_ROOT}" "docs/index.markdown")"
+                rm -f "${DOCUMENT_ARTIFACT_META}"
+                printf '%s\n' \
+                    '---' \
+                    'Type: page' \
+                    'Title: Second' \
+                    '...' \
+                    '' \
+                    '# Second' > "${SOURCE_ROOT}/docs/index.markdown"
+                marsh_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "docs/index.markdown" "${SOURCE_ROOT}/docs/index.markdown"
+                ACTUAL=$?
+                EXPECTED=0
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    ACTUAL="$(<"${DOCUMENT_ARTIFACT_CONTENT}")"$'\001'"$(<"${DOCUMENT_ARTIFACT_META_YAML}")"$'\001'"$(<"${DOCUMENT_ARTIFACT_META}")"$'\001'"$(find "${DOCUMENT_ARTIFACT_ROOT}" -maxdepth 1 \( -name '*.temp' -o -name '*.scratch' -o -name '*.backup' \) 2>/dev/null | marsh_text_transform items:count)"
+                    EXPECTED=$'\n''# First'$'\001''---'$'\n''Type: page'$'\n''Title: First'$'\n''...'$'\001''Type="page"'$'\n''Title="First"'$'\001''0'
+                    ASSERTION="equals"
+                    if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                        RES="[PASS]"
+                    fi
+                fi
+            fi
+            rm -rf "${TARGET_OUTPUT_ROOT}" "${SOURCE_ROOT}"
+            ;;
+        marsh_write_document_artifacts:1)
+            TEST_NAME+=":without_frontmatter_reuses_existing_content"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
+            mkdir -p "${SOURCE_ROOT}/docs"
+            printf '%s\n' '# First' > "${SOURCE_ROOT}/docs/index.markdown"
+            marsh_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "docs/index.markdown" "${SOURCE_ROOT}/docs/index.markdown"
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                eval "$(marsh_get_document_artifacts "${TARGET_OUTPUT_ROOT}" "docs/index.markdown")"
+                printf '%s\n' '# Second' > "${SOURCE_ROOT}/docs/index.markdown"
+                marsh_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "docs/index.markdown" "${SOURCE_ROOT}/docs/index.markdown"
+                ACTUAL=$?
+                EXPECTED=0
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    ACTUAL="$(<"${DOCUMENT_ARTIFACT_CONTENT}")"$'\001'"$(find "${DOCUMENT_ARTIFACT_ROOT}" -maxdepth 1 \( -name '*.temp' -o -name '*.scratch' -o -name '*.backup' \) 2>/dev/null | marsh_text_transform items:count)"
+                    EXPECTED='# First'$'\001''0'
+                    ASSERTION="equals"
+                    if [[ "${ACTUAL}" == "${EXPECTED}" ]] && [[ ! -e "${DOCUMENT_ARTIFACT_META_YAML}" ]] && [[ ! -e "${DOCUMENT_ARTIFACT_META}" ]]; then
+                        RES="[PASS]"
+                    fi
+                fi
+            fi
+            rm -rf "${TARGET_OUTPUT_ROOT}" "${SOURCE_ROOT}"
+            ;;
+        marsh_write_document_metadata_artifacts:0)
+            TEST_NAME+=":writes_metadata_without_content"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
+            mkdir -p "${SOURCE_ROOT}/docs"
+            printf '%s\n' \
+                '---' \
+                'Type: page' \
+                'Title: Example' \
+                'Project: Sample Site' \
+                '...' \
+                '' \
+                '# Example' > "${SOURCE_ROOT}/docs/index.markdown"
+            marsh_write_document_metadata_artifacts "${TARGET_OUTPUT_ROOT}" "docs/index.markdown" "${SOURCE_ROOT}/docs/index.markdown"
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                eval "$(marsh_get_document_artifacts "${TARGET_OUTPUT_ROOT}" "docs/index.markdown")"
+                {
+                    [[ -e "${DOCUMENT_ARTIFACT_META_YAML}" ]] \
+                        && [[ -e "${DOCUMENT_ARTIFACT_META}" ]] \
+                        && [[ ! -e "${DOCUMENT_ARTIFACT_CONTENT}" ]]
+                }
+                ACTUAL=$?
+                EXPECTED=0
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    ACTUAL="$(<"${DOCUMENT_ARTIFACT_META_YAML}")"$'\001'"$(<"${DOCUMENT_ARTIFACT_META}")"
+                    EXPECTED='---'$'\n''Type: page'$'\n''Title: Example'$'\n''Project: Sample Site'$'\n''...'$'\001''Type="page"'$'\n''Title="Example"'$'\n''Project="Sample Site"'
+                    ASSERTION="equals"
+                    if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                        RES="[PASS]"
+                    fi
+                fi
+            fi
+            rm -rf "${TARGET_OUTPUT_ROOT}" "${SOURCE_ROOT}"
+            ;;
+        marsh_write_document_metadata_artifacts:1)
+            TEST_NAME+=":reuses_existing_metadata_without_content"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
+            mkdir -p "${SOURCE_ROOT}/docs"
+            printf '%s\n' \
+                '---' \
+                'Type: page' \
+                'Title: First' \
+                '...' \
+                '' \
+                '# First' > "${SOURCE_ROOT}/docs/index.markdown"
+            marsh_write_document_metadata_artifacts "${TARGET_OUTPUT_ROOT}" "docs/index.markdown" "${SOURCE_ROOT}/docs/index.markdown"
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                eval "$(marsh_get_document_artifacts "${TARGET_OUTPUT_ROOT}" "docs/index.markdown")"
+                printf '%s\n' \
+                    '---' \
+                    'Type: page' \
+                    'Title: Second' \
+                    '...' \
+                    '' \
+                    '# Second' > "${SOURCE_ROOT}/docs/index.markdown"
+                marsh_write_document_metadata_artifacts "${TARGET_OUTPUT_ROOT}" "docs/index.markdown" "${SOURCE_ROOT}/docs/index.markdown"
+                ACTUAL=$?
+                EXPECTED=0
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    ACTUAL="$(<"${DOCUMENT_ARTIFACT_META_YAML}")"$'\001'"$(<"${DOCUMENT_ARTIFACT_META}")"$'\001'"$(find "${DOCUMENT_ARTIFACT_ROOT}" -maxdepth 1 \( -name '*.temp' -o -name '*.scratch' -o -name '*.backup' \) 2>/dev/null | marsh_text_transform items:count)"
+                    EXPECTED='---'$'\n''Type: page'$'\n''Title: First'$'\n''...'$'\001''Type="page"'$'\n''Title="First"'$'\001''0'
+                    ASSERTION="equals"
+                    if [[ "${ACTUAL}" == "${EXPECTED}" ]] && [[ ! -e "${DOCUMENT_ARTIFACT_CONTENT}" ]]; then
+                        RES="[PASS]"
+                    fi
+                fi
+            fi
+            rm -rf "${TARGET_OUTPUT_ROOT}" "${SOURCE_ROOT}"
+            ;;
+        marsh_write_document_metadata_artifacts:2)
+            TEST_NAME+=":rebuilds_missing_cache_without_content"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
+            mkdir -p "${SOURCE_ROOT}/docs"
+            printf '%s\n' \
+                '---' \
+                'Type: page' \
+                'Title: First' \
+                'Project: Sample Site' \
+                '...' \
+                '' \
+                '# First' > "${SOURCE_ROOT}/docs/index.markdown"
+            marsh_write_document_metadata_artifacts "${TARGET_OUTPUT_ROOT}" "docs/index.markdown" "${SOURCE_ROOT}/docs/index.markdown"
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                eval "$(marsh_get_document_artifacts "${TARGET_OUTPUT_ROOT}" "docs/index.markdown")"
+                rm -f "${DOCUMENT_ARTIFACT_META}"
+                printf '%s\n' \
+                    '---' \
+                    'Type: page' \
+                    'Title: Second' \
+                    'Project: Changed Site' \
+                    '...' \
+                    '' \
+                    '# Second' > "${SOURCE_ROOT}/docs/index.markdown"
+                marsh_write_document_metadata_artifacts "${TARGET_OUTPUT_ROOT}" "docs/index.markdown" "${SOURCE_ROOT}/docs/index.markdown"
+                ACTUAL=$?
+                EXPECTED=0
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    ACTUAL="$(<"${DOCUMENT_ARTIFACT_META_YAML}")"$'\001'"$(<"${DOCUMENT_ARTIFACT_META}")"$'\001'"$(find "${DOCUMENT_ARTIFACT_ROOT}" -maxdepth 1 \( -name '*.temp' -o -name '*.scratch' -o -name '*.backup' \) 2>/dev/null | marsh_text_transform items:count)"
+                    EXPECTED='---'$'\n''Type: page'$'\n''Title: First'$'\n''Project: Sample Site'$'\n''...'$'\001''Type="page"'$'\n''Title="First"'$'\n''Project="Sample Site"'$'\001''0'
+                    ASSERTION="equals"
+                    if [[ "${ACTUAL}" == "${EXPECTED}" ]] && [[ ! -e "${DOCUMENT_ARTIFACT_CONTENT}" ]]; then
+                        RES="[PASS]"
+                    fi
+                fi
+            fi
+            rm -rf "${TARGET_OUTPUT_ROOT}" "${SOURCE_ROOT}"
+            ;;
+        marsh_write_target_archive_manifest:0)
+            TEST_NAME+=":requires_explicit_document_records"
+            SITE_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
+            TARGET_PLAN_ROOT=""
+            DOCUMENT_RECORDS=()
+            mkdir -p "${SOURCE_ROOT}/news/2026/01/02" "${SOURCE_ROOT}/news/2026/01/01"
+            printf '%s\n' \
+                '---' \
+                'Type: post' \
+                'Title: Second' \
+                'Date: 2026-01-02' \
+                'State:' \
+                '  - published' \
+                '...' \
+                '' \
+                '# Second' > "${SOURCE_ROOT}/news/2026/01/02/02-second.markdown"
+            printf '%s\n' \
+                '---' \
+                'Type: note' \
+                'Title: First' \
+                'Date: 2026-01-01' \
+                '...' \
+                '' \
+                '# First' > "${SOURCE_ROOT}/news/2026/01/01/01-first.markdown"
+            while IFS= read -r DOCUMENT_RECORD; do
+                [[ "${DOCUMENT_RECORD}" == "" ]] && continue
+                DOCUMENT_RECORDS+=("${DOCUMENT_RECORD}")
+            done < <(marsh_plan_target_documents "${SITE_OUTPUT_ROOT}" "." "." "${SOURCE_ROOT}" "markdown,md")
+            TARGET_PLAN_ROOT=$(marsh_create_target_plan_root "${SITE_OUTPUT_ROOT}")
+            marsh_write_target_plan_records "${TARGET_PLAN_ROOT}" "documents" "${DOCUMENT_RECORDS[@]}"
+            marsh_write_target_archive_manifest "${SITE_OUTPUT_ROOT}" "markdown,md" "${TARGET_PLAN_ROOT}" 2>/dev/null
+            ACTUAL=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                if [[ ! -f "${TARGET_PLAN_ROOT}/archive-manifest" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${SITE_OUTPUT_ROOT}" "${SOURCE_ROOT}"
+            ;;
+        marsh_write_target_archive_manifest:1)
+            TEST_NAME+=":writes_manifest_from_document_records"
+            SITE_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
+            TARGET_PLAN_ROOT=""
+            DOCUMENT_RECORDS=()
+            mkdir -p "${SOURCE_ROOT}/news/2026/01/02" "${SOURCE_ROOT}/news/2026/01/01"
+            printf '%s\n' \
+                '---' \
+                'Type: post' \
+                'Title: Second' \
+                'Date: 2026-01-02' \
+                'State:' \
+                '  - published' \
+                '...' \
+                '' \
+                '# Second' > "${SOURCE_ROOT}/news/2026/01/02/02-second.markdown"
+            printf '%s\n' \
+                '---' \
+                'Type: note' \
+                'Title: First' \
+                'Date: 2026-01-01' \
+                '...' \
+                '' \
+                '# First' > "${SOURCE_ROOT}/news/2026/01/01/01-first.markdown"
+            while IFS= read -r DOCUMENT_RECORD; do
+                [[ "${DOCUMENT_RECORD}" == "" ]] && continue
+                DOCUMENT_RECORDS+=("${DOCUMENT_RECORD}")
+            done < <(marsh_plan_target_documents "${SITE_OUTPUT_ROOT}" "." "." "${SOURCE_ROOT}" "markdown,md")
+            TARGET_PLAN_ROOT=$(marsh_create_target_plan_root "${SITE_OUTPUT_ROOT}")
+            marsh_write_target_archive_manifest "${SITE_OUTPUT_ROOT}" "markdown,md" "${TARGET_PLAN_ROOT}" "${DOCUMENT_RECORDS[@]}"
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                ACTUAL=$(<"${TARGET_PLAN_ROOT}/archive-manifest")
+                EXPECTED="$(printf '%q\t%q\t%q\t%q\t%q\n' "news/2026/01/02/02-second.markdown" "post" "https://example.test/news/2026/01/02/02-second.html" "https://example.test/news/2026/01/02" "published")"$'\n'"$(printf '%q\t%q\t%q\t%q\t%q\n' "news/2026/01/01/01-first.markdown" "note" "https://example.test/news/2026/01/01/01-first.html" "https://example.test/news/2026/01/01" "")"
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${SITE_OUTPUT_ROOT}" "${SOURCE_ROOT}"
+            ;;
+        marsh_write_target_archive_manifest:2)
+            TEST_NAME+=":writes_manifest_from_provided_document_records"
+            SITE_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
+            TARGET_PLAN_ROOT=""
+            DOCUMENT_RECORDS=()
+            mkdir -p "${SOURCE_ROOT}/news/2026/01/02" "${SOURCE_ROOT}/news/2026/01/01"
+            printf '%s\n' \
+                '---' \
+                'Type: post' \
+                'Title: Current' \
+                'Date: 2026-01-02' \
+                '...' \
+                '' \
+                '# Current' > "${SOURCE_ROOT}/news/2026/01/02/02-current.markdown"
+            printf '%s\n' \
+                '---' \
+                'Type: note' \
+                'Title: Stale' \
+                'Date: 2026-01-01' \
+                '...' \
+                '' \
+                '# Stale' > "${SOURCE_ROOT}/news/2026/01/01/01-stale.markdown"
+            while IFS= read -r DOCUMENT_RECORD; do
+                [[ "${DOCUMENT_RECORD}" == "" ]] && continue
+                DOCUMENT_RECORDS+=("${DOCUMENT_RECORD}")
+            done < <(marsh_plan_target_documents "${SITE_OUTPUT_ROOT}" "news/2026/01/02/02-current.markdown" "." "${SOURCE_ROOT}" "markdown,md")
+            TARGET_PLAN_ROOT=$(marsh_create_target_plan_root "${SITE_OUTPUT_ROOT}")
+            marsh_write_target_plan_records "${TARGET_PLAN_ROOT}" "documents" "$(printf '%q\t%q\t%q\t%q\n' 'news/2026/01/01/01-stale.markdown' 'news/2026/01/01/01-stale.markdown' '.' "${SOURCE_ROOT}")"
+            marsh_write_target_archive_manifest "${SITE_OUTPUT_ROOT}" "markdown,md" "${TARGET_PLAN_ROOT}" "${DOCUMENT_RECORDS[@]}"
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                ACTUAL=$(<"${TARGET_PLAN_ROOT}/archive-manifest")
+                EXPECTED="$(printf '%q\t%q\t%q\t%q\t%q\n' "news/2026/01/02/02-current.markdown" "post" "https://example.test/news/2026/01/02/02-current.html" "https://example.test/news/2026/01/02" "")"
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${SITE_OUTPUT_ROOT}" "${SOURCE_ROOT}"
+            ;;
+        marsh_write_target_archive_manifest:3)
+            TEST_NAME+=":rejects_invalid_document_records"
+            SITE_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
+            TARGET_PLAN_ROOT=""
+            INVALID_DOCUMENT_RECORD=""
+            mkdir -p "${SOURCE_ROOT}/news/2026/01/01"
+            printf '%s\n' \
+                '---' \
+                'Type: note' \
+                'Title: Persisted' \
+                'Date: 2026-01-01' \
+                '...' \
+                '' \
+                '# Persisted' > "${SOURCE_ROOT}/news/2026/01/01/01-persisted.markdown"
+            TARGET_PLAN_ROOT=$(marsh_create_target_plan_root "${SITE_OUTPUT_ROOT}")
+            marsh_write_target_plan_records "${TARGET_PLAN_ROOT}" "documents" "$(printf '%q\t%q\t%q\t%q\n' 'news/2026/01/01/01-persisted.markdown' 'news/2026/01/01/01-persisted.markdown' '.' "${SOURCE_ROOT}")"
+            INVALID_DOCUMENT_RECORD=$(printf '%q\t%q\t%q\t%q\n' 'news/2026/01/03/03-missing.markdown' 'news/2026/01/03/03-missing.markdown' '.' "${SOURCE_ROOT}")
+            marsh_write_target_archive_manifest "${SITE_OUTPUT_ROOT}" "markdown,md" "${TARGET_PLAN_ROOT}" "${INVALID_DOCUMENT_RECORD}" 2>/dev/null
+            ACTUAL=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" -eq "${EXPECTED}" ]]; then
+                if [[ ! -f "${TARGET_PLAN_ROOT}/archive-manifest" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${SITE_OUTPUT_ROOT}" "${SOURCE_ROOT}"
+            ;;
+        marsh_write_target_archive_manifest:4)
+            TEST_NAME+=":reuses_metadata_artifacts_within_target_context"
+            SITE_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
+            TARGET_PLAN_ROOT=""
+            DOCUMENT_RECORDS=()
+            FIRST_STATE=""
+            mkdir -p "${SOURCE_ROOT}/news/2026/01/02"
+            printf '%s\n' \
+                '---' \
+                'Type: post' \
+                'Title: First' \
+                'Date: 2026-01-02' \
+                'State:' \
+                '  - published' \
+                '...' \
+                '' \
+                '# First' > "${SOURCE_ROOT}/news/2026/01/02/02-first.markdown"
+            while IFS= read -r DOCUMENT_RECORD; do
+                [[ "${DOCUMENT_RECORD}" == "" ]] && continue
+                DOCUMENT_RECORDS+=("${DOCUMENT_RECORD}")
+            done < <(marsh_plan_target_documents "${SITE_OUTPUT_ROOT}" "." "." "${SOURCE_ROOT}" "markdown,md")
+            TARGET_PLAN_ROOT=$(marsh_create_target_plan_root "${SITE_OUTPUT_ROOT}")
+            marsh_write_target_archive_manifest "${SITE_OUTPUT_ROOT}" "markdown,md" "${TARGET_PLAN_ROOT}" "${DOCUMENT_RECORDS[@]}"
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                eval "$(marsh_get_document_artifacts "${SITE_OUTPUT_ROOT}" "news/2026/01/02/02-first.markdown")"
+                FIRST_STATE="$(<"${TARGET_PLAN_ROOT}/archive-manifest")"$'\001'"$(<"${DOCUMENT_ARTIFACT_META_YAML}")"$'\001'"$(<"${DOCUMENT_ARTIFACT_META}")"
+                printf '%s\n' \
+                    '---' \
+                    'Type: post' \
+                    'Title: Second' \
+                    'Date: 2026-01-03' \
+                    'State:' \
+                    '  - draft' \
+                    '...' \
+                    '' \
+                    '# Second' > "${SOURCE_ROOT}/news/2026/01/02/02-first.markdown"
+                marsh_write_target_archive_manifest "${SITE_OUTPUT_ROOT}" "markdown,md" "${TARGET_PLAN_ROOT}" "${DOCUMENT_RECORDS[@]}"
+                ACTUAL=$?
+                EXPECTED=0
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    ACTUAL="$(<"${TARGET_PLAN_ROOT}/archive-manifest")"$'\001'"$(<"${DOCUMENT_ARTIFACT_META_YAML}")"$'\001'"$(<"${DOCUMENT_ARTIFACT_META}")"
+                    EXPECTED="${FIRST_STATE}"
+                    ASSERTION="equals"
+                    if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                        RES="[PASS]"
+                    fi
+                fi
+            fi
+            rm -rf "${SITE_OUTPUT_ROOT}" "${SOURCE_ROOT}"
+            ;;
+        marsh_write_target_archive_manifest:5)
             TEST_NAME+=":remove_markdown"
             ACTUAL=$(printf '%s\n' \
                 'Heading 2' \
@@ -7897,10 +7897,10 @@ KNOWN_FUNCTIONS=(
     marsh_build_template
     marsh_check_dependencies
     marsh_clean_target_temp
-    marsh_copy_template_assets
     marsh_copy_files
     marsh_copy_planned_target_source_assets
     marsh_copy_source_objects
+    marsh_copy_template_assets
     marsh_create_target_source_root
     marsh_escape_substitution
     marsh_extract_frontmatter
@@ -7917,8 +7917,8 @@ KNOWN_FUNCTIONS=(
     marsh_get_internal_parent_directory
     marsh_get_local_declarations
     marsh_get_processed_sitemap
-    marsh_get_render_temp_path
     marsh_get_relative_path
+    marsh_get_render_temp_path
     marsh_get_site_source_root_path
     marsh_get_sitemap_lookup_path
     marsh_get_sitemap_render_path
@@ -7940,6 +7940,8 @@ KNOWN_FUNCTIONS=(
     marsh_is_markdown_extension
     marsh_normalize_internal_path
     marsh_normalize_path
+    marsh_parse_template_metadata
+    marsh_parse_yaml
     marsh_plan_archive_pages
     marsh_plan_target
     marsh_plan_target_archives
@@ -7949,21 +7951,19 @@ KNOWN_FUNCTIONS=(
     marsh_plan_target_sitemaps_from_inventory
     marsh_plan_target_source_assets
     marsh_plan_target_source_assets_from_inventory
-    marsh_parse_template_metadata
-    marsh_parse_yaml
-    marsh_publish_processed_output
     marsh_process_markdown
+    marsh_publish_processed_output
     marsh_resolve_config_path
     marsh_resolve_relative_path
-    marsh_write_document_artifacts
-    marsh_write_document_metadata_artifacts
-    marsh_write_target_archive_manifest
     marsh_resolve_sitemap_source_path
     marsh_resolve_tag_metadata
     marsh_resolve_template_asset_output_path
     marsh_rewrite_sitemap_links
     marsh_text_transform
     marsh_text_transform_headings
+    marsh_write_document_artifacts
+    marsh_write_document_metadata_artifacts
+    marsh_write_target_archive_manifest
 )
 FUNCTIONS=("${@}")
 if [[ "${FUNCTIONS[*]}" == "" ]]; then

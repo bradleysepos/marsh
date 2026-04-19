@@ -414,6 +414,7 @@ function marsh_test {
     local TEST_NAME="${1}" EXISTS EXPECTED ACTUAL ASSERTION RES
     local TEST_TEMP_PREFIX SOURCE_FILE META_FILE CONTENT_FILE DOCUMENT_FILE TARGET_OUTPUT_ROOT HASH ARCHIVE_HASH SEP MANIFEST_FILE
     local INDEX_FILE CACHE_FILE CACHE_COUNT TEMPLATE_DIR TEMPLATE_OVERRIDE_FILE MARSH_OTEMP MARSH_OCONFIG_PATH MARSH_OCONFIG_URL
+    local DOCUMENT_ARTIFACT_ROOT DOCUMENT_ARTIFACT_CONTENT DOCUMENT_ARTIFACT_META_YAML DOCUMENT_ARTIFACT_META DOCUMENT_ARTIFACT_ARCHIVE_META
     local BASE_URI CANONICAL_META ALIAS_META PAGE_META
     local SITE_SOURCE_ROOT TARGET_SITEMAP_PATH
     local TARGET_PATH TARGET_NAME TARGET_SOURCE TARGET_FORCE
@@ -7348,7 +7349,10 @@ function marsh_test {
             EXPECTED=0
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                eval "$(marsh_get_document_artifacts "${TARGET_OUTPUT_ROOT}" "docs/index.markdown")"
+                DOCUMENT_ARTIFACT_ROOT=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "docs/index.markdown" "root")
+                DOCUMENT_ARTIFACT_CONTENT=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "docs/index.markdown" "content")
+                DOCUMENT_ARTIFACT_META_YAML=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "docs/index.markdown" "meta-yaml")
+                DOCUMENT_ARTIFACT_META=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "docs/index.markdown" "meta")
                 rm -f "${DOCUMENT_ARTIFACT_META}"
                 printf '%s\n' \
                     '---' \
@@ -7383,7 +7387,10 @@ function marsh_test {
             EXPECTED=0
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                eval "$(marsh_get_document_artifacts "${TARGET_OUTPUT_ROOT}" "docs/index.markdown")"
+                DOCUMENT_ARTIFACT_ROOT=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "docs/index.markdown" "root")
+                DOCUMENT_ARTIFACT_CONTENT=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "docs/index.markdown" "content")
+                DOCUMENT_ARTIFACT_META_YAML=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "docs/index.markdown" "meta-yaml")
+                DOCUMENT_ARTIFACT_META=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "docs/index.markdown" "meta")
                 printf '%s\n' '# Second' > "${SOURCE_ROOT}/docs/index.markdown"
                 marsh_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "docs/index.markdown" "${SOURCE_ROOT}/docs/index.markdown"
                 ACTUAL=$?
@@ -7418,7 +7425,9 @@ function marsh_test {
             EXPECTED=0
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                eval "$(marsh_get_document_artifacts "${TARGET_OUTPUT_ROOT}" "docs/index.markdown")"
+                DOCUMENT_ARTIFACT_CONTENT=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "docs/index.markdown" "content")
+                DOCUMENT_ARTIFACT_META_YAML=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "docs/index.markdown" "meta-yaml")
+                DOCUMENT_ARTIFACT_META=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "docs/index.markdown" "meta")
                 {
                     [[ -e "${DOCUMENT_ARTIFACT_META_YAML}" ]] \
                         && [[ -e "${DOCUMENT_ARTIFACT_META}" ]] \
@@ -7455,7 +7464,10 @@ function marsh_test {
             EXPECTED=0
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                eval "$(marsh_get_document_artifacts "${TARGET_OUTPUT_ROOT}" "docs/index.markdown")"
+                DOCUMENT_ARTIFACT_ROOT=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "docs/index.markdown" "root")
+                DOCUMENT_ARTIFACT_CONTENT=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "docs/index.markdown" "content")
+                DOCUMENT_ARTIFACT_META_YAML=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "docs/index.markdown" "meta-yaml")
+                DOCUMENT_ARTIFACT_META=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "docs/index.markdown" "meta")
                 printf '%s\n' \
                     '---' \
                     'Type: page' \
@@ -7496,7 +7508,10 @@ function marsh_test {
             EXPECTED=0
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                eval "$(marsh_get_document_artifacts "${TARGET_OUTPUT_ROOT}" "docs/index.markdown")"
+                DOCUMENT_ARTIFACT_ROOT=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "docs/index.markdown" "root")
+                DOCUMENT_ARTIFACT_CONTENT=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "docs/index.markdown" "content")
+                DOCUMENT_ARTIFACT_META_YAML=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "docs/index.markdown" "meta-yaml")
+                DOCUMENT_ARTIFACT_META=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "docs/index.markdown" "meta")
                 rm -f "${DOCUMENT_ARTIFACT_META}"
                 printf '%s\n' \
                     '---' \
@@ -7707,7 +7722,8 @@ function marsh_test {
             EXPECTED=0
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                eval "$(marsh_get_document_artifacts "${SITE_OUTPUT_ROOT}" "news/2026/01/02/02-first.markdown")"
+                DOCUMENT_ARTIFACT_META_YAML=$(marsh_get_document_temp_path "${SITE_OUTPUT_ROOT}" "news/2026/01/02/02-first.markdown" "meta-yaml")
+                DOCUMENT_ARTIFACT_META=$(marsh_get_document_temp_path "${SITE_OUTPUT_ROOT}" "news/2026/01/02/02-first.markdown" "meta")
                 FIRST_STATE="$(<"${TARGET_PLAN_ROOT}/archive-manifest")"$'\001'"$(<"${DOCUMENT_ARTIFACT_META_YAML}")"$'\001'"$(<"${DOCUMENT_ARTIFACT_META}")"
                 printf '%s\n' \
                     '---' \

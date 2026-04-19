@@ -358,17 +358,6 @@ function marsh_test_write_document_artifacts {
     printf '%s\n' "$@" > "${FILE}" || return 1
 }
 
-function marsh_test_write_target_source_root {
-    local TARGET_OUTPUT_ROOT SOURCE_ROOT
-
-    TARGET_OUTPUT_ROOT="${1:-}"
-    SOURCE_ROOT="${2:-}"
-    [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
-    [[ "${SOURCE_ROOT}" == "" ]] && return 1
-
-    marsh_create_target_source_root "${TARGET_OUTPUT_ROOT}" "${SOURCE_ROOT}" || return 1
-}
-
 function marsh_test_set_env {
     MARSH_OTEMP="${MARSH_TEMP:-}"
     MARSH_OCONFIG_PATH="${MARSH_CONFIG_PATH:-}"

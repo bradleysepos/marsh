@@ -538,7 +538,8 @@ function marsh_text_transform_headings {  # marsh_text_transform_headings action
 
 # transforms a string
 function marsh_text_transform {  # marsh_text_transform transform [transform...]
-    local TRANSFORM OIFS PIPE_STATUS STATUS
+    local TRANSFORM OIFS STATUS
+    local -a PIPE_STATUS
     TRANSFORM="${1:-}"
     OIFS="${IFS}"
     IFS=$'\n'
@@ -551,7 +552,8 @@ function marsh_text_transform {  # marsh_text_transform transform [transform...]
         done
         return 0
     fi
-    local OPTIONS OPTIONS_STRING OPTION_CURRENT OPTION_INDEX OPTION_CHAR OPTION_NEXT
+    local OPTIONS_STRING OPTION_CURRENT OPTION_INDEX OPTION_CHAR OPTION_NEXT
+    local -a OPTIONS
     OPTIONS=()
     OPTIONS_STRING="${TRANSFORM#*:}"
     if [[ "${OPTIONS_STRING}" == "${TRANSFORM}" ]]; then
@@ -1407,7 +1409,8 @@ function marsh_resolve_tag_metadata {  # marsh_resolve_tag_metadata tag_name pre
 
 # processes markdown from stdin using explicit runtime configuration
 function marsh_process_markdown {  # marsh_process_markdown markdown_command markdown_options_csv [args...]
-    local MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_OPTIONS MARKDOWN_OPTIONS_CLIARGS OIFS I
+    local MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV OIFS I
+    local -a MARKDOWN_OPTIONS MARKDOWN_OPTIONS_CLIARGS
 
     MARKDOWN_COMMAND="${1:-}"
     MARKDOWN_OPTIONS_CSV="${2:-}"
@@ -1569,7 +1572,8 @@ function marsh_get_document_metadata {  # marsh_get_document_metadata meta_file 
 function marsh_get_archive_metadata {  # marsh_get_archive_metadata target_output_root document
     local TARGET_OUTPUT_ROOT DOCUMENT
     local INDEX META DOCUMENT_SITE_REL META_PREFIX META_ASSIGNMENTS META_VARS TARGET_OUTPUT_REL
-    local TYPE_VAR TYPE URI ABSPATH STATE VALUE_ESC
+    local TYPE_VAR TYPE URI ABSPATH VALUE_ESC
+    local -a STATE
 
     # init
     TARGET_OUTPUT_ROOT="${1:-}"
@@ -1633,8 +1637,9 @@ function marsh_get_archive_metadata {  # marsh_get_archive_metadata target_outpu
 
 # builds a sorted archive manifest from cached archive metadata
 function marsh_build_archive_manifest {  # marsh_build_archive_manifest target_output_root
-    local TARGET_OUTPUT_ROOT TARGET_BUILD_TEMP_ROOT TARGET_DOCUMENTS_TEMP_ROOT DOCUMENTS_LIST DOCUMENT DOCUMENT_SITE_REL TYPE URI ABSPATH STATE
+    local TARGET_OUTPUT_ROOT TARGET_BUILD_TEMP_ROOT TARGET_DOCUMENTS_TEMP_ROOT DOCUMENTS_LIST DOCUMENT DOCUMENT_SITE_REL TYPE URI ABSPATH
     local ARCHIVE_META STATE_JOINED OIFS
+    local -a STATE
 
     TARGET_OUTPUT_ROOT="${1:-}"
     [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
@@ -1775,7 +1780,8 @@ function marsh_get_sitemap_lookup_path {  # marsh_get_sitemap_lookup_path target
 
 # checks for required external tools
 function marsh_check_dependencies {  # marsh_check_dependencies $DEP1 $DEP2 ...
-    local DEPS ERRORS DEPS_EACH DEPS_MULTI FOUND DEP
+    local DEPS_EACH FOUND DEP
+    local -a DEPS ERRORS DEPS_MULTI
     DEPS=("${@}");
     ERRORS=()
     for DEPS_EACH in "${DEPS[@]}"; do
@@ -1805,11 +1811,13 @@ function marsh_check_dependencies {  # marsh_check_dependencies $DEP1 $DEP2 ...
 
 # prints bash variable assignments for template metadata
 function marsh_parse_template_metadata {  # marsh_parse_template_metadata prefix template_dir #template_overrides[@] template_overrides[@]
-    local PREFIX TEMPLATE_DIR NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDE TEMPLATE_OVERRIDES
+    local PREFIX TEMPLATE_DIR NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDE
     local TEMPLATE_META TEMPLATE_META_VARS
-    local TEMPLATE_ASSETS_FONTS TEMPLATE_ASSETS_STYLES TEMPLATE_ASSETS_SCRIPTS TEMPLATE_ASSETS_IMAGES TEMPLATE_ASSETS_AUDIO TEMPLATE_ASSETS_VIDEO TEMPLATE_ASSETS_DOCUMENTS TEMPLATE_ASSETS_BINARIES TEMPLATE_ASSETS_OTHER
-    local INDEX ASSET_TYPES ASSET_TYPE ASSET_TYPE_UPPER ASSET FILTER_INDEX REGEX EXTENDED MATCH REPLACE EXTRA
-    local ASSETS_INDEX ASSETS_TYPE ASSETS ASSETS_TEMP OIFS
+    local INDEX ASSET_TYPE ASSET_TYPE_UPPER ASSET FILTER_INDEX REGEX EXTENDED MATCH REPLACE EXTRA I
+    local ASSETS_INDEX ASSETS_TYPE OIFS
+    local -a TEMPLATE_OVERRIDES TEMPLATE_ASSETS_FONTS TEMPLATE_ASSETS_STYLES TEMPLATE_ASSETS_SCRIPTS TEMPLATE_ASSETS_IMAGES
+    local -a TEMPLATE_ASSETS_AUDIO TEMPLATE_ASSETS_VIDEO TEMPLATE_ASSETS_DOCUMENTS TEMPLATE_ASSETS_BINARIES TEMPLATE_ASSETS_OTHER
+    local -a ASSET_TYPES ASSETS ASSETS_TEMP
 
     # init
     PREFIX="${1:-}"
@@ -1977,8 +1985,9 @@ function marsh_parse_template_metadata {  # marsh_parse_template_metadata prefix
 
 # loads cached template metadata assignments where available
 function marsh_get_template_metadata {  # marsh_get_template_metadata prefix template_dir #template_overrides[@] template_overrides[@]
-    local PREFIX TEMPLATE_DIR NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDES
+    local PREFIX TEMPLATE_DIR NUM_TEMPLATE_OVERRIDES
     local CACHE_DIR CACHE_KEY CACHE_FILE CACHE_TEMP TEMPLATE_META
+    local -a TEMPLATE_OVERRIDES
 
     # init
     PREFIX="${1:-}"
@@ -2027,11 +2036,12 @@ function marsh_get_template_metadata {  # marsh_get_template_metadata prefix tem
 function marsh_get_target_metadata {  # marsh_get_target_metadata source_prefix prefix
     local SOURCE_PREFIX PREFIX
     local TARGET_PATH TARGET_NAME TARGET_SOURCE TARGET_FORCE TARGET_SITEMAP TARGET_SITEMAP_SOURCE TARGET_SITEMAP_SEARCH
-    local II TEMPLATE_SOURCE TEMPLATE_ASSETS_PATH TEMPLATE_OVERRIDE TEMPLATE_OVERRIDES
+    local II TEMPLATE_SOURCE TEMPLATE_ASSETS_PATH TEMPLATE_OVERRIDE
     local ARCHIVE ARCHIVE_NAME ARCHIVE_ENCODING ARCHIVE_LANGUAGE ARCHIVE_LANGUAGE_CODE ARCHIVE_ROOT_PATH
-    local ARCHIVE_COUNT ARCHIVE_PAGE_SIZE ARCHIVE_CONTENT ARCHIVE_TYPES ARCHIVE_EXCLUDED_STATES
-    local ARCHIVE_TEMPLATE_SOURCE ARCHIVE_TEMPLATE_ASSETS_PATH ARCHIVE_TEMPLATE_OVERRIDE ARCHIVE_TEMPLATE_OVERRIDES
+    local ARCHIVE_COUNT ARCHIVE_PAGE_SIZE ARCHIVE_CONTENT
+    local ARCHIVE_TEMPLATE_SOURCE ARCHIVE_TEMPLATE_ASSETS_PATH
     local OIFS
+    local -a TEMPLATE_OVERRIDES ARCHIVE_TYPES ARCHIVE_EXCLUDED_STATES ARCHIVE_TEMPLATE_OVERRIDES
 
     # init
     SOURCE_PREFIX="${1:-}"
@@ -2157,7 +2167,8 @@ function marsh_get_source_root_path {  # marsh_get_source_root_path source_path
 
 # returns the common directory for a list of paths
 function marsh_get_common_directory {  # marsh_get_common_directory paths...
-    local PATHS COMMON_DIR NEXT_DIR
+    local COMMON_DIR NEXT_DIR
+    local -a PATHS
 
     PATHS=("${@}")
     [[ "${#PATHS[@]}" -gt 0 ]] || return 1
@@ -2180,7 +2191,7 @@ function marsh_get_common_directory {  # marsh_get_common_directory paths...
 # returns the common site source root for all configured targets
 function marsh_get_site_source_root_path {  # marsh_get_site_source_root_path config_file_dir
     local CONFIG_FILE_DIR INDEX PREFIX META META_VARS TARGET_SOURCE_VALUE SOURCE_ROOT
-    local SOURCE_ROOTS
+    local -a SOURCE_ROOTS
 
     CONFIG_FILE_DIR="${1:-.}"
     [[ -d "${CONFIG_FILE_DIR}" ]] || return 1
@@ -2470,7 +2481,8 @@ function marsh_plan_target_source_assets_from_inventory {  # marsh_plan_target_s
 
 function marsh_plan_target_source_assets {  # marsh_plan_target_source_assets source site_output_root target_output_rel markdown_fileext_csv
     local SOURCE SITE_OUTPUT_ROOT TARGET_OUTPUT_REL MARKDOWN_FILEEXT_CSV
-    local SOURCE_ROOT TARGET_OUTPUT_ROOT TARGET_SOURCE_INVENTORY_RECORDS TARGET_SOURCE_INVENTORY_LINE
+    local SOURCE_ROOT TARGET_OUTPUT_ROOT TARGET_SOURCE_INVENTORY_LINE
+    local -a TARGET_SOURCE_INVENTORY_RECORDS
 
     SOURCE="${1:-}"
     SITE_OUTPUT_ROOT="${2:-}"
@@ -2497,7 +2509,7 @@ function marsh_copy_planned_target_source_assets {  # marsh_copy_planned_target_
     local SITE_OUTPUT_ROOT VERBOSE FORCE TARGET_OUTPUT_REL TARGET_OUTPUT_ROOT SOURCE_ROOT
     local SOURCE_ASSET_RECORD SOURCE_RELPATH PLAN_TARGET_OUTPUT_REL PLAN_SOURCE_ROOT
     local ASSET_RELPATH_ESC SOURCE_RELPATH_ESC PLAN_TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC
-    local SOURCE_OBJECTS
+    local -a SOURCE_OBJECTS
 
     SITE_OUTPUT_ROOT="${1:-}"
     VERBOSE="${2:-false}"
@@ -2569,9 +2581,10 @@ function marsh_resolve_template_asset_output_path {  # marsh_resolve_template_as
 
 # returns the existing template asset paths declared by template metadata and overrides
 function marsh_get_template_assets {  # marsh_get_template_assets templates_dir template #template_overrides[@] template_overrides[@]
-    local TEMPLATES_DIR TEMPLATE NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDES
-    local TEMPLATE_PREFIX TEMPLATE_META TEMPLATE_META_VARS TEMPLATE_ASSETS_ALL
+    local TEMPLATES_DIR TEMPLATE NUM_TEMPLATE_OVERRIDES
+    local TEMPLATE_PREFIX TEMPLATE_META TEMPLATE_META_VARS
     local ASSET ASSET_PATH
+    local -a TEMPLATE_OVERRIDES TEMPLATE_ASSETS_ALL
 
     TEMPLATES_DIR="${1:-}"
     TEMPLATE="${2:-}"
@@ -2616,10 +2629,11 @@ function marsh_get_template_assets {  # marsh_get_template_assets templates_dir 
 
 # loads cached target-relative template asset output paths for one template context
 function marsh_get_template_asset_output_paths {  # marsh_get_template_asset_output_paths target_output_rel templates_dir template #template_overrides[@] template_overrides[@] template_assets_path
-    local TARGET_OUTPUT_REL TEMPLATES_DIR TEMPLATE NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDES TEMPLATE_ASSETS_PATH
+    local TARGET_OUTPUT_REL TEMPLATES_DIR TEMPLATE NUM_TEMPLATE_OVERRIDES TEMPLATE_ASSETS_PATH
     local CACHE_DIR CACHE_KEY CACHE_FILE CACHE_TEMP TEMPLATE_PREFIX TEMPLATE_META TEMPLATE_META_VARS
-    local ASSET_TYPES ASSET_TYPE ASSETS_VAR ASSETS ASSET ASSET_PATH ASSET_OUTPUT_PATH
+    local ASSET_TYPE ASSETS_VAR ASSET ASSET_PATH ASSET_OUTPUT_PATH
     local OUTPUT OIFS
+    local -a TEMPLATE_OVERRIDES ASSET_TYPES ASSETS
 
     # init
     TARGET_OUTPUT_REL="${1:-}"
@@ -2707,11 +2721,12 @@ function marsh_get_template_asset_output_paths {  # marsh_get_template_asset_out
 
 # copies template assets into the build output, resolving output paths relative to the target root
 function marsh_copy_template_assets {  # marsh_copy_template_assets site_output_root target_output_rel verbose templates_dir template #template_overrides[@] template_overrides[@] template_assets_path
-    local SITE_OUTPUT_ROOT TARGET_OUTPUT_REL VERBOSE TEMPLATES_DIR TEMPLATE NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDES TEMPLATE_ASSETS_PATH TEMPLATE_ASSETS
+    local SITE_OUTPUT_ROOT TARGET_OUTPUT_REL VERBOSE TEMPLATES_DIR TEMPLATE NUM_TEMPLATE_OVERRIDES TEMPLATE_ASSETS_PATH TEMPLATE_ASSETS
     local ASSET ASSET_PATH ASSET_OUTPUT_REL ASSET_SOURCE ASSET_DEST_PATH
     local ASSET_COPY_CACHE_DIR ASSET_COPY_CACHE_KEY ASSET_COPY_CACHE_FILE ASSET_COPY_CACHE_TEMP
-    local TEMPLATE_ASSET_RECORDS TEMPLATE_ASSET_RECORD ASSET_SOURCE_ESC ASSET_DEST_PATH_ESC ASSET_OUTPUT_REL_ESC
+    local TEMPLATE_ASSET_RECORD ASSET_SOURCE_ESC ASSET_DEST_PATH_ESC ASSET_OUTPUT_REL_ESC
     local EXPECTED_MANIFEST MANIFEST_VALID
+    local -a TEMPLATE_OVERRIDES TEMPLATE_ASSET_RECORDS
 
     # init
     SITE_OUTPUT_ROOT="${1:-}"
@@ -2908,7 +2923,8 @@ function marsh_normalize_path {  # marsh_normalize_path path [path_kind]
 function marsh_get_relative_path {  # marsh_get_relative_path base_dir target_path
     local BASE_DIR TARGET_PATH BASE_DIR_NORM TARGET_PATH_NORM
     local BASE_PATH TARGET_PATH_VALUE TARGET_IS_DIR
-    local BASE_PARTS TARGET_PARTS RESULT I J COMMON_PREFIX
+    local RESULT I J COMMON_PREFIX
+    local -a BASE_PARTS TARGET_PARTS
 
     BASE_DIR="${1:-}"
     TARGET_PATH="${2:-}"
@@ -2966,7 +2982,8 @@ function marsh_get_relative_path {  # marsh_get_relative_path base_dir target_pa
 # resolves a relative path against a base directory path without touching the filesystem
 function marsh_resolve_relative_path {  # marsh_resolve_relative_path base_dir target_path
     local BASE_DIR TARGET_PATH BASE_DIR_NORM BASE_PATH TARGET_IS_DIR
-    local RESULT_PARTS INPUT_PARTS PART RESULT LAST_INDEX
+    local PART RESULT LAST_INDEX
+    local -a RESULT_PARTS INPUT_PARTS
 
     BASE_DIR="${1:-}"
     TARGET_PATH="${2:-}"
@@ -3130,9 +3147,10 @@ function marsh_create_target_plan_root {  # marsh_create_target_plan_root target
 # writes the target plan context used by the planned target executor
 function marsh_write_target_plan_context {  # marsh_write_target_plan_context target_plan_root target_output_rel force skip_template_assets sitemap sitemap_search templates_dir template #template_overrides[@] template_overrides[@] template_assets_path build_context_target_output_rel build_context_source_root [config_file_dir] [target_name] [target_template_source]
     local TARGET_PLAN_ROOT TARGET_OUTPUT_REL FORCE SKIP_TEMPLATE_ASSETS SITEMAP SITEMAP_SEARCH TEMPLATES_DIR TEMPLATE
-    local NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDES TEMPLATE_ASSETS_PATH BUILD_CONTEXT_TARGET_OUTPUT_REL BUILD_CONTEXT_SOURCE_ROOT
+    local NUM_TEMPLATE_OVERRIDES TEMPLATE_ASSETS_PATH BUILD_CONTEXT_TARGET_OUTPUT_REL BUILD_CONTEXT_SOURCE_ROOT
     local CONFIG_FILE_DIR TARGET_NAME TARGET_TEMPLATE_SOURCE
     local CONTEXT_FILE CONTEXT_TEMP TEMPLATE_OVERRIDE ARCHIVE_ARRAY
+    local -a TEMPLATE_OVERRIDES
 
     TARGET_PLAN_ROOT="${1:-}"
     TARGET_OUTPUT_REL="${2:-}"
@@ -3468,8 +3486,9 @@ function marsh_get_internal_parent_directory {  # marsh_get_internal_parent_dire
 # rewrites relative href values in a rendered sitemap for the destination document
 function marsh_rewrite_sitemap_links {  # marsh_rewrite_sitemap_links sitemap_file sitemap_dir document_base_path
     local SITEMAP_FILE SITEMAP_DIR DOCUMENT_BASE_PATH
-    local HREFS HREF HREF_TARGET HREF_SUFFIX RESOLVED_HREF REWRITTEN_HREF
+    local HREF HREF_TARGET HREF_SUFFIX RESOLVED_HREF REWRITTEN_HREF
     local SEARCH_ESC REPLACEMENT_ESC REPLACEMENTS SCRATCH_FILE
+    local -a HREFS
 
     SITEMAP_FILE="${1:-}"
     SITEMAP_DIR="${2:-}"
@@ -3601,7 +3620,8 @@ function marsh_get_archive_page_root {  # marsh_get_archive_page_root archive_so
 # returns the common archive root directory for a related set of archive outputs
 function marsh_get_archive_root_path {  # marsh_get_archive_root_path archive_path[@]
     local ARCHIVE_PATH CURRENT_DIR COMMON_DIR NEXT_DIR
-    local COMMON_PARTS NEXT_PARTS COMMON_COUNT INDEX
+    local COMMON_COUNT INDEX
+    local -a COMMON_PARTS NEXT_PARTS
 
     ARCHIVE_PATH="${1:-}"
     [[ "${ARCHIVE_PATH}" == "" ]] && return 1
@@ -3679,8 +3699,9 @@ function marsh_write_archive_page {  # marsh_write_archive_page encoding target_
     local PAGE_URI PAGE_CANONICAL_URI PAGE_FIRST_URI PAGE_PREV_URI PAGE_NEXT_URI PAGE_LAST_URI
     local PAGE_HREF PAGE_CANONICAL_HREF PAGE_FIRST_HREF PAGE_PREV_HREF PAGE_NEXT_HREF PAGE_LAST_HREF
     local ARCHIVE_ROOT_PATH ARCHIVE_ROOT_HREF
-    local NUM_DOCUMENTS DOCUMENTS DOCUMENT_URIS DOCUMENT_ABSPATHS DOCUMENT INDEX URI ABSPATH MANIFEST_FILE
+    local NUM_DOCUMENTS DOCUMENT INDEX URI ABSPATH MANIFEST_FILE
     local PAGE_IS_FIRST PAGE_IS_LAST PAGE_HAS_PREV PAGE_HAS_NEXT PAGE_HAS_SUBDOCUMENTS
+    local -a DOCUMENTS DOCUMENT_URIS DOCUMENT_ABSPATHS
 
     ENCODING="${1:-}"
     TARGET_OUTPUT_ROOT="${2:-}"
@@ -3837,19 +3858,20 @@ function marsh_write_archive_page {  # marsh_write_archive_page encoding target_
 # builds an archive of directory contents, sorted by descending date
 function marsh_build_archive {  # marsh_build_archive encoding target_output_root archive_source archive_title language langcode count page_size #types[@] types[@] #excluded_states[@] excluded_states[@] archive_manifest archive_root_path
     local ENCODING TARGET_OUTPUT_ROOT ARCHIVE_SOURCE_REL ARCHIVE_TITLE LANGUAGE LANGCODE
-    local COUNT PAGE_SIZE NUM_TYPES TYPES NUM_EXCLUDED_STATES EXCLUDED_STATES
-    local VALID DOCUMENT TYPE STATE STATE_JOINED OIFS E
+    local COUNT PAGE_SIZE NUM_TYPES NUM_EXCLUDED_STATES
+    local VALID DOCUMENT TYPE STATE_JOINED OIFS E
     local ARCHIVE_MANIFEST MANIFEST_DOCUMENT_ESC MANIFEST_TYPE_ESC MANIFEST_URI_ESC MANIFEST_ABSPATH_ESC MANIFEST_STATE_ESC
-    local URI ABSPATH VALID_DOCUMENTS VALID_DOCUMENT_URIS VALID_DOCUMENT_ABSPATHS
-    local PAGINATED PAGE_TOTAL PAGE PAGE_START PAGE_END PAGE_INDEX PAGE_DOCUMENTS
-    local PAGE_DOCUMENT_URIS PAGE_DOCUMENT_ABSPATHS PAGE_SUBDOCUMENTS_TOTAL
-    local ARCHIVE_PAGES ARCHIVE_SUBDOCUMENTS_TOTAL
+    local URI ABSPATH
+    local PAGINATED PAGE_TOTAL PAGE PAGE_START PAGE_END PAGE_INDEX PAGE_SUBDOCUMENTS_TOTAL
+    local ARCHIVE_SUBDOCUMENTS_TOTAL
     local PAGE_ARCHIVE_SOURCE_REL PAGE_ALIAS_ARCHIVE_SOURCE_REL PAGE_ROOT
     local PAGE_URI PAGE_CANONICAL_URI PAGE_FIRST_URI PAGE_PREV_URI PAGE_NEXT_URI PAGE_LAST_URI
     local PAGE_HREF PAGE_CANONICAL_HREF PAGE_FIRST_HREF PAGE_PREV_HREF PAGE_NEXT_HREF PAGE_LAST_HREF
     local PAGE_PREV_ARCHIVE_SOURCE_REL PAGE_NEXT_ARCHIVE_SOURCE_REL PAGE_LAST_ARCHIVE_SOURCE_REL
     local PAGE_OUTPUT_PATH PAGE_CANONICAL_OUTPUT_PATH PAGE_FIRST_OUTPUT_PATH PAGE_PREV_OUTPUT_PATH PAGE_NEXT_OUTPUT_PATH PAGE_LAST_OUTPUT_PATH PAGE_BASE_PATH
     local ARCHIVE_ROOT_PATH PAGE_ARCHIVE_ROOT_HREF
+    local -a TYPES EXCLUDED_STATES STATE VALID_DOCUMENTS VALID_DOCUMENT_URIS VALID_DOCUMENT_ABSPATHS
+    local -a ARCHIVE_PAGES PAGE_DOCUMENTS PAGE_DOCUMENT_URIS PAGE_DOCUMENT_ABSPATHS
 
     # init
     ENCODING="${1:-html}"
@@ -4376,7 +4398,8 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
 
     function get_processed_conditional_partial {  # get_processed_conditional_partial file prefix metadata_vars
         local FILE PREFIX METADATA_VARS TAGS TAG CACHE_DIR CACHE_KEY CACHE_FILE CACHE_TEMP
-        local TAG_VAR TAG_TYPE CONDITIONAL_VALUE CONDITIONAL_VALUES CONDITIONAL_KEY OIFS
+        local TAG_VAR TAG_TYPE CONDITIONAL_VALUE CONDITIONAL_KEY OIFS
+        local -a CONDITIONAL_VALUES
 
         FILE="${1:-}"
         PREFIX="${2:-}"
@@ -4469,7 +4492,7 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
 
     function parse_template_tag {  # parse_template_tag tag_string
         local TAG_STRING TAG_BODY TAG_CHAR TAG_CURRENT TAG_QUOTE TAG_ESCAPE TAG_INDEX TAG_PART TAG_NAME_VALUE
-        local TAG_PARTS
+        local -a TAG_PARTS
 
         TAG_STRING="${1:-}"
         [[ "${TAG_STRING}" == "" ]] && return 1
@@ -4534,8 +4557,9 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
     function replace_tags {  # replace_tags document prefix metadata_vars[@]
         local DOCUMENT PREFIX METADATA_VARS
         local TAG_FRAGMENT_UNQUOTED TAG_FRAGMENT_DOUBLE TAG_FRAGMENT_SINGLE TAG_FRAGMENT TAG_REGEX
-        local TAGS UNIQUE_TAGS REPLACEMENTS TAG_ESC TAG_NAME TAG_FILTERS TAG_VAR TAG_TYPE TAG_VALUE TAG_VALUES TAG_PARSE
+        local REPLACEMENTS TAG_ESC TAG_NAME TAG_VAR TAG_TYPE TAG_VALUE TAG_PARSE
         local I SCRATCH_FILE
+        local -a TAGS UNIQUE_TAGS TAG_FILTERS TAG_VALUES
 
         # init
         DOCUMENT="${1:-}"
@@ -4627,21 +4651,17 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
     local SITE_ROOTPATH SITE_ABSPATH TARGET_ROOTPATH TARGET_ABSPATH ARCHIVE_ROOTPATH ARCHIVE_ABSPATH
     local DEST DEST_FINAL DEST_PRINT DEST_RENDER_PATH
     local TEMPLATE_DIR TEMPLATE VERBOSE MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_FILEEXT_REGEX MARKDOWN_REWRITE_LINKS TEMPLATE_ASSETS_PATH
-    local NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDES
-    local TEMPLATE_PREFIX TEMPLATE_META TEMPLATE_META_VARS PARTIALS
+    local NUM_TEMPLATE_OVERRIDES
+    local TEMPLATE_PREFIX TEMPLATE_META TEMPLATE_META_VARS
     local TEMPLATE_RENDER
     local TEMPLATE_BASE_FILE TEMPLATE_HEAD_FILE TEMPLATE_BODY_FILE TEMPLATE_DOCUMENT_FILE TEMPLATE_HEADER_FILE TEMPLATE_FOOTER_FILE TEMPLATE_NAV_FILE TEMPLATE_NOTICE_FILE
     local TEMPLATE_BASE_TEMPLATE TEMPLATE_HEAD_TEMPLATE TEMPLATE_BODY_TEMPLATE TEMPLATE_DOCUMENT_TEMPLATE TEMPLATE_HEADER_TEMPLATE TEMPLATE_FOOTER_TEMPLATE
     local TEMPLATE_NAV_TEMPLATE TEMPLATE_NOTICE_TEMPLATE
-    local TEMPLATE_ASSET_TYPES TEMPLATE_ASSET_TYPE ASSET ASSET_PATH ASSET_OUTPUT_PATH ASSET_QUERY ASSET_HREF
-    local TEMPLATE_TAG_ASSETS_FONTS TEMPLATE_TAG_ASSETS_STYLES TEMPLATE_TAG_ASSETS_SCRIPTS TEMPLATE_TAG_ASSETS_IMAGES
-    local TEMPLATE_TAG_ASSETS_AUDIO TEMPLATE_TAG_ASSETS_VIDEO TEMPLATE_TAG_ASSETS_DOCUMENTS TEMPLATE_TAG_ASSETS_BINARIES TEMPLATE_TAG_ASSETS_OTHER
-    local TEMPLATE_ASSET_OUTPUT_PATHS_FONTS TEMPLATE_ASSET_OUTPUT_PATHS_STYLES TEMPLATE_ASSET_OUTPUT_PATHS_SCRIPTS TEMPLATE_ASSET_OUTPUT_PATHS_IMAGES
-    local TEMPLATE_ASSET_OUTPUT_PATHS_AUDIO TEMPLATE_ASSET_OUTPUT_PATHS_VIDEO TEMPLATE_ASSET_OUTPUT_PATHS_DOCUMENTS TEMPLATE_ASSET_OUTPUT_PATHS_BINARIES TEMPLATE_ASSET_OUTPUT_PATHS_OTHER
+    local TEMPLATE_ASSET_TYPE ASSET ASSET_PATH ASSET_OUTPUT_PATH ASSET_QUERY ASSET_HREF
     local TEMPLATE_HEAD_ESC TEMPLATE_BODY_ESC TEMPLATE_DOCUMENT_ESC TEMPLATE_HEADER_ESC TEMPLATE_FOOTER_ESC
     local TEMPLATE_NAV_ESC TEMPLATE_NOTICE_ESC
     local DOCUMENT_META DOCUMENT_META_VARS DOCUMENT_META_PATH DOCUMENT_CONTENT
-    local SUBDOCUMENTS_LIST SUBDOCUMENTS SUBDOCUMENT_URIS SUBDOCUMENT_ABSPATHS NUM_SUBDOCUMENTS
+    local SUBDOCUMENTS_LIST NUM_SUBDOCUMENTS
     local SUBDOCUMENT SUBDOCUMENT_SOURCE SUBDOCUMENT_CONTENT SUBDOCUMENT_CONTENT_ESC SUBDOCUMENT_META SUBDOCUMENT_META_VARS SUBDOCUMENT_REL_TO_SITE SUBDOCUMENT_META_FILE SUBDOCUMENT_CONTENT_FILE SUBDOCUMENT_ARCHIVE_META_FILE
     local SUBDOCUMENT_RENDER SUBDOCUMENT_TEMPLATE SUBDOCUMENT_RENDER_FILE SUBDOCUMENT_URI SUBDOCUMENT_ABSPATH SUBDOCUMENT_HREF
     local SUBDOCUMENT_OUTPUT_PATH SUBDOCUMENT_OUTPUT_EXT
@@ -4651,9 +4671,14 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
     local DEST_SCRATCH
     local TEXT_TRANSFORM UTIL_JSON_SEPARATOR I J ASSET_INDEX
     local SUBDOCUMENT_CONTENT_IS_RENDERED SUBDOCUMENT_CONTENT_USE_ONCE
-    local DOCUMENT_State SUBDOCUMENT_State
     local SITEMAP SITEMAP_DIR SITEMAP_NAME SITEMAP_OUTPUT_PATH SITEMAP_HREF SITEMAP_RENDER_PATH PROCESSED_SITEMAP_PATH SITEMAP_LOOKUP_PATH
     local DOCUMENT_HREF_ESC
+    local -a TEMPLATE_OVERRIDES PARTIALS TEMPLATE_ASSET_TYPES
+    local -a TEMPLATE_TAG_ASSETS_FONTS TEMPLATE_TAG_ASSETS_STYLES TEMPLATE_TAG_ASSETS_SCRIPTS TEMPLATE_TAG_ASSETS_IMAGES
+    local -a TEMPLATE_TAG_ASSETS_AUDIO TEMPLATE_TAG_ASSETS_VIDEO TEMPLATE_TAG_ASSETS_DOCUMENTS TEMPLATE_TAG_ASSETS_BINARIES TEMPLATE_TAG_ASSETS_OTHER
+    local -a TEMPLATE_ASSET_OUTPUT_PATHS_FONTS TEMPLATE_ASSET_OUTPUT_PATHS_STYLES TEMPLATE_ASSET_OUTPUT_PATHS_SCRIPTS TEMPLATE_ASSET_OUTPUT_PATHS_IMAGES
+    local -a TEMPLATE_ASSET_OUTPUT_PATHS_AUDIO TEMPLATE_ASSET_OUTPUT_PATHS_VIDEO TEMPLATE_ASSET_OUTPUT_PATHS_DOCUMENTS TEMPLATE_ASSET_OUTPUT_PATHS_BINARIES TEMPLATE_ASSET_OUTPUT_PATHS_OTHER
+    local -a SUBDOCUMENTS SUBDOCUMENT_URIS SUBDOCUMENT_ABSPATHS DOCUMENT_State SUBDOCUMENT_State
 
     # init
     SITE_OUTPUT_ROOT="${1:-.}"
@@ -5633,7 +5658,8 @@ function marsh_build_document {  # marsh_build_document site_output_root target_
 function marsh_build_document_and_template {  # marsh_build_document_and_template site_output_root target_output_rel document sitemap sitemap_search templates_dir template verbose markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links #template_overrides[@] template_overrides[@] template_assets_path build_context_target_output_rel build_context_source_root
     local SITE_OUTPUT_ROOT TARGET_OUTPUT_REL DOCUMENT SITEMAP SITEMAP_SEARCH TEMPLATES_DIR TEMPLATE VERBOSE
     local MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_REWRITE_LINKS
-    local NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDES TEMPLATE_ASSETS_PATH BUILD_CONTEXT_TARGET_OUTPUT_REL BUILD_CONTEXT_SOURCE_ROOT
+    local NUM_TEMPLATE_OVERRIDES TEMPLATE_ASSETS_PATH BUILD_CONTEXT_TARGET_OUTPUT_REL BUILD_CONTEXT_SOURCE_ROOT
+    local -a TEMPLATE_OVERRIDES
 
     SITE_OUTPUT_ROOT="${1:-.}"
     TARGET_OUTPUT_REL="${2:-.}"
@@ -5766,7 +5792,8 @@ function marsh_plan_target_documents_from_inventory {  # marsh_plan_target_docum
 
 function marsh_plan_target_documents {  # marsh_plan_target_documents site_output_root target target_output_rel target_source_root markdown_fileext_csv
     local SITE_OUTPUT_ROOT TARGET TARGET_OUTPUT_REL TARGET_SOURCE_ROOT MARKDOWN_FILEEXT_CSV
-    local TARGET_OUTPUT_ROOT TARGET_SOURCE_INVENTORY_RECORDS TARGET_SOURCE_INVENTORY_LINE
+    local TARGET_OUTPUT_ROOT TARGET_SOURCE_INVENTORY_LINE
+    local -a TARGET_SOURCE_INVENTORY_RECORDS
 
     SITE_OUTPUT_ROOT="${1:-}"
     TARGET="${2:-}"
@@ -5828,7 +5855,8 @@ function marsh_plan_target_sitemaps_from_inventory {  # marsh_plan_target_sitema
 # plans target sitemaps as file and source path pairs
 function marsh_plan_target_sitemaps {  # marsh_plan_target_sitemaps site_source_root target_source_root sitemap_path [search] [target_output_root]
     local SITE_SOURCE_ROOT TARGET_SOURCE_ROOT SITEMAP_PATH SITEMAP_SEARCH TARGET_OUTPUT_ROOT
-    local TARGET_SOURCE_INVENTORY_RECORDS TARGET_SOURCE_INVENTORY_LINE
+    local TARGET_SOURCE_INVENTORY_LINE
+    local -a TARGET_SOURCE_INVENTORY_RECORDS
 
     SITE_SOURCE_ROOT="${1:-}"
     TARGET_SOURCE_ROOT="${2:-}"
@@ -5857,11 +5885,12 @@ function marsh_plan_target_sitemaps {  # marsh_plan_target_sitemaps site_source_
 
 # writes an archive manifest under the target plan root from planned target documents
 function marsh_write_target_archive_manifest {  # marsh_write_target_archive_manifest site_output_root markdown_fileext_csv target_plan_root [document_records[@]]
-    local SITE_OUTPUT_ROOT MARKDOWN_FILEEXT_CSV TARGET_PLAN_ROOT DOCUMENTS_FILE MANIFEST_FILE MANIFEST_TEMP DOCUMENT_RECORD DOCUMENT_RECORDS_IN
+    local SITE_OUTPUT_ROOT MARKDOWN_FILEEXT_CSV TARGET_PLAN_ROOT MANIFEST_FILE MANIFEST_TEMP DOCUMENT_RECORD
     local DOCUMENT_ID_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC
     local DOCUMENT_ID SOURCE_RELPATH TARGET_OUTPUT_REL SOURCE_ROOT DOCUMENT_SOURCE_FILE BUILD_CONTEXT_OUTPUT_ROOT
     local DOCUMENT_ARTIFACT_PATHS DOCUMENT_ARTIFACT_ROOT DOCUMENT_ARTIFACT_CONTENT DOCUMENT_ARTIFACT_META_YAML DOCUMENT_ARTIFACT_META DOCUMENT_ARTIFACT_ARCHIVE_META META_ASSIGNMENTS META_VARS META_PREFIX TYPE_VAR
-    local TYPE URI ABSPATH STATE STATE_JOINED OIFS DOCUMENT_OUTPUT_REL
+    local TYPE URI ABSPATH STATE_JOINED OIFS DOCUMENT_OUTPUT_REL
+    local -a DOCUMENT_RECORDS_IN STATE
 
     SITE_OUTPUT_ROOT="${1:-}"
     MARKDOWN_FILEEXT_CSV="${2:-}"
@@ -5967,12 +5996,12 @@ function marsh_write_target_archive_manifest {  # marsh_write_target_archive_man
 # aggregates planner-owned target work under a target-local plan root
 function marsh_plan_target {  # marsh_plan_target site_source_root site_output_root target force source sitemap sitemap_search templates_dir template #template_overrides[@] template_overrides[@] template_assets_path build_context_source_root markdown_fileext_csv [config_file_dir] [target_name] [target_template_source]
     local SITE_SOURCE_ROOT SITE_OUTPUT_ROOT TARGET FORCE SOURCE SITEMAP SITEMAP_SEARCH TEMPLATES_DIR TEMPLATE
-    local NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDES TEMPLATE_ASSETS_PATH BUILD_CONTEXT_SOURCE_ROOT MARKDOWN_FILEEXT_CSV
+    local NUM_TEMPLATE_OVERRIDES TEMPLATE_ASSETS_PATH BUILD_CONTEXT_SOURCE_ROOT MARKDOWN_FILEEXT_CSV
     local CONFIG_FILE_DIR TARGET_NAME TARGET_TEMPLATE_SOURCE
     local TARGET_OUTPUT_REL TARGET_OUTPUT_ROOT TARGET_PLAN_ROOT
-    local DOCUMENTS_FILE DOCUMENTS_TEMP SOURCE_ASSETS_FILE SOURCE_ASSETS_TEMP SITEMAPS_FILE SITEMAPS_TEMP
-    local SOURCE_INVENTORY_RECORDS DOCUMENT_RECORDS SOURCE_ASSET_RECORDS SITEMAP_RECORDS ARCHIVE_PLAN_ROOTS PLAN_RECORD TARGET_ARCHIVE_PLAN_ROOT
+    local PLAN_RECORD TARGET_ARCHIVE_PLAN_ROOT
     local SOURCE_SCOPE_ROOT BUILD_CONTEXT_COMPARE_SOURCE_ROOT
+    local -a TEMPLATE_OVERRIDES SOURCE_INVENTORY_RECORDS DOCUMENT_RECORDS SOURCE_ASSET_RECORDS SITEMAP_RECORDS ARCHIVE_PLAN_ROOTS
 
     SITE_SOURCE_ROOT="${1:-}"
     SITE_OUTPUT_ROOT="${2:-}"
@@ -6101,11 +6130,12 @@ function marsh_plan_target {  # marsh_plan_target site_source_root site_output_r
 # plans target archives
 function marsh_plan_archive_pages {  # marsh_plan_archive_pages target_output_root encoding archive_source archive_title language langcode count page_size #types[@] types[@] #excluded_states[@] excluded_states[@] archive_manifest archive_root_path templates_dir template sitemap sitemap_search #template_overrides[@] template_overrides[@] template_assets_path build_context_target_output_rel build_context_source_root
     local TARGET_OUTPUT_ROOT ENCODING ARCHIVE_SOURCE ARCHIVE_TITLE LANGUAGE LANGCODE COUNT PAGE_SIZE
-    local NUM_TYPES TYPES NUM_EXCLUDED_STATES EXCLUDED_STATES ARCHIVE_MANIFEST ARCHIVE_ROOT_PATH
+    local NUM_TYPES NUM_EXCLUDED_STATES ARCHIVE_MANIFEST ARCHIVE_ROOT_PATH
     local TEMPLATES_DIR TEMPLATE TARGET_SITEMAP TARGET_SITEMAP_SEARCH
-    local NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDES TEMPLATE_ASSETS_PATH BUILD_CONTEXT_TARGET_OUTPUT_REL BUILD_CONTEXT_SOURCE_ROOT
+    local NUM_TEMPLATE_OVERRIDES TEMPLATE_ASSETS_PATH BUILD_CONTEXT_TARGET_OUTPUT_REL BUILD_CONTEXT_SOURCE_ROOT
     local TARGET_PLAN_ROOT ARCHIVE_PLANS_ROOT ARCHIVE_PLAN_ROOT CONTEXT_FILE CONTEXT_TEMP DOCUMENTS_FILE DOCUMENTS_TEMP
     local GENERATED_ARCHIVES GENERATED_ARCHIVE
+    local -a TYPES EXCLUDED_STATES TEMPLATE_OVERRIDES
 
     # init
     # unpack archive selection, archive rendering, and archive template context
@@ -6244,8 +6274,9 @@ function marsh_plan_archive_pages {  # marsh_plan_archive_pages target_output_ro
 # builds planned archive documents for a target
 function marsh_build_planned_archive_documents {  # marsh_build_planned_archive_documents site_output_root verbose jobs markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links archive_plan_root
     local SITE_OUTPUT_ROOT VERBOSE JOBS MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_REWRITE_LINKS ARCHIVE_PLAN_ROOT
-    local ARCHIVE_PLAN_CONTEXT ARCHIVE_PLAN_CONTEXT_VARS TARGET_OUTPUT_REL TARGET_SITEMAP TARGET_SITEMAP_SEARCH TEMPLATES_DIR TEMPLATE TEMPLATE_ASSETS_PATH TEMPLATE_OVERRIDES
-    local CONTEXT_FILE DOCUMENTS_FILE DOCUMENT_RECORDS DOCUMENT_RECORD
+    local ARCHIVE_PLAN_CONTEXT ARCHIVE_PLAN_CONTEXT_VARS TARGET_OUTPUT_REL TARGET_SITEMAP TARGET_SITEMAP_SEARCH TEMPLATES_DIR TEMPLATE TEMPLATE_ASSETS_PATH
+    local CONTEXT_FILE DOCUMENTS_FILE DOCUMENT_RECORD
+    local -a TEMPLATE_OVERRIDES DOCUMENT_RECORDS
 
     SITE_OUTPUT_ROOT="${1:-}"
     VERBOSE="${2:-false}"
@@ -6293,13 +6324,14 @@ function marsh_build_planned_archive_documents {  # marsh_build_planned_archive_
 function marsh_plan_target_archives {  # marsh_plan_target_archives site_output_root markdown_fileext_csv target_plan_root target_output_rel config_file_dir templates_dir target_name sitemap sitemap_search template target_template_source template_assets_path build_context_target_output_rel build_context_source_root #template_overrides[@] template_overrides[@] [document_records[@]]
     local SITE_OUTPUT_ROOT MARKDOWN_FILEEXT_CSV TARGET_PLAN_ROOT TARGET_OUTPUT_ROOT TARGET_OUTPUT_REL
     local CONFIG_FILE_DIR TEMPLATES_DIR TARGET_NAME TARGET_SITEMAP TARGET_SITEMAP_SEARCH TEMPLATE TARGET_TEMPLATE_SOURCE TEMPLATE_ASSETS_PATH BUILD_CONTEXT_TARGET_OUTPUT_REL BUILD_CONTEXT_SOURCE_ROOT
-    local NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDES
-    local DOCUMENT_RECORDS_IN
-    local TARGET_ARCHIVE_MANIFEST TARGET_ARCHIVE_PLAN_ROOT TARGET_ARCHIVE_TYPES TARGET_ARCHIVE_EXCLUDED_STATES
-    local TARGET_ARCHIVE_TEMPLATE TARGET_ARCHIVE_TEMPLATE_SOURCE TARGET_ARCHIVE_TEMPLATE_ASSETS_PATH TARGET_ARCHIVE_TEMPLATE_OVERRIDES
-    local TARGET_ARCHIVE_ROOT TARGET_ARCHIVE_GROUP_PATHS TARGET_ARCHIVE_TYPES_KEY TARGET_ARCHIVE_EXCLUDED_STATES_KEY
-    local TARGET_ARCHIVE_COMPARE_TYPES TARGET_ARCHIVE_COMPARE_EXCLUDED_STATES TARGET_ARCHIVE_COMPARE_TYPES_KEY TARGET_ARCHIVE_COMPARE_EXCLUDED_STATES_KEY
+    local NUM_TEMPLATE_OVERRIDES
+    local TARGET_ARCHIVE_MANIFEST TARGET_ARCHIVE_PLAN_ROOT
+    local TARGET_ARCHIVE_TEMPLATE TARGET_ARCHIVE_TEMPLATE_SOURCE TARGET_ARCHIVE_TEMPLATE_ASSETS_PATH
+    local TARGET_ARCHIVE_ROOT TARGET_ARCHIVE_TYPES_KEY TARGET_ARCHIVE_EXCLUDED_STATES_KEY
+    local TARGET_ARCHIVE_COMPARE_TYPES_KEY TARGET_ARCHIVE_COMPARE_EXCLUDED_STATES_KEY
     local I J OIFS
+    local -a TEMPLATE_OVERRIDES DOCUMENT_RECORDS_IN TARGET_ARCHIVE_TYPES TARGET_ARCHIVE_EXCLUDED_STATES TARGET_ARCHIVE_TEMPLATE_OVERRIDES
+    local -a TARGET_ARCHIVE_GROUP_PATHS TARGET_ARCHIVE_COMPARE_TYPES TARGET_ARCHIVE_COMPARE_EXCLUDED_STATES
 
     SITE_OUTPUT_ROOT="${1:-}"
     MARKDOWN_FILEEXT_CSV="${2:-}"
@@ -6483,11 +6515,12 @@ function marsh_build_planned_target_sitemaps {  # marsh_build_planned_target_sit
 function marsh_build_planned_target {  # marsh_build_planned_target site_output_root verbose jobs markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links target_plan_root [target_number]
     local SITE_OUTPUT_ROOT VERBOSE JOBS MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_REWRITE_LINKS TARGET_PLAN_ROOT TARGET_NUMBER
     local TARGET_PLAN_CONTEXT TARGET_PLAN_CONTEXT_VARS TARGET_OUTPUT_REL TARGET_FORCE TARGET_SKIP_TEMPLATE_ASSETS TARGET_SITEMAP TARGET_SITEMAP_SEARCH
-    local TEMPLATES_DIR TEMPLATE TEMPLATE_ASSETS_PATH BUILD_CONTEXT_TARGET_OUTPUT_REL BUILD_CONTEXT_SOURCE_ROOT TEMPLATE_OVERRIDES
+    local TEMPLATES_DIR TEMPLATE TEMPLATE_ASSETS_PATH BUILD_CONTEXT_TARGET_OUTPUT_REL BUILD_CONTEXT_SOURCE_ROOT
     local CONFIG_FILE_DIR TARGET_NAME TARGET_TEMPLATE_SOURCE
     local TARGET_OUTPUT_ROOT CONTEXT_FILE DOCUMENTS_FILE SOURCE_ASSETS_FILE SITEMAPS_FILE ARCHIVE_PLANS_FILE PLAN_RECORD PLAN_RECORDS_COUNT
-    local DOCUMENT_RECORDS SOURCE_ASSET_RECORDS SITEMAP_RECORDS ARCHIVE_PLAN_ROOTS TARGET_ARCHIVE_PLAN_ROOT
+    local TARGET_ARCHIVE_PLAN_ROOT
     local TEMPLATE_ASSETS TEMPLATE_ASSETS_COUNT ARCHIVE_DOCUMENTS_COUNT ARCHIVE_DOCUMENTS_FILE
+    local -a TEMPLATE_OVERRIDES DOCUMENT_RECORDS SOURCE_ASSET_RECORDS SITEMAP_RECORDS ARCHIVE_PLAN_ROOTS
 
     SITE_OUTPUT_ROOT="${1:-}"
     VERBOSE="${2:-false}"
@@ -6625,10 +6658,11 @@ function marsh_build_planned_target {  # marsh_build_planned_target site_output_
 function marsh_build_target_documents {  # marsh_build_target_documents site_output_root target_output_rel verbose jobs sitemap sitemap_search templates_dir template markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links #template_overrides[@] template_overrides[@] template_assets_path build_context_target_output_rel build_context_source_root documents[@]
     local SITE_OUTPUT_ROOT TARGET_OUTPUT_REL VERBOSE JOBS SITEMAP SITEMAP_SEARCH TEMPLATES_DIR TEMPLATE
     local MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_REWRITE_LINKS
-    local NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDES TEMPLATE_ASSETS_PATH
+    local NUM_TEMPLATE_OVERRIDES TEMPLATE_ASSETS_PATH
     local BUILD_CONTEXT_TARGET_OUTPUT_REL BUILD_CONTEXT_SOURCE_ROOT
-    local DOCUMENTS DOCUMENT
+    local DOCUMENT
     local PARALLEL PARALLEL_MARKDOWN
+    local -a TEMPLATE_OVERRIDES DOCUMENTS
 
     # init
     SITE_OUTPUT_ROOT="${1:-.}"
@@ -6687,10 +6721,11 @@ function marsh_build_target_documents {  # marsh_build_target_documents site_out
 function marsh_build_planned_target_documents {  # marsh_build_planned_target_documents site_output_root verbose jobs sitemap sitemap_search templates_dir template markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links #template_overrides[@] template_overrides[@] template_assets_path document_records[@]
     local SITE_OUTPUT_ROOT VERBOSE JOBS SITEMAP SITEMAP_SEARCH TEMPLATES_DIR TEMPLATE
     local MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_REWRITE_LINKS
-    local NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDES TEMPLATE_ASSETS_PATH
+    local NUM_TEMPLATE_OVERRIDES TEMPLATE_ASSETS_PATH
     local DOCUMENT_RECORD DOCUMENT_ID SOURCE_RELPATH TARGET_OUTPUT_REL SOURCE_ROOT
     local DOCUMENT_ID_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC
-    local DOCUMENTS PLAN_CONTEXT_IDENTIFIED PLAN_TARGET_OUTPUT_REL PLAN_SOURCE_ROOT
+    local PLAN_CONTEXT_IDENTIFIED PLAN_TARGET_OUTPUT_REL PLAN_SOURCE_ROOT
+    local -a TEMPLATE_OVERRIDES DOCUMENTS
 
     SITE_OUTPUT_ROOT="${1:-.}"
     VERBOSE="${2:-false}"
@@ -6759,22 +6794,23 @@ function marsh_build_planned_target_documents {  # marsh_build_planned_target_do
 function marsh_cli {
     set -o pipefail
 
-    local COMMANDS COMMAND OPTSPEC OPTARRAY
-    local DEPS MARKDOWN_UNKNOWN UNKNOWN TEMP_DIR TEMPLATES_DIR VERBOSE FORCE JOBS
-    local MARKDOWN_COMMAND MARKDOWN_OPTIONS MARKDOWN_FILEEXT MARKDOWN_REWRITE_LINKS
-    local MARKDOWN_OPTIONS_CSV MARKDOWN_OPTIONS_CLIARGS MARKDOWN_FILEEXT_CSV
+    local COMMAND OPTSPEC UNKNOWN TEMP_DIR TEMPLATES_DIR VERBOSE FORCE JOBS
+    local MARKDOWN_COMMAND MARKDOWN_REWRITE_LINKS
+    local MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV
     local INDEX PREFIX META META_VARS CONFIG_VARS OIFS I J
     local TARGET_COUNT TARGET_COUNT_INDEX TARGET_COUNT_PREFIX TARGET_NUMBER
     local BUILD_START_TIME BUILD_END_TIME BUILD_ELAPSED
     local TARGET_START_TIME TARGET_END_TIME TARGET_ELAPSED
-    local TARGET_ARCHIVE_TYPES TARGET_ARCHIVE_EXCLUDED_STATES TARGET_ARCHIVE_MANIFEST
-    local TARGET_ARCHIVE_TEMPLATE TARGET_ARCHIVE_TEMPLATE_SOURCE TARGET_ARCHIVE_TEMPLATE_ASSETS_PATH TARGET_ARCHIVE_TEMPLATE_OVERRIDES
+    local TARGET_ARCHIVE_MANIFEST
+    local TARGET_ARCHIVE_TEMPLATE TARGET_ARCHIVE_TEMPLATE_SOURCE TARGET_ARCHIVE_TEMPLATE_ASSETS_PATH
     local SITE_SOURCE_ROOT TARGET_SOURCE_ROOT TARGET_SITEMAP_SEARCH
     local TARGET_PLAN_ROOT
     local BUILD_SITE_OUTPUT_ROOT BUILD_TARGET_OUTPUT_REL BUILD_DOCUMENT BUILD_SITEMAP BUILD_SITEMAP_SEARCH
     local BUILD_CONTEXT_TARGET_OUTPUT_REL BUILD_CONTEXT_SOURCE_ROOT
-    local BUILD_TEMPLATES_DIR BUILD_TEMPLATE BUILD_NUM_TEMPLATE_OVERRIDES BUILD_TEMPLATE_OVERRIDES BUILD_TEMPLATE_ASSETS_PATH
+    local BUILD_TEMPLATES_DIR BUILD_TEMPLATE BUILD_NUM_TEMPLATE_OVERRIDES BUILD_TEMPLATE_ASSETS_PATH
     local BUILD_TEMPLATE_OVERRIDE_INDEX
+    local -a COMMANDS OPTARRAY DEPS MARKDOWN_OPTIONS MARKDOWN_FILEEXT MARKDOWN_OPTIONS_CLIARGS MARKDOWN_UNKNOWN
+    local -a TARGET_ARCHIVE_TYPES TARGET_ARCHIVE_EXCLUDED_STATES TARGET_ARCHIVE_TEMPLATE_OVERRIDES BUILD_TEMPLATE_OVERRIDES
 
     # args with help
     MARKDOWN_OPTIONS=(-1.0 +alphalist -autolink -cdata +definitionlist -divquote -dldiscount +dlextra +ext +fencedcode +footnote +githubtags -header +html +image -latex +links -safelink +smarty +strikethrough +style +superscript +tables -tabstop -toc)

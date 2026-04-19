@@ -179,6 +179,36 @@ function marsh_test_create_archive_document {
     fi
 }
 
+function marsh_test_write_archive_manifest {
+    local TARGET_OUTPUT_ROOT MANIFEST_FILE ARCHIVE_META DOCUMENT TYPE URI ABSPATH STATE_JOINED OIFS
+    local -a DOCUMENTS STATE
+
+    TARGET_OUTPUT_ROOT="${1:-}"
+    MANIFEST_FILE="${2:-}"
+    [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
+    [[ "${MANIFEST_FILE}" == "" ]] && return 1
+    shift 2
+    DOCUMENTS=("$@")
+    [[ "${#DOCUMENTS[@]}" -gt 0 ]] || return 1
+
+    TARGET_OUTPUT_ROOT=$(marsh_get_target_directory_path "${TARGET_OUTPUT_ROOT}") || return 1
+    mkdir -p "${MANIFEST_FILE%/*}" || return 1
+    while IFS= read -r DOCUMENT; do
+        [[ "${DOCUMENT}" == "" ]] && continue
+        TYPE=""
+        URI=""
+        ABSPATH=""
+        STATE=()
+        ARCHIVE_META=$(marsh_get_archive_metadata "${TARGET_OUTPUT_ROOT}" "${DOCUMENT}") || return 1
+        eval "${ARCHIVE_META}"
+        OIFS="${IFS}"
+        IFS=$(printf '\034')
+        STATE_JOINED="${STATE[*]}"
+        IFS="${OIFS}"
+        printf '%q\t%q\t%q\t%q\t%q\n' "${DOCUMENT}" "${TYPE}" "${URI}" "${ABSPATH}" "${STATE_JOINED}"
+    done < <(printf '%s\n' "${DOCUMENTS[@]}" | sort -nr -t/) > "${MANIFEST_FILE}" || return 1
+}
+
 function marsh_test_create_minimal_template {
     local TEMPLATES_DIR TEMPLATE_NAME
 
@@ -445,7 +475,13 @@ function marsh_test {
             marsh_test_create_archive_document "${TARGET_OUTPUT_ROOT}" "news/2026/01/03/03-third.markdown" "post" "Third" "2026-01-03"
             marsh_test_create_archive_document "${TARGET_OUTPUT_ROOT}" "news/2026/01/02/02-second.markdown" "post" "Second" "2026-01-02"
             marsh_test_create_archive_document "${TARGET_OUTPUT_ROOT}" "news/2026/01/01/01-first.markdown" "post" "First" "2026-01-01"
-            ACTUAL=$(marsh_build_archive "html" "${TARGET_OUTPUT_ROOT}" "index.markdown" "Archive" "English" "en" "3" "2" "1" "post" "0")
+            MANIFEST_FILE="${TARGET_OUTPUT_ROOT}/.archive-manifest"
+            marsh_test_write_archive_manifest "${TARGET_OUTPUT_ROOT}" "${MANIFEST_FILE}" \
+                "news/2026/01/04/04-fourth.markdown" \
+                "news/2026/01/03/03-third.markdown" \
+                "news/2026/01/02/02-second.markdown" \
+                "news/2026/01/01/01-first.markdown"
+            ACTUAL=$(marsh_build_archive "html" "${TARGET_OUTPUT_ROOT}" "index.markdown" "Archive" "English" "en" "3" "2" "1" "post" "0" "${MANIFEST_FILE}")
             EXPECTED=$(printf '%s\n' \
                 'index.markdown' \
                 'page/1/index.markdown' \
@@ -539,7 +575,12 @@ function marsh_test {
             mkdir -p "${TARGET_OUTPUT_ROOT}/blog/page/9"
             printf '%s\n' 'stale' > "${TARGET_OUTPUT_ROOT}/blog/page/9/index.markdown"
             printf '%s\n' 'keep' > "${TARGET_OUTPUT_ROOT}/all.markdown"
-            ACTUAL=$(marsh_build_archive "html" "${TARGET_OUTPUT_ROOT}" "blog.markdown" "Archive" "English" "en" "" "2" "1" "post" "0")
+            MANIFEST_FILE="${TARGET_OUTPUT_ROOT}/.archive-manifest"
+            marsh_test_write_archive_manifest "${TARGET_OUTPUT_ROOT}" "${MANIFEST_FILE}" \
+                "news/2026/01/03/03-third.markdown" \
+                "news/2026/01/02/02-second.markdown" \
+                "news/2026/01/01/01-first.markdown"
+            ACTUAL=$(marsh_build_archive "html" "${TARGET_OUTPUT_ROOT}" "blog.markdown" "Archive" "English" "en" "" "2" "1" "post" "0" "${MANIFEST_FILE}")
             EXPECTED=$(printf '%s\n' \
                 'blog.markdown' \
                 'blog/page/1/index.markdown' \
@@ -577,7 +618,9 @@ function marsh_test {
             TEST_NAME+=":html_zero_subdocuments"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             marsh_test_create_archive_document "${TARGET_OUTPUT_ROOT}" "news/2026/01/01/01-draft.markdown" "post" "Draft" "2026-01-01" "draft"
-            ACTUAL=$(marsh_build_archive "html" "${TARGET_OUTPUT_ROOT}" "index.markdown" "Archive" "English" "en" "" "2" "1" "post" "1" "draft")
+            MANIFEST_FILE="${TARGET_OUTPUT_ROOT}/.archive-manifest"
+            marsh_test_write_archive_manifest "${TARGET_OUTPUT_ROOT}" "${MANIFEST_FILE}" "news/2026/01/01/01-draft.markdown"
+            ACTUAL=$(marsh_build_archive "html" "${TARGET_OUTPUT_ROOT}" "index.markdown" "Archive" "English" "en" "" "2" "1" "post" "1" "draft" "${MANIFEST_FILE}")
             EXPECTED=$(printf '%s\n' \
                 'index.markdown' \
                 'page/1/index.markdown')
@@ -619,7 +662,12 @@ function marsh_test {
             marsh_test_create_archive_document "${TARGET_OUTPUT_ROOT}" "news/2026/01/03/03-third.markdown" "post" "Third" "2026-01-03"
             marsh_test_create_archive_document "${TARGET_OUTPUT_ROOT}" "news/2026/01/02/02-second.markdown" "post" "Second" "2026-01-02"
             marsh_test_create_archive_document "${TARGET_OUTPUT_ROOT}" "news/2026/01/01/01-first.markdown" "post" "First" "2026-01-01"
-            ACTUAL=$(marsh_build_archive "atom" "${TARGET_OUTPUT_ROOT}" "feed.xml" "Archive" "English" "en" "" "2" "1" "post" "0" 2>/dev/null)
+            MANIFEST_FILE="${TARGET_OUTPUT_ROOT}/.archive-manifest"
+            marsh_test_write_archive_manifest "${TARGET_OUTPUT_ROOT}" "${MANIFEST_FILE}" \
+                "news/2026/01/03/03-third.markdown" \
+                "news/2026/01/02/02-second.markdown" \
+                "news/2026/01/01/01-first.markdown"
+            ACTUAL=$(marsh_build_archive "atom" "${TARGET_OUTPUT_ROOT}" "feed.xml" "Archive" "English" "en" "" "2" "1" "post" "0" "${MANIFEST_FILE}" 2>/dev/null)
             EXPECTED='feed.xml'
             ASSERTION="equals"
             SOURCE_FILE=$(marsh_get_archive_temp_path "${TARGET_OUTPUT_ROOT}" "feed.xml" "source")
@@ -648,11 +696,14 @@ function marsh_test {
         marsh_build_archive:4)
             TEST_NAME+=":manifest_input"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
-            MANIFEST_FILE="${TEST_TEMP_PREFIX}.archive-manifest"
+            MANIFEST_FILE="${TARGET_OUTPUT_ROOT}/.archive-manifest"
             marsh_test_create_archive_document "${TARGET_OUTPUT_ROOT}" "news/2026/01/03/03-third.markdown" "post" "Third" "2026-01-03"
             marsh_test_create_archive_document "${TARGET_OUTPUT_ROOT}" "news/2026/01/02/02-second.markdown" "post" "Second" "2026-01-02"
             marsh_test_create_archive_document "${TARGET_OUTPUT_ROOT}" "news/2026/01/01/01-first.markdown" "post" "First" "2026-01-01"
-            marsh_build_archive_manifest "${TARGET_OUTPUT_ROOT}" > "${MANIFEST_FILE}"
+            marsh_test_write_archive_manifest "${TARGET_OUTPUT_ROOT}" "${MANIFEST_FILE}" \
+                "news/2026/01/03/03-third.markdown" \
+                "news/2026/01/02/02-second.markdown" \
+                "news/2026/01/01/01-first.markdown"
             ACTUAL=$(marsh_build_archive "html" "${TARGET_OUTPUT_ROOT}" "index.markdown" "Archive" "English" "en" "" "2" "1" "post" "0" "${MANIFEST_FILE}")
             EXPECTED=$(printf '%s\n' \
                 'index.markdown' \
@@ -678,14 +729,18 @@ function marsh_test {
                     fi
                 fi
             fi
-            rm -rf "${TARGET_OUTPUT_ROOT}" "${MANIFEST_FILE}"
+            rm -rf "${TARGET_OUTPUT_ROOT}"
             ;;
         marsh_build_archive:5)
             TEST_NAME+=":explicit_root_path"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             marsh_test_create_archive_document "${TARGET_OUTPUT_ROOT}" "content/posts/2026/01/03/03-third.markdown" "post" "Third" "2026-01-03"
             marsh_test_create_archive_document "${TARGET_OUTPUT_ROOT}" "content/posts/2026/01/02/02-second.markdown" "post" "Second" "2026-01-02"
-            ACTUAL=$(marsh_build_archive "html" "${TARGET_OUTPUT_ROOT}" "news/index.markdown" "Archive" "English" "en" "" "1" "1" "post" "0" "" "news" 2>/dev/null)
+            MANIFEST_FILE="${TARGET_OUTPUT_ROOT}/.archive-manifest"
+            marsh_test_write_archive_manifest "${TARGET_OUTPUT_ROOT}" "${MANIFEST_FILE}" \
+                "content/posts/2026/01/03/03-third.markdown" \
+                "content/posts/2026/01/02/02-second.markdown"
+            ACTUAL=$(marsh_build_archive "html" "${TARGET_OUTPUT_ROOT}" "news/index.markdown" "Archive" "English" "en" "" "1" "1" "post" "0" "${MANIFEST_FILE}" "news" 2>/dev/null)
             EXPECTED=$(printf '%s\n' \
                 'news/index.markdown' \
                 'news/page/1/index.markdown' \
@@ -703,14 +758,13 @@ function marsh_test {
             fi
             rm -rf "${TARGET_OUTPUT_ROOT}"
             ;;
-        marsh_build_archive_manifest:0)
-            TEST_NAME+=":build"
+        marsh_build_archive:6)
+            TEST_NAME+=":requires_manifest"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
-            SEP=$(printf '\034')
-            marsh_test_create_archive_document "${TARGET_OUTPUT_ROOT}" "news/2026/01/02/02-second.markdown" "post" "Second" "2026-01-02" "published"
-            marsh_test_create_archive_document "${TARGET_OUTPUT_ROOT}" "news/2026/01/01/01-first.markdown" "note" "First" "2026-01-01"
-            ACTUAL=$(marsh_build_archive_manifest "${TARGET_OUTPUT_ROOT}")
-            EXPECTED="$(printf '%q\t%q\t%q\t%q\t%q\n' "news/2026/01/02/02-second.markdown" "post" "https://example.test/$(basename "${TARGET_OUTPUT_ROOT}")/news/2026/01/02/02-second.html" "https://example.test/$(basename "${TARGET_OUTPUT_ROOT}")/news/2026/01/02" "published")"$'\n'"$(printf '%q\t%q\t%q\t%q\t%q\n' "news/2026/01/01/01-first.markdown" "note" "https://example.test/$(basename "${TARGET_OUTPUT_ROOT}")/news/2026/01/01/01-first.html" "https://example.test/$(basename "${TARGET_OUTPUT_ROOT}")/news/2026/01/01" "")"
+            marsh_test_create_archive_document "${TARGET_OUTPUT_ROOT}" "news/2026/01/01/01-first.markdown" "post" "First" "2026-01-01"
+            marsh_build_archive "html" "${TARGET_OUTPUT_ROOT}" "index.markdown" "Archive" "English" "en" "" "1" "1" "post" "0" 2>/dev/null
+            ACTUAL=$?
+            EXPECTED=1
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -1132,7 +1186,7 @@ function marsh_test {
             ARCHIVE_PLAN_ROOT=""
             marsh_test_create_archive_template "${TEMPLATE_DIR}" "sample" "html" true
             marsh_test_create_archive_document "${TARGET_OUTPUT_ROOT}" "news/item.markdown" "post" "Item" "2026-01-01"
-            marsh_build_archive_manifest "${TARGET_OUTPUT_ROOT}" > "${MANIFEST_FILE}"
+            marsh_test_write_archive_manifest "${TARGET_OUTPUT_ROOT}" "${MANIFEST_FILE}" "news/item.markdown"
             ARCHIVE_PLAN_ROOT=$(marsh_plan_archive_pages "${TARGET_OUTPUT_ROOT}" "html" "news/index.markdown" "News" "English" "en" "" "10" "1" "post" "0" "${MANIFEST_FILE}" "" "${TEMPLATE_DIR}" "sample" "" false 0 "" "." "")
             marsh_build_planned_archive_documents "${TARGET_OUTPUT_ROOT}" false "1" "marsh_test_markdown_command" "" "markdown,md" true "${ARCHIVE_PLAN_ROOT}" >/dev/null 2>&1
             ACTUAL=$?
@@ -1223,7 +1277,7 @@ function marsh_test {
             ARCHIVE_PLAN_ROOT=""
             marsh_test_create_archive_template "${TEMPLATE_DIR}" "sample" "html" true
             marsh_test_create_archive_document "${TARGET_OUTPUT_ROOT}" "news/item.markdown" "post" "Item" "2026-01-01"
-            marsh_build_archive_manifest "${TARGET_OUTPUT_ROOT}" > "${MANIFEST_FILE}"
+            marsh_test_write_archive_manifest "${TARGET_OUTPUT_ROOT}" "${MANIFEST_FILE}" "news/item.markdown"
             ARCHIVE_PLAN_ROOT=$(marsh_plan_archive_pages "${TARGET_OUTPUT_ROOT}" "html" "news/index.markdown" "News" "English" "en" "" "10" "1" "post" "0" "${MANIFEST_FILE}" "" "${TEMPLATE_DIR}" "sample" "" false 0 "" "." "")
             rm -f "${ARCHIVE_PLAN_ROOT}/context"
             marsh_build_planned_archive_documents "${TARGET_OUTPUT_ROOT}" false "1" "marsh_test_markdown_command" "" "markdown,md" true "${ARCHIVE_PLAN_ROOT}" >/dev/null 2>&1
@@ -1743,7 +1797,9 @@ function marsh_test {
                 'Title: Tagged Item' \
                 'Date: 2026-01-01' \
                 '...'
-            ACTUAL=$(marsh_build_archive "html" "${TARGET_OUTPUT_ROOT}" "index.markdown" "Archive" "English" "en" "" "2" "1" "post" "0")
+            MANIFEST_FILE="${TARGET_OUTPUT_ROOT}/.archive-manifest"
+            marsh_test_write_archive_manifest "${TARGET_OUTPUT_ROOT}" "${MANIFEST_FILE}" "news/item.markdown"
+            ACTUAL=$(marsh_build_archive "html" "${TARGET_OUTPUT_ROOT}" "index.markdown" "Archive" "English" "en" "" "2" "1" "post" "0" "${MANIFEST_FILE}")
             EXPECTED='index.markdown'$'\n''page/1/index.markdown'
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -1808,7 +1864,9 @@ function marsh_test {
                 'Title: Tagged Item' \
                 'Date: 2026-01-01' \
                 '...'
-            ACTUAL=$(marsh_build_archive "html" "${TARGET_OUTPUT_ROOT}" "index.markdown" "Archive" "English" "en" "" "2" "1" "post" "0")
+            MANIFEST_FILE="${TARGET_OUTPUT_ROOT}/.archive-manifest"
+            marsh_test_write_archive_manifest "${TARGET_OUTPUT_ROOT}" "${MANIFEST_FILE}" "news/item.markdown"
+            ACTUAL=$(marsh_build_archive "html" "${TARGET_OUTPUT_ROOT}" "index.markdown" "Archive" "English" "en" "" "2" "1" "post" "0" "${MANIFEST_FILE}")
             EXPECTED='index.markdown'$'\n''page/1/index.markdown'
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -1887,7 +1945,9 @@ function marsh_test {
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
                 marsh_test_create_archive_document "${TARGET_OUTPUT_ROOT}" "news/item.markdown" "post" "Tagged Item" "2026-01-01"
             marsh_test_create_archive_template "${TEMPLATE_DIR}" "sample" "atom" true
-            ACTUAL=$(marsh_build_archive "atom" "${TARGET_OUTPUT_ROOT}" "feed.xml" "Archive" "English" "en" "" "2" "1" "post" "0" 2>/dev/null)
+            MANIFEST_FILE="${TARGET_OUTPUT_ROOT}/.archive-manifest"
+            marsh_test_write_archive_manifest "${TARGET_OUTPUT_ROOT}" "${MANIFEST_FILE}" "news/item.markdown"
+            ACTUAL=$(marsh_build_archive "atom" "${TARGET_OUTPUT_ROOT}" "feed.xml" "Archive" "English" "en" "" "2" "1" "post" "0" "${MANIFEST_FILE}" 2>/dev/null)
             EXPECTED='feed.xml'
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -1918,7 +1978,9 @@ function marsh_test {
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
                 marsh_test_create_archive_document "${TARGET_OUTPUT_ROOT}" "news/item.markdown" "post" "Tagged Item" "2026-01-01"
             marsh_test_create_archive_template "${TEMPLATE_DIR}" "sample" "json" true
-            ACTUAL=$(marsh_build_archive "json" "${TARGET_OUTPUT_ROOT}" "feed.json" "Archive" "English" "en" "" "2" "1" "post" "0" 2>/dev/null)
+            MANIFEST_FILE="${TARGET_OUTPUT_ROOT}/.archive-manifest"
+            marsh_test_write_archive_manifest "${TARGET_OUTPUT_ROOT}" "${MANIFEST_FILE}" "news/item.markdown"
+            ACTUAL=$(marsh_build_archive "json" "${TARGET_OUTPUT_ROOT}" "feed.json" "Archive" "English" "en" "" "2" "1" "post" "0" "${MANIFEST_FILE}" 2>/dev/null)
             EXPECTED='feed.json'
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -1993,7 +2055,12 @@ function marsh_test {
             printf '%s\n' '<article data-target-root="{{ target.rootpath }}" data-target-abs="{{ target.abspath }}" data-archive-root="{{ archive.rootpath }}" data-archive-abs="{{ archive.abspath }}" data-document-uri="{{ document.uri }}"><a href="{{ document.href }}">{{ document.title }}</a></article>' > "${TEMPLATE_DIR}/sample/partials/archive-document.html"
             printf '%s\n' '{{ subdocuments }}'$'\n''<nav><a class="prev" href="{{ document.page-prev-href }}">prev</a><a class="next" href="{{ document.page-next-href }}">next</a></nav>' > "${TEMPLATE_DIR}/sample/partials/archive-body.html"
             printf '%s\n' '<meta data-canonical="{{ document.page-canonical-uri }}" data-next="{{ document.page-next-uri }}" />' > "${TEMPLATE_DIR}/sample/partials/archive-head.html"
-            ACTUAL=$(marsh_build_archive "html" "${TARGET_OUTPUT_ROOT}" "news/index.markdown" "Archive" "English" "en" "" "2" "1" "post" "0" 2>/dev/null)
+            MANIFEST_FILE="${TARGET_OUTPUT_ROOT}/.archive-manifest"
+            marsh_test_write_archive_manifest "${TARGET_OUTPUT_ROOT}" "${MANIFEST_FILE}" \
+                "news/2026/01/03/03-third.markdown" \
+                "news/2026/01/02/02-second.markdown" \
+                "news/2026/01/01/01-first.markdown"
+            ACTUAL=$(marsh_build_archive "html" "${TARGET_OUTPUT_ROOT}" "news/index.markdown" "Archive" "English" "en" "" "2" "1" "post" "0" "${MANIFEST_FILE}" 2>/dev/null)
             EXPECTED='news/index.markdown'$'\n''news/page/1/index.markdown'$'\n''news/page/2/index.markdown'
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -2087,7 +2154,9 @@ function marsh_test {
             printf '%s\n' '<styles>{{ template.assets.styles }}</styles>'$'\n''<scripts>{{ template.assets.scripts }}</scripts>'$'\n''{{ subdocuments }}' > "${TEMPLATE_DIR}/sample/partials/archive-body.html"
             printf '%s\n' '<entry>{{ document.title }}</entry>' > "${TEMPLATE_DIR}/sample/partials/archive-document.html"
                 marsh_test_create_archive_document "${TARGET_OUTPUT_ROOT}" "news/item.markdown" "post" "Tagged Item" "2026-01-01"
-            ACTUAL=$(marsh_build_archive "html" "${TARGET_OUTPUT_ROOT}" "news/index.markdown" "Archive" "English" "en" "" "1" "1" "post" "0" 2>/dev/null)
+            MANIFEST_FILE="${TARGET_OUTPUT_ROOT}/.archive-manifest"
+            marsh_test_write_archive_manifest "${TARGET_OUTPUT_ROOT}" "${MANIFEST_FILE}" "news/item.markdown"
+            ACTUAL=$(marsh_build_archive "html" "${TARGET_OUTPUT_ROOT}" "news/index.markdown" "Archive" "English" "en" "" "1" "1" "post" "0" "${MANIFEST_FILE}" 2>/dev/null)
             EXPECTED='news/index.markdown'$'\n''news/page/1/index.markdown'
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -2201,7 +2270,9 @@ function marsh_test {
                 '      - js/feature.js' \
                 '...' > "${TEMPLATE_DIR}/sample/template.yaml"
                 marsh_test_create_archive_document "${TARGET_OUTPUT_ROOT}" "news/item.markdown" "post" "Tagged Item" "2026-01-01"
-            ACTUAL=$(marsh_build_archive "html" "${TARGET_OUTPUT_ROOT}" "news/index.markdown" "Archive" "English" "en" "" "1" "1" "post" "0" 2>/dev/null)
+            MANIFEST_FILE="${TARGET_OUTPUT_ROOT}/.archive-manifest"
+            marsh_test_write_archive_manifest "${TARGET_OUTPUT_ROOT}" "${MANIFEST_FILE}" "news/item.markdown"
+            ACTUAL=$(marsh_build_archive "html" "${TARGET_OUTPUT_ROOT}" "news/index.markdown" "Archive" "English" "en" "" "1" "1" "post" "0" "${MANIFEST_FILE}" 2>/dev/null)
             EXPECTED='news/index.markdown'$'\n''news/page/1/index.markdown'
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -2273,7 +2344,9 @@ function marsh_test {
                 '      - js/feature.js' \
                 '...' > "${TEMPLATE_DIR}/sample/template.yaml"
                 marsh_test_create_archive_document "${TARGET_OUTPUT_ROOT}" "news/item.markdown" "post" "Tagged Item" "2026-01-01"
-            ACTUAL=$(marsh_build_archive "html" "${TARGET_OUTPUT_ROOT}" "news/index.markdown" "Archive" "English" "en" "" "1" "1" "post" "0" 2>/dev/null)
+            MANIFEST_FILE="${TARGET_OUTPUT_ROOT}/.archive-manifest"
+            marsh_test_write_archive_manifest "${TARGET_OUTPUT_ROOT}" "${MANIFEST_FILE}" "news/item.markdown"
+            ACTUAL=$(marsh_build_archive "html" "${TARGET_OUTPUT_ROOT}" "news/index.markdown" "Archive" "English" "en" "" "1" "1" "post" "0" "${MANIFEST_FILE}" 2>/dev/null)
             EXPECTED='news/index.markdown'$'\n''news/page/1/index.markdown'
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -2345,7 +2418,9 @@ function marsh_test {
                 '      - js/feature.js' \
                 '...' > "${TEMPLATE_DIR}/sample/template.yaml"
                 marsh_test_create_archive_document "${TARGET_OUTPUT_ROOT}" "news/item.markdown" "post" "Tagged Item" "2026-01-01"
-            ACTUAL=$(marsh_build_archive "html" "${TARGET_OUTPUT_ROOT}" "news/index.markdown" "Archive" "English" "en" "" "1" "1" "post" "0" 2>/dev/null)
+            MANIFEST_FILE="${TARGET_OUTPUT_ROOT}/.archive-manifest"
+            marsh_test_write_archive_manifest "${TARGET_OUTPUT_ROOT}" "${MANIFEST_FILE}" "news/item.markdown"
+            ACTUAL=$(marsh_build_archive "html" "${TARGET_OUTPUT_ROOT}" "news/index.markdown" "Archive" "English" "en" "" "1" "1" "post" "0" "${MANIFEST_FILE}" 2>/dev/null)
             EXPECTED='news/index.markdown'$'\n''news/page/1/index.markdown'
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -2434,7 +2509,9 @@ function marsh_test {
             printf '%s\n' '<!DOCTYPE html>'$'\n''<html><body>{{ template.body }}</body></html>' > "${TEMPLATE_DIR}/sample/partials/archive-base.html"
             printf '%s\n' 'archive-root={{ archive.rootpath }};archive-abs={{ archive.abspath }}' > "${TEMPLATE_DIR}/sample/partials/archive-body.html"
                 marsh_test_create_archive_document "${TARGET_OUTPUT_ROOT}" "news/2026/01/02/02-second.markdown" "post" "Second" "2026-01-02"
-            ACTUAL=$(marsh_build_archive "html" "${TARGET_OUTPUT_ROOT}" "news/all/index.markdown" "Archive" "English" "en" "" "" "1" "post" "0" "" "news" 2>/dev/null)
+            MANIFEST_FILE="${TARGET_OUTPUT_ROOT}/.archive-manifest"
+            marsh_test_write_archive_manifest "${TARGET_OUTPUT_ROOT}" "${MANIFEST_FILE}" "news/2026/01/02/02-second.markdown"
+            ACTUAL=$(marsh_build_archive "html" "${TARGET_OUTPUT_ROOT}" "news/all/index.markdown" "Archive" "English" "en" "" "" "1" "post" "0" "${MANIFEST_FILE}" "news" 2>/dev/null)
             EXPECTED='news/all/index.markdown'
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -2503,7 +2580,11 @@ function marsh_test {
             printf '%s\n' '<h1>Site Map</h1>' '<p><a href="../news/">News</a></p>' > "${SOURCE_DIR}/site-map/index.markdown"
                 marsh_test_create_archive_document "${TARGET_OUTPUT_ROOT}" "news/2026/01/02/02-second.markdown" "post" "Second" "2026-01-02"
                 marsh_test_create_archive_document "${TARGET_OUTPUT_ROOT}" "news/2026/01/01/01-first.markdown" "post" "First" "2026-01-01"
-            ACTUAL=$(marsh_build_archive "html" "${TARGET_OUTPUT_ROOT}" "news/index.markdown" "Archive" "English" "en" "" "2" "1" "post" "0" 2>/dev/null)
+            MANIFEST_FILE="${TARGET_OUTPUT_ROOT}/.archive-manifest"
+            marsh_test_write_archive_manifest "${TARGET_OUTPUT_ROOT}" "${MANIFEST_FILE}" \
+                "news/2026/01/02/02-second.markdown" \
+                "news/2026/01/01/01-first.markdown"
+            ACTUAL=$(marsh_build_archive "html" "${TARGET_OUTPUT_ROOT}" "news/index.markdown" "Archive" "English" "en" "" "2" "1" "post" "0" "${MANIFEST_FILE}" 2>/dev/null)
             EXPECTED='news/index.markdown'$'\n''news/page/1/index.markdown'
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -2713,7 +2794,9 @@ function marsh_test {
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "news/item.markdown" "meta-yaml" '---' 'Type: post' 'Title: Broken Item' 'Date: 2026-01-01' '...'
-                ACTUAL=$(marsh_build_archive "html" "${TARGET_OUTPUT_ROOT}" "index.markdown" "Archive" "English" "en" "" "" "1" "post" "0" 2>/dev/null)
+                MANIFEST_FILE="${TARGET_OUTPUT_ROOT}/.archive-manifest"
+                marsh_test_write_archive_manifest "${TARGET_OUTPUT_ROOT}" "${MANIFEST_FILE}" "news/item.markdown"
+                ACTUAL=$(marsh_build_archive "html" "${TARGET_OUTPUT_ROOT}" "index.markdown" "Archive" "English" "en" "" "" "1" "post" "0" "${MANIFEST_FILE}" 2>/dev/null)
                 EXPECTED='index.markdown'
                 ASSERTION="equals"
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -2779,7 +2862,9 @@ function marsh_test {
                     '...' \
                     '' \
                     '[Broken](broken.markdown)' > "${SOURCE_ROOT}/news/item.markdown"
-                ACTUAL=$(marsh_build_archive "html" "${TARGET_OUTPUT_ROOT}" "index.markdown" "Archive" "English" "en" "" "" "1" "post" "0" 2>/dev/null)
+                MANIFEST_FILE="${TARGET_OUTPUT_ROOT}/.archive-manifest"
+                marsh_test_write_archive_manifest "${TARGET_OUTPUT_ROOT}" "${MANIFEST_FILE}" "news/item.markdown"
+                ACTUAL=$(marsh_build_archive "html" "${TARGET_OUTPUT_ROOT}" "index.markdown" "Archive" "English" "en" "" "" "1" "post" "0" "${MANIFEST_FILE}" 2>/dev/null)
                 EXPECTED='index.markdown'
                 ASSERTION="equals"
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -2981,7 +3066,9 @@ function marsh_test {
             printf '%s\n' '{{ subdocuments }}' > "${TEMPLATE_DIR}/sample/partials/archive-body.html"
             printf '%s\n' '<entry>{{ document.title }}</entry>' > "${TEMPLATE_DIR}/sample/partials/archive-document.html"
             marsh_test_create_archive_document "${TARGET_OUTPUT_ROOT}" "news/item.markdown" "post" "Tagged Item" "2026-01-01"
-            ACTUAL=$(marsh_build_archive "html" "${TARGET_OUTPUT_ROOT}" "news/index.markdown" "Archive" "English" "en" "" "1" "1" "post" "0" 2>/dev/null)
+            MANIFEST_FILE="${TARGET_OUTPUT_ROOT}/.archive-manifest"
+            marsh_test_write_archive_manifest "${TARGET_OUTPUT_ROOT}" "${MANIFEST_FILE}" "news/item.markdown"
+            ACTUAL=$(marsh_build_archive "html" "${TARGET_OUTPUT_ROOT}" "news/index.markdown" "Archive" "English" "en" "" "1" "1" "post" "0" "${MANIFEST_FILE}" 2>/dev/null)
             EXPECTED='news/index.markdown'$'\n''news/page/1/index.markdown'
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -3028,7 +3115,9 @@ function marsh_test {
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
                 marsh_test_create_archive_document "${TARGET_OUTPUT_ROOT}" "news/item.markdown" "post" "Tagged Item" "2026-01-01"
             marsh_test_create_archive_template "${TEMPLATE_DIR}" "sample" "json" true
-            ACTUAL=$(marsh_build_archive "json" "${TARGET_OUTPUT_ROOT}" "feed.json" "Archive" "English" "en" "" "2" "1" "post" "0" 2>/dev/null)
+            MANIFEST_FILE="${TARGET_OUTPUT_ROOT}/.archive-manifest"
+            marsh_test_write_archive_manifest "${TARGET_OUTPUT_ROOT}" "${MANIFEST_FILE}" "news/item.markdown"
+            ACTUAL=$(marsh_build_archive "json" "${TARGET_OUTPUT_ROOT}" "feed.json" "Archive" "English" "en" "" "2" "1" "post" "0" "${MANIFEST_FILE}" 2>/dev/null)
             EXPECTED='feed.json'
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -3160,7 +3249,9 @@ function marsh_test {
             printf '%s\n' '{{ subdocuments }}' > "${TEMPLATE_DIR}/archive-sample/partials/archive-body.html"
             printf '%s\n' '<entry>{{ document.title }}</entry>' > "${TEMPLATE_DIR}/archive-sample/partials/archive-document.html"
                 marsh_test_create_archive_document "${TARGET_OUTPUT_ROOT}" "news/item.markdown" "post" "Tagged Item" "2026-01-01"
-            ACTUAL=$(marsh_build_archive "html" "${TARGET_OUTPUT_ROOT}" "news/index.markdown" "Archive" "English" "en" "" "1" "1" "post" "0" 2>/dev/null)
+            MANIFEST_FILE="${TARGET_OUTPUT_ROOT}/.archive-manifest"
+            marsh_test_write_archive_manifest "${TARGET_OUTPUT_ROOT}" "${MANIFEST_FILE}" "news/item.markdown"
+            ACTUAL=$(marsh_build_archive "html" "${TARGET_OUTPUT_ROOT}" "news/index.markdown" "Archive" "English" "en" "" "1" "1" "post" "0" "${MANIFEST_FILE}" 2>/dev/null)
             EXPECTED='news/index.markdown'$'\n''news/page/1/index.markdown'
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -3737,43 +3828,6 @@ function marsh_test {
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
-            ;;
-        marsh_get_archive_manifest:0)
-            TEST_NAME+=":built"
-            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
-                marsh_test_create_archive_document "${TARGET_OUTPUT_ROOT}" "news/2026/01/02/02-second.markdown" "post" "Second" "2026-01-02" "published"
-            ACTUAL=$(marsh_get_archive_manifest "${TARGET_OUTPUT_ROOT}")
-                EXPECTED="${MARSH_TEST_TEMP}/archive-manifest-cache/$(printf '%s\n' "${TARGET_OUTPUT_ROOT}" | marsh_text_transform hash:md5).manifest"
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                [[ -f "${ACTUAL}" ]]
-                ACTUAL=$?
-                EXPECTED=0
-                ASSERTION="equals"
-                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    RES="[PASS]"
-                fi
-            fi
-            rm -rf "${TARGET_OUTPUT_ROOT}"
-            ;;
-        marsh_get_archive_manifest:1)
-            TEST_NAME+=":cached"
-            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
-                marsh_test_create_archive_document "${TARGET_OUTPUT_ROOT}" "news/2026/01/02/02-second.markdown" "post" "Second" "2026-01-02" "published"
-            ARCHIVE_MANIFEST_FILE=$(marsh_get_archive_manifest "${TARGET_OUTPUT_ROOT}")
-            printf '%s\n' 'sentinel' > "${ARCHIVE_MANIFEST_FILE}"
-            ACTUAL=$(marsh_get_archive_manifest "${TARGET_OUTPUT_ROOT}")
-            EXPECTED="${ARCHIVE_MANIFEST_FILE}"
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                ACTUAL=$(<"${ARCHIVE_MANIFEST_FILE}")
-                EXPECTED='sentinel'
-                ASSERTION="equals"
-                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    RES="[PASS]"
-                fi
-            fi
-            rm -rf "${TARGET_OUTPUT_ROOT}"
             ;;
         marsh_get_archive_metadata:0)
             TEST_NAME+=":parsed"
@@ -5273,7 +5327,7 @@ function marsh_test {
             ARCHIVE_PLAN_ROOT=""
             marsh_test_create_archive_template "${TEMPLATE_DIR}" "sample" "html" true
             marsh_test_create_archive_document "${TARGET_OUTPUT_ROOT}" "news/item.markdown" "post" "Item" "2026-01-01"
-            marsh_build_archive_manifest "${TARGET_OUTPUT_ROOT}" > "${MANIFEST_FILE}"
+            marsh_test_write_archive_manifest "${TARGET_OUTPUT_ROOT}" "${MANIFEST_FILE}" "news/item.markdown"
             ARCHIVE_PLAN_ROOT=$(marsh_plan_archive_pages "${TARGET_OUTPUT_ROOT}" "html" "news/index.markdown" "News" "English" "en" "" "10" "1" "post" "0" "${MANIFEST_FILE}" "" "${TEMPLATE_DIR}" "sample" "" false 0 "" "." "")
             ACTUAL=$(while IFS=$'\t' read -r DOCUMENT_ID_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC; do
                 [[ "${DOCUMENT_ID_ESC}" == "" ]] && continue
@@ -7811,7 +7865,6 @@ function marsh_test {
 source "${MARSH}"
 KNOWN_FUNCTIONS=(
     marsh_build_archive
-    marsh_build_archive_manifest
     marsh_build_document
     marsh_build_document_and_template
     marsh_build_planned_archive_documents
@@ -7833,7 +7886,6 @@ KNOWN_FUNCTIONS=(
     marsh_flat_to_array
     marsh_format_elapsed_time
     marsh_get_absolute_output_path
-    marsh_get_archive_manifest
     marsh_get_archive_metadata
     marsh_get_archive_page_uri
     marsh_get_archive_root_path

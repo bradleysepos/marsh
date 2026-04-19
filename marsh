@@ -1635,75 +1635,6 @@ function marsh_get_archive_metadata {  # marsh_get_archive_metadata target_outpu
     return 0
 }
 
-# builds a sorted archive manifest from cached archive metadata
-function marsh_build_archive_manifest {  # marsh_build_archive_manifest target_output_root
-    local TARGET_OUTPUT_ROOT TARGET_BUILD_TEMP_ROOT TARGET_DOCUMENTS_TEMP_ROOT DOCUMENTS_LIST DOCUMENT DOCUMENT_SITE_REL TYPE URI ABSPATH
-    local ARCHIVE_META STATE_JOINED OIFS
-    local -a STATE
-
-    TARGET_OUTPUT_ROOT="${1:-}"
-    [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
-    TARGET_OUTPUT_ROOT=$(marsh_get_target_directory_path "${TARGET_OUTPUT_ROOT}") || return 1
-
-    TARGET_BUILD_TEMP_ROOT=$(marsh_get_target_temp_root "${TARGET_OUTPUT_ROOT}") || return 1
-    TARGET_DOCUMENTS_TEMP_ROOT="${TARGET_BUILD_TEMP_ROOT}/documents"
-    [[ -d "${TARGET_DOCUMENTS_TEMP_ROOT}" ]] || return 0
-
-    DOCUMENTS_LIST=$(cd "${TARGET_DOCUMENTS_TEMP_ROOT}" && find . -name 'content' | sed 's/^\.\///' | sort -nr -t/)
-    while IFS= read -r DOCUMENT; do
-        [[ "${DOCUMENT}" == "" ]] && continue
-        DOCUMENT_SITE_REL="${DOCUMENT%/content}"
-        [[ "${DOCUMENT_SITE_REL}" == "${DOCUMENT}" ]] && continue
-        DOCUMENT="${DOCUMENT_SITE_REL}"
-        TYPE=""
-        URI=""
-        ABSPATH=""
-        STATE=()
-        ARCHIVE_META=$(marsh_get_archive_metadata "${TARGET_OUTPUT_ROOT}" "${DOCUMENT}")
-        [[ $? -ne 0 ]] && echo "Unable to load archive metadata: ${DOCUMENT_SITE_REL}" >&2 && return 1
-        eval "${ARCHIVE_META}"
-        OIFS="${IFS}"
-        IFS=$(printf '\034')
-        STATE_JOINED="${STATE[*]}"
-        IFS="${OIFS}"
-        printf '%q\t%q\t%q\t%q\t%q\n' "${DOCUMENT}" "${TYPE}" "${URI}" "${ABSPATH}" "${STATE_JOINED}"
-    done <<< "${DOCUMENTS_LIST}"
-
-    return 0
-}
-
-# returns the path to a cached archive manifest, building it where needed
-function marsh_get_archive_manifest {  # marsh_get_archive_manifest target_output_root
-    local TARGET_OUTPUT_ROOT ARCHIVE_MANIFEST_CACHE_DIR ARCHIVE_MANIFEST_CACHE_KEY ARCHIVE_MANIFEST_FILE ARCHIVE_MANIFEST_TEMP
-
-    TARGET_OUTPUT_ROOT="${1:-}"
-    [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
-
-    ARCHIVE_MANIFEST_CACHE_DIR="${MARSH_TEMP}/archive-manifest-cache"
-    mkdir -p "${ARCHIVE_MANIFEST_CACHE_DIR}" >/dev/null 2>&1 || {
-        echo "Unable to create archive manifest cache directory: ${ARCHIVE_MANIFEST_CACHE_DIR}" >&2
-        return 1
-    }
-    ARCHIVE_MANIFEST_CACHE_KEY=$(printf '%s\n' "${TARGET_OUTPUT_ROOT}" | marsh_text_transform hash:md5)
-    ARCHIVE_MANIFEST_FILE="${ARCHIVE_MANIFEST_CACHE_DIR}/${ARCHIVE_MANIFEST_CACHE_KEY}.manifest"
-    if [[ -f "${ARCHIVE_MANIFEST_FILE}" ]] && [[ -r "${ARCHIVE_MANIFEST_FILE}" ]]; then
-        printf '%s\n' "${ARCHIVE_MANIFEST_FILE}"
-        return 0
-    fi
-
-    ARCHIVE_MANIFEST_TEMP=$(mktemp "${ARCHIVE_MANIFEST_CACHE_DIR}/manifest-XXXXXX") || {
-        echo "Unable to create archive manifest cache file: ${ARCHIVE_MANIFEST_CACHE_DIR}/manifest-XXXXXX" >&2
-        return 1
-    }
-    marsh_build_archive_manifest "${TARGET_OUTPUT_ROOT}" > "${ARCHIVE_MANIFEST_TEMP}" && mv "${ARCHIVE_MANIFEST_TEMP}" "${ARCHIVE_MANIFEST_FILE}" 2>/dev/null || {
-        echo "Unable to build archive manifest: ${TARGET_OUTPUT_ROOT}" >&2
-        rm -f "${ARCHIVE_MANIFEST_TEMP}"
-        return 1
-    }
-    printf '%s\n' "${ARCHIVE_MANIFEST_FILE}"
-    return 0
-}
-
 # finds the generated sitemap file for a target
 function marsh_get_sitemap_lookup_path {  # marsh_get_sitemap_lookup_path target_output_root document sitemap_file sitemap_search
     local TARGET_OUTPUT_ROOT DOCUMENT SITEMAP_FILE SITEMAP_SEARCH
@@ -3855,7 +3786,7 @@ function marsh_write_archive_page {  # marsh_write_archive_page encoding target_
     return 0
 }
 
-# builds an archive of directory contents, sorted by descending date
+# builds an archive of directory contents from a prepared manifest, sorted by descending date
 function marsh_build_archive {  # marsh_build_archive encoding target_output_root archive_source archive_title language langcode count page_size #types[@] types[@] #excluded_states[@] excluded_states[@] archive_manifest archive_root_path
     local ENCODING TARGET_OUTPUT_ROOT ARCHIVE_SOURCE_REL ARCHIVE_TITLE LANGUAGE LANGCODE
     local COUNT PAGE_SIZE NUM_TYPES NUM_EXCLUDED_STATES
@@ -3905,6 +3836,7 @@ function marsh_build_archive {  # marsh_build_archive encoding target_output_roo
     done
     ARCHIVE_MANIFEST="${1:-}"
     ARCHIVE_ROOT_PATH="${2:-}"
+    [[ "${ARCHIVE_MANIFEST}" == "" ]] && return 1
 
     if [[ "${ARCHIVE_ROOT_PATH}" == "" ]]; then
         ARCHIVE_ROOT_PATH=$(marsh_get_archive_root_path "${ARCHIVE_SOURCE_REL}") || return 1
@@ -3931,14 +3863,17 @@ function marsh_build_archive {  # marsh_build_archive encoding target_output_roo
         PAGE_SIZE=""
     fi
 
+    # sanity check manifest
+    [[ -f "${ARCHIVE_MANIFEST}" ]] && [[ -r "${ARCHIVE_MANIFEST}" ]] || {
+        echo "Archive manifest not found: ${ARCHIVE_MANIFEST}" >&2
+        return 1
+    }
+
     # complete document set before pagination
     VALID=0
     VALID_DOCUMENTS=()
     VALID_DOCUMENT_URIS=()
     VALID_DOCUMENT_ABSPATHS=()
-    if [[ "${ARCHIVE_MANIFEST}" == "" ]]; then
-        ARCHIVE_MANIFEST=$(marsh_get_archive_manifest "${TARGET_OUTPUT_ROOT}") || return 1
-    fi
     while IFS=$'\t' read -r MANIFEST_DOCUMENT_ESC MANIFEST_TYPE_ESC MANIFEST_URI_ESC MANIFEST_ABSPATH_ESC MANIFEST_STATE_ESC; do
         [[ "${MANIFEST_DOCUMENT_ESC}" == "" ]] && continue
         DOCUMENT=""

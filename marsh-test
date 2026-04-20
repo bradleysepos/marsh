@@ -115,6 +115,11 @@ function marsh_test_cleanup {
 }
 trap marsh_test_cleanup EXIT
 
+function marsh_test_fail_command {
+    # we have a situation
+    return 1
+}
+
 function marsh_test_markdown_command {
     if [[ "$#" -gt 0 ]]; then
         printf '%s\n' "$@"
@@ -435,7 +440,7 @@ function marsh_test {
     TEST_TEMP_PREFIX="${MARSH_TEST_TEMP}/${TEST_NAME//[:]/-}"
 
     # variables used in test cases
-    local SOURCE_FILE META_FILE CONTENT_FILE TARGET_OUTPUT_ROOT HASH ARCHIVE_HASH SEP MANIFEST_FILE
+    local SOURCE_FILE META_FILE CONTENT_FILE TARGET_OUTPUT_ROOT HASH ARCHIVE_HASH SEP MANIFEST_FILE STDERR_FILE
     local INDEX_FILE CACHE_FILE TEMPLATE_DIR TEMPLATE_OVERRIDE_FILE MARSH_OTEMP MARSH_OCONFIG_PATH MARSH_OCONFIG_URL
     local SOURCE_ROOT SITE_OUTPUT_ROOT SOURCE_SCOPE EXPECTED_SOURCE_ROOT
     local TARGET_PLAN_ROOT ARCHIVE_PLAN_ROOT ARCHIVE_PLAN_OUTPUT ARCHIVE_SOURCE_FILE ARCHIVE_MANIFEST
@@ -1616,6 +1621,36 @@ function marsh_test {
             fi
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}" "${MARSH_TEST_TEMP}/template-asset-output-cache"
             ;;
+        marsh_build_planned_target_sitemaps:2)
+            TEST_NAME+=":build_failure_reports_file_and_source"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
+            TARGET_SITEMAP_RECORD=""
+            STDERR_FILE="${TEST_TEMP_PREFIX}.stderr"
+            mkdir -p "${SOURCE_ROOT}/site-map"
+            printf '%s\n' '# Site Map' > "${SOURCE_ROOT}/site-map/index.markdown"
+            TARGET_SITEMAP_RECORD=$(printf '%s\t%s\n' 'site-map/index.markdown' "${SOURCE_ROOT}/site-map/index.markdown")
+            rm -f "${STDERR_FILE}"
+            {
+                set -o pipefail
+                marsh_build_planned_target_sitemaps "${TARGET_OUTPUT_ROOT}" false "marsh_test_fail_command" "" "markdown,md" true "${TARGET_SITEMAP_RECORD}" >/dev/null 2>"${STDERR_FILE}"
+                set +o pipefail
+            }
+            STATUS=$?
+            ACTUAL=""
+            [[ -f "${STDERR_FILE}" ]] && ACTUAL=$(<"${STDERR_FILE}")
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${STATUS}" == "${EXPECTED}" ]]; then
+                EXPECTED=$(printf '%s\n' "Unable to build sitemap: site-map/index.markdown (${SOURCE_ROOT}/site-map/index.markdown)")
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -f "${STDERR_FILE}"
+            rm -rf "${TARGET_OUTPUT_ROOT}" "${SOURCE_ROOT}"
+            ;;
         marsh_build_sitemap:0)
             TEST_NAME+=":plans_and_renders_archives_from_target_context"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
@@ -1696,6 +1731,34 @@ function marsh_test {
                 fi
             fi
             rm -rf "${TARGET_OUTPUT_ROOT}" "${SOURCE_ROOT}" "${TEMPLATE_DIR}"
+            ;;
+        marsh_build_sitemap:1)
+            TEST_NAME+=":render_failure_reports_source"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
+            STDERR_FILE="${TEST_TEMP_PREFIX}.stderr"
+            mkdir -p "${SOURCE_ROOT}/site-map"
+            printf '%s\n' '# Site Map' > "${SOURCE_ROOT}/site-map/index.markdown"
+            rm -f "${STDERR_FILE}"
+            {
+                set -o pipefail
+                marsh_build_sitemap "${TARGET_OUTPUT_ROOT}" "site-map/index.markdown" "${SOURCE_ROOT}/site-map/index.markdown" "marsh_test_fail_command" "" "markdown,md" true >/dev/null 2>"${STDERR_FILE}"
+                set +o pipefail
+            }
+            STATUS=$?
+            ACTUAL=""
+            [[ -f "${STDERR_FILE}" ]] && ACTUAL=$(<"${STDERR_FILE}")
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${STATUS}" == "${EXPECTED}" ]]; then
+                EXPECTED="Unable to render sitemap markdown: ${SOURCE_ROOT}/site-map/index.markdown"
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -f "${STDERR_FILE}"
+            rm -rf "${TARGET_OUTPUT_ROOT}" "${SOURCE_ROOT}"
             ;;
         marsh_build_target_documents:0)
             TEST_NAME+=":serial_success"
@@ -3383,6 +3446,82 @@ function marsh_test {
                 fi
             fi
             rm -rf "${TARGET_OUTPUT_ROOT}" "${SOURCE_DIR}"
+            ;;
+        marsh_build_template:34)
+            TEST_NAME+=":configured_sitemap_missing_fails"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
+            marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "index.markdown" "content" 'Example'
+            marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "index.markdown" "meta-yaml" '---' 'Title: Example' '...'
+            ACTUAL=$(marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "site-map/index.markdown" false "${TEMPLATE_DIR}" "sample" false "marsh_test_markdown_command" "" "markdown,md" "true" 0 2>&1 >/dev/null)
+            STATUS=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${STATUS}" == "${EXPECTED}" ]]; then
+                EXPECTED='Unable to resolve configured sitemap for document: index.markdown (site-map/index.markdown)'
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}"
+            ;;
+        marsh_build_template:35)
+            TEST_NAME+=":configured_sitemap_search_missing_fails"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
+            marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "docs/index.markdown" "content" 'Example'
+            marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "docs/index.markdown" "meta-yaml" '---' 'Title: Example' '...'
+            ACTUAL=$(marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "docs/index.markdown" "site-map.markdown" true "${TEMPLATE_DIR}" "sample" false "marsh_test_markdown_command" "" "markdown,md" "true" 0 2>&1 >/dev/null)
+            STATUS=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${STATUS}" == "${EXPECTED}" ]]; then
+                EXPECTED='Unable to resolve configured sitemap for document: docs/index.markdown (site-map.markdown)'
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}"
+            ;;
+        marsh_build_template:36)
+            TEST_NAME+=":configured_sitemap_processed_failure_reports"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            SOURCE_DIR="${TEST_TEMP_PREFIX}.source"
+            ORIGINAL_MARSH_GET_PROCESSED_SITEMAP=""
+            mkdir -p "${SOURCE_DIR}/site-map"
+            marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
+            printf '%s\n' '<h1>Site Map</h1>' > "${SOURCE_DIR}/site-map/index.markdown"
+            marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "index.markdown" "content" 'Example'
+            marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "index.markdown" "meta-yaml" '---' 'Title: Example' '...'
+            marsh_build_sitemap "${TARGET_OUTPUT_ROOT}" "site-map/index.markdown" "${SOURCE_DIR}/site-map/index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" >/dev/null 2>&1
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                ORIGINAL_MARSH_GET_PROCESSED_SITEMAP=$(declare -f marsh_get_processed_sitemap)
+                function marsh_get_processed_sitemap {
+                    return 1
+                }
+                ACTUAL=$(marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "site-map/index.markdown" false "${TEMPLATE_DIR}" "sample" false "marsh_test_markdown_command" "" "markdown,md" "true" 0 2>&1 >/dev/null)
+                STATUS=$?
+                EXPECTED=1
+                ASSERTION="equals"
+                if [[ "${STATUS}" == "${EXPECTED}" ]]; then
+                    EXPECTED='Unable to process configured sitemap for document: index.markdown (site-map/index.markdown)'
+                    ASSERTION="equals"
+                    if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                        RES="[PASS]"
+                    fi
+                fi
+                eval "${ORIGINAL_MARSH_GET_PROCESSED_SITEMAP}"
+                unset ORIGINAL_MARSH_GET_PROCESSED_SITEMAP
+            fi
+            rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}" "${SOURCE_DIR}"
             ;;
         marsh_check_dependencies:0)
             TEST_NAME+=":found"
@@ -6047,6 +6186,28 @@ function marsh_test {
             fi
             rm -rf "${TARGET_OUTPUT_ROOT}" "${SITE_SOURCE_ROOT}"
             ;;
+        marsh_plan_target_sitemaps:4)
+            TEST_NAME+=":explicit_missing_reports_configured_path"
+            SITE_SOURCE_ROOT="${TEST_TEMP_PREFIX}.site-source"
+            TARGET_SOURCE_ROOT="${SITE_SOURCE_ROOT}/about"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            TARGET_SITEMAP_PATH="../shared/missing.markdown"
+            mkdir -p "${TARGET_SOURCE_ROOT}" "${SITE_SOURCE_ROOT}/shared"
+            ACTUAL=$(marsh_plan_target_sitemaps "${SITE_SOURCE_ROOT}" "${TARGET_SOURCE_ROOT}" "${TARGET_SITEMAP_PATH}" false "${TARGET_OUTPUT_ROOT}" 2>&1 >/dev/null)
+            STATUS=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${STATUS}" == "${EXPECTED}" ]]; then
+                EXPECTED=$(printf '%s\n' \
+                    "Sitemap source file not found or unreadable: $(marsh_test_get_physical_path "${SITE_SOURCE_ROOT}/shared")/missing.markdown" \
+                    "Unable to resolve configured sitemap source path: ${TARGET_SITEMAP_PATH}")
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${TARGET_OUTPUT_ROOT}" "${SITE_SOURCE_ROOT}"
+            ;;
         marsh_plan_target_sitemaps_from_inventory:0)
             TEST_NAME+=":search_filters_inventory_records"
             SITE_SOURCE_ROOT="${TEST_TEMP_PREFIX}.site-source"
@@ -6294,13 +6455,29 @@ function marsh_test {
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             mkdir -p "${TARGET_OUTPUT_ROOT}/source/about" "${TARGET_OUTPUT_ROOT}/shared"
             printf '%s\n' 'Site Map' > "${TARGET_OUTPUT_ROOT}/shared/site-map.markdown"
-            ACTUAL=$(marsh_resolve_sitemap_source_path "${TARGET_OUTPUT_ROOT}/source" "${TARGET_OUTPUT_ROOT}/source/about" "../../shared/site-map.markdown" 2>/dev/null)
+            ACTUAL=$(marsh_resolve_sitemap_source_path "${TARGET_OUTPUT_ROOT}/source" "${TARGET_OUTPUT_ROOT}/source/about" "../../shared/site-map.markdown" 2>&1 >/dev/null)
             STATUS=$?
             EXPECTED=1
             ASSERTION="equals"
             if [[ "${STATUS}" -eq "${EXPECTED}" ]]; then
-                ACTUAL="${ACTUAL}"
-                EXPECTED=""
+                EXPECTED="Sitemap source path resolves outside site source root: $(marsh_test_get_physical_path "${TARGET_OUTPUT_ROOT}/shared/site-map.markdown")"
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${TARGET_OUTPUT_ROOT}"
+            ;;
+        marsh_resolve_sitemap_source_path:2)
+            TEST_NAME+=":missing_target_source_root_reports"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            mkdir -p "${TARGET_OUTPUT_ROOT}/source"
+            ACTUAL=$(marsh_resolve_sitemap_source_path "${TARGET_OUTPUT_ROOT}/source" "${TARGET_OUTPUT_ROOT}/source/about" "site-map/index.markdown" 2>&1 >/dev/null)
+            STATUS=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${STATUS}" -eq "${EXPECTED}" ]]; then
+                EXPECTED="Target source root not found for sitemap: ${TARGET_OUTPUT_ROOT}/source/about"
                 ASSERTION="equals"
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                     RES="[PASS]"

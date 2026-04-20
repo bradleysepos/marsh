@@ -1272,13 +1272,17 @@ function marsh_test {
             marsh_test_write_archive_manifest "${TARGET_OUTPUT_ROOT}" "${MANIFEST_FILE}" "news/item.markdown"
             ARCHIVE_PLAN_ROOT=$(marsh_plan_archive_pages "${TARGET_OUTPUT_ROOT}" "html" "news/index.markdown" "News" "English" "en" "" "10" "1" "post" "0" "${MANIFEST_FILE}" "" "${TEMPLATE_DIR}" "sample" "" false 0 "" "." "")
             rm -f "${ARCHIVE_PLAN_ROOT}/context"
-            marsh_build_planned_archive_documents "${TARGET_OUTPUT_ROOT}" false "1" "marsh_test_markdown_command" "" "markdown,md" true "${ARCHIVE_PLAN_ROOT}" >/dev/null 2>&1
-            ACTUAL=$?
+            ACTUAL=$(marsh_build_planned_archive_documents "${TARGET_OUTPUT_ROOT}" false "1" "marsh_test_markdown_command" "" "markdown,md" true "${ARCHIVE_PLAN_ROOT}" 2>&1 >/dev/null)
+            STATUS=$?
             EXPECTED=1
             ASSERTION="equals"
-            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                if [[ ! -e "${TARGET_OUTPUT_ROOT}/news/index.html" ]]; then
-                    RES="[PASS]"
+            if [[ "${STATUS}" == "${EXPECTED}" ]]; then
+                EXPECTED="Archive plan context file not found: ${ARCHIVE_PLAN_ROOT}/context"
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    if [[ ! -e "${TARGET_OUTPUT_ROOT}/news/index.html" ]]; then
+                        RES="[PASS]"
+                    fi
                 fi
             fi
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}" "${MANIFEST_FILE}"
@@ -1451,6 +1455,24 @@ function marsh_test {
                 fi
             fi
             rm -rf "${TARGET_OUTPUT_ROOT}" "${SOURCE_ROOT}" "${TEMPLATE_DIR}"
+            ;;
+        marsh_build_planned_target:5)
+            TEST_NAME+=":fails_when_target_plan_context_missing"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            TARGET_PLAN_ROOT="${TEST_TEMP_PREFIX}.plan"
+            mkdir -p "${TARGET_PLAN_ROOT}"
+            ACTUAL=$(marsh_build_planned_target "${TARGET_OUTPUT_ROOT}" false "1" "marsh_test_markdown_command" "" "markdown,md" true "${TARGET_PLAN_ROOT}" 2>&1 >/dev/null)
+            STATUS=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${STATUS}" == "${EXPECTED}" ]]; then
+                EXPECTED="Target plan context file not found: ${TARGET_PLAN_ROOT}/context"
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${TARGET_OUTPUT_ROOT}" "${TARGET_PLAN_ROOT}"
             ;;
         marsh_build_planned_target_documents:0)
             TEST_NAME+=":serial_success"
@@ -3637,6 +3659,23 @@ function marsh_test {
                 fi
             fi
             rm -rf "${SOURCE_DIR}" "${TARGET_OUTPUT_ROOT}"
+            ;;
+        marsh_create_target_source_root:0)
+            TEST_NAME+=":missing_source_root_reports"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.missing"
+            ACTUAL=$(marsh_create_target_source_root "${TARGET_OUTPUT_ROOT}" "${SOURCE_ROOT}" 2>&1 >/dev/null)
+            STATUS=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${STATUS}" == "${EXPECTED}" ]]; then
+                EXPECTED="Target source root not found: ${SOURCE_ROOT}"
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${TARGET_OUTPUT_ROOT}"
             ;;
         marsh_escape_cache_component:0)
             TEST_NAME+=":escapes_reserved_chars"
@@ -7889,6 +7928,36 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
+        marsh_write_target_plan_context:0)
+            TEST_NAME+=":missing_plan_root_reports"
+            TARGET_PLAN_ROOT="${TEST_TEMP_PREFIX}.missing"
+            ACTUAL=$(marsh_write_target_plan_context "${TARGET_PLAN_ROOT}" "." false false "" false "" "" 0 "" "." "" 2>&1 >/dev/null)
+            STATUS=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${STATUS}" == "${EXPECTED}" ]]; then
+                EXPECTED="Unable to write target plan context temporary file: ${TARGET_PLAN_ROOT}/context-XXXXXX"
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            ;;
+        marsh_write_target_plan_records:0)
+            TEST_NAME+=":missing_plan_root_reports"
+            TARGET_PLAN_ROOT="${TEST_TEMP_PREFIX}.missing"
+            ACTUAL=$(marsh_write_target_plan_records "${TARGET_PLAN_ROOT}" "documents" "alpha" 2>&1 >/dev/null)
+            STATUS=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${STATUS}" == "${EXPECTED}" ]]; then
+                EXPECTED="Unable to write target plan record temporary file: ${TARGET_PLAN_ROOT}/documents-XXXXXX"
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            ;;
         *)
             EXISTS=false
             ;;
@@ -8014,6 +8083,8 @@ KNOWN_FUNCTIONS=(
     marsh_write_document_artifacts
     marsh_write_document_metadata_artifacts
     marsh_write_target_archive_manifest
+    marsh_write_target_plan_context
+    marsh_write_target_plan_records
 )
 FUNCTIONS=("${@}")
 if [[ "${FUNCTIONS[*]}" == "" ]]; then

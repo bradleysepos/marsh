@@ -3198,7 +3198,11 @@ function marsh_write_target_plan_context {  # marsh_write_target_plan_context ta
     TARGET_TEMPLATE_SOURCE="${6:-}"
 
     CONTEXT_FILE="${TARGET_PLAN_ROOT}/context"
-    CONTEXT_TEMP=$(mktemp "${TARGET_PLAN_ROOT}/context-XXXXXX") || return 1
+    CONTEXT_TEMP=$(mktemp "${TARGET_PLAN_ROOT}/context-XXXXXX" 2>/dev/null) || {
+        echo "Unable to write target plan context temporary file: ${TARGET_PLAN_ROOT}/context-XXXXXX" >&2
+        return 1
+    }
+
     {
         printf 'TARGET_OUTPUT_REL=%q\n' "${TARGET_OUTPUT_REL}"
         printf 'TARGET_FORCE=%q\n' "${FORCE}"
@@ -3239,10 +3243,12 @@ function marsh_write_target_plan_context {  # marsh_write_target_plan_context ta
 \${${ARCHIVE_ARRAY}[@]}\"; do printf '${ARCHIVE_ARRAY}+=(%q)\\n' \"\${TEMPLATE_OVERRIDE}\"; done"
         done
     } > "${CONTEXT_TEMP}" || {
+        echo "Unable to write target plan context temporary file: ${CONTEXT_TEMP}" >&2
         rm -f "${CONTEXT_TEMP}"
         return 1
     }
     mv "${CONTEXT_TEMP}" "${CONTEXT_FILE}" 2>/dev/null || {
+        echo "Unable to write target plan context file: ${CONTEXT_FILE}" >&2
         rm -f "${CONTEXT_TEMP}"
         return 1
     }
@@ -3259,17 +3265,23 @@ function marsh_write_target_plan_records {  # marsh_write_target_plan_records ta
     [[ "${RECORD_NAME}" == "" ]] && return 1
 
     RECORD_FILE="${TARGET_PLAN_ROOT}/${RECORD_NAME}"
-    RECORD_TEMP=$(mktemp "${TARGET_PLAN_ROOT}/${RECORD_NAME}-XXXXXX") || return 1
+    RECORD_TEMP=$(mktemp "${TARGET_PLAN_ROOT}/${RECORD_NAME}-XXXXXX" 2>/dev/null) || {
+        echo "Unable to write target plan record temporary file: ${TARGET_PLAN_ROOT}/${RECORD_NAME}-XXXXXX" >&2
+        return 1
+    }
+
     while [[ "${#@}" -gt 0 ]]; do
         RECORD="${1:-}"
         shift 1
         [[ "${RECORD}" == "" ]] && continue
         printf '%s\n' "${RECORD}"
     done > "${RECORD_TEMP}" || {
+        echo "Unable to write target plan record temporary file: ${RECORD_TEMP}" >&2
         rm -f "${RECORD_TEMP}"
         return 1
     }
     mv "${RECORD_TEMP}" "${RECORD_FILE}" 2>/dev/null || {
+        echo "Unable to write target plan record file: ${RECORD_FILE}" >&2
         rm -f "${RECORD_TEMP}"
         return 1
     }
@@ -3283,7 +3295,10 @@ function marsh_create_target_source_root {  # marsh_create_target_source_root ta
     SOURCE_ROOT="${2:-}"
     [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
     [[ "${SOURCE_ROOT}" == "" ]] && return 1
-    [[ -d "${SOURCE_ROOT}" ]] || return 1
+    [[ -d "${SOURCE_ROOT}" ]] || {
+        echo "Target source root not found: ${SOURCE_ROOT}" >&2
+        return 1
+    }
 
     TARGET_BUILD_TEMP_ROOT=$(marsh_get_target_temp_root "${TARGET_OUTPUT_ROOT}") || return 1
     TARGET_SOURCE_ROOT_CACHE_FILE="${TARGET_BUILD_TEMP_ROOT}/source-root"
@@ -6326,14 +6341,19 @@ function marsh_build_planned_archive_documents {  # marsh_build_planned_archive_
     # archive execution treats the archive plan root as the durable handoff surface,
     # so this executor intentionally reloads its context and documents from disk
     CONTEXT_FILE="${ARCHIVE_PLAN_ROOT}/context"
-    DOCUMENTS_FILE="${ARCHIVE_PLAN_ROOT}/documents"
-    [[ -f "${CONTEXT_FILE}" ]] && [[ -r "${CONTEXT_FILE}" ]] || return 1
-
-    ARCHIVE_PLAN_CONTEXT=$(<"${CONTEXT_FILE}") || return 1
+    [[ -f "${CONTEXT_FILE}" ]] && [[ -r "${CONTEXT_FILE}" ]] || {
+        echo "Archive plan context file not found: ${CONTEXT_FILE}" >&2
+        return 1
+    }
+    ARCHIVE_PLAN_CONTEXT=$(<"${CONTEXT_FILE}") || {
+        echo "Unable to read archive plan context file: ${CONTEXT_FILE}" >&2
+        return 1
+    }
     ARCHIVE_PLAN_CONTEXT_VARS=$(echo "${ARCHIVE_PLAN_CONTEXT}" | marsh_get_variables)
     eval "$(printf '%s\n' "${ARCHIVE_PLAN_CONTEXT_VARS}" | marsh_get_local_declarations)"
     eval "${ARCHIVE_PLAN_CONTEXT}"
 
+    DOCUMENTS_FILE="${ARCHIVE_PLAN_ROOT}/documents"
     DOCUMENT_RECORDS=()
     if [[ -f "${DOCUMENTS_FILE}" ]] && [[ -r "${DOCUMENTS_FILE}" ]]; then
         while IFS= read -r DOCUMENT_RECORD; do
@@ -6573,9 +6593,15 @@ function marsh_build_planned_target {  # marsh_build_planned_target site_output_
     SOURCE_ASSETS_FILE="${TARGET_PLAN_ROOT}/source-assets"
     SITEMAPS_FILE="${TARGET_PLAN_ROOT}/sitemaps"
     ARCHIVE_PLANS_FILE="${TARGET_PLAN_ROOT}/archive-plans"
-    [[ -f "${CONTEXT_FILE}" ]] && [[ -r "${CONTEXT_FILE}" ]] || return 1
+    [[ -f "${CONTEXT_FILE}" ]] && [[ -r "${CONTEXT_FILE}" ]] || {
+        echo "Target plan context file not found: ${CONTEXT_FILE}" >&2
+        return 1
+    }
 
-    TARGET_PLAN_CONTEXT=$(<"${CONTEXT_FILE}") || return 1
+    TARGET_PLAN_CONTEXT=$(<"${CONTEXT_FILE}") || {
+        echo "Unable to read target plan context file: ${CONTEXT_FILE}" >&2
+        return 1
+    }
     TARGET_PLAN_CONTEXT_VARS=$(echo "${TARGET_PLAN_CONTEXT}" | marsh_get_variables)
     eval "$(printf '%s\n' "${TARGET_PLAN_CONTEXT_VARS}" | marsh_get_local_declarations)"
     eval "${TARGET_PLAN_CONTEXT}"

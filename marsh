@@ -1802,7 +1802,7 @@ function marsh_check_dependencies {  # marsh_check_dependencies $DEP1 $DEP2 ...
                     FOUND=true
                 fi
                 break
-            elif hash "${DEP}" >/dev/null 2>&1; then
+            elif command -v "${DEP}" >/dev/null 2>&1; then
                 FOUND=true
                 break
             fi

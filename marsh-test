@@ -1577,7 +1577,7 @@ function marsh_test {
             EXPECTED=0
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                ACTUAL=$(find "${MARSH_TEST_TEMP}/template-asset-output-cache" -maxdepth 1 -name '*.paths' 2>/dev/null | marsh_text_transform items:count)
+                ACTUAL=$(find "${MARSH_TEST_TEMP}/template-asset-output-cache" -type f -name '*.paths' 2>/dev/null | marsh_text_transform items:count)
                 EXPECTED='1'
                 ASSERTION="equals"
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -2939,7 +2939,7 @@ function marsh_test {
                     EXPECTED='<!DOCTYPE html>'$'\n''<html><body><p>Beta</p></body></html>'
                     ASSERTION="equals"
                     if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                        ACTUAL=$(find "${MARSH_TEST_TEMP}/conditional-partial-cache" -maxdepth 1 -name '*.partial' 2>/dev/null | marsh_text_transform items:count)
+                        ACTUAL=$(find "${MARSH_TEST_TEMP}/conditional-partial-cache" -type f -name '*.partial' 2>/dev/null | marsh_text_transform items:count)
                         EXPECTED='1'
                         ASSERTION="equals"
                         if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -2990,7 +2990,7 @@ function marsh_test {
                     EXPECTED='<!DOCTYPE html>'$'\n''<html><body><p>Other</p></body></html>'
                     ASSERTION="equals"
                     if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                        ACTUAL=$(find "${MARSH_TEST_TEMP}/conditional-partial-cache" -maxdepth 1 -name '*.partial' 2>/dev/null | marsh_text_transform items:count)
+                        ACTUAL=$(find "${MARSH_TEST_TEMP}/conditional-partial-cache" -type f -name '*.partial' 2>/dev/null | marsh_text_transform items:count)
                         EXPECTED='2'
                         ASSERTION="equals"
                         if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -3646,6 +3646,33 @@ function marsh_test {
             fi
             rm -rf "${SOURCE_DIR}" "${TARGET_OUTPUT_ROOT}"
             ;;
+        marsh_escape_cache_component:0)
+            TEST_NAME+=":escapes_reserved_chars"
+            ACTUAL=$(marsh_escape_cache_component $'a%b/c\\d:e f\tg\nh\r\034\035')
+            EXPECTED='a%25b%2Fc%5Cd%3Ae%20f%09g%0Ah%0D%1C%1D'
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_escape_cache_component:1)
+            TEST_NAME+=":empty_string"
+            ACTUAL=$(marsh_escape_cache_component "")
+            EXPECTED='__empty__'
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_escape_cache_component:2)
+            TEST_NAME+=":dot_segments"
+            ACTUAL="$(marsh_escape_cache_component ".")"$'\001'"$(marsh_escape_cache_component "..")"
+            EXPECTED='%2E'$'\001''%2E%2E'
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
         marsh_escape_substitution:0)
             TEST_NAME+=":plain"
             ACTUAL=$(printf 'foo' | marsh_escape_substitution)
@@ -4006,6 +4033,38 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
+        marsh_get_cache_path:0)
+            TEST_NAME+=":joins_multiple_key_parts"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.cache"
+            ACTUAL=$(marsh_get_cache_path "${TARGET_OUTPUT_ROOT}" ".meta" "foo/bar" "baz")
+            EXPECTED="${TARGET_OUTPUT_ROOT}/foo%2Fbar/baz.meta"
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_get_cache_path:1)
+            TEST_NAME+=":chunks_long_components"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.cache"
+            HASH=$(printf '%121s' '')
+            HASH="${HASH// /x}"
+            ACTUAL=$(marsh_get_cache_path "${TARGET_OUTPUT_ROOT}" ".lookup" "${HASH}")
+            EXPECTED="${TARGET_OUTPUT_ROOT}/${HASH:0:120}/${HASH:120}.lookup"
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_get_cache_path:2)
+            TEST_NAME+=":preserves_empty_and_dot_parts"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.cache"
+            ACTUAL=$(marsh_get_cache_path "${TARGET_OUTPUT_ROOT}" ".cache" "" "." "..")
+            EXPECTED="${TARGET_OUTPUT_ROOT}/__empty__/%2E/%2E%2E.cache"
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
         marsh_get_document_artifacts:0)
             TEST_NAME+=":nested_target"
             MARSH_CONFIG_PATH="/site/public"
@@ -4168,7 +4227,7 @@ function marsh_test {
             SITEMAP_RENDER_FILE=$(marsh_get_sitemap_render_path "${TARGET_OUTPUT_ROOT}" "site-map/index.markdown")
             printf '%s\n' '<h1><a href="./">Site Map</a></h1>' '<p><a href="../news/">News</a></p>' > "${SITEMAP_RENDER_FILE}"
             ACTUAL=$(marsh_get_processed_sitemap "${SITEMAP_RENDER_FILE}" "site-map" "docs/")
-            EXPECTED="$(marsh_get_target_temp_root "${TARGET_OUTPUT_ROOT}")/sitemaps/processed/$(printf '%s\034%s\034%s\034%s\n' "${SITEMAP_RENDER_FILE}" "site-map" "docs/" "$(<"${SITEMAP_RENDER_FILE}" marsh_text_transform hash:md5)" | marsh_text_transform hash:md5).html"
+            EXPECTED="$(marsh_get_target_temp_root "${TARGET_OUTPUT_ROOT}")/sitemaps/processed/site-map--docs%2F--site-map%2Findex.markdown.sitemap.html"
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 ACTUAL=$(<"${EXPECTED}")
@@ -4186,7 +4245,7 @@ function marsh_test {
             mkdir -p "${TARGET_OUTPUT_ROOT}"
             SITEMAP_RENDER_FILE=$(marsh_get_sitemap_render_path "${TARGET_OUTPUT_ROOT}" "site-map/index.markdown")
             printf '%s\n' '<p><a href="../news/">News</a></p>' > "${SITEMAP_RENDER_FILE}"
-            CACHE_FILE="$(marsh_get_target_temp_root "${TARGET_OUTPUT_ROOT}")/sitemaps/processed/$(printf '%s\034%s\034%s\034%s\n' "${SITEMAP_RENDER_FILE}" "site-map" "docs/" "$(<"${SITEMAP_RENDER_FILE}" marsh_text_transform hash:md5)" | marsh_text_transform hash:md5).html"
+            CACHE_FILE="$(marsh_get_target_temp_root "${TARGET_OUTPUT_ROOT}")/sitemaps/processed/site-map--docs%2F--site-map%2Findex.markdown.sitemap.html"
             mkdir -p "${CACHE_FILE%/*}"
             printf '%s\n' 'sentinel' > "${CACHE_FILE}"
             ACTUAL=$(marsh_get_processed_sitemap "${SITEMAP_RENDER_FILE}" "site-map" "docs/")
@@ -4379,7 +4438,7 @@ function marsh_test {
             TEST_NAME+=":root_target"
             MARSH_CONFIG_PATH="/site/public"
             ACTUAL=$(marsh_get_sitemap_render_path "/site/public" "site-map/index.markdown")
-            EXPECTED="${MARSH_TEST_TEMP}/build/targets/root/sitemaps/render/$(printf '%s\034%s\n' "/site/public" "site-map/index.markdown" | marsh_text_transform hash:md5).sitemap.html"
+            EXPECTED="${MARSH_TEST_TEMP}/build/targets/root/sitemaps/render/site-map%2Findex.markdown.sitemap.html"
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -4389,7 +4448,7 @@ function marsh_test {
             TEST_NAME+=":nested_target"
             MARSH_CONFIG_PATH="/site/public"
             ACTUAL=$(marsh_get_sitemap_render_path "/site/public/blog" "news/sitemap.markdown")
-            EXPECTED="${MARSH_TEST_TEMP}/build/targets/blog/sitemaps/render/$(printf '%s\034%s\n' "/site/public/blog" "news/sitemap.markdown" | marsh_text_transform hash:md5).sitemap.html"
+            EXPECTED="${MARSH_TEST_TEMP}/build/targets/blog/sitemaps/render/news%2Fsitemap.markdown.sitemap.html"
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -4594,8 +4653,6 @@ function marsh_test {
             MARSH_TEST_TARGET_Archives_0_Template_Assets_Path="assets/feed"
             MARSH_TEST_TARGET_Archives_0_Template_Overrides_0="templates/archive-atom-compact"
             MARSH_TEST_TARGET_Archives_0_Template_Overrides_1="templates/archive-atom-custom2"
-            HASH=$(printf 'templates/default' | marsh_text_transform hash:md5)
-            ARCHIVE_HASH=$(printf 'templates/archive-atom' | marsh_text_transform hash:md5)
             ACTUAL=$(marsh_get_target_metadata "MARSH_TEST_TARGET_" "TARGET_")
             EXPECTED=$(printf '%s\n' \
                 'TARGET_PATH="/site/output"' \
@@ -4609,7 +4666,7 @@ function marsh_test {
                 'TARGET_TEMPLATE_OVERRIDES=()' \
                 'TARGET_TEMPLATE_OVERRIDES+=("foo=foo")' \
                 'TARGET_TEMPLATE_OVERRIDES+=("bar=bar")' \
-                "TARGET_TEMPLATE=\"default-${HASH}\"" \
+                'TARGET_TEMPLATE="default-templates%2Fdefault"' \
                 'TARGET_ARCHIVES=()' \
                 'TARGET_ARCHIVES_ENCODING=()' \
                 'TARGET_ARCHIVES_NAME=()' \
@@ -4639,7 +4696,7 @@ function marsh_test {
                 'TARGET_ARCHIVES_TEMPLATE_SOURCE+=("templates/archive-atom")' \
                 'TARGET_ARCHIVES_TEMPLATE_ASSETS_PATH+=("assets/feed")' \
                 "TARGET_ARCHIVES_TEMPLATE_OVERRIDES+=(\"templates/archive-atom-compact${SEP}templates/archive-atom-custom2\")" \
-                "TARGET_ARCHIVES_TEMPLATE+=(\"archive-atom-${ARCHIVE_HASH}\")")
+                'TARGET_ARCHIVES_TEMPLATE+=("archive-atom-templates%2Farchive-atom")')
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -4797,6 +4854,33 @@ function marsh_test {
             TARGET_OUTPUT_ROOT="/site/public/docs/blog"
             ACTUAL=$(marsh_get_target_temp_root "${TARGET_OUTPUT_ROOT}")
             EXPECTED="${MARSH_TEST_TEMP}/build/targets/docs/blog"
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_get_template_cache_name:0)
+            TEST_NAME+=":path_with_basename"
+            ACTUAL=$(marsh_get_template_cache_name "templates/default")
+            EXPECTED='default-templates%2Fdefault'
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_get_template_cache_name:1)
+            TEST_NAME+=":trims_trailing_slash"
+            ACTUAL=$(marsh_get_template_cache_name "templates/example/")
+            EXPECTED='example-templates%2Fexample'
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_get_template_cache_name:2)
+            TEST_NAME+=":empty_basename_falls_back"
+            ACTUAL=$(marsh_get_template_cache_name "/")
+            EXPECTED='template-__empty__'
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -5125,7 +5209,7 @@ function marsh_test {
                 EXPECTED=0
                 ASSERTION="equals"
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    ACTUAL="$(<"${TARGET_OUTPUT_ROOT}/css/site.css")"$'\001'"$(find "${MARSH_TEST_TEMP}/asset-copy-cache" -maxdepth 1 -name '*.manifest' 2>/dev/null | marsh_text_transform items:count)"$'\001'"$(find "${MARSH_TEST_TEMP}/asset-copy-cache" -maxdepth 1 -name '*.copied' 2>/dev/null | marsh_text_transform items:count)"
+                    ACTUAL="$(<"${TARGET_OUTPUT_ROOT}/css/site.css")"$'\001'"$(find "${MARSH_TEST_TEMP}/asset-copy-cache" -type f -name '*.manifest' 2>/dev/null | marsh_text_transform items:count)"$'\001'"$(find "${MARSH_TEST_TEMP}/asset-copy-cache" -type f -name '*.copied' 2>/dev/null | marsh_text_transform items:count)"
                     EXPECTED='local change'$'\001''1'$'\001''0'
                     ASSERTION="equals"
                     if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -7881,6 +7965,7 @@ KNOWN_FUNCTIONS=(
     marsh_copy_source_objects
     marsh_copy_template_assets
     marsh_create_target_source_root
+    marsh_escape_cache_component
     marsh_escape_substitution
     marsh_extract_frontmatter
     marsh_flat_to_array
@@ -7890,6 +7975,7 @@ KNOWN_FUNCTIONS=(
     marsh_get_archive_page_uri
     marsh_get_archive_root_path
     marsh_get_archive_temp_path
+    marsh_get_cache_path
     marsh_get_common_directory
     marsh_get_document_artifacts
     marsh_get_document_metadata
@@ -7911,6 +7997,7 @@ KNOWN_FUNCTIONS=(
     marsh_get_target_output_path
     marsh_get_target_source_inventory
     marsh_get_target_temp_root
+    marsh_get_template_cache_name
     marsh_get_template_cache_path
     marsh_get_template_metadata
     marsh_get_variables

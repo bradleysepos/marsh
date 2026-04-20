@@ -1635,6 +1635,90 @@ function marsh_get_archive_metadata {  # marsh_get_archive_metadata target_outpu
     return 0
 }
 
+# escapes arbitrary text into a stable cache-safe path component
+function marsh_escape_cache_component {  # marsh_escape_cache_component value
+    local VALUE
+
+    # init
+    [[ "${1+isset}" == "isset" ]] || return 1
+    VALUE="${1}"
+
+    # escape separators and path syntax that would change cache addressing
+    VALUE="${VALUE//%/%25}"
+    VALUE="${VALUE//$'\034'/%1C}"
+    VALUE="${VALUE//$'\035'/%1D}"
+    VALUE="${VALUE//\//%2F}"
+    VALUE="${VALUE//\\/%5C}"
+    VALUE="${VALUE//:/%3A}"
+    VALUE="${VALUE//$'\n'/%0A}"
+    VALUE="${VALUE//$'\r'/%0D}"
+    VALUE="${VALUE//$'\t'/%09}"
+    VALUE="${VALUE// /%20}"
+
+    # keep empty and dot-only values from collapsing into special path segments
+    case "${VALUE}" in
+        "")
+            VALUE="__empty__"
+            ;;
+        .)
+            VALUE="%2E"
+            ;;
+        ..)
+            VALUE="%2E%2E"
+            ;;
+    esac
+
+    printf '%s\n' "${VALUE}"
+}
+
+# derives a stable cached template name from a template source path
+function marsh_get_template_cache_name {  # marsh_get_template_cache_name template_source
+    local TEMPLATE_SOURCE TEMPLATE_NAME TEMPLATE_KEY
+
+    # init
+    TEMPLATE_SOURCE="${1:-}"
+    [[ "${TEMPLATE_SOURCE}" == "" ]] && return 1
+    TEMPLATE_SOURCE="${TEMPLATE_SOURCE%/}"
+
+    # combine the readable basename with the full escaped source path for uniqueness
+    TEMPLATE_NAME="${TEMPLATE_SOURCE##*/}"
+    [[ "${TEMPLATE_NAME}" != "" ]] || TEMPLATE_NAME='template'
+    TEMPLATE_KEY=$(marsh_escape_cache_component "${TEMPLATE_SOURCE}") || return 1
+    printf '%s\n' "${TEMPLATE_NAME}-${TEMPLATE_KEY}"
+}
+
+# builds a cache file path from one or more stable key parts, chunking long components into nested directories
+function marsh_get_cache_path {  # marsh_get_cache_path cache_root suffix key_part [key_part...]
+    local CACHE_ROOT SUFFIX KEY_PART KEY_ESC CACHE_PATH CHUNK_SIZE
+
+    # init
+    CACHE_ROOT="${1:-}"
+    SUFFIX="${2:-}"
+    [[ "${CACHE_ROOT}" == "" ]] && return 1
+    shift 2
+    [[ "${#@}" -gt 0 ]] || return 1
+
+    # chunk size should be small enough to avoid filesystem limits on filename length
+    # and large enough to avoid excessive nesting for source paths
+    CHUNK_SIZE=120
+
+    CACHE_PATH="${CACHE_ROOT}"
+    while [[ "${#@}" -gt 0 ]]; do
+        KEY_PART="${1}"
+        shift 1
+        KEY_ESC=$(marsh_escape_cache_component "${KEY_PART}") || return 1
+
+        # split oversized keys into nested segments to avoid long filenames
+        while [[ "${#KEY_ESC}" -gt "${CHUNK_SIZE}" ]]; do
+            CACHE_PATH="${CACHE_PATH}/${KEY_ESC:0:${CHUNK_SIZE}}"
+            KEY_ESC="${KEY_ESC:${CHUNK_SIZE}}"
+        done
+        CACHE_PATH="${CACHE_PATH}/${KEY_ESC}"
+    done
+
+    printf '%s\n' "${CACHE_PATH}${SUFFIX}"
+}
+
 # finds the generated sitemap file for a target
 function marsh_get_sitemap_lookup_path {  # marsh_get_sitemap_lookup_path target_output_root document sitemap_file sitemap_search
     local TARGET_OUTPUT_ROOT DOCUMENT SITEMAP_FILE SITEMAP_SEARCH
@@ -1660,8 +1744,9 @@ function marsh_get_sitemap_lookup_path {  # marsh_get_sitemap_lookup_path target
     CURRENT_DIR=$(marsh_get_internal_parent_directory "${DOCUMENT}") || return 1
     LOOKUP_BASE_DIR=$(marsh_normalize_internal_path "${CURRENT_DIR}" "directory") || return 1
     LOOKUP_CACHE_DIR="$(marsh_get_target_temp_root "${TARGET_OUTPUT_ROOT}")/sitemaps/lookup"
-    LOOKUP_CACHE_KEY=$(printf '%s\034%s\n' "${SITEMAP_FILE}" "${LOOKUP_BASE_DIR}" | marsh_text_transform hash:md5) || return 1
-    LOOKUP_CACHE_FILE="${LOOKUP_CACHE_DIR}/${LOOKUP_CACHE_KEY}"
+    LOOKUP_CACHE_KEY=$(marsh_escape_cache_component "${SITEMAP_FILE}") || return 1
+    LOOKUP_CACHE_KEY+="--$(marsh_escape_cache_component "${LOOKUP_BASE_DIR}")" || return 1
+    LOOKUP_CACHE_FILE="${LOOKUP_CACHE_DIR}/${LOOKUP_CACHE_KEY}.lookup"
 
     if [[ -f "${LOOKUP_CACHE_FILE}" ]] && [[ -r "${LOOKUP_CACHE_FILE}" ]]; then
         CACHED_LOOKUP_PATH=$(<"${LOOKUP_CACHE_FILE}")
@@ -1940,8 +2025,7 @@ function marsh_get_template_metadata {  # marsh_get_template_metadata prefix tem
         echo "Unable to create template metadata cache directory: ${CACHE_DIR}" >&2
         return 1
     }
-    CACHE_KEY=$(printf '%s\034' "${PREFIX}" "${TEMPLATE_DIR}" "${TEMPLATE_OVERRIDES[@]}" | marsh_text_transform hash:md5)
-    CACHE_FILE="${CACHE_DIR}/${CACHE_KEY}.meta"
+    CACHE_FILE=$(marsh_get_cache_path "${CACHE_DIR}" ".meta" "$(printf '%s\034' "${PREFIX}" "${TEMPLATE_DIR}" "${TEMPLATE_OVERRIDES[@]}")") || return 1
     if [[ -f "${CACHE_FILE}" ]] && [[ -r "${CACHE_FILE}" ]]; then
         cat "${CACHE_FILE}"
         return 0
@@ -1950,8 +2034,12 @@ function marsh_get_template_metadata {  # marsh_get_template_metadata prefix tem
     # parse and cache template metadata
     TEMPLATE_META=$(marsh_parse_template_metadata "${PREFIX}" "${TEMPLATE_DIR}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}")
     [[ $? -ne 0 ]] && return 1
-    CACHE_TEMP=$(mktemp "${CACHE_DIR}/metadata-XXXXXX") || {
-        echo "Unable to create template metadata cache file: ${CACHE_DIR}/metadata-XXXXXX" >&2
+    mkdir -p "${CACHE_FILE%/*}" >/dev/null 2>&1 || {
+        echo "Unable to create template metadata cache path: ${CACHE_FILE%/*}" >&2
+        return 1
+    }
+    CACHE_TEMP=$(mktemp "${CACHE_FILE%/*}/metadata-XXXXXX") || {
+        echo "Unable to create template metadata cache file: ${CACHE_FILE%/*}/metadata-XXXXXX" >&2
         return 1
     }
     printf '%s\n' "${TEMPLATE_META}" > "${CACHE_TEMP}" || {
@@ -2009,7 +2097,9 @@ function marsh_get_target_metadata {  # marsh_get_target_metadata source_prefix 
     for TEMPLATE_OVERRIDE in "${TEMPLATE_OVERRIDES[@]}"; do
         [[ "${TEMPLATE_OVERRIDE}" != "" ]] && echo "${PREFIX}TEMPLATE_OVERRIDES+=(\"${TEMPLATE_OVERRIDE//\"/\\\"}\")"
     done
-    [[ "${!TEMPLATE_SOURCE:-}" != "" ]] && echo "${PREFIX}TEMPLATE=\"${!TEMPLATE_SOURCE##*/}-$(echo -n ${!TEMPLATE_SOURCE} | marsh_text_transform hash:md5)\""
+    if [[ "${!TEMPLATE_SOURCE:-}" != "" ]]; then
+        echo "${PREFIX}TEMPLATE=\"$(marsh_get_template_cache_name "${!TEMPLATE_SOURCE}")\""
+    fi
 
     # archives
     echo "${PREFIX}ARCHIVES=()"
@@ -2058,7 +2148,7 @@ function marsh_get_target_metadata {  # marsh_get_target_metadata source_prefix 
         eval $(marsh_flat_to_array "ARCHIVE_TEMPLATE_OVERRIDES" "${SOURCE_PREFIX}Archives_${II}_Template_Overrides_")
         OIFS="${IFS}"; IFS=$(echo @|tr @ '\034'); echo "${PREFIX}ARCHIVES_TEMPLATE_OVERRIDES+=(\"${ARCHIVE_TEMPLATE_OVERRIDES[*]//\"/\\\"}\")"; IFS="${OIFS}"
         if [[ "${!ARCHIVE_TEMPLATE_SOURCE:-}" != "" ]]; then
-            echo "${PREFIX}ARCHIVES_TEMPLATE+=(\"${!ARCHIVE_TEMPLATE_SOURCE##*/}-$(echo -n ${!ARCHIVE_TEMPLATE_SOURCE} | marsh_text_transform hash:md5)\")"
+            echo "${PREFIX}ARCHIVES_TEMPLATE+=(\"$(marsh_get_template_cache_name "${!ARCHIVE_TEMPLATE_SOURCE}")\")"
         else
             echo "${PREFIX}ARCHIVES_TEMPLATE+=(\"\")"
         fi
@@ -2165,7 +2255,7 @@ function marsh_get_sitemap_render_path {  # marsh_get_sitemap_render_path target
         echo "Unable to create sitemap render cache directory: ${SITEMAP_RENDER_CACHE_DIR}" >&2
         return 1
     }
-    SITEMAP_RENDER_KEY=$(printf '%s\034%s\n' "${TARGET_OUTPUT_ROOT}" "${SITEMAP_PATH}" | marsh_text_transform hash:md5) || return 1
+    SITEMAP_RENDER_KEY=$(marsh_escape_cache_component "${SITEMAP_PATH}") || return 1
     SITEMAP_RENDER_FILE="${SITEMAP_RENDER_CACHE_DIR}/${SITEMAP_RENDER_KEY}.sitemap.html"
     printf '%s\n' "${SITEMAP_RENDER_FILE}"
 }
@@ -2597,11 +2687,10 @@ function marsh_get_template_asset_output_paths {  # marsh_get_template_asset_out
         echo "Unable to create template asset output cache directory: ${CACHE_DIR}" >&2
         return 1
     }
-    CACHE_KEY=$({
+    CACHE_FILE=$(marsh_get_cache_path "${CACHE_DIR}" ".paths" "$({
         printf '%s\034%s\034%s\034' "${TARGET_OUTPUT_REL}" "${TEMPLATES_DIR}/${TEMPLATE}" "${TEMPLATE_ASSETS_PATH}"
         printf '%s\034' "${TEMPLATE_OVERRIDES[@]}"
-    } | marsh_text_transform hash:md5) || return 1
-    CACHE_FILE="${CACHE_DIR}/${CACHE_KEY}.paths"
+    })") || return 1
     # reuse precomputed target-relative outputs for the same template context
     if [[ -f "${CACHE_FILE}" ]] && [[ -r "${CACHE_FILE}" ]]; then
         cat "${CACHE_FILE}"
@@ -2637,8 +2726,12 @@ function marsh_get_template_asset_output_paths {  # marsh_get_template_asset_out
     done
 
     # write the cached output map atomically
-    CACHE_TEMP=$(mktemp "${CACHE_DIR}/paths-XXXXXX") || {
-        echo "Unable to create template asset output cache file: ${CACHE_DIR}/paths-XXXXXX" >&2
+    mkdir -p "${CACHE_FILE%/*}" >/dev/null 2>&1 || {
+        echo "Unable to create template asset output cache path: ${CACHE_FILE%/*}" >&2
+        return 1
+    }
+    CACHE_TEMP=$(mktemp "${CACHE_FILE%/*}/paths-XXXXXX") || {
+        echo "Unable to create template asset output cache file: ${CACHE_FILE%/*}/paths-XXXXXX" >&2
         return 1
     }
     printf '%s' "${OUTPUT}" > "${CACHE_TEMP}" || {
@@ -2709,12 +2802,10 @@ function marsh_copy_template_assets {  # marsh_copy_template_assets site_output_
     done <<< "${TEMPLATE_ASSETS}"
 
     [[ "${#TEMPLATE_ASSET_RECORDS[@]}" -gt 0 ]] || return 0
-    ASSET_COPY_CACHE_KEY=$({
+    ASSET_COPY_CACHE_FILE=$(marsh_get_cache_path "${ASSET_COPY_CACHE_DIR}" ".manifest" "$({
         printf '%s\034%s\034%s\034%s\034%s\n' "${SITE_OUTPUT_ROOT}" "${TARGET_OUTPUT_REL}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${TEMPLATE_ASSETS_PATH}"
         printf '%s\n' "${TEMPLATE_OVERRIDES[@]}"
-        printf '%s\n' "${TEMPLATE_ASSET_RECORDS[@]}"
-    } | marsh_text_transform hash:md5) || return 1
-    ASSET_COPY_CACHE_FILE="${ASSET_COPY_CACHE_DIR}/${ASSET_COPY_CACHE_KEY}.manifest"
+    })") || return 1
 
     if [[ -f "${ASSET_COPY_CACHE_FILE}" ]] && [[ -r "${ASSET_COPY_CACHE_FILE}" ]]; then
         EXPECTED_MANIFEST=$(printf '%s\n' "${TEMPLATE_ASSET_RECORDS[@]}")
@@ -2760,8 +2851,12 @@ function marsh_copy_template_assets {  # marsh_copy_template_assets site_output_
         fi
     done
 
-    ASSET_COPY_CACHE_TEMP=$(mktemp "${ASSET_COPY_CACHE_DIR}/manifest-XXXXXX") || {
-        echo "Unable to create asset cache manifest: ${ASSET_COPY_CACHE_DIR}/manifest-XXXXXX" >&2
+    mkdir -p "${ASSET_COPY_CACHE_FILE%/*}" >/dev/null 2>&1 || {
+        echo "Unable to create asset cache path: ${ASSET_COPY_CACHE_FILE%/*}" >&2
+        return 1
+    }
+    ASSET_COPY_CACHE_TEMP=$(mktemp "${ASSET_COPY_CACHE_FILE%/*}/manifest-XXXXXX") || {
+        echo "Unable to create asset cache manifest: ${ASSET_COPY_CACHE_FILE%/*}/manifest-XXXXXX" >&2
         return 1
     }
     printf '%s\n' "${TEMPLATE_ASSET_RECORDS[@]}" > "${ASSET_COPY_CACHE_TEMP}" && mv "${ASSET_COPY_CACHE_TEMP}" "${ASSET_COPY_CACHE_FILE}" 2>/dev/null || {
@@ -3227,8 +3322,9 @@ function marsh_get_target_source_inventory {  # marsh_get_target_source_inventor
 
     # share one source inventory cache across targets within the same build
     INVENTORY_CACHE_DIR="${MARSH_TEMP}/source-inventory"
-    INVENTORY_KEY=$(printf '%s\034%s\n' "${SOURCE_ROOT}" "${SKIP_LINKS}" | marsh_text_transform hash:md5) || return 1
-    INVENTORY_FILE="${INVENTORY_CACHE_DIR}/${INVENTORY_KEY}"
+    INVENTORY_KEY=$(marsh_escape_cache_component "${SOURCE_ROOT}") || return 1
+    INVENTORY_KEY+="--$(marsh_escape_cache_component "${SKIP_LINKS}")" || return 1
+    INVENTORY_FILE="${INVENTORY_CACHE_DIR}/${INVENTORY_KEY}.inventory"
 
     if [[ ! -f "${INVENTORY_FILE}" ]]; then
         mkdir -p "${INVENTORY_CACHE_DIR}" >/dev/null 2>&1 || {
@@ -3480,7 +3576,7 @@ function marsh_rewrite_sitemap_links {  # marsh_rewrite_sitemap_links sitemap_fi
 # returns a cached processed sitemap for a document base path, building it on miss
 function marsh_get_processed_sitemap {  # marsh_get_processed_sitemap sitemap_render_path sitemap_dir document_base_path
     local SITEMAP_RENDER_PATH SITEMAP_DIR DOCUMENT_BASE_PATH
-    local CACHE_DIR CACHE_KEY CACHE_FILE CACHE_TEMP RENDER_HASH RENDER_DIR
+    local CACHE_DIR CACHE_KEY CACHE_FILE CACHE_TEMP RENDER_DIR RENDER_KEY
 
     SITEMAP_RENDER_PATH="${1:-}"
     SITEMAP_DIR="${2:-}"
@@ -3500,9 +3596,10 @@ function marsh_get_processed_sitemap {  # marsh_get_processed_sitemap sitemap_re
         echo "Unable to create processed sitemap cache directory: ${CACHE_DIR}" >&2
         return 1
     }
-    RENDER_HASH=$(<"${SITEMAP_RENDER_PATH}" marsh_text_transform hash:md5) || return 1
-    CACHE_KEY=$(printf '%s\034%s\034%s\034%s\n' "${SITEMAP_RENDER_PATH}" "${SITEMAP_DIR}" "${DOCUMENT_BASE_PATH}" "${RENDER_HASH}" | marsh_text_transform hash:md5) || return 1
-    CACHE_FILE="${CACHE_DIR}/${CACHE_KEY}.html"
+    RENDER_KEY="${SITEMAP_RENDER_PATH##*/}"
+    CACHE_KEY=$(marsh_escape_cache_component "${SITEMAP_DIR}") || return 1
+    CACHE_KEY+="--$(marsh_escape_cache_component "${DOCUMENT_BASE_PATH}")" || return 1
+    CACHE_FILE="${CACHE_DIR}/${CACHE_KEY}--${RENDER_KEY}"
     if [[ -f "${CACHE_FILE}" ]] && [[ -r "${CACHE_FILE}" ]]; then
         printf '%s\n' "${CACHE_FILE}"
         return 0
@@ -4300,15 +4397,18 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
             echo "Unable to create conditional tag cache directory: ${CACHE_DIR}" >&2
             return 1
         }
-        CACHE_KEY=$({ printf '%s\034' "${FILE}"; <"${FILE}" marsh_text_transform hash:md5; } | marsh_text_transform hash:md5) || return 1
-        CACHE_FILE="${CACHE_DIR}/${CACHE_KEY}.tags"
+        CACHE_FILE=$(marsh_get_cache_path "${CACHE_DIR}" ".tags" "${FILE}") || return 1
         if [[ -f "${CACHE_FILE}" ]] && [[ -r "${CACHE_FILE}" ]]; then
             cat "${CACHE_FILE}"
             return 0
         fi
 
-        CACHE_TEMP=$(mktemp "${CACHE_DIR}/tags-XXXXXX") || {
-            echo "Unable to create conditional tag cache file: ${CACHE_DIR}/tags-XXXXXX" >&2
+        mkdir -p "${CACHE_FILE%/*}" >/dev/null 2>&1 || {
+            echo "Unable to create conditional tag cache path: ${CACHE_FILE%/*}" >&2
+            return 1
+        }
+        CACHE_TEMP=$(mktemp "${CACHE_FILE%/*}/tags-XXXXXX") || {
+            echo "Unable to create conditional tag cache file: ${CACHE_FILE%/*}/tags-XXXXXX" >&2
             return 1
         }
         awk '$0 ~ /^[ ]*\{%[ ]*if[ ]+[^ ]+.*%\}[ ]*$/ {
@@ -4374,15 +4474,18 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
             echo "Unable to create conditional partial cache directory: ${CACHE_DIR}" >&2
             return 1
         }
-        CACHE_KEY=$({ printf '%s\034' "${FILE}"; <"${FILE}" marsh_text_transform hash:md5; printf '%s' "${CONDITIONAL_KEY}"; } | marsh_text_transform hash:md5) || return 1
-        CACHE_FILE="${CACHE_DIR}/${CACHE_KEY}.partial"
+        CACHE_FILE=$(marsh_get_cache_path "${CACHE_DIR}" ".partial" "$(printf '%s\034%s' "${FILE}" "${CONDITIONAL_KEY}")") || return 1
         if [[ -f "${CACHE_FILE}" ]] && [[ -r "${CACHE_FILE}" ]]; then
             printf '%s\n' "${CACHE_FILE}"
             return 0
         fi
 
-        CACHE_TEMP=$(mktemp "${CACHE_DIR}/partial-XXXXXX") || {
-            echo "Unable to create conditional partial cache file: ${CACHE_DIR}/partial-XXXXXX" >&2
+        mkdir -p "${CACHE_FILE%/*}" >/dev/null 2>&1 || {
+            echo "Unable to create conditional partial cache path: ${CACHE_FILE%/*}" >&2
+            return 1
+        }
+        CACHE_TEMP=$(mktemp "${CACHE_FILE%/*}/partial-XXXXXX") || {
+            echo "Unable to create conditional partial cache file: ${CACHE_FILE%/*}/partial-XXXXXX" >&2
             return 1
         }
         cp "${FILE}" "${CACHE_TEMP}" || {

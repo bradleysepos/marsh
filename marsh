@@ -854,13 +854,6 @@ function marsh_text_transform {  # marsh_text_transform transform [transform...]
             }
             '
             ;;
-        hash:md5)
-            if [[ "${SYS_NAME}" =~ bsd|darwin ]]; then
-                md5 -r | awk '{ print $1 }'
-            else
-                md5sum | awk '{ print $1 }'
-            fi
-            ;;
         headings:push)
             marsh_text_transform_headings push
             ;;
@@ -7246,7 +7239,7 @@ function marsh_cli {
         MARKDOWN_COMMAND="$(pwd -P)/${MARKDOWN_COMMAND}"
     fi
     MARKDOWN_COMMAND="${MARKDOWN_COMMAND:-markdown}"
-    DEPS=("${MARKDOWN_COMMAND}" "md5|md5sum")
+    DEPS=("${MARKDOWN_COMMAND}")
     marsh_check_dependencies "${DEPS[@]}" || return 1
 
     # markdown file extensions

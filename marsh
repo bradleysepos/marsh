@@ -3239,8 +3239,7 @@ function marsh_write_target_plan_context {  # marsh_write_target_plan_context ta
             TARGET_ARCHIVES_TEMPLATE_OVERRIDES \
             TARGET_ARCHIVES_TEMPLATE; do
             echo "${ARCHIVE_ARRAY}=()"
-            eval "for TEMPLATE_OVERRIDE in \"\
-\${${ARCHIVE_ARRAY}[@]}\"; do printf '${ARCHIVE_ARRAY}+=(%q)\\n' \"\${TEMPLATE_OVERRIDE}\"; done"
+            eval "for TEMPLATE_OVERRIDE in \"\${${ARCHIVE_ARRAY}[@]}\"; do printf '${ARCHIVE_ARRAY}+=(%q)\\n' \"\${TEMPLATE_OVERRIDE}\"; done"
         done
     } > "${CONTEXT_TEMP}" || {
         echo "Unable to write target plan context temporary file: ${CONTEXT_TEMP}" >&2

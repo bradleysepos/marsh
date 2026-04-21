@@ -5059,30 +5059,36 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
         # sitemap
         TARGET_SITEMAP=""
         if [[ "${SITEMAP_SOURCE}" != "" ]]; then
-            SITEMAP_LOOKUP_PATH=$(marsh_get_sitemap_lookup_path "${BUILD_CONTEXT_OUTPUT_ROOT}" "${DOCUMENT_REL_TO_TARGET}" "${SITEMAP_SOURCE}" "${SITEMAP_SEARCH}") || {
+            # lookup failure is only an error where sitemap search is disabled; the document will simply
+            # be rendered without a sitemap where sitemap search is enabled and no sitemap can be found
+            # note that this can swallow lower level errors that may require manual debugging anyway
+            SITEMAP_LOOKUP_PATH=$(marsh_get_sitemap_lookup_path "${BUILD_CONTEXT_OUTPUT_ROOT}" "${DOCUMENT_REL_TO_TARGET}" "${SITEMAP_SOURCE}" "${SITEMAP_SEARCH}" 2>/dev/null);
+            if [[ $? -ne 0 ]] && [[ "${SITEMAP_SEARCH}" == false ]]; then
                 echo "Unable to resolve configured sitemap for document: ${DOCUMENT_SITE_REL} (${SITEMAP_SOURCE})" >&2
                 return 1
-            }
-            SITEMAP_RENDER_PATH=$(marsh_get_sitemap_render_path "${BUILD_CONTEXT_OUTPUT_ROOT}" "${SITEMAP_LOOKUP_PATH}") || return 1
-            if [[ ! -f "${SITEMAP_RENDER_PATH}" ]] || [[ ! -r "${SITEMAP_RENDER_PATH}" ]]; then
-                echo "Configured sitemap render not found for document: ${DOCUMENT_SITE_REL} (${SITEMAP_LOOKUP_PATH})" >&2
-                return 1
             fi
-            SITEMAP_OUTPUT_PATH=$(marsh_normalize_internal_path "${TARGET_OUTPUT_REL}/${SITEMAP_LOOKUP_PATH}") || return 1
-            if marsh_is_markdown_extension "${SITEMAP_OUTPUT_PATH##*.}" "${MARKDOWN_FILEEXT_CSV}"; then
-                SITEMAP_OUTPUT_PATH="${SITEMAP_OUTPUT_PATH%.*}.html"
+            if [[ "${SITEMAP_LOOKUP_PATH}" != "" ]]; then
+                SITEMAP_RENDER_PATH=$(marsh_get_sitemap_render_path "${BUILD_CONTEXT_OUTPUT_ROOT}" "${SITEMAP_LOOKUP_PATH}") || return 1
+                if [[ ! -f "${SITEMAP_RENDER_PATH}" ]] || [[ ! -r "${SITEMAP_RENDER_PATH}" ]]; then
+                    echo "Configured sitemap render not found for document: ${DOCUMENT_SITE_REL} (${SITEMAP_LOOKUP_PATH})" >&2
+                    return 1
+                fi
+                SITEMAP_OUTPUT_PATH=$(marsh_normalize_internal_path "${TARGET_OUTPUT_REL}/${SITEMAP_LOOKUP_PATH}") || return 1
+                if marsh_is_markdown_extension "${SITEMAP_OUTPUT_PATH##*.}" "${MARKDOWN_FILEEXT_CSV}"; then
+                    SITEMAP_OUTPUT_PATH="${SITEMAP_OUTPUT_PATH%.*}.html"
+                fi
+                SITEMAP_NAME="${SITEMAP_OUTPUT_PATH##*/}"
+                SITEMAP_DIR=$(marsh_normalize_internal_path "${SITEMAP_OUTPUT_PATH%/*}") || return 1
+                SITEMAP_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_REL}" "${SITEMAP_OUTPUT_PATH}") || return 1
+                PROCESSED_SITEMAP_PATH=$(marsh_get_processed_sitemap "${SITEMAP_RENDER_PATH}" "${SITEMAP_DIR}" "${DOCUMENT_BASE_REL}") || {
+                    echo "Unable to process configured sitemap for document: ${DOCUMENT_SITE_REL} (${SITEMAP_LOOKUP_PATH})" >&2
+                    return 1
+                }
+                DOCUMENT_HREF_ESC=$(printf '%s' "${DOCUMENT_HREF}" | sed -e 's/[\\]/\\\\/g' -e 's/[][/.|$(){}?+*^]/\\&/g')
+                TARGET_SITEMAP=$(<"${PROCESSED_SITEMAP_PATH}" sed -E \
+                -e 's|<h1>([^<]+)</h1>|<h1><a href="'"${SITEMAP_HREF}"'">\1</a></h1>|' \
+                -e 's|<a (href="'"${DOCUMENT_HREF_ESC}"'"[^>]*)>([^<>]+)</a>|<a \1 class="selected">\2</a>|g')
             fi
-            SITEMAP_NAME="${SITEMAP_OUTPUT_PATH##*/}"
-            SITEMAP_DIR=$(marsh_normalize_internal_path "${SITEMAP_OUTPUT_PATH%/*}") || return 1
-            SITEMAP_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_REL}" "${SITEMAP_OUTPUT_PATH}") || return 1
-            PROCESSED_SITEMAP_PATH=$(marsh_get_processed_sitemap "${SITEMAP_RENDER_PATH}" "${SITEMAP_DIR}" "${DOCUMENT_BASE_REL}") || {
-                echo "Unable to process configured sitemap for document: ${DOCUMENT_SITE_REL} (${SITEMAP_LOOKUP_PATH})" >&2
-                return 1
-            }
-            DOCUMENT_HREF_ESC=$(printf '%s' "${DOCUMENT_HREF}" | sed -e 's/[\\]/\\\\/g' -e 's/[][/.|$(){}?+*^]/\\&/g')
-            TARGET_SITEMAP=$(<"${PROCESSED_SITEMAP_PATH}" sed -E \
-            -e 's|<h1>([^<]+)</h1>|<h1><a href="'"${SITEMAP_HREF}"'">\1</a></h1>|' \
-            -e 's|<a (href="'"${DOCUMENT_HREF_ESC}"'"[^>]*)>([^<>]+)</a>|<a \1 class="selected">\2</a>|g')
         fi
 
         TEMPLATE_BASE_ESC=$(printf '%s' "${TEMPLATE_BASE_TEMPLATE}" | marsh_escape_substitution)

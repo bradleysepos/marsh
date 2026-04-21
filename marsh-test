@@ -3502,7 +3502,7 @@ function marsh_test {
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}"
             ;;
         marsh_build_template:35)
-            TEST_NAME+=":configured_sitemap_search_missing_fails"
+            TEST_NAME+=":configured_sitemap_search_missing_skips"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
             marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
@@ -3510,13 +3510,19 @@ function marsh_test {
             marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "docs/index.markdown" "meta-yaml" '---' 'Title: Example' '...'
             ACTUAL=$(marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "docs/index.markdown" "site-map.markdown" true "${TEMPLATE_DIR}" "sample" false "marsh_test_markdown_command" "" "markdown,md" "true" 0 2>&1 >/dev/null)
             STATUS=$?
-            EXPECTED=1
+            EXPECTED=0
             ASSERTION="equals"
             if [[ "${STATUS}" == "${EXPECTED}" ]]; then
-                EXPECTED='Unable to resolve configured sitemap for document: docs/index.markdown (site-map.markdown)'
+                EXPECTED=''
                 ASSERTION="equals"
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    RES="[PASS]"
+                    [[ -e "${TARGET_OUTPUT_ROOT}/docs/index.html" ]]
+                    STATUS=$?
+                    EXPECTED=0
+                    ASSERTION="equals"
+                    if [[ "${STATUS}" == "${EXPECTED}" ]]; then
+                        RES="[PASS]"
+                    fi
                 fi
             fi
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}"

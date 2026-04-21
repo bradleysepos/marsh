@@ -515,7 +515,7 @@ Item transforms are useful when working with list-style metadata such as `docume
 - `items:join` renders values joined together using a delimiter, e.g., `items:join:,` produces "a,b,c"
 - `items:join-type:oxford` renders values as a natural-language list, e.g., "a, b, and c"
 - `items:json-array` renders values as JSON array items
-- `items:wrap-type:xml` renders each value wrapped in XML tags, e.g., `items:wrap-type:xml:tag` produces "<tag>a</tag><tag>b</tag><tag>c</tag>"
+- `items:wrap-type:xml` renders each value wrapped in XML tags, e.g., `items:wrap-type:xml:tag` produces `<tag>a</tag><tag>b</tag><tag>c</tag>`
 - `items:wrap-type:html-style-link` renders each value as an HTML `<link rel="stylesheet" href="..." />` tag
 - `items:wrap-type:html-script-src` renders each value as an HTML `<script src="..."></script>` tag
 

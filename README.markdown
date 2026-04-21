@@ -9,7 +9,7 @@ Requirements
 
 - BSD/Linux/macOS or similar
 - Bash shell
-- awk, grep, sed, git
+- awk, grep, sed
 - [Discount](https://www.pell.portland.or.us/~orc/Code/discount/) Markdown processor
 - [GNU Parallel](https://www.gnu.org/software/parallel/) (optional)
 
@@ -50,7 +50,7 @@ The basic syntax is:
 marsh build [config_file]
 ```
 
-Where `config_file` is the path to the build configuration file for your site. If not specified, `marsh` defaults to using the `marsh-config.yaml` file in the current working directory.
+Where `config_file` is the path to the build configuration file for your site. You may also specify a directory containing a build configuration file named `marsh-config.yaml`. Where `config_file` is not specified, `marsh` defaults to using the `marsh-config.yaml` file in the current working directory.
 
 Output is written to the path defined in the build configuration file, e.g., "public".
 
@@ -66,6 +66,12 @@ You can specify the location for the Discount `markdown` application using the `
 marsh build --markdown="/path/to/markdown"
 ```
 
+You can specify the `--log-level` parameter to adjust the amount of logging detail `marsh` prints. The `verbose` log level prints the paths of all files as they are published.
+
+```text
+marsh build --log-level verbose
+```
+
 Full usage:
 
 ```text
@@ -73,6 +79,30 @@ marsh --help
 ```
 
 The included `marsh-test` test suite may be run to verify `marsh` compatibility with your system. Run `marsh-test --help` for usage information.
+
+
+Quick Start
+-----------
+
+Once you have installed the necessary dependencies, a good way to get started is building the example site. Run the following command from the root directory of this repository on your machine:
+
+```text
+./marsh build --log-level=verbose example
+```
+
+`marsh` will build the example site using the `marsh-config.yaml` configuration file in the specified `example` directory.
+
+The configuration file specifies `public` as the build output path, which is relative to the configuration file directory, so the site is built and published to `example/public`. The `--log-level=verbose` parameter prints more information during the build than the standard `info` log level, so you can see in greater detail what is being built in real-time.
+
+When the command is completed, open `example/public/index.html` in your web browser to view the built example site.
+
+The source documents for the example site are located at `example/source`, and the example template is located at `templates/example`. You can inspect these directories and files to get a basic idea of where to put things and how they work. More detail is covered in the sections that follow.
+
+If you run into any problems or are simply curious, you can also run the test suite to ensure `marsh` works correctly on your system using the command:
+
+```
+./marsh-test --marsh=./marsh
+```
 
 
 Site Configuration
@@ -96,7 +126,7 @@ Build:
 ...
 ```
 
-See the `example` directory for a more extensive configuration example.
+All paths are relative to the configuration file directory. See the `example` directory for a more extensive configuration example.
 
 
 Documents

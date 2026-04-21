@@ -1292,6 +1292,25 @@ function marsh_test {
             fi
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}" "${MANIFEST_FILE}"
             ;;
+        marsh_build_planned_archive_documents:3)
+            TEST_NAME+=":fails_when_archive_plan_context_invalid"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            ARCHIVE_PLAN_ROOT="${TEST_TEMP_PREFIX}.archive-plan"
+            mkdir -p "${ARCHIVE_PLAN_ROOT}"
+            printf '%s\n' 'bad-name=value' > "${ARCHIVE_PLAN_ROOT}/context"
+            ACTUAL=$(marsh_build_planned_archive_documents "${TARGET_OUTPUT_ROOT}" false "1" "marsh_test_markdown_command" "" "markdown,md" true "${ARCHIVE_PLAN_ROOT}" 2>&1 >/dev/null)
+            STATUS=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${STATUS}" == "${EXPECTED}" ]]; then
+                EXPECTED="Unable to prepare archive plan context variables: ${ARCHIVE_PLAN_ROOT}/context"
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${TARGET_OUTPUT_ROOT}" "${ARCHIVE_PLAN_ROOT}"
+            ;;
         marsh_build_planned_target:0)
             TEST_NAME+=":search"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
@@ -1479,6 +1498,25 @@ function marsh_test {
             fi
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TARGET_PLAN_ROOT}"
             ;;
+        marsh_build_planned_target:6)
+            TEST_NAME+=":fails_when_target_plan_context_invalid"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            TARGET_PLAN_ROOT="${TEST_TEMP_PREFIX}.plan"
+            mkdir -p "${TARGET_PLAN_ROOT}"
+            printf '%s\n' 'bad-name=value' > "${TARGET_PLAN_ROOT}/context"
+            ACTUAL=$(marsh_build_planned_target "${TARGET_OUTPUT_ROOT}" false "1" "marsh_test_markdown_command" "" "markdown,md" true "${TARGET_PLAN_ROOT}" 2>&1 >/dev/null)
+            STATUS=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${STATUS}" == "${EXPECTED}" ]]; then
+                EXPECTED="Unable to prepare target plan context variables: ${TARGET_PLAN_ROOT}/context"
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${TARGET_OUTPUT_ROOT}" "${TARGET_PLAN_ROOT}"
+            ;;
         marsh_build_planned_target_documents:0)
             TEST_NAME+=":serial_success"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
@@ -1631,12 +1669,10 @@ function marsh_test {
             printf '%s\n' '# Site Map' > "${SOURCE_ROOT}/site-map/index.markdown"
             TARGET_SITEMAP_RECORD=$(printf '%s\t%s\n' 'site-map/index.markdown' "${SOURCE_ROOT}/site-map/index.markdown")
             rm -f "${STDERR_FILE}"
-            {
-                set -o pipefail
-                marsh_build_planned_target_sitemaps "${TARGET_OUTPUT_ROOT}" false "marsh_test_fail_command" "" "markdown,md" true "${TARGET_SITEMAP_RECORD}" >/dev/null 2>"${STDERR_FILE}"
-                set +o pipefail
-            }
+            set -o pipefail
+            marsh_build_planned_target_sitemaps "${TARGET_OUTPUT_ROOT}" false "marsh_test_fail_command" "" "markdown,md" true "${TARGET_SITEMAP_RECORD}" >/dev/null 2>"${STDERR_FILE}"
             STATUS=$?
+            set +o pipefail
             ACTUAL=""
             [[ -f "${STDERR_FILE}" ]] && ACTUAL=$(<"${STDERR_FILE}")
             EXPECTED=1
@@ -1740,12 +1776,10 @@ function marsh_test {
             mkdir -p "${SOURCE_ROOT}/site-map"
             printf '%s\n' '# Site Map' > "${SOURCE_ROOT}/site-map/index.markdown"
             rm -f "${STDERR_FILE}"
-            {
-                set -o pipefail
-                marsh_build_sitemap "${TARGET_OUTPUT_ROOT}" "site-map/index.markdown" "${SOURCE_ROOT}/site-map/index.markdown" "marsh_test_fail_command" "" "markdown,md" true >/dev/null 2>"${STDERR_FILE}"
-                set +o pipefail
-            }
+            set -o pipefail
+            marsh_build_sitemap "${TARGET_OUTPUT_ROOT}" "site-map/index.markdown" "${SOURCE_ROOT}/site-map/index.markdown" "marsh_test_fail_command" "" "markdown,md" true >/dev/null 2>"${STDERR_FILE}"
             STATUS=$?
+            set +o pipefail
             ACTUAL=""
             [[ -f "${STDERR_FILE}" ]] && ACTUAL=$(<"${STDERR_FILE}")
             EXPECTED=1
@@ -4441,6 +4475,82 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
+        marsh_get_processed_sitemap:3)
+            TEST_NAME+=":copy_failure_reports"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            mkdir -p "${TARGET_OUTPUT_ROOT}"
+            SITEMAP_RENDER_FILE=$(marsh_get_sitemap_render_path "${TARGET_OUTPUT_ROOT}" "site-map/index.markdown")
+            printf '%s\n' '<p><a href="../news/">News</a></p>' > "${SITEMAP_RENDER_FILE}"
+            ACTUAL=$({
+                function cp {
+                    return 1
+                }
+                marsh_get_processed_sitemap "${SITEMAP_RENDER_FILE}" "site-map" "docs/"
+            } 2>&1 >/dev/null)
+            STATUS=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${STATUS}" == "${EXPECTED}" ]]; then
+                EXPECTED="Unable to copy rendered sitemap for processing: ${SITEMAP_RENDER_FILE}"
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${TARGET_OUTPUT_ROOT}"
+            ;;
+        marsh_get_processed_sitemap:4)
+            TEST_NAME+=":rewrite_failure_reports"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            mkdir -p "${TARGET_OUTPUT_ROOT}"
+            SITEMAP_RENDER_FILE=$(marsh_get_sitemap_render_path "${TARGET_OUTPUT_ROOT}" "site-map/index.markdown")
+            printf '%s\n' '<p><a href="../news/">News</a></p>' > "${SITEMAP_RENDER_FILE}"
+            ACTUAL=$({
+                function marsh_rewrite_sitemap_links {
+                    return 1
+                }
+                marsh_get_processed_sitemap "${SITEMAP_RENDER_FILE}" "site-map" "docs/"
+            } 2>&1 >/dev/null)
+            STATUS=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${STATUS}" == "${EXPECTED}" ]]; then
+                EXPECTED="Unable to rewrite processed sitemap links: ${SITEMAP_RENDER_FILE}"
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${TARGET_OUTPUT_ROOT}"
+            ;;
+        marsh_get_processed_sitemap:5)
+            TEST_NAME+=":publish_failure_reports"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            mkdir -p "${TARGET_OUTPUT_ROOT}"
+            SITEMAP_RENDER_FILE=$(marsh_get_sitemap_render_path "${TARGET_OUTPUT_ROOT}" "site-map/index.markdown")
+            printf '%s\n' '<p><a href="../news/">News</a></p>' > "${SITEMAP_RENDER_FILE}"
+            CACHE_FILE="$(marsh_get_target_temp_root "${TARGET_OUTPUT_ROOT}")/sitemaps/processed/site-map--docs%2F--site-map%2Findex.markdown.sitemap.html"
+            ACTUAL=$({
+                function mv {
+                    if [[ "${2:-}" == "${CACHE_FILE}" ]]; then
+                        return 1
+                    fi
+                    command mv "$@"
+                }
+                marsh_get_processed_sitemap "${SITEMAP_RENDER_FILE}" "site-map" "docs/"
+            } 2>&1 >/dev/null)
+            STATUS=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${STATUS}" == "${EXPECTED}" ]]; then
+                EXPECTED="Unable to publish processed sitemap cache file: ${CACHE_FILE}"
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${TARGET_OUTPUT_ROOT}"
+            ;;
         marsh_get_relative_path:0)
             TEST_NAME+=":root_to_nested_index"
             ACTUAL=$(marsh_get_relative_path "./" "news/index.html")
@@ -4515,6 +4625,24 @@ function marsh_test {
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
+            fi
+            rm -rf "${TARGET_OUTPUT_ROOT}"
+            ;;
+        marsh_get_site_source_root_path:1)
+            TEST_NAME+=":missing_target_source_reports"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            mkdir -p "${TARGET_OUTPUT_ROOT}"
+            EXPECTED_ROOT=$(marsh_test_get_physical_path "${TARGET_OUTPUT_ROOT}")
+            ACTUAL=$(CONFIG_Build_Targets_0_Path='.' CONFIG_Build_Targets_0_Source='missing/*' marsh_get_site_source_root_path "${TARGET_OUTPUT_ROOT}" 2>&1 >/dev/null)
+            STATUS=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${STATUS}" == "${EXPECTED}" ]]; then
+                EXPECTED="Unable to resolve configured target source root: ${EXPECTED_ROOT}/missing/*"
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
             fi
             rm -rf "${TARGET_OUTPUT_ROOT}"
             ;;
@@ -5093,6 +5221,29 @@ function marsh_test {
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 ACTUAL=$(<"${TEMPLATES_DIR}/sample/template.yaml")
                 EXPECTED='existing-template'
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${TEMPLATE_DIR}" "${TEMPLATES_DIR}"
+            ;;
+        marsh_get_template_cache_path:2)
+            TEST_NAME+=":missing_after_copy_reports"
+            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.template-source"
+            TEMPLATES_DIR="${TEST_TEMP_PREFIX}.templates"
+            mkdir -p "${TEMPLATE_DIR}"
+            ACTUAL=$({
+                function marsh_copy_files {
+                    return 0
+                }
+                marsh_get_template_cache_path "${TEMPLATES_DIR}" "sample" "${TEMPLATE_DIR}"
+            } 2>&1 >/dev/null)
+            STATUS=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${STATUS}" == "${EXPECTED}" ]]; then
+                EXPECTED="Template cache path not found after copy: ${TEMPLATES_DIR}/sample"
                 ASSERTION="equals"
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                     RES="[PASS]"
@@ -6401,7 +6552,7 @@ function marsh_test {
             fi
             rm -rf "${SOURCE_ROOT}"
             ;;
-        marsh_publish_processed_output:0)
+        marsh_process_markdown:2)
             TEST_NAME+=":rel_footnote"
             ACTUAL=$(printf '%s\n' '<a href="#fn:note" rel="footnote">note</a>' | marsh_process_markdown marsh_test_markdown_command "")
             EXPECTED='<a href="#fn:note">note</a>'
@@ -6409,6 +6560,89 @@ function marsh_test {
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
+            ;;
+        marsh_publish_processed_output:0)
+            TEST_NAME+=":success"
+            SOURCE_FILE="${TEST_TEMP_PREFIX}.rendered"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            mkdir -p "${TARGET_OUTPUT_ROOT}/nested"
+            printf '%s\n' 'new content' > "${SOURCE_FILE}"
+            marsh_publish_processed_output "${SOURCE_FILE}" "${TARGET_OUTPUT_ROOT}/nested/output.html"
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                ACTUAL=$(<"${TARGET_OUTPUT_ROOT}/nested/output.html")
+                EXPECTED='new content'
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${SOURCE_FILE}" "${TARGET_OUTPUT_ROOT}"
+            ;;
+        marsh_publish_processed_output:1)
+            TEST_NAME+=":create_path_reports"
+            SOURCE_FILE="${TEST_TEMP_PREFIX}.rendered"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            mkdir -p "${TARGET_OUTPUT_ROOT}"
+            printf '%s\n' 'new content' > "${SOURCE_FILE}"
+            printf '%s\n' 'not a directory' > "${TARGET_OUTPUT_ROOT}/nested"
+            ACTUAL=$(marsh_publish_processed_output "${SOURCE_FILE}" "${TARGET_OUTPUT_ROOT}/nested/output.html" 2>&1 >/dev/null)
+            STATUS=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${STATUS}" == "${EXPECTED}" ]]; then
+                EXPECTED="Unable to create published output path: ${TARGET_OUTPUT_ROOT}/nested"
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${SOURCE_FILE}" "${TARGET_OUTPUT_ROOT}"
+            ;;
+        marsh_publish_processed_output:2)
+            TEST_NAME+=":replace_path_reports"
+            SOURCE_FILE="${TEST_TEMP_PREFIX}.rendered"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            mkdir -p "${TARGET_OUTPUT_ROOT}/nested/output.html"
+            printf '%s\n' 'new content' > "${SOURCE_FILE}"
+            ACTUAL=$(marsh_publish_processed_output "${SOURCE_FILE}" "${TARGET_OUTPUT_ROOT}/nested/output.html" 2>&1 >/dev/null)
+            STATUS=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${STATUS}" == "${EXPECTED}" ]]; then
+                EXPECTED="Unable to replace published output path: ${TARGET_OUTPUT_ROOT}/nested/output.html"
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${SOURCE_FILE}" "${TARGET_OUTPUT_ROOT}"
+            ;;
+        marsh_publish_processed_output:3)
+            TEST_NAME+=":copy_reports"
+            SOURCE_FILE="${TEST_TEMP_PREFIX}.rendered"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            mkdir -p "${TARGET_OUTPUT_ROOT}/nested"
+            printf '%s\n' 'new content' > "${SOURCE_FILE}"
+            ACTUAL=$({
+                function cp {
+                    return 1
+                }
+                marsh_publish_processed_output "${SOURCE_FILE}" "${TARGET_OUTPUT_ROOT}/nested/output.html"
+            } 2>&1 >/dev/null)
+            STATUS=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${STATUS}" == "${EXPECTED}" ]]; then
+                EXPECTED="Unable to publish processed output: ${SOURCE_FILE} -> ${TARGET_OUTPUT_ROOT}/nested/output.html"
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${SOURCE_FILE}" "${TARGET_OUTPUT_ROOT}"
             ;;
         marsh_resolve_config_path:0)
             TEST_NAME+=":relative_path"
@@ -6784,6 +7018,50 @@ function marsh_test {
                 }
                 ACTUAL=$?
                 EXPECTED=0
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -f "${SITEMAP_FILE}"
+            ;;
+        marsh_rewrite_sitemap_links:5)
+            TEST_NAME+=":replacement_file_failure_reports"
+            SITEMAP_FILE="${TEST_TEMP_PREFIX}.sitemap.html"
+            printf '%s\n' '<a href="../news/">News</a>' > "${SITEMAP_FILE}"
+            ACTUAL=$({
+                function mktemp {
+                    return 1
+                }
+                marsh_rewrite_sitemap_links "${SITEMAP_FILE}" "site-map" "."
+            } 2>&1 >/dev/null)
+            STATUS=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${STATUS}" == "${EXPECTED}" ]]; then
+                EXPECTED="Unable to create sitemap link replacement file: ${MARSH_TEST_TEMP}/sitemap-links-XXXXXX"
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -f "${SITEMAP_FILE}"
+            ;;
+        marsh_rewrite_sitemap_links:6)
+            TEST_NAME+=":publish_failure_reports"
+            SITEMAP_FILE="${TEST_TEMP_PREFIX}.sitemap.html"
+            printf '%s\n' '<a href="../news/">News</a>' > "${SITEMAP_FILE}"
+            ACTUAL=$({
+                function mv {
+                    return 1
+                }
+                marsh_rewrite_sitemap_links "${SITEMAP_FILE}" "site-map" "."
+            } 2>&1 >/dev/null)
+            STATUS=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${STATUS}" == "${EXPECTED}" ]]; then
+                EXPECTED="Unable to publish rewritten sitemap file: ${SITEMAP_FILE}"
                 ASSERTION="equals"
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                     RES="[PASS]"

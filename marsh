@@ -2208,8 +2208,14 @@ function marsh_get_site_source_root_path {  # marsh_get_site_source_root_path co
     local -a SOURCE_ROOTS
 
     CONFIG_FILE_DIR="${1:-.}"
-    [[ -d "${CONFIG_FILE_DIR}" ]] || return 1
-    CONFIG_FILE_DIR=$(cd "${CONFIG_FILE_DIR}" && (pwd -P . 2>/dev/null || command pwd)) || return 1
+    [[ -d "${CONFIG_FILE_DIR}" ]] || {
+        echo "Config file directory not found for site source root: ${CONFIG_FILE_DIR}" >&2
+        return 1
+    }
+    CONFIG_FILE_DIR=$(cd "${CONFIG_FILE_DIR}" && (pwd -P . 2>/dev/null || command pwd)) || {
+        echo "Unable to resolve config file directory for site source root: ${CONFIG_FILE_DIR}" >&2
+        return 1
+    }
     SOURCE_ROOTS=()
     INDEX=0
     PREFIX="CONFIG_Build_Targets_${INDEX}_"
@@ -2222,14 +2228,23 @@ function marsh_get_site_source_root_path {  # marsh_get_site_source_root_path co
             if [[ ! "${TARGET_SOURCE_VALUE}" =~ ^/ ]]; then
                 TARGET_SOURCE_VALUE="${CONFIG_FILE_DIR}/${TARGET_SOURCE_VALUE}"
             fi
-            SOURCE_ROOT=$(marsh_get_source_root_path "${TARGET_SOURCE_VALUE}") || return 1
+            SOURCE_ROOT=$(marsh_get_source_root_path "${TARGET_SOURCE_VALUE}") || {
+                echo "Unable to resolve configured target source root: ${TARGET_SOURCE_VALUE}" >&2
+                return 1
+            }
             SOURCE_ROOTS+=("${SOURCE_ROOT}")
         fi
         INDEX=$((INDEX + 1))
         PREFIX="CONFIG_Build_Targets_${INDEX}_"
     done
-    [[ "${#SOURCE_ROOTS[@]}" -gt 0 ]] || return 1
-    marsh_get_common_directory "${SOURCE_ROOTS[@]}"
+    [[ "${#SOURCE_ROOTS[@]}" -gt 0 ]] || {
+        echo "No target sources configured for site source root resolution" >&2
+        return 1
+    }
+    marsh_get_common_directory "${SOURCE_ROOTS[@]}" || {
+        echo "Unable to determine common site source root from target sources" >&2
+        return 1
+    }
 }
 
 # returns the intermediate render path for a target sitemap
@@ -3362,11 +3377,15 @@ function marsh_get_target_source_inventory {  # marsh_get_target_source_inventor
         }
         marsh_get_source_inventory "${SOURCE_ROOT}" "${SKIP_LINKS}" > "${INVENTORY_FILE}" || {
             rm -f "${INVENTORY_FILE}"
+            echo "Unable to generate source inventory: ${SOURCE_ROOT}" >&2
             return 1
         }
     fi
 
-    cat "${INVENTORY_FILE}"
+    cat "${INVENTORY_FILE}" || {
+        echo "Unable to read source inventory file: ${INVENTORY_FILE}" >&2
+        return 1
+    }
 }
 
 # removes the temporary working directory for a target under MARSH_TEMP
@@ -3485,9 +3504,18 @@ function marsh_publish_processed_output {  # marsh_publish_processed_output sour
 
     DEST_DIR="${DEST_FILE%/*}"
     [[ "${DEST_DIR}" == "${DEST_FILE}" ]] && DEST_DIR='.'
-    mkdir -p "${DEST_DIR}" >/dev/null 2>&1 || return 1
-    rm -f "${DEST_FILE}" || return 1
-    cp "${SOURCE_FILE}" "${DEST_FILE}" || return 1
+    mkdir -p "${DEST_DIR}" >/dev/null 2>&1 || {
+        echo "Unable to create published output path: ${DEST_DIR}" >&2
+        return 1
+    }
+    rm -f "${DEST_FILE}" >/dev/null 2>&1 || {
+        echo "Unable to replace published output path: ${DEST_FILE}" >&2
+        return 1
+    }
+    cp "${SOURCE_FILE}" "${DEST_FILE}" >/dev/null 2>&1 || {
+        echo "Unable to publish processed output: ${SOURCE_FILE} -> ${DEST_FILE}" >&2
+        return 1
+    }
 }
 
 # returns a site-relative output path as either an absolute public URL or a normalized relative path
@@ -3560,7 +3588,10 @@ function marsh_rewrite_sitemap_links {  # marsh_rewrite_sitemap_links sitemap_fi
     done < <(grep -Eo 'href="[^"]+"' "${SITEMAP_FILE}" | sed -E 's/^href="([^"]+)"$/\1/' | sort -u)
     [[ "${#HREFS[@]}" -eq 0 ]] && return 0
 
-    REPLACEMENTS=$(mktemp "${MARSH_TEMP}/sitemap-links-XXXXXX") || return 1
+    REPLACEMENTS=$(mktemp "${MARSH_TEMP}/sitemap-links-XXXXXX") || {
+        echo "Unable to create sitemap link replacement file: ${MARSH_TEMP}/sitemap-links-XXXXXX" >&2
+        return 1
+    }
     for HREF in "${HREFS[@]}"; do
         case "${HREF}" in
             \#*|/*|*://*|mailto:*|tel:*|javascript:*|data:*|//* )
@@ -3582,6 +3613,7 @@ function marsh_rewrite_sitemap_links {  # marsh_rewrite_sitemap_links sitemap_fi
         SEARCH_ESC=$(printf '%s' "href=\"${HREF}\"" | sed -e 's/[\\]/\\\\/g' -e 's/[][/.|$(){}?+*^]/\\&/g')
         REPLACEMENT_ESC=$(printf '%s' "href=\"${REWRITTEN_HREF}\"" | marsh_escape_substitution)
         printf 's/%s/%s/g\n' "${SEARCH_ESC}" "${REPLACEMENT_ESC}" >> "${REPLACEMENTS}" || {
+            echo "Unable to write sitemap link replacement file: ${REPLACEMENTS}" >&2
             rm -f "${REPLACEMENTS}"
             return 1
         }
@@ -3590,10 +3622,12 @@ function marsh_rewrite_sitemap_links {  # marsh_rewrite_sitemap_links sitemap_fi
     if [[ -s "${REPLACEMENTS}" ]]; then
         SCRATCH_FILE="${REPLACEMENTS}.scratch"
         <"${SITEMAP_FILE}" sed -E -f "${REPLACEMENTS}" > "${SCRATCH_FILE}" || {
+            echo "Unable to write rewritten sitemap scratch file: ${SCRATCH_FILE}" >&2
             rm -f "${REPLACEMENTS}" "${SCRATCH_FILE}"
             return 1
         }
         mv "${SCRATCH_FILE}" "${SITEMAP_FILE}" 2>/dev/null || {
+            echo "Unable to publish rewritten sitemap file: ${SITEMAP_FILE}" >&2
             rm -f "${REPLACEMENTS}" "${SCRATCH_FILE}"
             return 1
         }
@@ -3639,15 +3673,18 @@ function marsh_get_processed_sitemap {  # marsh_get_processed_sitemap sitemap_re
         return 1
     }
     cp "${SITEMAP_RENDER_PATH}" "${CACHE_TEMP}" || {
+        echo "Unable to copy rendered sitemap for processing: ${SITEMAP_RENDER_PATH}" >&2
         rm -f "${CACHE_TEMP}"
         return 1
     }
     marsh_rewrite_sitemap_links "${CACHE_TEMP}" "${SITEMAP_DIR}" "${DOCUMENT_BASE_PATH}" || {
+        echo "Unable to rewrite processed sitemap links: ${SITEMAP_RENDER_PATH}" >&2
         rm -f "${CACHE_TEMP}"
         return 1
     }
     mv "${CACHE_TEMP}" "${CACHE_FILE}" 2>/dev/null || {
         if [[ ! -f "${CACHE_FILE}" ]]; then
+            echo "Unable to publish processed sitemap cache file: ${CACHE_FILE}" >&2
             rm -f "${CACHE_TEMP}"
             return 1
         fi
@@ -5797,7 +5834,10 @@ function marsh_get_template_cache_path {  # marsh_get_template_cache_path templa
                 false || return 1
     fi
 
-    [[ -e "${TEMPLATE_CACHE_PATH}" ]] || return 1
+    [[ -e "${TEMPLATE_CACHE_PATH}" ]] || {
+        echo "Template cache path not found after copy: ${TEMPLATE_CACHE_PATH}" >&2
+        return 1
+    }
     printf '%s\n' "${TEMPLATE_CACHE_PATH}"
 }
 
@@ -6377,9 +6417,21 @@ function marsh_build_planned_archive_documents {  # marsh_build_planned_archive_
         echo "Unable to read archive plan context file: ${CONTEXT_FILE}" >&2
         return 1
     }
+
+    # surface corrupted persisted context before later helpers fail generically
     ARCHIVE_PLAN_CONTEXT_VARS=$(echo "${ARCHIVE_PLAN_CONTEXT}" | marsh_get_variables)
-    eval "$(printf '%s\n' "${ARCHIVE_PLAN_CONTEXT_VARS}" | marsh_get_local_declarations)"
-    eval "${ARCHIVE_PLAN_CONTEXT}"
+    eval "$(printf '%s\n' "${ARCHIVE_PLAN_CONTEXT_VARS}" | marsh_get_local_declarations)" 2>/dev/null || {
+        echo "Unable to prepare archive plan context variables: ${CONTEXT_FILE}" >&2
+        return 1
+    }
+    eval "${ARCHIVE_PLAN_CONTEXT}" 2>/dev/null || {
+        echo "Unable to evaluate archive plan context: ${CONTEXT_FILE}" >&2
+        return 1
+    }
+    [[ "${TARGET_OUTPUT_REL:-}" != "" ]] || {
+        echo "Archive plan context missing TARGET_OUTPUT_REL: ${CONTEXT_FILE}" >&2
+        return 1
+    }
 
     DOCUMENTS_FILE="${ARCHIVE_PLAN_ROOT}/documents"
     DOCUMENT_RECORDS=()
@@ -6633,9 +6685,21 @@ function marsh_build_planned_target {  # marsh_build_planned_target site_output_
         echo "Unable to read target plan context file: ${CONTEXT_FILE}" >&2
         return 1
     }
+
+    # surface corrupted persisted context before later helpers fail generically
     TARGET_PLAN_CONTEXT_VARS=$(echo "${TARGET_PLAN_CONTEXT}" | marsh_get_variables)
-    eval "$(printf '%s\n' "${TARGET_PLAN_CONTEXT_VARS}" | marsh_get_local_declarations)"
-    eval "${TARGET_PLAN_CONTEXT}"
+    eval "$(printf '%s\n' "${TARGET_PLAN_CONTEXT_VARS}" | marsh_get_local_declarations)" 2>/dev/null || {
+        echo "Unable to prepare target plan context variables: ${CONTEXT_FILE}" >&2
+        return 1
+    }
+    eval "${TARGET_PLAN_CONTEXT}" 2>/dev/null || {
+        echo "Unable to evaluate target plan context: ${CONTEXT_FILE}" >&2
+        return 1
+    }
+    [[ "${TARGET_OUTPUT_REL:-}" != "" ]] || {
+        echo "Target plan context missing TARGET_OUTPUT_REL: ${CONTEXT_FILE}" >&2
+        return 1
+    }
     TARGET_OUTPUT_ROOT=$(marsh_get_target_directory_path "${SITE_OUTPUT_ROOT}/${TARGET_OUTPUT_REL}") || return 1
 
     DOCUMENT_RECORDS=()

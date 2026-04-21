@@ -2433,9 +2433,9 @@ function marsh_get_source_inventory {  # marsh_get_source_inventory source_root 
     [[ "${SOURCE_ROOT}" == "" ]] || [[ ! -d "${SOURCE_ROOT}" ]] && return 1
 
     if [[ "${SKIP_LINKS}" == true ]]; then
-        cd "${SOURCE_ROOT}" >/dev/null 2>&1 && find . -type f | sed -e 's/^\.\///' -e 's/^\.$//'
+        cd "${SOURCE_ROOT}" >/dev/null 2>&1 && find . -type f 2>/dev/null | sed -e 's/^\.\///' -e 's/^\.$//'
     elif [[ "${SKIP_LINKS}" == false ]]; then
-        cd "${SOURCE_ROOT}" >/dev/null 2>&1 && find . \( -type f -o -type l \) | sed -e 's/^\.\///' -e 's/^\.$//'
+        cd "${SOURCE_ROOT}" >/dev/null 2>&1 && find . \( -type f -o -type l \) 2>/dev/null | sed -e 's/^\.\///' -e 's/^\.$//'
     else
         return 1
     fi

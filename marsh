@@ -1162,6 +1162,12 @@ function marsh_text_transform {  # marsh_text_transform transform [transform...]
             tr '\n' ' ' | sed -E -e 's/[[:space:]]+$//'
             ;;
         newlines:trim)
+            sed -e '/./,$!d' -e ':a' -e '$!{N' -e 'ba' -e '}' -e 's/\n*$//'
+            ;;
+        newlines:trim:end)
+            sed -e ':a' -e '$!{N' -e 'ba' -e '}' -e 's/\n*$//'
+            ;;
+        newlines:trim:start)
             sed -e '/./,$!d'
             ;;
         plaintext)

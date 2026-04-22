@@ -677,21 +677,21 @@ function marsh_text_transform {  # marsh_text_transform transform [transform...]
                 print
             }'
             ;;
-        date:rfc2822)
+        date-type:rfc2822)
             if [[ "${SYS_NAME}" =~ bsd|darwin ]]; then
                 sed -E -e 's/^([0-9]{4}-[0-9]{2}-[0-9]{2})$/\1 00:00:00/' | TZ=UTC date -jf '%Y-%m-%d %H:%M:%S' -R "$(</dev/stdin)" 2>/dev/null
             else
                 sed -E -e 's/^([0-9]{4}-[0-9]{2}-[0-9]{2})$/\1 00:00:00/' | TZ=UTC date --rfc-2822 -d "$(</dev/stdin)" 2>/dev/null
             fi
             ;;
-        date:rfc3339)
+        date-type:rfc3339)
             if [[ "${SYS_NAME}" =~ bsd|darwin ]]; then
                 sed -E -e 's/^([0-9]{4}-[0-9]{2}-[0-9]{2})$/\1 00:00:00/' | TZ=UTC date -jf '%Y-%m-%d %H:%M:%S' '+%Y-%m-%dT%T%z' "$(</dev/stdin)" 2>/dev/null | sed -E -e 's/([0-9]{2})([0-9]{2})$/\1:\2/'
             else
                 sed -E -e 's/^([0-9]{4}-[0-9]{2}-[0-9]{2})$/\1 00:00:00/' | TZ=UTC date --rfc-3339=seconds -d "$(</dev/stdin)" 2>/dev/null | sed -E -e 's/([0-9-]{10}) /\1T/'
             fi
             ;;
-        date)
+        date-type:y-m-d)
             if [[ "${SYS_NAME}" =~ bsd|darwin ]]; then
                 sed -E -e 's/^([0-9]{4}-[0-9]{2}-[0-9]{2})$/\1 00:00:00/' | TZ=UTC date -jf '%Y-%m-%d %H:%M:%S' '+%Y-%m-%d' "$(</dev/stdin)" 2>/dev/null
             else

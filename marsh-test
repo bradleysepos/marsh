@@ -7134,8 +7134,8 @@ function marsh_test {
             fi
             ;;
         marsh_text_transform:6)
-            TEST_NAME+=":date_rfc2822"
-            ACTUAL=$(printf '%s' "2022-02-22" | marsh_text_transform date:rfc2822)
+            TEST_NAME+=":date_type_rfc2822"
+            ACTUAL=$(printf '%s' "2022-02-22" | marsh_text_transform date-type:rfc2822)
             EXPECTED="Tue, 22 Feb 2022 00:00:00 +0000"
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -7143,8 +7143,8 @@ function marsh_test {
             fi
             ;;
         marsh_text_transform:7)
-            TEST_NAME+=":date_rfc2822"
-            ACTUAL=$(printf '%s' "2022-02-22 02:02:02" | marsh_text_transform date:rfc2822)
+            TEST_NAME+=":date_type_rfc2822"
+            ACTUAL=$(printf '%s' "2022-02-22 02:02:02" | marsh_text_transform date-type:rfc2822)
             EXPECTED="Tue, 22 Feb 2022 02:02:02 +0000"
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -7152,8 +7152,8 @@ function marsh_test {
             fi
             ;;
         marsh_text_transform:8)
-            TEST_NAME+=":date_rfc3339"
-            ACTUAL=$(printf '%s' "2022-02-22" | marsh_text_transform date:rfc3339)
+            TEST_NAME+=":date_type_rfc3339"
+            ACTUAL=$(printf '%s' "2022-02-22" | marsh_text_transform date-type:rfc3339)
             EXPECTED="2022-02-22T00:00:00+00:00"
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -7161,8 +7161,8 @@ function marsh_test {
             fi
             ;;
         marsh_text_transform:9)
-            TEST_NAME+=":date_rfc3339"
-            ACTUAL=$(printf '%s' "2022-02-22 02:02:02" | marsh_text_transform date:rfc3339)
+            TEST_NAME+=":date_type_rfc3339"
+            ACTUAL=$(printf '%s' "2022-02-22 02:02:02" | marsh_text_transform date-type:rfc3339)
             EXPECTED="2022-02-22T02:02:02+00:00"
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -7170,8 +7170,8 @@ function marsh_test {
             fi
             ;;
         marsh_text_transform:10)
-            TEST_NAME+=":date"
-            ACTUAL=$(printf '%s' "2022-02-22" | marsh_text_transform date)
+            TEST_NAME+=":date_type_y_m_d"
+            ACTUAL=$(printf '%s' "2022-02-22" | marsh_text_transform date-type:y-m-d)
             EXPECTED="2022-02-22"
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -7179,8 +7179,8 @@ function marsh_test {
             fi
             ;;
         marsh_text_transform:11)
-            TEST_NAME+=":date"
-            ACTUAL=$(printf '%s' "2022-02-22 02:02:02" | marsh_text_transform date)
+            TEST_NAME+=":date_type_y_m_d"
+            ACTUAL=$(printf '%s' "2022-02-22 02:02:02" | marsh_text_transform date-type:y-m-d)
             EXPECTED="2022-02-22"
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then

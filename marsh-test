@@ -7846,8 +7846,8 @@ function marsh_test {
             ;;
         marsh_text_transform:76)
             TEST_NAME+=":slug"
-            ACTUAL=$(printf '%s' "Title of something" | marsh_text_transform slug)
-            EXPECTED="title-of-something"
+            ACTUAL=$(printf '%s' "Titlé of something" | marsh_text_transform slug)
+            EXPECTED="titl-of-something"
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"

@@ -1098,12 +1098,51 @@ function marsh_text_transform {  # marsh_text_transform transform [transform...]
             ;;
         items:slice:*)
             START="${OPTIONS[1]:-0}"
-            END="${OPTIONS[2]:-0}"
-            if [[ "${END}" -gt 0 ]]; then
-                awk -v RS='\n' -v SLICE_START="${START}" -v SLICE_END="${END}" 'NR>=SLICE_START && NR<=SLICE_END { print }'
-            else
-                awk -v RS='\n' -v SLICE_START="${START}" 'NR>=SLICE_START { print }'
-            fi
+            END="${OPTIONS[2]:-}"
+            awk -v RS='\n' -v SLICE_START="${START}" -v SLICE_END="${END}" '
+            {
+                lines[NR] = $0
+            }
+            END {
+                item_count = NR
+                if (item_count == 0) {
+                    exit
+                }
+
+                start = SLICE_START + 0
+                end = SLICE_END + 0
+
+                if (start > 0) {
+                    start_index = start
+                } else if (start < 0) {
+                    start_index = item_count + start + 1
+                } else {
+                    start_index = 1
+                }
+
+                if (SLICE_END == "" || end == 0) {
+                    end_index = item_count
+                } else if (end > 0) {
+                    end_index = end
+                } else {
+                    end_index = item_count + end + 1
+                }
+
+                if (start_index < 1) {
+                    start_index = 1
+                }
+                if (end_index > item_count) {
+                    end_index = item_count
+                }
+                if (end_index < 1 || start_index > item_count || start_index > end_index) {
+                    exit
+                }
+
+                for (i = start_index; i <= end_index; i++) {
+                    print lines[i]
+                }
+            }
+            '
             ;;
         items:sort)
             sort

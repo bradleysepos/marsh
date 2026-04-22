@@ -1,8 +1,8 @@
 <entry xml:lang="{{ document.language-code }}">
     <id>{{ document.uri }}</id>
     <link rel="alternate" href="{{ document.uri }}" />
-    <published>{{ document.date | date:rfc3339 }}</published>
-    <updated>{{ document.date | date:rfc3339 }}</updated>
+    <published>{{ document.date | date-type:rfc3339 }}</published>
+    <updated>{{ document.date | date-type:rfc3339 }}</updated>
     <rights>Copyright {{ document.copyright | decode:entities }}</rights>
     <title>{{ document.title | decode:entities }}</title>
     {{ document.authors | email:remove-angle-addr | decode:entities | items:wrap-type:xml:name:author }}

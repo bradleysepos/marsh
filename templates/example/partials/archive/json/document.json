@@ -1,8 +1,8 @@
     {
       "id": "{{ document.uri }}",
       "url": "{{ document.uri }}",
-      "date_published": "{{ document.date | date:rfc3339 }}",
-      "date_modified": "{{ document.date | date:rfc3339 }}",
+      "date_published": "{{ document.date | date-type:rfc3339 }}",
+      "date_modified": "{{ document.date | date-type:rfc3339 }}",
       "_rights": {
         "copyright": "Copyright {{ document.copyright | decode:entities }}"
       },

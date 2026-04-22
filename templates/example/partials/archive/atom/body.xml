@@ -2,6 +2,6 @@
 <link rel="self" href="{{ document.uri }}" type="application/atom+xml" />
 <link rel="alternate" href="{{ archive.abspath }}" type="text/html" />
 <icon>{{ site.abspath }}icon.png</icon>
-<updated>{{ document.date | date:rfc3339 }}</updated>
+<updated>{{ document.date | date-type:rfc3339 }}</updated>
 <title>{{ document.title | decode:entities }}</title>
 {{ subdocuments }}

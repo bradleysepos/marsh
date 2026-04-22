@@ -532,7 +532,7 @@ Multiple transforms may be chained, and they are applied in order from left to r
 
 Useful transforms include:
 
-- `date` and date format variants such as `date:rfc2822` and `date:rfc3339` for formatting document dates
+- `date` and date format variants such as `date-type:rfc2822` and `date-type:rfc3339` for formatting document dates
 - `trim` for removing leading and trailing whitespace
 - `slug` for converting text into a simple URL-style slug
 - `decode:entities` for decoding HTML entities
@@ -559,7 +559,7 @@ Examples:
 
 ```text
 {{ document.title | trim | slug }}
-{{ document.date | date:rfc3339 }}
+{{ document.date | date-type:rfc3339 }}
 {{ document.authors | items:join-type:oxford }}
 {{ document.content | excerpt:300:2 }}
 {{ template.assets.scripts | items:wrap-type:html-script-src }}

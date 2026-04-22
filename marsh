@@ -641,7 +641,7 @@ function marsh_text_transform {  # marsh_text_transform transform [transform...]
         OPTIONS+=("${OPTION_CURRENT}")
     fi
     IFS="${OIFS}"
-    local TRAILING_PUNCTUATION APPEND MAX_CHARS MAX_PARAS MD_EXT_REGEX PROTOCOL_SEP WRAP_START WRAP_END
+    local TRAILING_PUNCTUATION APPEND DATE_FORMAT MAX_CHARS MAX_PARAS MD_EXT_REGEX PROTOCOL_SEP WRAP_START WRAP_END
     local COUNT DELIM1 DELIM2 DELIM3 END I ITEM_KEY PREPEND REPLACE_EXT START XML_TAG XML_TAG_CLOSE XML_TAG_OPEN
     TRAILING_PUNCTUATION=',.:;?!'
     case "${TRANSFORM}" in
@@ -676,6 +676,19 @@ function marsh_text_transform {  # marsh_text_transform transform [transform...]
                 }
                 print
             }'
+            ;;
+        date:*)
+            DATE_FORMAT="${OPTIONS[0]:-}"
+            for ((I = 1; I < ${#OPTIONS[@]}; I++)); do
+                DATE_FORMAT+=":${OPTIONS[$I]}"
+            done
+            if [[ "${DATE_FORMAT}" == "" ]]; then
+                cat
+            elif [[ "${SYS_NAME}" =~ bsd|darwin ]]; then
+                sed -E -e 's/^([0-9]{4}-[0-9]{2}-[0-9]{2})$/\1 00:00:00/' | TZ=UTC date -jf '%Y-%m-%d %H:%M:%S' "$(</dev/stdin)" "+${DATE_FORMAT}" 2>/dev/null
+            else
+                sed -E -e 's/^([0-9]{4}-[0-9]{2}-[0-9]{2})$/\1 00:00:00/' | TZ=UTC date "+${DATE_FORMAT}" -d "$(</dev/stdin)" 2>/dev/null
+            fi
             ;;
         date)
             marsh_text_transform date-type:y-m-d

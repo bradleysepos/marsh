@@ -7810,8 +7810,8 @@ function marsh_test {
             ;;
         marsh_text_transform:72)
             TEST_NAME+=":plaintext"
-            ACTUAL=$(printf '%s' "<div><p>Some HTML content and entities to decode: &lt; &gt; &amp; &#34; &#165; &#9829;<br><br /></p></div>" | marsh_text_transform plaintext)
-            EXPECTED="Some HTML content and entities to decode: < > & \" ¥ ♥"
+            ACTUAL=$(printf '%s' "<div><p>Some HTML content and entities to decode: &lt; &gt; &amp; &#34; &#165; &#9829;<br><br />"$'\n\n'"Some more text"$'\n\n\n\n'"Even more text</p></div>" | marsh_text_transform plaintext)
+            EXPECTED="Some HTML content and entities to decode: < > & \" ¥ ♥"$'\n\n'"Some more text"$'\n\n'"Even more text"
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"

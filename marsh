@@ -3509,6 +3509,116 @@ function marsh_write_target_plan_records {  # marsh_write_target_plan_records ta
     }
 }
 
+# returns the aggregate archive-queue root under the target plan root
+function marsh_get_target_archive_queue_root {  # marsh_get_target_archive_queue_root target_plan_root
+    local TARGET_PLAN_ROOT
+
+    TARGET_PLAN_ROOT="${1:-}"
+    [[ "${TARGET_PLAN_ROOT}" == "" ]] && return 1
+    printf '%s\n' "${TARGET_PLAN_ROOT}/archive-queue"
+}
+
+# returns the aggregate archive-queue records path under the target plan root
+function marsh_get_target_archive_queue_records_path {  # marsh_get_target_archive_queue_records_path target_plan_root
+    local TARGET_PLAN_ROOT TARGET_ARCHIVE_QUEUE_ROOT
+
+    TARGET_PLAN_ROOT="${1:-}"
+    [[ "${TARGET_PLAN_ROOT}" == "" ]] && return 1
+    TARGET_ARCHIVE_QUEUE_ROOT=$(marsh_get_target_archive_queue_root "${TARGET_PLAN_ROOT}") || return 1
+    printf '%s\n' "${TARGET_ARCHIVE_QUEUE_ROOT}/records"
+}
+
+# builds one aggregate archive-queue record from a document record and archive plan root
+function marsh_build_target_archive_queue_record {  # marsh_build_target_archive_queue_record archive_plan_root document_record
+    local ARCHIVE_PLAN_ROOT DOCUMENT_RECORD
+    local DOCUMENT_ID SOURCE_RELPATH TARGET_OUTPUT_REL SOURCE_ROOT
+    local DOCUMENT_ID_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC
+
+    ARCHIVE_PLAN_ROOT="${1:-}"
+    DOCUMENT_RECORD="${2:-}"
+    [[ "${ARCHIVE_PLAN_ROOT}" == "" ]] && return 1
+    [[ "${DOCUMENT_RECORD}" == "" ]] && return 1
+
+    IFS=$'\t' read -r DOCUMENT_ID_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC <<< "${DOCUMENT_RECORD}"
+    [[ "${DOCUMENT_ID_ESC}" == "" ]] && return 1
+
+    # keep document identity and archive-plan context explicit in the queue record
+    printf '%q\t%q\t%q\t%q\t%q\n' \
+        "${DOCUMENT_ID_ESC}" \
+        "${SOURCE_RELPATH_ESC}" \
+        "${TARGET_OUTPUT_REL_ESC}" \
+        "${SOURCE_ROOT_ESC}" \
+        "${ARCHIVE_PLAN_ROOT}"
+}
+
+# parses one aggregate archive-queue record into shell assignments
+function marsh_parse_target_archive_queue_record {  # marsh_parse_target_archive_queue_record archive_queue_record
+    local ARCHIVE_QUEUE_RECORD
+    local DOCUMENT_ID_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC ARCHIVE_PLAN_ROOT_ESC
+    local DOCUMENT_ID SOURCE_RELPATH TARGET_OUTPUT_REL SOURCE_ROOT ARCHIVE_PLAN_ROOT
+
+    ARCHIVE_QUEUE_RECORD="${1:-}"
+    [[ "${ARCHIVE_QUEUE_RECORD}" == "" ]] && return 1
+
+    IFS=$'\t' read -r DOCUMENT_ID_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC ARCHIVE_PLAN_ROOT_ESC <<< "${ARCHIVE_QUEUE_RECORD}"
+    [[ "${DOCUMENT_ID_ESC}" == "" ]] && return 1
+    [[ "${ARCHIVE_PLAN_ROOT_ESC}" == "" ]] && return 1
+
+    printf 'DOCUMENT_ID=%q\n' "${DOCUMENT_ID_ESC}"
+    printf 'SOURCE_RELPATH=%q\n' "${SOURCE_RELPATH_ESC}"
+    printf 'TARGET_OUTPUT_REL=%q\n' "${TARGET_OUTPUT_REL_ESC}"
+    printf 'SOURCE_ROOT=%q\n' "${SOURCE_ROOT_ESC}"
+    printf 'ARCHIVE_PLAN_ROOT=%q\n' "${ARCHIVE_PLAN_ROOT_ESC}"
+}
+
+# writes aggregate archive-queue records under the target plan root
+function marsh_write_target_archive_queue_records {  # marsh_write_target_archive_queue_records target_plan_root records[@]
+    local TARGET_PLAN_ROOT TARGET_ARCHIVE_QUEUE_ROOT TARGET_ARCHIVE_QUEUE_RECORDS_FILE TARGET_ARCHIVE_QUEUE_RECORDS_TEMP RECORD
+
+    TARGET_PLAN_ROOT="${1:-}"
+    shift 1
+    [[ "${TARGET_PLAN_ROOT}" == "" ]] && return 1
+
+    TARGET_ARCHIVE_QUEUE_ROOT=$(marsh_get_target_archive_queue_root "${TARGET_PLAN_ROOT}") || return 1
+    TARGET_ARCHIVE_QUEUE_RECORDS_FILE=$(marsh_get_target_archive_queue_records_path "${TARGET_PLAN_ROOT}") || return 1
+    mkdir -p "${TARGET_ARCHIVE_QUEUE_ROOT}" >/dev/null 2>&1 || {
+        echo "Unable to create target archive queue path: ${TARGET_ARCHIVE_QUEUE_ROOT}" >&2
+        return 1
+    }
+    TARGET_ARCHIVE_QUEUE_RECORDS_TEMP=$(mktemp "${TARGET_ARCHIVE_QUEUE_ROOT}/records-XXXXXX" 2>/dev/null) || {
+        echo "Unable to write target archive queue temporary file: ${TARGET_ARCHIVE_QUEUE_ROOT}/records-XXXXXX" >&2
+        return 1
+    }
+
+    while [[ "${#@}" -gt 0 ]]; do
+        RECORD="${1:-}"
+        shift 1
+        [[ "${RECORD}" == "" ]] && continue
+        printf '%s\n' "${RECORD}"
+    done > "${TARGET_ARCHIVE_QUEUE_RECORDS_TEMP}" || {
+        echo "Unable to write target archive queue temporary file: ${TARGET_ARCHIVE_QUEUE_RECORDS_TEMP}" >&2
+        rm -f "${TARGET_ARCHIVE_QUEUE_RECORDS_TEMP}"
+        return 1
+    }
+    mv "${TARGET_ARCHIVE_QUEUE_RECORDS_TEMP}" "${TARGET_ARCHIVE_QUEUE_RECORDS_FILE}" 2>/dev/null || {
+        echo "Unable to write target archive queue file: ${TARGET_ARCHIVE_QUEUE_RECORDS_FILE}" >&2
+        rm -f "${TARGET_ARCHIVE_QUEUE_RECORDS_TEMP}"
+        return 1
+    }
+}
+
+# reads aggregate archive-queue records from the target plan root
+function marsh_read_target_archive_queue_records {  # marsh_read_target_archive_queue_records target_plan_root
+    local TARGET_PLAN_ROOT TARGET_ARCHIVE_QUEUE_RECORDS_FILE
+
+    TARGET_PLAN_ROOT="${1:-}"
+    [[ "${TARGET_PLAN_ROOT}" == "" ]] && return 1
+
+    TARGET_ARCHIVE_QUEUE_RECORDS_FILE=$(marsh_get_target_archive_queue_records_path "${TARGET_PLAN_ROOT}") || return 1
+    [[ -f "${TARGET_ARCHIVE_QUEUE_RECORDS_FILE}" ]] && [[ -r "${TARGET_ARCHIVE_QUEUE_RECORDS_FILE}" ]] || return 1
+    cat "${TARGET_ARCHIVE_QUEUE_RECORDS_FILE}"
+}
+
 # creates the cached source-root record for a target under MARSH_TEMP
 function marsh_create_target_source_root {  # marsh_create_target_source_root target_output_root source_root
     local TARGET_OUTPUT_ROOT SOURCE_ROOT TARGET_BUILD_TEMP_ROOT TARGET_SOURCE_ROOT_CACHE_FILE

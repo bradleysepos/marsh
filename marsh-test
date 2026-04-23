@@ -1827,6 +1827,16 @@ function marsh_test {
             rm -f "${STDERR_FILE}"
             rm -rf "${TARGET_OUTPUT_ROOT}" "${SOURCE_ROOT}"
             ;;
+        marsh_build_target_archive_queue_record:0)
+            TEST_NAME+=":builds_queue_record"
+            DOCUMENT_RECORD=$(printf '%q\t%q\t%q\t%q\n' 'news/index.markdown' 'news/index.markdown' '.' '/site/source')
+            ACTUAL=$(marsh_build_target_archive_queue_record '/tmp/archive-plan' "${DOCUMENT_RECORD}")
+            EXPECTED=$(printf '%q\t%q\t%q\t%q\t%q\n' 'news/index.markdown' 'news/index.markdown' '.' '/site/source' '/tmp/archive-plan')
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
         marsh_build_target_documents:0)
             TEST_NAME+=":serial_success"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
@@ -4875,6 +4885,15 @@ function marsh_test {
             fi
             rm -rf "${TARGET_OUTPUT_ROOT}"
             ;;
+        marsh_get_target_archive_queue_records_path:0)
+            TEST_NAME+=":path"
+            ACTUAL=$(marsh_get_target_archive_queue_records_path '/tmp/target-plan')
+            EXPECTED='/tmp/target-plan/archive-queue/records'
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
         marsh_get_target_directory_path:0)
             TEST_NAME+=":root_exact"
             ACTUAL=$(marsh_get_target_directory_path ".")
@@ -5578,6 +5597,21 @@ function marsh_test {
                 fi
             fi
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}" "${MARSH_TEMP}/asset-copy-cache"
+            ;;
+        marsh_parse_target_archive_queue_record:0)
+            TEST_NAME+=":parses_queue_record"
+            RECORD=$(printf '%q\t%q\t%q\t%q\t%q\n' 'news/index.markdown' 'news/index.markdown' '.' '/site/source' '/tmp/archive-plan')
+            ACTUAL=$(marsh_parse_target_archive_queue_record "${RECORD}")
+            EXPECTED=$(printf '%s\n' \
+                'DOCUMENT_ID=news/index.markdown' \
+                'SOURCE_RELPATH=news/index.markdown' \
+                'TARGET_OUTPUT_REL=.' \
+                'SOURCE_ROOT=/site/source' \
+                'ARCHIVE_PLAN_ROOT=/tmp/archive-plan')
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
             ;;
         marsh_parse_template_metadata:0)
             TEST_NAME+=":normal"
@@ -8616,6 +8650,26 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
+        marsh_write_target_archive_queue_records:0)
+            TEST_NAME+=":writes_queue_records"
+            TARGET_PLAN_ROOT="${TEST_TEMP_PREFIX}.target-plan"
+            RECORD_ONE=$(printf '%q\t%q\t%q\t%q\t%q\n' 'news/index.markdown' 'news/index.markdown' '.' '/site/source' '/tmp/archive-plan-1')
+            RECORD_TWO=$(printf '%q\t%q\t%q\t%q\t%q\n' 'news/feed.xml' 'news/feed.xml' '.' '/site/source' '/tmp/archive-plan-2')
+            mkdir -p "${TARGET_PLAN_ROOT}"
+            marsh_write_target_archive_queue_records "${TARGET_PLAN_ROOT}" "${RECORD_ONE}" "${RECORD_TWO}" >/dev/null 2>&1
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                ACTUAL=$(marsh_read_target_archive_queue_records "${TARGET_PLAN_ROOT}")
+                EXPECTED=$(printf '%s\n%s\n' "${RECORD_ONE}" "${RECORD_TWO}")
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${TARGET_PLAN_ROOT}"
+            ;;
         marsh_write_target_plan_context:0)
             TEST_NAME+=":missing_plan_root_reports"
             TARGET_PLAN_ROOT="${TEST_TEMP_PREFIX}.missing"
@@ -8696,6 +8750,7 @@ KNOWN_FUNCTIONS=(
     marsh_build_planned_target_documents
     marsh_build_planned_target_sitemaps
     marsh_build_sitemap
+    marsh_build_target_archive_queue_record
     marsh_build_target_documents
     marsh_build_template
     marsh_check_dependencies
@@ -8731,6 +8786,7 @@ KNOWN_FUNCTIONS=(
     marsh_get_sitemap_temp_path
     marsh_get_source_inventory
     marsh_get_source_root_path
+    marsh_get_target_archive_queue_records_path
     marsh_get_target_directory_path
     marsh_get_target_document_paths
     marsh_get_target_metadata
@@ -8747,6 +8803,7 @@ KNOWN_FUNCTIONS=(
     marsh_is_markdown_extension
     marsh_normalize_internal_path
     marsh_normalize_path
+    marsh_parse_target_archive_queue_record
     marsh_parse_template_metadata
     marsh_parse_yaml
     marsh_plan_archive_pages
@@ -8771,6 +8828,7 @@ KNOWN_FUNCTIONS=(
     marsh_write_document_artifacts
     marsh_write_document_metadata_artifacts
     marsh_write_target_archive_manifest
+    marsh_write_target_archive_queue_records
     marsh_write_target_plan_context
     marsh_write_target_plan_records
 )

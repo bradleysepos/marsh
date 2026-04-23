@@ -6435,13 +6435,64 @@ function marsh_plan_target {  # marsh_plan_target site_source_root site_output_r
     printf '%s\n' "${TARGET_PLAN_ROOT}"
 }
 
+# writes persisted archive-plan context for later archive execution
+function marsh_write_archive_plan_context {  # marsh_write_archive_plan_context context_file build_context_target_output_rel build_context_source_root target_sitemap target_sitemap_search templates_dir template #template_overrides[@] template_overrides[@] template_assets_path
+    local CONTEXT_FILE BUILD_CONTEXT_TARGET_OUTPUT_REL BUILD_CONTEXT_SOURCE_ROOT TARGET_SITEMAP TARGET_SITEMAP_SEARCH TEMPLATES_DIR TEMPLATE
+    local NUM_TEMPLATE_OVERRIDES TEMPLATE_ASSETS_PATH CONTEXT_TEMP TEMPLATE_OVERRIDE
+    local -a TEMPLATE_OVERRIDES
+
+    CONTEXT_FILE="${1:-}"
+    BUILD_CONTEXT_TARGET_OUTPUT_REL="${2:-}"
+    BUILD_CONTEXT_SOURCE_ROOT="${3:-}"
+    TARGET_SITEMAP="${4:-}"
+    TARGET_SITEMAP_SEARCH="${5:-false}"
+    TEMPLATES_DIR="${6:-}"
+    TEMPLATE="${7:-}"
+    [[ "${CONTEXT_FILE}" == "" ]] && return 1
+    [[ "${BUILD_CONTEXT_TARGET_OUTPUT_REL}" == "" ]] && return 1
+    shift 7
+    NUM_TEMPLATE_OVERRIDES="${1:-0}"
+    shift 1
+    TEMPLATE_OVERRIDES=()
+    while [[ "${NUM_TEMPLATE_OVERRIDES}" -gt 0 ]] && [[ "${#@}" -gt 0 ]]; do
+        TEMPLATE_OVERRIDES+=("${1}")
+        NUM_TEMPLATE_OVERRIDES=$((NUM_TEMPLATE_OVERRIDES - 1))
+        shift 1
+    done
+    TEMPLATE_ASSETS_PATH="${1:-}"
+
+    CONTEXT_TEMP=$(mktemp "${CONTEXT_FILE%/*}/context-XXXXXX") || return 1
+    {
+        # keep the current executor field while persisting the build-context names explicitly
+        printf 'TARGET_OUTPUT_REL=%q\n' "${BUILD_CONTEXT_TARGET_OUTPUT_REL}"
+        printf 'BUILD_CONTEXT_TARGET_OUTPUT_REL=%q\n' "${BUILD_CONTEXT_TARGET_OUTPUT_REL}"
+        printf 'BUILD_CONTEXT_SOURCE_ROOT=%q\n' "${BUILD_CONTEXT_SOURCE_ROOT}"
+        printf 'TARGET_SITEMAP=%q\n' "${TARGET_SITEMAP}"
+        printf 'TARGET_SITEMAP_SEARCH=%q\n' "${TARGET_SITEMAP_SEARCH}"
+        printf 'TEMPLATES_DIR=%q\n' "${TEMPLATES_DIR}"
+        printf 'TEMPLATE=%q\n' "${TEMPLATE}"
+        printf 'TEMPLATE_ASSETS_PATH=%q\n' "${TEMPLATE_ASSETS_PATH}"
+        echo 'TEMPLATE_OVERRIDES=()'
+        for TEMPLATE_OVERRIDE in "${TEMPLATE_OVERRIDES[@]}"; do
+            printf 'TEMPLATE_OVERRIDES+=(%q)\n' "${TEMPLATE_OVERRIDE}"
+        done
+    } > "${CONTEXT_TEMP}" || {
+        rm -f "${CONTEXT_TEMP}"
+        return 1
+    }
+    mv "${CONTEXT_TEMP}" "${CONTEXT_FILE}" 2>/dev/null || {
+        rm -f "${CONTEXT_TEMP}"
+        return 1
+    }
+}
+
 # plans target archives
 function marsh_plan_archive_pages {  # marsh_plan_archive_pages target_output_root encoding archive_source archive_title language langcode count page_size #types[@] types[@] #excluded_states[@] excluded_states[@] archive_manifest archive_root_path templates_dir template sitemap sitemap_search #template_overrides[@] template_overrides[@] template_assets_path build_context_target_output_rel build_context_source_root
     local TARGET_OUTPUT_ROOT ENCODING ARCHIVE_SOURCE ARCHIVE_TITLE LANGUAGE LANGCODE COUNT PAGE_SIZE
     local NUM_TYPES NUM_EXCLUDED_STATES ARCHIVE_MANIFEST ARCHIVE_ROOT_PATH
     local TEMPLATES_DIR TEMPLATE TARGET_SITEMAP TARGET_SITEMAP_SEARCH
     local NUM_TEMPLATE_OVERRIDES TEMPLATE_ASSETS_PATH BUILD_CONTEXT_TARGET_OUTPUT_REL BUILD_CONTEXT_SOURCE_ROOT
-    local TARGET_PLAN_ROOT ARCHIVE_PLANS_ROOT ARCHIVE_PLAN_ROOT CONTEXT_FILE CONTEXT_TEMP DOCUMENTS_FILE DOCUMENTS_TEMP
+    local TARGET_PLAN_ROOT ARCHIVE_PLANS_ROOT ARCHIVE_PLAN_ROOT CONTEXT_FILE DOCUMENTS_FILE DOCUMENTS_TEMP
     local GENERATED_ARCHIVES GENERATED_ARCHIVE
     local -a TYPES EXCLUDED_STATES TEMPLATE_OVERRIDES
 
@@ -6529,28 +6580,17 @@ function marsh_plan_archive_pages {  # marsh_plan_archive_pages target_output_ro
 
     # store the target-scoped rendering context
     CONTEXT_FILE="${ARCHIVE_PLAN_ROOT}/context"
-    CONTEXT_TEMP=$(mktemp "${ARCHIVE_PLAN_ROOT}/context-XXXXXX") || {
-        rm -rf "${ARCHIVE_PLAN_ROOT}"
-        return 1
-    }
-    {
-        printf 'TARGET_OUTPUT_REL=%q\n' "${BUILD_CONTEXT_TARGET_OUTPUT_REL}"
-        printf 'TARGET_SITEMAP=%q\n' "${TARGET_SITEMAP}"
-        printf 'TARGET_SITEMAP_SEARCH=%q\n' "${TARGET_SITEMAP_SEARCH}"
-        printf 'TEMPLATES_DIR=%q\n' "${TEMPLATES_DIR}"
-        printf 'TEMPLATE=%q\n' "${TEMPLATE}"
-        printf 'TEMPLATE_ASSETS_PATH=%q\n' "${TEMPLATE_ASSETS_PATH}"
-        echo 'TEMPLATE_OVERRIDES=()'
-        for TEMPLATE in "${TEMPLATE_OVERRIDES[@]}"; do
-            printf 'TEMPLATE_OVERRIDES+=(%q)\n' "${TEMPLATE}"
-        done
-    } > "${CONTEXT_TEMP}" || {
-        rm -f "${CONTEXT_TEMP}"
-        rm -rf "${ARCHIVE_PLAN_ROOT}"
-        return 1
-    }
-    mv "${CONTEXT_TEMP}" "${CONTEXT_FILE}" 2>/dev/null || {
-        rm -f "${CONTEXT_TEMP}"
+    marsh_write_archive_plan_context \
+        "${CONTEXT_FILE}" \
+        "${BUILD_CONTEXT_TARGET_OUTPUT_REL}" \
+        "${BUILD_CONTEXT_SOURCE_ROOT}" \
+        "${TARGET_SITEMAP}" \
+        "${TARGET_SITEMAP_SEARCH}" \
+        "${TEMPLATES_DIR}" \
+        "${TEMPLATE}" \
+        "${#TEMPLATE_OVERRIDES[@]}" \
+        "${TEMPLATE_OVERRIDES[@]}" \
+        "${TEMPLATE_ASSETS_PATH}" || {
         rm -rf "${ARCHIVE_PLAN_ROOT}"
         return 1
     }
@@ -6623,10 +6663,17 @@ function marsh_build_planned_archive_documents {  # marsh_build_planned_archive_
         echo "Unable to evaluate archive plan context: ${CONTEXT_FILE}" >&2
         return 1
     }
-    [[ "${TARGET_OUTPUT_REL:-}" != "" ]] || {
-        echo "Archive plan context missing TARGET_OUTPUT_REL: ${CONTEXT_FILE}" >&2
+    [[ "${BUILD_CONTEXT_TARGET_OUTPUT_REL+isset}" == "isset" ]] || {
+        echo "Archive plan context missing BUILD_CONTEXT_TARGET_OUTPUT_REL: ${CONTEXT_FILE}" >&2
         return 1
     }
+
+    # keep the build-context fields explicit before later queue aggregation changes
+    [[ "${BUILD_CONTEXT_SOURCE_ROOT+isset}" == "isset" ]] || {
+        echo "Archive plan context missing BUILD_CONTEXT_SOURCE_ROOT: ${CONTEXT_FILE}" >&2
+        return 1
+    }
+    TARGET_OUTPUT_REL="${BUILD_CONTEXT_TARGET_OUTPUT_REL}"
 
     DOCUMENTS_FILE="${ARCHIVE_PLAN_ROOT}/documents"
     DOCUMENT_RECORDS=()

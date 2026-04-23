@@ -3607,6 +3607,37 @@ function marsh_write_target_archive_queue_records {  # marsh_write_target_archiv
     }
 }
 
+# writes one aggregate archive queue from the provided archive plan roots
+function marsh_write_target_archive_queue_from_archive_plans {  # marsh_write_target_archive_queue_from_archive_plans target_plan_root archive_plan_roots[@]
+    local TARGET_PLAN_ROOT ARCHIVE_PLAN_ROOT ARCHIVE_PLAN_DOCUMENTS_FILE DOCUMENT_RECORD QUEUE_RECORD
+    local -a QUEUE_RECORDS
+
+    TARGET_PLAN_ROOT="${1:-}"
+    shift 1
+    [[ "${TARGET_PLAN_ROOT}" == "" ]] && return 1
+
+    QUEUE_RECORDS=()
+    while [[ "${#@}" -gt 0 ]]; do
+        ARCHIVE_PLAN_ROOT="${1:-}"
+        shift 1
+        [[ "${ARCHIVE_PLAN_ROOT}" == "" ]] && continue
+        ARCHIVE_PLAN_DOCUMENTS_FILE="${ARCHIVE_PLAN_ROOT}/documents"
+        [[ -f "${ARCHIVE_PLAN_DOCUMENTS_FILE}" ]] && [[ -r "${ARCHIVE_PLAN_DOCUMENTS_FILE}" ]] || {
+            echo "Archive plan documents file not found: ${ARCHIVE_PLAN_DOCUMENTS_FILE}" >&2
+            return 1
+        }
+
+        # keep the queue order aligned with archive plan order and persisted document order
+        while IFS= read -r DOCUMENT_RECORD; do
+            [[ "${DOCUMENT_RECORD}" == "" ]] && continue
+            QUEUE_RECORD=$(marsh_build_target_archive_queue_record "${ARCHIVE_PLAN_ROOT}" "${DOCUMENT_RECORD}") || return 1
+            QUEUE_RECORDS+=("${QUEUE_RECORD}")
+        done < "${ARCHIVE_PLAN_DOCUMENTS_FILE}"
+    done
+
+    marsh_write_target_archive_queue_records "${TARGET_PLAN_ROOT}" "${QUEUE_RECORDS[@]}"
+}
+
 # reads aggregate archive-queue records from the target plan root
 function marsh_read_target_archive_queue_records {  # marsh_read_target_archive_queue_records target_plan_root
     local TARGET_PLAN_ROOT TARGET_ARCHIVE_QUEUE_RECORDS_FILE
@@ -6541,6 +6572,9 @@ function marsh_plan_target {  # marsh_plan_target site_source_root site_output_r
         "${TEMPLATE_OVERRIDES[@]}" \
         "${DOCUMENT_RECORDS[@]}") || return 1
     marsh_write_target_plan_records "${TARGET_PLAN_ROOT}" "archive-plans" "${ARCHIVE_PLAN_ROOTS[@]}" || return 1
+    if [[ "${#ARCHIVE_PLAN_ROOTS[@]}" -gt 0 ]]; then
+        marsh_write_target_archive_queue_from_archive_plans "${TARGET_PLAN_ROOT}" "${ARCHIVE_PLAN_ROOTS[@]}" || return 1
+    fi
 
     printf '%s\n' "${TARGET_PLAN_ROOT}"
 }

@@ -5932,6 +5932,72 @@ function marsh_test {
             fi
             rm -rf "${SITE_OUTPUT_ROOT}" "${SOURCE_ROOT}"
             ;;
+        marsh_plan_target:2)
+            TEST_NAME+=":writes_archive_queue_when_archives_present"
+            SITE_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
+            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            TARGET_PLAN_ROOT=""
+            TARGET_TEMPLATE_OVERRIDES=()
+            TARGET_ARCHIVES=()
+            TARGET_ARCHIVES_ENCODING=()
+            TARGET_ARCHIVES_NAME=()
+            TARGET_ARCHIVES_LANGUAGE=()
+            TARGET_ARCHIVES_LANGUAGE_CODE=()
+            TARGET_ARCHIVES_ROOT_PATH=()
+            TARGET_ARCHIVES_COUNT=()
+            TARGET_ARCHIVES_PAGE_SIZE=()
+            TARGET_ARCHIVES_CONTENT=()
+            TARGET_ARCHIVES_TYPES=()
+            TARGET_ARCHIVES_EXCLUDED_STATES=()
+            TARGET_ARCHIVES_TEMPLATE_SOURCE=()
+            TARGET_ARCHIVES_TEMPLATE_ASSETS_PATH=()
+            TARGET_ARCHIVES_TEMPLATE_OVERRIDES=()
+            TARGET_ARCHIVES_TEMPLATE=()
+            mkdir -p "${SOURCE_ROOT}/news"
+            marsh_test_create_archive_template "${TEMPLATE_DIR}" "sample" "html" true
+            printf '%s\n' '---'$'\n''Type: post'$'\n''Date: 2026-01-01'$'\n''Title: Item'$'\n''...'$'\n'''$'\n''# Item' > "${SOURCE_ROOT}/news/item.markdown"
+            TARGET_ARCHIVES+=("news/index.markdown")
+            TARGET_ARCHIVES_ENCODING+=("html")
+            TARGET_ARCHIVES_NAME+=("News")
+            TARGET_ARCHIVES_LANGUAGE+=("English")
+            TARGET_ARCHIVES_LANGUAGE_CODE+=("en")
+            TARGET_ARCHIVES_ROOT_PATH+=("")
+            TARGET_ARCHIVES_COUNT+=("")
+            TARGET_ARCHIVES_PAGE_SIZE+=("10")
+            TARGET_ARCHIVES_CONTENT+=("")
+            TARGET_ARCHIVES_TYPES+=("post")
+            TARGET_ARCHIVES_EXCLUDED_STATES+=("")
+            TARGET_ARCHIVES_TEMPLATE_SOURCE+=("")
+            TARGET_ARCHIVES_TEMPLATE_ASSETS_PATH+=("")
+            TARGET_ARCHIVES_TEMPLATE_OVERRIDES+=("")
+            TARGET_ARCHIVES_TEMPLATE+=("sample")
+            TARGET_PLAN_ROOT=$(marsh_plan_target "${SOURCE_ROOT}" "${SITE_OUTPUT_ROOT}" "." false "${SOURCE_ROOT}" "" false "${TEMPLATE_DIR}" "sample" 0 "" "${SOURCE_ROOT}" "markdown,md")
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                QUEUE_RECORDS_FILE=$(marsh_get_target_archive_queue_records_path "${TARGET_PLAN_ROOT}")
+                ARCHIVE_PLAN_ROOT=$(<"${TARGET_PLAN_ROOT}/archive-plans")
+                ACTUAL=$(marsh_read_target_archive_queue_records "${TARGET_PLAN_ROOT}")
+                EXPECTED=$(printf '%q\t%q\t%q\t%q\t%q\n%q\t%q\t%q\t%q\t%q\n' \
+                    'news/index.markdown' \
+                    'news/index.markdown' \
+                    '.' \
+                    "${SOURCE_ROOT}" \
+                    "${ARCHIVE_PLAN_ROOT}" \
+                    'news/page/1/index.markdown' \
+                    'news/page/1/index.markdown' \
+                    '.' \
+                    "${SOURCE_ROOT}" \
+                    "${ARCHIVE_PLAN_ROOT}")
+                ASSERTION="equals"
+                if [[ -f "${QUEUE_RECORDS_FILE}" ]] && [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${SITE_OUTPUT_ROOT}" "${SOURCE_ROOT}" "${TEMPLATE_DIR}"
+            ;;
         marsh_plan_target_archives:0)
             TEST_NAME+=":requires_explicit_document_records"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
@@ -8650,6 +8716,38 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
+        marsh_write_target_archive_queue_from_archive_plans:0)
+            TEST_NAME+=":writes_aggregate_queue"
+            TARGET_PLAN_ROOT="${TEST_TEMP_PREFIX}.target-plan"
+            ARCHIVE_PLAN_ROOT_ONE="${TEST_TEMP_PREFIX}.archive-plan-1"
+            ARCHIVE_PLAN_ROOT_TWO="${TEST_TEMP_PREFIX}.archive-plan-2"
+            mkdir -p "${TARGET_PLAN_ROOT}" "${ARCHIVE_PLAN_ROOT_ONE}" "${ARCHIVE_PLAN_ROOT_TWO}"
+            printf '%q\t%q\t%q\t%q\n' \
+                'news/index.markdown' \
+                'news/index.markdown' \
+                '.' \
+                '/site/source' > "${ARCHIVE_PLAN_ROOT_ONE}/documents"
+            printf '%q\t%q\t%q\t%q\n' \
+                'news/feed.xml' \
+                'news/feed.xml' \
+                '.' \
+                '/site/source' > "${ARCHIVE_PLAN_ROOT_TWO}/documents"
+            marsh_write_target_archive_queue_from_archive_plans "${TARGET_PLAN_ROOT}" "${ARCHIVE_PLAN_ROOT_ONE}" "${ARCHIVE_PLAN_ROOT_TWO}" >/dev/null 2>&1
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                ACTUAL=$(marsh_read_target_archive_queue_records "${TARGET_PLAN_ROOT}")
+                EXPECTED=$(printf '%q\t%q\t%q\t%q\t%q\n%q\t%q\t%q\t%q\t%q\n' \
+                    'news/index.markdown' 'news/index.markdown' '.' '/site/source' "${ARCHIVE_PLAN_ROOT_ONE}" \
+                    'news/feed.xml' 'news/feed.xml' '.' '/site/source' "${ARCHIVE_PLAN_ROOT_TWO}")
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${TARGET_PLAN_ROOT}" "${ARCHIVE_PLAN_ROOT_ONE}" "${ARCHIVE_PLAN_ROOT_TWO}"
+            ;;
         marsh_write_target_archive_queue_records:0)
             TEST_NAME+=":writes_queue_records"
             TARGET_PLAN_ROOT="${TEST_TEMP_PREFIX}.target-plan"
@@ -8828,6 +8926,7 @@ KNOWN_FUNCTIONS=(
     marsh_write_document_artifacts
     marsh_write_document_metadata_artifacts
     marsh_write_target_archive_manifest
+    marsh_write_target_archive_queue_from_archive_plans
     marsh_write_target_archive_queue_records
     marsh_write_target_plan_context
     marsh_write_target_plan_records

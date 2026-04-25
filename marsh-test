@@ -5583,6 +5583,30 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
+        marsh_load_archive_plan_build_context:0)
+            TEST_NAME+=":loads_valid_context"
+            ARCHIVE_PLAN_ROOT="${TEST_TEMP_PREFIX}.archive-plan"
+            mkdir -p "${ARCHIVE_PLAN_ROOT}"
+            {
+                printf 'TARGET_OUTPUT_REL=%q\n' '.'
+                printf 'BUILD_CONTEXT_TARGET_OUTPUT_REL=%q\n' 'news'
+                printf 'BUILD_CONTEXT_SOURCE_ROOT=%q\n' '/site/source'
+                printf 'TARGET_SITEMAP=%q\n' 'site-map/index.markdown'
+                printf 'TARGET_SITEMAP_SEARCH=%q\n' false
+                printf 'TEMPLATES_DIR=%q\n' '/site/templates'
+                printf 'TEMPLATE=%q\n' 'sample'
+                printf 'TEMPLATE_ASSETS_PATH=%q\n' ''
+                echo 'TEMPLATE_OVERRIDES=()'
+                printf 'TEMPLATE_OVERRIDES+=(%q)\n' '/site/override.yaml'
+            } > "${ARCHIVE_PLAN_ROOT}/context"
+            ACTUAL=$(marsh_load_archive_plan_build_context "${ARCHIVE_PLAN_ROOT}")
+            EXPECTED=$(<"${ARCHIVE_PLAN_ROOT}/context")
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            rm -rf "${ARCHIVE_PLAN_ROOT}"
+            ;;
         marsh_normalize_internal_path:0)
             TEST_NAME+=":path_cleanup"
             ACTUAL=$(marsh_normalize_internal_path "./news/.")
@@ -9012,6 +9036,7 @@ KNOWN_FUNCTIONS=(
     marsh_in_array
     marsh_inflect
     marsh_is_markdown_extension
+    marsh_load_archive_plan_build_context
     marsh_normalize_internal_path
     marsh_normalize_path
     marsh_parse_target_archive_queue_record

@@ -6837,6 +6837,45 @@ function marsh_build_planned_archive_documents {  # marsh_build_planned_archive_
     marsh_build_planned_target_documents "${SITE_OUTPUT_ROOT}" "${LOG_LEVEL}" "${LOG_LEVELS_CSV}" "${JOBS}" "${TARGET_SITEMAP}" "${TARGET_SITEMAP_SEARCH}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_FILEEXT_CSV}" "${MARKDOWN_REWRITE_LINKS}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_ASSETS_PATH}" "${DOCUMENT_RECORDS[@]}"
 }
 
+# loads and validates persisted archive-plan context for queue and plan executors
+function marsh_load_archive_plan_build_context {  # marsh_load_archive_plan_build_context archive_plan_root
+    local ARCHIVE_PLAN_ROOT CONTEXT_FILE ARCHIVE_PLAN_CONTEXT ARCHIVE_PLAN_CONTEXT_VARS
+
+    ARCHIVE_PLAN_ROOT="${1:-}"
+    [[ "${ARCHIVE_PLAN_ROOT}" == "" ]] && return 1
+
+    CONTEXT_FILE="${ARCHIVE_PLAN_ROOT}/context"
+    [[ -f "${CONTEXT_FILE}" ]] && [[ -r "${CONTEXT_FILE}" ]] || {
+        echo "Archive plan context file not found: ${CONTEXT_FILE}" >&2
+        return 1
+    }
+    ARCHIVE_PLAN_CONTEXT=$(<"${CONTEXT_FILE}") || {
+        echo "Unable to read archive plan context file: ${CONTEXT_FILE}" >&2
+        return 1
+    }
+
+    # fail early on corrupted persisted context before queue execution fans out
+    ARCHIVE_PLAN_CONTEXT_VARS=$(echo "${ARCHIVE_PLAN_CONTEXT}" | marsh_get_variables)
+    eval "$(printf '%s\n' "${ARCHIVE_PLAN_CONTEXT_VARS}" | marsh_get_local_declarations)" 2>/dev/null || {
+        echo "Unable to prepare archive plan context variables: ${CONTEXT_FILE}" >&2
+        return 1
+    }
+    eval "${ARCHIVE_PLAN_CONTEXT}" 2>/dev/null || {
+        echo "Unable to evaluate archive plan context: ${CONTEXT_FILE}" >&2
+        return 1
+    }
+    [[ "${BUILD_CONTEXT_TARGET_OUTPUT_REL+isset}" == "isset" ]] || {
+        echo "Archive plan context missing BUILD_CONTEXT_TARGET_OUTPUT_REL: ${CONTEXT_FILE}" >&2
+        return 1
+    }
+    [[ "${BUILD_CONTEXT_SOURCE_ROOT+isset}" == "isset" ]] || {
+        echo "Archive plan context missing BUILD_CONTEXT_SOURCE_ROOT: ${CONTEXT_FILE}" >&2
+        return 1
+    }
+
+    printf '%s\n' "${ARCHIVE_PLAN_CONTEXT}"
+}
+
 # builds aggregate archive-queue records for a target sequentially
 function marsh_build_target_archive_queue {  # marsh_build_target_archive_queue site_output_root log_level log_levels_csv jobs markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links target_plan_root
     local SITE_OUTPUT_ROOT LOG_LEVEL LOG_LEVELS_CSV JOBS MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_REWRITE_LINKS TARGET_PLAN_ROOT
@@ -6888,28 +6927,7 @@ function marsh_build_target_archive_queue {  # marsh_build_target_archive_queue 
                 continue
             fi
             CURRENT_ARCHIVE_PLAN_ROOT="${QUEUE_ARCHIVE_PLAN_ROOT}"
-            CONTEXT_FILE="${CURRENT_ARCHIVE_PLAN_ROOT}/context"
-            [[ -f "${CONTEXT_FILE}" ]] && [[ -r "${CONTEXT_FILE}" ]] || {
-                echo "Archive plan context file not found: ${CONTEXT_FILE}" >&2
-                return 1
-            }
-            ARCHIVE_PLAN_CONTEXT=$(<"${CONTEXT_FILE}") || {
-                echo "Unable to read archive plan context file: ${CONTEXT_FILE}" >&2
-                return 1
-            }
-            ARCHIVE_PLAN_CONTEXT_VARS=$(echo "${ARCHIVE_PLAN_CONTEXT}" | marsh_get_variables)
-            eval "$(printf '%s\n' "${ARCHIVE_PLAN_CONTEXT_VARS}" | marsh_get_local_declarations)" 2>/dev/null || {
-                echo "Unable to prepare archive plan context variables: ${CONTEXT_FILE}" >&2
-                return 1
-            }
-            eval "${ARCHIVE_PLAN_CONTEXT}" 2>/dev/null || {
-                echo "Unable to evaluate archive plan context: ${CONTEXT_FILE}" >&2
-                return 1
-            }
-            [[ "${BUILD_CONTEXT_TARGET_OUTPUT_REL+isset}" == "isset" ]] || {
-                echo "Archive plan context missing BUILD_CONTEXT_TARGET_OUTPUT_REL: ${CONTEXT_FILE}" >&2
-                return 1
-            }
+            eval "$(marsh_load_archive_plan_build_context "${CURRENT_ARCHIVE_PLAN_ROOT}")" || return 1
             TARGET_OUTPUT_REL="${BUILD_CONTEXT_TARGET_OUTPUT_REL}"
 
             # pre-copy template assets once per archive plan before parallel workers start
@@ -6939,32 +6957,7 @@ function marsh_build_target_archive_queue {  # marsh_build_target_archive_queue 
             CURRENT_DOCUMENT_INDEX=0
             CURRENT_DOCUMENT_RECORDS=()
 
-            CONTEXT_FILE="${CURRENT_ARCHIVE_PLAN_ROOT}/context"
-            [[ -f "${CONTEXT_FILE}" ]] && [[ -r "${CONTEXT_FILE}" ]] || {
-                echo "Archive plan context file not found: ${CONTEXT_FILE}" >&2
-                return 1
-            }
-            ARCHIVE_PLAN_CONTEXT=$(<"${CONTEXT_FILE}") || {
-                echo "Unable to read archive plan context file: ${CONTEXT_FILE}" >&2
-                return 1
-            }
-            ARCHIVE_PLAN_CONTEXT_VARS=$(echo "${ARCHIVE_PLAN_CONTEXT}" | marsh_get_variables)
-            eval "$(printf '%s\n' "${ARCHIVE_PLAN_CONTEXT_VARS}" | marsh_get_local_declarations)" 2>/dev/null || {
-                echo "Unable to prepare archive plan context variables: ${CONTEXT_FILE}" >&2
-                return 1
-            }
-            eval "${ARCHIVE_PLAN_CONTEXT}" 2>/dev/null || {
-                echo "Unable to evaluate archive plan context: ${CONTEXT_FILE}" >&2
-                return 1
-            }
-            [[ "${BUILD_CONTEXT_TARGET_OUTPUT_REL+isset}" == "isset" ]] || {
-                echo "Archive plan context missing BUILD_CONTEXT_TARGET_OUTPUT_REL: ${CONTEXT_FILE}" >&2
-                return 1
-            }
-            [[ "${BUILD_CONTEXT_SOURCE_ROOT+isset}" == "isset" ]] || {
-                echo "Archive plan context missing BUILD_CONTEXT_SOURCE_ROOT: ${CONTEXT_FILE}" >&2
-                return 1
-            }
+            eval "$(marsh_load_archive_plan_build_context "${CURRENT_ARCHIVE_PLAN_ROOT}")" || return 1
             TARGET_OUTPUT_REL="${BUILD_CONTEXT_TARGET_OUTPUT_REL}"
 
             DOCUMENTS_FILE="${CURRENT_ARCHIVE_PLAN_ROOT}/documents"
@@ -7034,32 +7027,7 @@ function marsh_build_target_archive_queue_record_document {  # marsh_build_targe
     eval "SOURCE_ROOT=${SOURCE_ROOT_ESC}"
     eval "ARCHIVE_PLAN_ROOT=${ARCHIVE_PLAN_ROOT_ESC}"
 
-    CONTEXT_FILE="${ARCHIVE_PLAN_ROOT}/context"
-    [[ -f "${CONTEXT_FILE}" ]] && [[ -r "${CONTEXT_FILE}" ]] || {
-        echo "Archive plan context file not found: ${CONTEXT_FILE}" >&2
-        return 1
-    }
-    ARCHIVE_PLAN_CONTEXT=$(<"${CONTEXT_FILE}") || {
-        echo "Unable to read archive plan context file: ${CONTEXT_FILE}" >&2
-        return 1
-    }
-    ARCHIVE_PLAN_CONTEXT_VARS=$(echo "${ARCHIVE_PLAN_CONTEXT}" | marsh_get_variables)
-    eval "$(printf '%s\n' "${ARCHIVE_PLAN_CONTEXT_VARS}" | marsh_get_local_declarations)" 2>/dev/null || {
-        echo "Unable to prepare archive plan context variables: ${CONTEXT_FILE}" >&2
-        return 1
-    }
-    eval "${ARCHIVE_PLAN_CONTEXT}" 2>/dev/null || {
-        echo "Unable to evaluate archive plan context: ${CONTEXT_FILE}" >&2
-        return 1
-    }
-    [[ "${BUILD_CONTEXT_TARGET_OUTPUT_REL+isset}" == "isset" ]] || {
-        echo "Archive plan context missing BUILD_CONTEXT_TARGET_OUTPUT_REL: ${CONTEXT_FILE}" >&2
-        return 1
-    }
-    [[ "${BUILD_CONTEXT_SOURCE_ROOT+isset}" == "isset" ]] || {
-        echo "Archive plan context missing BUILD_CONTEXT_SOURCE_ROOT: ${CONTEXT_FILE}" >&2
-        return 1
-    }
+    eval "$(marsh_load_archive_plan_build_context "${ARCHIVE_PLAN_ROOT}")" || return 1
     [[ "${TARGET_OUTPUT_REL}" == "${BUILD_CONTEXT_TARGET_OUTPUT_REL}" ]] || return 1
     [[ "${SOURCE_ROOT}" == "${BUILD_CONTEXT_SOURCE_ROOT}" ]] || return 1
 

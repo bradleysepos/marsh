@@ -6802,7 +6802,7 @@ function marsh_load_archive_plan_build_context {  # marsh_load_archive_plan_buil
     printf '%s\n' "${ARCHIVE_PLAN_CONTEXT}"
 }
 
-# builds aggregate archive-queue records for a target sequentially
+# builds aggregate archive-queue records for a target
 function marsh_build_target_archive_queue {  # marsh_build_target_archive_queue site_output_root log_level log_levels_csv jobs markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links target_plan_root
     local SITE_OUTPUT_ROOT LOG_LEVEL LOG_LEVELS_CSV JOBS MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_REWRITE_LINKS TARGET_PLAN_ROOT
     local TARGET_ARCHIVE_QUEUE_RECORDS_FILE QUEUE_RECORD DOCUMENT_RECORD
@@ -6896,7 +6896,7 @@ function marsh_build_target_archive_queue {  # marsh_build_target_archive_queue 
                 CURRENT_DOCUMENT_RECORDS+=("${DOCUMENT_RECORD}")
             done < "${DOCUMENTS_FILE}"
 
-            # copy assets once per archive plan while queue execution remains sequential
+            # copy assets once per archive plan before rendering that plan's queued records
             if [[ "${TEMPLATES_DIR}" != "" ]] && [[ "${TEMPLATE}" != "" ]]; then
                 marsh_copy_template_assets "${SITE_OUTPUT_ROOT}" "${TARGET_OUTPUT_REL}" "${LOG_LEVEL}" "${LOG_LEVELS_CSV}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_ASSETS_PATH}" || return 1
             fi

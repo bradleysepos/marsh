@@ -1550,6 +1550,30 @@ function marsh_test {
             fi
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TARGET_PLAN_ROOT}"
             ;;
+        marsh_build_planned_target:7)
+            TEST_NAME+=":fails_when_archive_queue_missing"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            TARGET_PLAN_ROOT="${TEST_TEMP_PREFIX}.plan"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
+            mkdir -p "${TARGET_PLAN_ROOT}" "${SOURCE_ROOT}"
+            marsh_write_target_plan_context "${TARGET_PLAN_ROOT}" "." false false "" false "" "" 0 "" "." "${SOURCE_ROOT}" >/dev/null 2>&1
+            marsh_write_target_plan_records "${TARGET_PLAN_ROOT}" "documents" >/dev/null 2>&1
+            marsh_write_target_plan_records "${TARGET_PLAN_ROOT}" "source-assets" >/dev/null 2>&1
+            marsh_write_target_plan_records "${TARGET_PLAN_ROOT}" "sitemaps" >/dev/null 2>&1
+            marsh_write_target_plan_records "${TARGET_PLAN_ROOT}" "archive-plans" '/tmp/archive-plan' >/dev/null 2>&1
+            ACTUAL=$(marsh_build_planned_target "${TARGET_OUTPUT_ROOT}" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "1" "marsh_test_markdown_command" "" "markdown,md" true "${TARGET_PLAN_ROOT}" 2>&1 >/dev/null)
+            STATUS=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${STATUS}" == "${EXPECTED}" ]]; then
+                EXPECTED="Target archive queue records file not found: ${TARGET_PLAN_ROOT}/archive-queue/records"
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${TARGET_OUTPUT_ROOT}" "${TARGET_PLAN_ROOT}" "${SOURCE_ROOT}"
+            ;;
         marsh_build_planned_target_documents:0)
             TEST_NAME+=":serial_success"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
@@ -1889,6 +1913,40 @@ function marsh_test {
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
+            ;;
+        marsh_build_target_archive_queue_record_document:0)
+            TEST_NAME+=":renders_single_queue_record"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
+            MANIFEST_FILE="${TEST_TEMP_PREFIX}.archive-manifest"
+            ARCHIVE_PLAN_ROOT=""
+            QUEUE_RECORD=""
+            mkdir -p "${SOURCE_ROOT}/news"
+            marsh_test_create_archive_template "${TEMPLATE_DIR}" "sample" "html" true
+            printf '%s\n' '---'$'\n''Type: post'$'\n''Date: 2026-01-01'$'\n''Title: Item'$'\n''...'$'\n'''$'\n''# Item' > "${SOURCE_ROOT}/news/item.markdown"
+            marsh_write_document_artifacts "${TARGET_OUTPUT_ROOT}" 'news/item.markdown' "${SOURCE_ROOT}/news/item.markdown"
+            marsh_test_write_archive_manifest "${TARGET_OUTPUT_ROOT}" "${MANIFEST_FILE}" 'news/item.markdown'
+            ARCHIVE_PLAN_ROOT=$(marsh_plan_archive_pages "${TARGET_OUTPUT_ROOT}" 'html' 'news/index.markdown' 'News' 'English' 'en' '' '10' '1' 'post' '0' "${MANIFEST_FILE}" '' "${TEMPLATE_DIR}" 'sample' '' false 0 '' '.' "${SOURCE_ROOT}")
+            QUEUE_RECORD=$(printf '%q\t%q\t%q\t%q\t%q\n' 'news/index.markdown' 'news/index.markdown' '.' "${SOURCE_ROOT}" "${ARCHIVE_PLAN_ROOT}")
+            marsh_copy_template_assets "${TARGET_OUTPUT_ROOT}" '.' "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "${TEMPLATE_DIR}" 'sample' 0 '' >/dev/null 2>&1
+            marsh_build_target_archive_queue_record_document "${TARGET_OUTPUT_ROOT}" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" 'marsh_test_markdown_command' '' 'markdown,md' true "${QUEUE_RECORD}" >/dev/null 2>&1
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                {
+                    [[ -e "${TARGET_OUTPUT_ROOT}/news/index.html" ]] \
+                        && [[ -e "${TARGET_OUTPUT_ROOT}/css/site.css" ]]
+                }
+                ACTUAL=$?
+                EXPECTED=0
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}" "${SOURCE_ROOT}" "${MANIFEST_FILE}"
             ;;
         marsh_build_target_documents:0)
             TEST_NAME+=":serial_success"
@@ -8903,6 +8961,7 @@ KNOWN_FUNCTIONS=(
     marsh_build_sitemap
     marsh_build_target_archive_queue
     marsh_build_target_archive_queue_record
+    marsh_build_target_archive_queue_record_document
     marsh_build_target_documents
     marsh_build_template
     marsh_check_dependencies

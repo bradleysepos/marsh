@@ -6844,6 +6844,7 @@ function marsh_build_target_archive_queue {  # marsh_build_target_archive_queue 
     local QUEUE_DOCUMENT_ID_ESC QUEUE_ARCHIVE_PLAN_ROOT_ESC QUEUE_DOCUMENT_ID QUEUE_ARCHIVE_PLAN_ROOT
     local CURRENT_ARCHIVE_PLAN_ROOT CONTEXT_FILE ARCHIVE_PLAN_CONTEXT ARCHIVE_PLAN_CONTEXT_VARS TARGET_OUTPUT_REL TARGET_SITEMAP TARGET_SITEMAP_SEARCH TEMPLATES_DIR TEMPLATE TEMPLATE_ASSETS_PATH
     local BUILD_CONTEXT_TARGET_OUTPUT_REL BUILD_CONTEXT_SOURCE_ROOT DOCUMENTS_FILE CURRENT_DOCUMENT_ID_ESC CURRENT_DOCUMENT_ID CURRENT_DOCUMENT_INDEX
+    local PARALLEL PARALLEL_MARKDOWN
     local -a TEMPLATE_OVERRIDES QUEUE_RECORDS CURRENT_DOCUMENT_RECORDS
 
     SITE_OUTPUT_ROOT="${1:-}"
@@ -6873,6 +6874,55 @@ function marsh_build_target_archive_queue {  # marsh_build_target_archive_queue 
         QUEUE_RECORDS+=("${QUEUE_RECORD}")
     done < "${TARGET_ARCHIVE_QUEUE_RECORDS_FILE}"
     [[ "${#QUEUE_RECORDS[@]}" -gt 0 ]] || return 0
+
+    PARALLEL=$(command -v parallel 2>/dev/null)
+    PARALLEL_MARKDOWN=""
+    [[ "${MARKDOWN_COMMAND}" != "markdown" ]] && PARALLEL_MARKDOWN="${MARKDOWN_COMMAND}"
+    if [[ "${#QUEUE_RECORDS[@]}" -gt 2 ]] && [[ "${JOBS:-1}" -gt 1 ]] && [[ "${PARALLEL:-}" != "" ]] && [[ "$(${PARALLEL} --version --no-notice 2>/dev/null | head -n 1 | grep -o 'GNU parallel')" == "GNU parallel" ]]; then
+        CURRENT_ARCHIVE_PLAN_ROOT=""
+        for QUEUE_RECORD in "${QUEUE_RECORDS[@]}"; do
+            IFS=$'\t' read -r _ _ _ _ QUEUE_ARCHIVE_PLAN_ROOT_ESC <<< "${QUEUE_RECORD}"
+            [[ "${QUEUE_ARCHIVE_PLAN_ROOT_ESC}" == "" ]] && return 1
+            eval "QUEUE_ARCHIVE_PLAN_ROOT=${QUEUE_ARCHIVE_PLAN_ROOT_ESC}"
+            if [[ "${CURRENT_ARCHIVE_PLAN_ROOT}" == "${QUEUE_ARCHIVE_PLAN_ROOT}" ]]; then
+                continue
+            fi
+            CURRENT_ARCHIVE_PLAN_ROOT="${QUEUE_ARCHIVE_PLAN_ROOT}"
+            CONTEXT_FILE="${CURRENT_ARCHIVE_PLAN_ROOT}/context"
+            [[ -f "${CONTEXT_FILE}" ]] && [[ -r "${CONTEXT_FILE}" ]] || {
+                echo "Archive plan context file not found: ${CONTEXT_FILE}" >&2
+                return 1
+            }
+            ARCHIVE_PLAN_CONTEXT=$(<"${CONTEXT_FILE}") || {
+                echo "Unable to read archive plan context file: ${CONTEXT_FILE}" >&2
+                return 1
+            }
+            ARCHIVE_PLAN_CONTEXT_VARS=$(echo "${ARCHIVE_PLAN_CONTEXT}" | marsh_get_variables)
+            eval "$(printf '%s\n' "${ARCHIVE_PLAN_CONTEXT_VARS}" | marsh_get_local_declarations)" 2>/dev/null || {
+                echo "Unable to prepare archive plan context variables: ${CONTEXT_FILE}" >&2
+                return 1
+            }
+            eval "${ARCHIVE_PLAN_CONTEXT}" 2>/dev/null || {
+                echo "Unable to evaluate archive plan context: ${CONTEXT_FILE}" >&2
+                return 1
+            }
+            [[ "${BUILD_CONTEXT_TARGET_OUTPUT_REL+isset}" == "isset" ]] || {
+                echo "Archive plan context missing BUILD_CONTEXT_TARGET_OUTPUT_REL: ${CONTEXT_FILE}" >&2
+                return 1
+            }
+            TARGET_OUTPUT_REL="${BUILD_CONTEXT_TARGET_OUTPUT_REL}"
+
+            # pre-copy template assets once per archive plan before parallel workers start
+            if [[ "${TEMPLATES_DIR}" != "" ]] && [[ "${TEMPLATE}" != "" ]]; then
+                marsh_copy_template_assets "${SITE_OUTPUT_ROOT}" "${TARGET_OUTPUT_REL}" "${LOG_LEVEL}" "${LOG_LEVELS_CSV}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_ASSETS_PATH}" || return 1
+            fi
+        done
+
+        if ! "${PARALLEL}" --halt now,fail=1 --quote --no-notice --jobs="${JOBS:-1}" "${SELF_DIR}/${SELF_NAME}" build-target-archive-queue-record --log-level="${LOG_LEVEL}" --markdown="${PARALLEL_MARKDOWN}" --markdown-options="${MARKDOWN_OPTIONS_CSV}" --markdown-file-extensions="${MARKDOWN_FILEEXT_CSV}" --markdown-rewrite-links="${MARKDOWN_REWRITE_LINKS}" --marsh-temp="${MARSH_TEMP}" --marsh-config-file="${MARSH_CONFIG_FILE}" --marsh-config-file-dir="${MARSH_CONFIG_FILE_DIR}" --marsh-config-path="${MARSH_CONFIG_PATH}" --marsh-config-url="${MARSH_CONFIG_URL}" "${SITE_OUTPUT_ROOT}" {} ::: "${QUEUE_RECORDS[@]}"; then
+            return 1
+        fi
+        return 0
+    fi
 
     CURRENT_ARCHIVE_PLAN_ROOT=""
     CURRENT_DOCUMENT_INDEX=0
@@ -6950,6 +7000,70 @@ function marsh_build_target_archive_queue {  # marsh_build_target_archive_queue 
         marsh_build_planned_target_documents "${SITE_OUTPUT_ROOT}" "${LOG_LEVEL}" "${LOG_LEVELS_CSV}" '1' "${TARGET_SITEMAP}" "${TARGET_SITEMAP_SEARCH}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_FILEEXT_CSV}" "${MARKDOWN_REWRITE_LINKS}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_ASSETS_PATH}" "${DOCUMENT_RECORD}" || return 1
         CURRENT_DOCUMENT_INDEX=$((CURRENT_DOCUMENT_INDEX + 1))
     done
+}
+
+# builds one archive queue record by loading its archive-plan context
+function marsh_build_target_archive_queue_record_document {  # marsh_build_target_archive_queue_record_document site_output_root log_level log_levels_csv markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links archive_queue_record
+    local SITE_OUTPUT_ROOT LOG_LEVEL LOG_LEVELS_CSV MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_REWRITE_LINKS ARCHIVE_QUEUE_RECORD
+    local DOCUMENT_ID_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC ARCHIVE_PLAN_ROOT_ESC
+    local DOCUMENT_ID SOURCE_RELPATH TARGET_OUTPUT_REL SOURCE_ROOT ARCHIVE_PLAN_ROOT
+    local CONTEXT_FILE ARCHIVE_PLAN_CONTEXT ARCHIVE_PLAN_CONTEXT_VARS TARGET_SITEMAP TARGET_SITEMAP_SEARCH TEMPLATES_DIR TEMPLATE TEMPLATE_ASSETS_PATH
+    local BUILD_CONTEXT_TARGET_OUTPUT_REL BUILD_CONTEXT_SOURCE_ROOT
+    local -a TEMPLATE_OVERRIDES
+
+    SITE_OUTPUT_ROOT="${1:-}"
+    LOG_LEVEL="${2:-}"
+    LOG_LEVELS_CSV="${3:-}"
+    MARKDOWN_COMMAND="${4:-}"
+    MARKDOWN_OPTIONS_CSV="${5:-}"
+    MARKDOWN_FILEEXT_CSV="${6:-}"
+    MARKDOWN_REWRITE_LINKS="${7:-}"
+    ARCHIVE_QUEUE_RECORD="${8:-}"
+    [[ "${SITE_OUTPUT_ROOT}" == "" ]] && return 1
+    [[ "${MARKDOWN_COMMAND}" == "" ]] && return 1
+    [[ "${MARKDOWN_FILEEXT_CSV}" == "" ]] && return 1
+    [[ "${MARKDOWN_REWRITE_LINKS}" == "" ]] && return 1
+    [[ "${ARCHIVE_QUEUE_RECORD}" == "" ]] && return 1
+
+    IFS=$'\t' read -r DOCUMENT_ID_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC ARCHIVE_PLAN_ROOT_ESC <<< "${ARCHIVE_QUEUE_RECORD}"
+    [[ "${DOCUMENT_ID_ESC}" == "" ]] && return 1
+    [[ "${ARCHIVE_PLAN_ROOT_ESC}" == "" ]] && return 1
+    eval "DOCUMENT_ID=${DOCUMENT_ID_ESC}"
+    eval "SOURCE_RELPATH=${SOURCE_RELPATH_ESC}"
+    eval "TARGET_OUTPUT_REL=${TARGET_OUTPUT_REL_ESC}"
+    eval "SOURCE_ROOT=${SOURCE_ROOT_ESC}"
+    eval "ARCHIVE_PLAN_ROOT=${ARCHIVE_PLAN_ROOT_ESC}"
+
+    CONTEXT_FILE="${ARCHIVE_PLAN_ROOT}/context"
+    [[ -f "${CONTEXT_FILE}" ]] && [[ -r "${CONTEXT_FILE}" ]] || {
+        echo "Archive plan context file not found: ${CONTEXT_FILE}" >&2
+        return 1
+    }
+    ARCHIVE_PLAN_CONTEXT=$(<"${CONTEXT_FILE}") || {
+        echo "Unable to read archive plan context file: ${CONTEXT_FILE}" >&2
+        return 1
+    }
+    ARCHIVE_PLAN_CONTEXT_VARS=$(echo "${ARCHIVE_PLAN_CONTEXT}" | marsh_get_variables)
+    eval "$(printf '%s\n' "${ARCHIVE_PLAN_CONTEXT_VARS}" | marsh_get_local_declarations)" 2>/dev/null || {
+        echo "Unable to prepare archive plan context variables: ${CONTEXT_FILE}" >&2
+        return 1
+    }
+    eval "${ARCHIVE_PLAN_CONTEXT}" 2>/dev/null || {
+        echo "Unable to evaluate archive plan context: ${CONTEXT_FILE}" >&2
+        return 1
+    }
+    [[ "${BUILD_CONTEXT_TARGET_OUTPUT_REL+isset}" == "isset" ]] || {
+        echo "Archive plan context missing BUILD_CONTEXT_TARGET_OUTPUT_REL: ${CONTEXT_FILE}" >&2
+        return 1
+    }
+    [[ "${BUILD_CONTEXT_SOURCE_ROOT+isset}" == "isset" ]] || {
+        echo "Archive plan context missing BUILD_CONTEXT_SOURCE_ROOT: ${CONTEXT_FILE}" >&2
+        return 1
+    }
+    [[ "${TARGET_OUTPUT_REL}" == "${BUILD_CONTEXT_TARGET_OUTPUT_REL}" ]] || return 1
+    [[ "${SOURCE_ROOT}" == "${BUILD_CONTEXT_SOURCE_ROOT}" ]] || return 1
+
+    marsh_build_document_and_template "${SITE_OUTPUT_ROOT}" "${TARGET_OUTPUT_REL}" "${DOCUMENT_ID}" "${TARGET_SITEMAP}" "${TARGET_SITEMAP_SEARCH}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${LOG_LEVEL}" "${LOG_LEVELS_CSV}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_FILEEXT_CSV}" "${MARKDOWN_REWRITE_LINKS}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_ASSETS_PATH}" "${BUILD_CONTEXT_TARGET_OUTPUT_REL}" "${BUILD_CONTEXT_SOURCE_ROOT}"
 }
 
 # plans all archives configured for one target
@@ -7155,7 +7269,7 @@ function marsh_build_planned_target {  # marsh_build_planned_target site_output_
     local CONFIG_FILE_DIR TARGET_NAME TARGET_TEMPLATE_SOURCE
     local TARGET_OUTPUT_ROOT CONTEXT_FILE DOCUMENTS_FILE SOURCE_ASSETS_FILE SITEMAPS_FILE ARCHIVE_PLANS_FILE PLAN_RECORD PLAN_RECORDS_COUNT
     local TARGET_ARCHIVE_PLAN_ROOT
-    local TEMPLATE_ASSETS TEMPLATE_ASSETS_COUNT ARCHIVE_DOCUMENTS_COUNT ARCHIVE_DOCUMENTS_FILE
+    local TEMPLATE_ASSETS TEMPLATE_ASSETS_COUNT ARCHIVE_DOCUMENTS_COUNT ARCHIVE_DOCUMENTS_FILE TARGET_ARCHIVE_QUEUE_RECORDS_FILE
     local -a TEMPLATE_OVERRIDES DOCUMENT_RECORDS SOURCE_ASSET_RECORDS SITEMAP_RECORDS ARCHIVE_PLAN_ROOTS
 
     SITE_OUTPUT_ROOT="${1:-}"
@@ -7284,31 +7398,25 @@ function marsh_build_planned_target {  # marsh_build_planned_target site_output_
     fi
 
     if [[ "${#ARCHIVE_PLAN_ROOTS[@]}" -gt 0 ]]; then
+        TARGET_ARCHIVE_QUEUE_RECORDS_FILE=$(marsh_get_target_archive_queue_records_path "${TARGET_PLAN_ROOT}") || return 1
         ARCHIVE_DOCUMENTS_COUNT=0
-        for TARGET_ARCHIVE_PLAN_ROOT in "${ARCHIVE_PLAN_ROOTS[@]}"; do
-            [[ "${TARGET_ARCHIVE_PLAN_ROOT}" == "" ]] && continue
-            ARCHIVE_DOCUMENTS_FILE="${TARGET_ARCHIVE_PLAN_ROOT}/documents"
-            if [[ -f "${ARCHIVE_DOCUMENTS_FILE}" ]] && [[ -r "${ARCHIVE_DOCUMENTS_FILE}" ]]; then
-                PLAN_RECORDS_COUNT=$(wc -l < "${ARCHIVE_DOCUMENTS_FILE}") || return 1
-                ARCHIVE_DOCUMENTS_COUNT=$((ARCHIVE_DOCUMENTS_COUNT + PLAN_RECORDS_COUNT))
-            fi
-        done
+        if [[ -f "${TARGET_ARCHIVE_QUEUE_RECORDS_FILE}" ]] && [[ -r "${TARGET_ARCHIVE_QUEUE_RECORDS_FILE}" ]]; then
+            PLAN_RECORDS_COUNT=$(wc -l < "${TARGET_ARCHIVE_QUEUE_RECORDS_FILE}") || return 1
+            ARCHIVE_DOCUMENTS_COUNT=$((ARCHIVE_DOCUMENTS_COUNT + PLAN_RECORDS_COUNT))
+        fi
         if marsh_should_log "info" "${LOG_LEVEL}" "${LOG_LEVELS_CSV}" && [[ "${TARGET_NUMBER}" != "" ]]; then
             echo "Target ${TARGET_NUMBER}: building $(marsh_inflect 'archive' "${#ARCHIVE_PLAN_ROOTS[@]}") with $(marsh_inflect 'output' "${ARCHIVE_DOCUMENTS_COUNT}")"
         fi
-        for TARGET_ARCHIVE_PLAN_ROOT in "${ARCHIVE_PLAN_ROOTS[@]}"; do
-            [[ "${TARGET_ARCHIVE_PLAN_ROOT}" == "" ]] && continue
-            marsh_build_planned_archive_documents \
-                "${SITE_OUTPUT_ROOT}" \
-                "${LOG_LEVEL}" \
-                "${LOG_LEVELS_CSV}" \
-                "${JOBS}" \
-                "${MARKDOWN_COMMAND}" \
-                "${MARKDOWN_OPTIONS_CSV}" \
-                "${MARKDOWN_FILEEXT_CSV}" \
-                "${MARKDOWN_REWRITE_LINKS}" \
-                "${TARGET_ARCHIVE_PLAN_ROOT}" || return 1
-        done
+        marsh_build_target_archive_queue \
+            "${SITE_OUTPUT_ROOT}" \
+            "${LOG_LEVEL}" \
+            "${LOG_LEVELS_CSV}" \
+            "${JOBS}" \
+            "${MARKDOWN_COMMAND}" \
+            "${MARKDOWN_OPTIONS_CSV}" \
+            "${MARKDOWN_FILEEXT_CSV}" \
+            "${MARKDOWN_REWRITE_LINKS}" \
+            "${TARGET_PLAN_ROOT}" || return 1
     fi
 }
 
@@ -7485,7 +7593,7 @@ function marsh_cli {
     marsh_env_cli
 
     # commands
-    COMMANDS=('build' 'build-document' 'build-document-and-template' 'build-template')
+    COMMANDS=('build' 'build-document' 'build-document-and-template' 'build-target-archive-queue-record' 'build-template')
     COMMAND="${1:-}"
 
     # validate command
@@ -7835,6 +7943,7 @@ function marsh_cli {
         BUILD_TEMPLATE_OVERRIDE_INDEX=$((BUILD_TEMPLATE_OVERRIDE_INDEX + 1))
     done
     BUILD_TEMPLATE_ASSETS_PATH="${!BUILD_TEMPLATE_OVERRIDE_INDEX:-}"
+    BUILD_QUEUE_RECORD="${2:-}"
 
     # parse config
     if [[ "${MARSH_CONFIG_FILE:-}" == "" ]]; then
@@ -8060,7 +8169,7 @@ function marsh_cli {
         # clean up
         rm -rf "${MARSH_TEMP}"
         trap - EXIT INT TERM
-    elif [[ "${COMMAND}" == "build-document" ]] || [[ "${COMMAND}" == "build-document-and-template" ]] || [[ "${COMMAND}" == "build-template" ]]; then
+    elif [[ "${COMMAND}" == "build-document" ]] || [[ "${COMMAND}" == "build-document-and-template" ]] || [[ "${COMMAND}" == "build-target-archive-queue-record" ]] || [[ "${COMMAND}" == "build-template" ]]; then
         BUILD_SITE_OUTPUT_ROOT="${BUILD_SITE_OUTPUT_ROOT%/}"
         BUILD_SITE_OUTPUT_ROOT="${BUILD_SITE_OUTPUT_ROOT:-.}"
         BUILD_TARGET_OUTPUT_REL="${BUILD_TARGET_OUTPUT_REL%/}"
@@ -8078,6 +8187,11 @@ function marsh_cli {
         # build single document and apply template where configured
         COMMAND_STATUS=0
         marsh_build_document_and_template "${BUILD_SITE_OUTPUT_ROOT}" "${BUILD_TARGET_OUTPUT_REL}" "${BUILD_DOCUMENT}" "${BUILD_SITEMAP}" "${BUILD_SITEMAP_SEARCH}" "${BUILD_TEMPLATES_DIR}" "${BUILD_TEMPLATE}" "${LOG_LEVEL}" "${LOG_LEVELS_CSV}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_FILEEXT_CSV}" "${MARKDOWN_REWRITE_LINKS}" "${#BUILD_TEMPLATE_OVERRIDES[@]}" "${BUILD_TEMPLATE_OVERRIDES[@]}" "${BUILD_TEMPLATE_ASSETS_PATH}" "${BUILD_CONTEXT_TARGET_OUTPUT_REL}" "${BUILD_CONTEXT_SOURCE_ROOT}"
+        COMMAND_STATUS=$?
+    elif [[ "${COMMAND}" == "build-target-archive-queue-record" ]]; then
+        # build one queued archive document using persisted archive-plan context
+        COMMAND_STATUS=0
+        marsh_build_target_archive_queue_record_document "${BUILD_SITE_OUTPUT_ROOT}" "${LOG_LEVEL}" "${LOG_LEVELS_CSV}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_FILEEXT_CSV}" "${MARKDOWN_REWRITE_LINKS}" "${BUILD_QUEUE_RECORD}"
         COMMAND_STATUS=$?
     elif [[ "${COMMAND}" == "build-template" ]]; then
         # build template for document

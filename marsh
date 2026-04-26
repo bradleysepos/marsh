@@ -3013,7 +3013,6 @@ function marsh_copy_template_assets {  # marsh_copy_template_assets site_output_
         }
         ASSET_SOURCE="${TEMPLATES_DIR}/${TEMPLATE}/${ASSET_PATH}"
         ASSET_DEST_PATH="${SITE_OUTPUT_ROOT}/${ASSET_OUTPUT_REL}"
-        [[ -e "${ASSET_SOURCE}" ]] && [[ -r "${ASSET_SOURCE}" ]] || continue
         TEMPLATE_ASSET_RECORDS+=("$(printf '%q\t%q\t%q\n' "${ASSET_SOURCE}" "${ASSET_DEST_PATH}" "${ASSET_OUTPUT_REL}")")
     done <<< "${TEMPLATE_ASSETS}"
 

@@ -2202,6 +2202,334 @@ function marsh_text_transform_headings {  # marsh_text_transform_headings action
     '
 }
 
+#
+# Path utilities
+#
+
+# returns a site-relative output path as either an absolute public URL or a normalized relative path
+function marsh_get_absolute_output_path {  # marsh_get_absolute_output_path output_path [path_kind]
+    local OUTPUT_PATH PATH_KIND NORMALIZED_PATH RELATIVE_PATH ABSOLUTE_PATH
+
+    OUTPUT_PATH="${1:-}"
+    PATH_KIND="${2:-path}"
+    [[ "${OUTPUT_PATH}" == "" ]] && return 1
+    [[ "${PATH_KIND}" == "path" || "${PATH_KIND}" == "directory" || "${PATH_KIND}" == "document" ]] || return 1
+
+    NORMALIZED_PATH=$(marsh_normalize_path "${OUTPUT_PATH}" "${PATH_KIND}") || return 1
+    if [[ "${MARSH_CONFIG_URL:-}" == "" ]]; then
+        printf '%s\n' "${NORMALIZED_PATH}"
+        return 0
+    fi
+
+    RELATIVE_PATH="${NORMALIZED_PATH}"
+    [[ "${RELATIVE_PATH}" == "./" ]] && RELATIVE_PATH=""
+    RELATIVE_PATH="${RELATIVE_PATH#./}"
+
+    ABSOLUTE_PATH="${MARSH_CONFIG_URL%/}"
+    if [[ "${RELATIVE_PATH}" != "" ]]; then
+        ABSOLUTE_PATH="${ABSOLUTE_PATH}/${RELATIVE_PATH}"
+    elif [[ "${PATH_KIND}" == "document" ]]; then
+        ABSOLUTE_PATH="${ABSOLUTE_PATH}/"
+    fi
+
+    marsh_normalize_path "${ABSOLUTE_PATH}" "${PATH_KIND}"
+}
+
+# returns the common directory for a list of paths
+function marsh_get_common_directory {  # marsh_get_common_directory paths...
+    local COMMON_DIR NEXT_DIR
+    local -a PATHS
+
+    PATHS=("${@}")
+    [[ "${#PATHS[@]}" -gt 0 ]] || return 1
+    COMMON_DIR="${PATHS[0]%/}"
+    [[ "${COMMON_DIR}" == "" ]] && COMMON_DIR='/'
+    for NEXT_DIR in "${PATHS[@]}"; do
+        NEXT_DIR="${NEXT_DIR%/}"
+        [[ "${NEXT_DIR}" == "" ]] && NEXT_DIR='/'
+        while [[ "${NEXT_DIR}" != "${COMMON_DIR}" ]] && [[ "${NEXT_DIR#${COMMON_DIR}/}" == "${NEXT_DIR}" ]]; do
+            if [[ "${COMMON_DIR}" == '/' ]]; then
+                break
+            fi
+            COMMON_DIR="${COMMON_DIR%/*}"
+            COMMON_DIR="${COMMON_DIR:-/}"
+        done
+    done
+    printf '%s\n' "${COMMON_DIR}"
+}
+
+# returns the normalized parent directory for an internal relative path
+function marsh_get_internal_parent_directory {  # marsh_get_internal_parent_directory path
+    local PATH_VALUE PARENT_DIR
+
+    PATH_VALUE="${1:-}"
+    [[ "${PATH_VALUE}" == "" ]] && return 1
+
+    PATH_VALUE=$(marsh_normalize_internal_path "${PATH_VALUE}") || return 1
+    if [[ "${PATH_VALUE}" == "." ]]; then
+        printf '%s\n' '.'
+        return 0
+    fi
+    if [[ "${PATH_VALUE}" == */* ]]; then
+        PARENT_DIR="${PATH_VALUE%/*}"
+    else
+        PARENT_DIR='.'
+    fi
+    printf '%s\n' "${PARENT_DIR}"
+}
+
+# calculates a relative link from one rendered page directory to a target document path
+function marsh_get_relative_path {  # marsh_get_relative_path base_dir target_path
+    local BASE_DIR TARGET_PATH BASE_DIR_NORM TARGET_PATH_NORM
+    local BASE_PATH TARGET_PATH_VALUE TARGET_IS_DIR
+    local RESULT I J COMMON_PREFIX
+    local -a BASE_PARTS TARGET_PARTS
+
+    BASE_DIR="${1:-}"
+    TARGET_PATH="${2:-}"
+    [[ "${BASE_DIR}" == "" ]] && return 1
+    [[ "${TARGET_PATH}" == "" ]] && return 1
+
+    BASE_DIR_NORM=$(marsh_normalize_path "${BASE_DIR}" "directory") || return 1
+    TARGET_PATH_NORM=$(marsh_normalize_path "${TARGET_PATH}" "document") || return 1
+
+    BASE_PATH="${BASE_DIR_NORM#./}"
+    BASE_PATH="${BASE_PATH%/}"
+    TARGET_PATH_VALUE="${TARGET_PATH_NORM#./}"
+    TARGET_IS_DIR=false
+    [[ "${TARGET_PATH_NORM}" == */ ]] && TARGET_IS_DIR=true
+    TARGET_PATH_VALUE="${TARGET_PATH_VALUE%/}"
+
+    BASE_PARTS=()
+    TARGET_PARTS=()
+    if [[ "${BASE_PATH}" != "" ]]; then
+        IFS='/' read -r -a BASE_PARTS <<< "${BASE_PATH}"
+    fi
+    if [[ "${TARGET_PATH_VALUE}" != "" ]]; then
+        IFS='/' read -r -a TARGET_PARTS <<< "${TARGET_PATH_VALUE}"
+    fi
+
+    COMMON_PREFIX=0
+    while [[ "${COMMON_PREFIX}" -lt "${#BASE_PARTS[@]}" ]] && [[ "${COMMON_PREFIX}" -lt "${#TARGET_PARTS[@]}" ]] && [[ "${BASE_PARTS[$COMMON_PREFIX]}" == "${TARGET_PARTS[$COMMON_PREFIX]}" ]]; do
+        COMMON_PREFIX=$((COMMON_PREFIX + 1))
+    done
+
+    RESULT=""
+    for ((I=COMMON_PREFIX; I<${#BASE_PARTS[@]}; I++)); do
+        RESULT="${RESULT}../"
+    done
+    for ((J=COMMON_PREFIX; J<${#TARGET_PARTS[@]}; J++)); do
+        RESULT="${RESULT}${TARGET_PARTS[$J]}"
+        if [[ "${J}" -lt $(( ${#TARGET_PARTS[@]} - 1 )) ]]; then
+            RESULT="${RESULT}/"
+        fi
+    done
+
+    if [[ "${RESULT}" == "" ]]; then
+        RESULT="./"
+    elif [[ "${TARGET_IS_DIR}" == true ]]; then
+        RESULT=$(marsh_normalize_path "${RESULT}" "directory") || return 1
+    fi
+
+    if [[ "${RESULT}" != "./" ]]; then
+        RESULT="${RESULT#./}"
+    fi
+
+    printf '%s\n' "${RESULT}"
+}
+
+# returns the common site source root for all configured targets
+function marsh_get_site_source_root_path {  # marsh_get_site_source_root_path config_file_dir
+    local CONFIG_FILE_DIR INDEX PREFIX META META_VARS TARGET_SOURCE_VALUE SOURCE_ROOT
+    local -a SOURCE_ROOTS
+
+    CONFIG_FILE_DIR="${1:-.}"
+    [[ -d "${CONFIG_FILE_DIR}" ]] || {
+        echo "Config file directory not found for site source root: ${CONFIG_FILE_DIR}" >&2
+        return 1
+    }
+    CONFIG_FILE_DIR=$(cd "${CONFIG_FILE_DIR}" && (pwd -P . 2>/dev/null || command pwd)) || {
+        echo "Unable to resolve config file directory for site source root: ${CONFIG_FILE_DIR}" >&2
+        return 1
+    }
+    SOURCE_ROOTS=()
+    INDEX=0
+    PREFIX="CONFIG_Build_Targets_${INDEX}_"
+    while META=$(marsh_get_target_metadata "${PREFIX}" "TARGET_"); do
+        META_VARS=$(echo "${META}" | marsh_get_variables)
+        eval "$(printf '%s\n' "${META_VARS}" | marsh_get_local_declarations)"
+        eval "${META}"
+        TARGET_SOURCE_VALUE="${TARGET_SOURCE:-}"
+        if [[ "${TARGET_SOURCE_VALUE}" != "" ]]; then
+            if [[ ! "${TARGET_SOURCE_VALUE}" =~ ^/ ]]; then
+                TARGET_SOURCE_VALUE="${CONFIG_FILE_DIR}/${TARGET_SOURCE_VALUE}"
+            fi
+            SOURCE_ROOT=$(marsh_get_source_root_path "${TARGET_SOURCE_VALUE}") || {
+                echo "Unable to resolve configured target source root: ${TARGET_SOURCE_VALUE}" >&2
+                return 1
+            }
+            SOURCE_ROOTS+=("${SOURCE_ROOT}")
+        fi
+        INDEX=$((INDEX + 1))
+        PREFIX="CONFIG_Build_Targets_${INDEX}_"
+    done
+    [[ "${#SOURCE_ROOTS[@]}" -gt 0 ]] || {
+        echo "No target sources configured for site source root resolution" >&2
+        return 1
+    }
+    marsh_get_common_directory "${SOURCE_ROOTS[@]}" || {
+        echo "Unable to determine common site source root from target sources" >&2
+        return 1
+    }
+}
+
+# returns the base directory for a target source path
+function marsh_get_source_root_path {  # marsh_get_source_root_path source_path
+    local SOURCE_PATH SOURCE_ROOT
+
+    SOURCE_PATH="${1:-}"
+    [[ "${SOURCE_PATH}" == "" ]] && return 1
+    if [[ -d "${SOURCE_PATH}" ]]; then
+        SOURCE_ROOT="${SOURCE_PATH}"
+    else
+        SOURCE_ROOT="${SOURCE_PATH%/*}"
+        SOURCE_ROOT="${SOURCE_ROOT:-.}"
+    fi
+    [[ -d "${SOURCE_ROOT}" ]] || return 1
+    SOURCE_ROOT=$(cd "${SOURCE_ROOT}" && (pwd -P . 2>/dev/null || command pwd)) || return 1
+    printf '%s\n' "${SOURCE_ROOT}"
+}
+
+# normalizes a marsh-internal relative path value for reuse in path helpers
+function marsh_normalize_internal_path {  # marsh_normalize_internal_path path [path_kind]
+    local PATH_VALUE PATH_KIND
+
+    PATH_VALUE="${1:-}"
+    PATH_KIND="${2:-path}"
+    [[ "${PATH_VALUE}" == "" ]] && return 1
+    [[ "${PATH_KIND}" == "path" || "${PATH_KIND}" == "directory" ]] || return 1
+
+    while [[ "${PATH_VALUE}" == ./* ]]; do
+        PATH_VALUE="${PATH_VALUE#./}"
+    done
+    while [[ "${PATH_VALUE}" == */. ]]; do
+        PATH_VALUE="${PATH_VALUE%/.}"
+    done
+
+    PATH_VALUE="${PATH_VALUE%/}"
+    PATH_VALUE="${PATH_VALUE:-.}/"
+    if [[ "${PATH_KIND}" != "directory" ]]; then
+        PATH_VALUE="${PATH_VALUE%/}"
+    fi
+
+    printf '%s\n' "${PATH_VALUE}"
+}
+
+# normalizes a path for directory or document semantics
+function marsh_normalize_path {  # marsh_normalize_path path [path_kind]
+    local PATH_VALUE PATH_KIND LEADING_DOT_SLASH
+
+    PATH_VALUE="${1:-}"
+    PATH_KIND="${2:-path}"
+    [[ "${PATH_VALUE}" == "" ]] && return 1
+    [[ "${PATH_KIND}" == "path" || "${PATH_KIND}" == "directory" || "${PATH_KIND}" == "document" ]] || return 1
+
+    if [[ "${PATH_KIND}" == "document" ]]; then
+        LEADING_DOT_SLASH=false
+        [[ "${PATH_VALUE}" == ./* ]] && LEADING_DOT_SLASH=true
+        if [[ "${PATH_VALUE}" == "index.html" ]]; then
+            PATH_VALUE=$(marsh_normalize_internal_path "." "directory") || return 1
+        elif [[ "${PATH_VALUE}" == */index.html ]]; then
+            PATH_VALUE=$(marsh_normalize_internal_path "${PATH_VALUE%/index.html}" "directory") || return 1
+            if [[ "${LEADING_DOT_SLASH}" == true ]] && [[ "${PATH_VALUE}" != "./" ]]; then
+                PATH_VALUE="./${PATH_VALUE}"
+            fi
+        fi
+    elif [[ "${PATH_KIND}" == "directory" ]]; then
+        LEADING_DOT_SLASH=false
+        [[ "${PATH_VALUE}" == ./* ]] && LEADING_DOT_SLASH=true
+        PATH_VALUE=$(marsh_normalize_internal_path "${PATH_VALUE}" "directory") || return 1
+        if [[ "${LEADING_DOT_SLASH}" == true ]] && [[ "${PATH_VALUE}" != "./" ]]; then
+            PATH_VALUE="./${PATH_VALUE}"
+        fi
+    else
+        PATH_VALUE=$(marsh_normalize_internal_path "${PATH_VALUE}") || return 1
+    fi
+
+    printf '%s\n' "${PATH_VALUE}"
+}
+
+# resolves a config-relative path against the config file directory without
+# changing absolute paths or glob expressions beyond prefixing the base dir
+function marsh_resolve_config_path {  # marsh_resolve_config_path config_file_dir path
+    local CONFIG_FILE_DIR PATH_VALUE
+
+    CONFIG_FILE_DIR="${1:-}"
+    PATH_VALUE="${2:-}"
+    [[ "${CONFIG_FILE_DIR}" == "" ]] && return 1
+    [[ "${PATH_VALUE}" == "" ]] && return 1
+
+    if [[ ! "${PATH_VALUE}" =~ ^/ ]]; then
+        PATH_VALUE="${CONFIG_FILE_DIR}/${PATH_VALUE}"
+    fi
+    PATH_VALUE="${PATH_VALUE#./}"
+    printf '%s\n' "${PATH_VALUE}"
+}
+
+# resolves a relative path against a base directory path without touching the filesystem
+function marsh_resolve_relative_path {  # marsh_resolve_relative_path base_dir target_path
+    local BASE_DIR TARGET_PATH BASE_DIR_NORM BASE_PATH TARGET_IS_DIR
+    local PART RESULT LAST_INDEX
+    local -a RESULT_PARTS INPUT_PARTS
+
+    BASE_DIR="${1:-}"
+    TARGET_PATH="${2:-}"
+    [[ "${BASE_DIR}" == "" ]] && return 1
+    [[ "${TARGET_PATH}" == "" ]] && return 1
+
+    BASE_DIR_NORM=$(marsh_normalize_path "${BASE_DIR}" "directory") || return 1
+    BASE_PATH="${BASE_DIR_NORM#./}"
+    BASE_PATH="${BASE_PATH%/}"
+    TARGET_IS_DIR=false
+    if [[ "${TARGET_PATH}" == */ ]] || [[ "${TARGET_PATH}" == "." ]] || [[ "${TARGET_PATH}" == "./" ]] || [[ "${TARGET_PATH}" == ".." ]] || [[ "${TARGET_PATH}" == "../" ]]; then
+        TARGET_IS_DIR=true
+    fi
+
+    RESULT_PARTS=()
+    if [[ "${BASE_PATH}" != "" ]]; then
+        IFS='/' read -r -a RESULT_PARTS <<< "${BASE_PATH}"
+    fi
+    IFS='/' read -r -a INPUT_PARTS <<< "${TARGET_PATH}"
+    for PART in "${INPUT_PARTS[@]}"; do
+        [[ "${PART}" == "" ]] && continue
+        if [[ "${PART}" == "." ]]; then
+            continue
+        elif [[ "${PART}" == ".." ]]; then
+            LAST_INDEX=$(( ${#RESULT_PARTS[@]} - 1 ))
+            if [[ "${#RESULT_PARTS[@]}" -gt 0 ]] && [[ "${RESULT_PARTS[$LAST_INDEX]}" != ".." ]]; then
+                unset 'RESULT_PARTS[$LAST_INDEX]'
+                RESULT_PARTS=("${RESULT_PARTS[@]}")
+            else
+                RESULT_PARTS+=("..")
+            fi
+        else
+            RESULT_PARTS+=("${PART}")
+        fi
+    done
+
+    RESULT=$(IFS=/; printf '%s' "${RESULT_PARTS[*]}")
+    RESULT="${RESULT:-.}"
+    if [[ "${TARGET_IS_DIR}" == true ]]; then
+        RESULT=$(marsh_normalize_path "${RESULT}" "directory") || return 1
+    else
+        RESULT=$(marsh_normalize_path "${RESULT}" "document") || return 1
+    fi
+    if [[ "${RESULT}" != "./" ]]; then
+        RESULT="${RESULT#./}"
+    fi
+    printf '%s\n' "${RESULT}"
+}
+
 # resolves a template tag to shell variable assignments
 function marsh_resolve_tag_metadata {  # marsh_resolve_tag_metadata tag_name prefix metadata_vars[@]
     local TAG_NAME PREFIX METADATA_VARS TAG_VAR TAG_TYPE
@@ -3060,91 +3388,6 @@ function marsh_get_target_metadata {  # marsh_get_target_metadata source_prefix 
     return 0
 }
 
-# returns the base directory for a target source path
-function marsh_get_source_root_path {  # marsh_get_source_root_path source_path
-    local SOURCE_PATH SOURCE_ROOT
-
-    SOURCE_PATH="${1:-}"
-    [[ "${SOURCE_PATH}" == "" ]] && return 1
-    if [[ -d "${SOURCE_PATH}" ]]; then
-        SOURCE_ROOT="${SOURCE_PATH}"
-    else
-        SOURCE_ROOT="${SOURCE_PATH%/*}"
-        SOURCE_ROOT="${SOURCE_ROOT:-.}"
-    fi
-    [[ -d "${SOURCE_ROOT}" ]] || return 1
-    SOURCE_ROOT=$(cd "${SOURCE_ROOT}" && (pwd -P . 2>/dev/null || command pwd)) || return 1
-    printf '%s\n' "${SOURCE_ROOT}"
-}
-
-# returns the common directory for a list of paths
-function marsh_get_common_directory {  # marsh_get_common_directory paths...
-    local COMMON_DIR NEXT_DIR
-    local -a PATHS
-
-    PATHS=("${@}")
-    [[ "${#PATHS[@]}" -gt 0 ]] || return 1
-    COMMON_DIR="${PATHS[0]%/}"
-    [[ "${COMMON_DIR}" == "" ]] && COMMON_DIR='/'
-    for NEXT_DIR in "${PATHS[@]}"; do
-        NEXT_DIR="${NEXT_DIR%/}"
-        [[ "${NEXT_DIR}" == "" ]] && NEXT_DIR='/'
-        while [[ "${NEXT_DIR}" != "${COMMON_DIR}" ]] && [[ "${NEXT_DIR#${COMMON_DIR}/}" == "${NEXT_DIR}" ]]; do
-            if [[ "${COMMON_DIR}" == '/' ]]; then
-                break
-            fi
-            COMMON_DIR="${COMMON_DIR%/*}"
-            COMMON_DIR="${COMMON_DIR:-/}"
-        done
-    done
-    printf '%s\n' "${COMMON_DIR}"
-}
-
-# returns the common site source root for all configured targets
-function marsh_get_site_source_root_path {  # marsh_get_site_source_root_path config_file_dir
-    local CONFIG_FILE_DIR INDEX PREFIX META META_VARS TARGET_SOURCE_VALUE SOURCE_ROOT
-    local -a SOURCE_ROOTS
-
-    CONFIG_FILE_DIR="${1:-.}"
-    [[ -d "${CONFIG_FILE_DIR}" ]] || {
-        echo "Config file directory not found for site source root: ${CONFIG_FILE_DIR}" >&2
-        return 1
-    }
-    CONFIG_FILE_DIR=$(cd "${CONFIG_FILE_DIR}" && (pwd -P . 2>/dev/null || command pwd)) || {
-        echo "Unable to resolve config file directory for site source root: ${CONFIG_FILE_DIR}" >&2
-        return 1
-    }
-    SOURCE_ROOTS=()
-    INDEX=0
-    PREFIX="CONFIG_Build_Targets_${INDEX}_"
-    while META=$(marsh_get_target_metadata "${PREFIX}" "TARGET_"); do
-        META_VARS=$(echo "${META}" | marsh_get_variables)
-        eval "$(printf '%s\n' "${META_VARS}" | marsh_get_local_declarations)"
-        eval "${META}"
-        TARGET_SOURCE_VALUE="${TARGET_SOURCE:-}"
-        if [[ "${TARGET_SOURCE_VALUE}" != "" ]]; then
-            if [[ ! "${TARGET_SOURCE_VALUE}" =~ ^/ ]]; then
-                TARGET_SOURCE_VALUE="${CONFIG_FILE_DIR}/${TARGET_SOURCE_VALUE}"
-            fi
-            SOURCE_ROOT=$(marsh_get_source_root_path "${TARGET_SOURCE_VALUE}") || {
-                echo "Unable to resolve configured target source root: ${TARGET_SOURCE_VALUE}" >&2
-                return 1
-            }
-            SOURCE_ROOTS+=("${SOURCE_ROOT}")
-        fi
-        INDEX=$((INDEX + 1))
-        PREFIX="CONFIG_Build_Targets_${INDEX}_"
-    done
-    [[ "${#SOURCE_ROOTS[@]}" -gt 0 ]] || {
-        echo "No target sources configured for site source root resolution" >&2
-        return 1
-    }
-    marsh_get_common_directory "${SOURCE_ROOTS[@]}" || {
-        echo "Unable to determine common site source root from target sources" >&2
-        return 1
-    }
-}
-
 # returns the intermediate render path for a target sitemap
 function marsh_get_sitemap_render_path {  # marsh_get_sitemap_render_path target_output_root sitemap_path
     local TARGET_OUTPUT_ROOT SITEMAP_PATH TARGET_BUILD_TEMP_ROOT SITEMAP_RENDER_CACHE_DIR SITEMAP_RENDER_KEY SITEMAP_RENDER_FILE
@@ -3737,196 +3980,6 @@ function marsh_copy_template_assets {  # marsh_copy_template_assets site_output_
     }
 }
 
-# resolves a config-relative path against the config file directory without
-# changing absolute paths or glob expressions beyond prefixing the base dir
-function marsh_resolve_config_path {  # marsh_resolve_config_path config_file_dir path
-    local CONFIG_FILE_DIR PATH_VALUE
-
-    CONFIG_FILE_DIR="${1:-}"
-    PATH_VALUE="${2:-}"
-    [[ "${CONFIG_FILE_DIR}" == "" ]] && return 1
-    [[ "${PATH_VALUE}" == "" ]] && return 1
-
-    if [[ ! "${PATH_VALUE}" =~ ^/ ]]; then
-        PATH_VALUE="${CONFIG_FILE_DIR}/${PATH_VALUE}"
-    fi
-    PATH_VALUE="${PATH_VALUE#./}"
-    printf '%s\n' "${PATH_VALUE}"
-}
-
-# normalizes a marsh-internal relative path value for reuse in path helpers
-function marsh_normalize_internal_path {  # marsh_normalize_internal_path path [path_kind]
-    local PATH_VALUE PATH_KIND
-
-    PATH_VALUE="${1:-}"
-    PATH_KIND="${2:-path}"
-    [[ "${PATH_VALUE}" == "" ]] && return 1
-    [[ "${PATH_KIND}" == "path" || "${PATH_KIND}" == "directory" ]] || return 1
-
-    while [[ "${PATH_VALUE}" == ./* ]]; do
-        PATH_VALUE="${PATH_VALUE#./}"
-    done
-    while [[ "${PATH_VALUE}" == */. ]]; do
-        PATH_VALUE="${PATH_VALUE%/.}"
-    done
-
-    PATH_VALUE="${PATH_VALUE%/}"
-    PATH_VALUE="${PATH_VALUE:-.}/"
-    if [[ "${PATH_KIND}" != "directory" ]]; then
-        PATH_VALUE="${PATH_VALUE%/}"
-    fi
-
-    printf '%s\n' "${PATH_VALUE}"
-}
-
-# normalizes a path for directory or document semantics
-function marsh_normalize_path {  # marsh_normalize_path path [path_kind]
-    local PATH_VALUE PATH_KIND LEADING_DOT_SLASH
-
-    PATH_VALUE="${1:-}"
-    PATH_KIND="${2:-path}"
-    [[ "${PATH_VALUE}" == "" ]] && return 1
-    [[ "${PATH_KIND}" == "path" || "${PATH_KIND}" == "directory" || "${PATH_KIND}" == "document" ]] || return 1
-
-    if [[ "${PATH_KIND}" == "document" ]]; then
-        LEADING_DOT_SLASH=false
-        [[ "${PATH_VALUE}" == ./* ]] && LEADING_DOT_SLASH=true
-        if [[ "${PATH_VALUE}" == "index.html" ]]; then
-            PATH_VALUE=$(marsh_normalize_internal_path "." "directory") || return 1
-        elif [[ "${PATH_VALUE}" == */index.html ]]; then
-            PATH_VALUE=$(marsh_normalize_internal_path "${PATH_VALUE%/index.html}" "directory") || return 1
-            if [[ "${LEADING_DOT_SLASH}" == true ]] && [[ "${PATH_VALUE}" != "./" ]]; then
-                PATH_VALUE="./${PATH_VALUE}"
-            fi
-        fi
-    elif [[ "${PATH_KIND}" == "directory" ]]; then
-        LEADING_DOT_SLASH=false
-        [[ "${PATH_VALUE}" == ./* ]] && LEADING_DOT_SLASH=true
-        PATH_VALUE=$(marsh_normalize_internal_path "${PATH_VALUE}" "directory") || return 1
-        if [[ "${LEADING_DOT_SLASH}" == true ]] && [[ "${PATH_VALUE}" != "./" ]]; then
-            PATH_VALUE="./${PATH_VALUE}"
-        fi
-    else
-        PATH_VALUE=$(marsh_normalize_internal_path "${PATH_VALUE}") || return 1
-    fi
-
-    printf '%s\n' "${PATH_VALUE}"
-}
-
-# calculates a relative link from one rendered page directory to a target document path
-function marsh_get_relative_path {  # marsh_get_relative_path base_dir target_path
-    local BASE_DIR TARGET_PATH BASE_DIR_NORM TARGET_PATH_NORM
-    local BASE_PATH TARGET_PATH_VALUE TARGET_IS_DIR
-    local RESULT I J COMMON_PREFIX
-    local -a BASE_PARTS TARGET_PARTS
-
-    BASE_DIR="${1:-}"
-    TARGET_PATH="${2:-}"
-    [[ "${BASE_DIR}" == "" ]] && return 1
-    [[ "${TARGET_PATH}" == "" ]] && return 1
-
-    BASE_DIR_NORM=$(marsh_normalize_path "${BASE_DIR}" "directory") || return 1
-    TARGET_PATH_NORM=$(marsh_normalize_path "${TARGET_PATH}" "document") || return 1
-
-    BASE_PATH="${BASE_DIR_NORM#./}"
-    BASE_PATH="${BASE_PATH%/}"
-    TARGET_PATH_VALUE="${TARGET_PATH_NORM#./}"
-    TARGET_IS_DIR=false
-    [[ "${TARGET_PATH_NORM}" == */ ]] && TARGET_IS_DIR=true
-    TARGET_PATH_VALUE="${TARGET_PATH_VALUE%/}"
-
-    BASE_PARTS=()
-    TARGET_PARTS=()
-    if [[ "${BASE_PATH}" != "" ]]; then
-        IFS='/' read -r -a BASE_PARTS <<< "${BASE_PATH}"
-    fi
-    if [[ "${TARGET_PATH_VALUE}" != "" ]]; then
-        IFS='/' read -r -a TARGET_PARTS <<< "${TARGET_PATH_VALUE}"
-    fi
-
-    COMMON_PREFIX=0
-    while [[ "${COMMON_PREFIX}" -lt "${#BASE_PARTS[@]}" ]] && [[ "${COMMON_PREFIX}" -lt "${#TARGET_PARTS[@]}" ]] && [[ "${BASE_PARTS[$COMMON_PREFIX]}" == "${TARGET_PARTS[$COMMON_PREFIX]}" ]]; do
-        COMMON_PREFIX=$((COMMON_PREFIX + 1))
-    done
-
-    RESULT=""
-    for ((I=COMMON_PREFIX; I<${#BASE_PARTS[@]}; I++)); do
-        RESULT="${RESULT}../"
-    done
-    for ((J=COMMON_PREFIX; J<${#TARGET_PARTS[@]}; J++)); do
-        RESULT="${RESULT}${TARGET_PARTS[$J]}"
-        if [[ "${J}" -lt $(( ${#TARGET_PARTS[@]} - 1 )) ]]; then
-            RESULT="${RESULT}/"
-        fi
-    done
-
-    if [[ "${RESULT}" == "" ]]; then
-        RESULT="./"
-    elif [[ "${TARGET_IS_DIR}" == true ]]; then
-        RESULT=$(marsh_normalize_path "${RESULT}" "directory") || return 1
-    fi
-
-    if [[ "${RESULT}" != "./" ]]; then
-        RESULT="${RESULT#./}"
-    fi
-
-    printf '%s\n' "${RESULT}"
-}
-
-# resolves a relative path against a base directory path without touching the filesystem
-function marsh_resolve_relative_path {  # marsh_resolve_relative_path base_dir target_path
-    local BASE_DIR TARGET_PATH BASE_DIR_NORM BASE_PATH TARGET_IS_DIR
-    local PART RESULT LAST_INDEX
-    local -a RESULT_PARTS INPUT_PARTS
-
-    BASE_DIR="${1:-}"
-    TARGET_PATH="${2:-}"
-    [[ "${BASE_DIR}" == "" ]] && return 1
-    [[ "${TARGET_PATH}" == "" ]] && return 1
-
-    BASE_DIR_NORM=$(marsh_normalize_path "${BASE_DIR}" "directory") || return 1
-    BASE_PATH="${BASE_DIR_NORM#./}"
-    BASE_PATH="${BASE_PATH%/}"
-    TARGET_IS_DIR=false
-    if [[ "${TARGET_PATH}" == */ ]] || [[ "${TARGET_PATH}" == "." ]] || [[ "${TARGET_PATH}" == "./" ]] || [[ "${TARGET_PATH}" == ".." ]] || [[ "${TARGET_PATH}" == "../" ]]; then
-        TARGET_IS_DIR=true
-    fi
-
-    RESULT_PARTS=()
-    if [[ "${BASE_PATH}" != "" ]]; then
-        IFS='/' read -r -a RESULT_PARTS <<< "${BASE_PATH}"
-    fi
-    IFS='/' read -r -a INPUT_PARTS <<< "${TARGET_PATH}"
-    for PART in "${INPUT_PARTS[@]}"; do
-        [[ "${PART}" == "" ]] && continue
-        if [[ "${PART}" == "." ]]; then
-            continue
-        elif [[ "${PART}" == ".." ]]; then
-            LAST_INDEX=$(( ${#RESULT_PARTS[@]} - 1 ))
-            if [[ "${#RESULT_PARTS[@]}" -gt 0 ]] && [[ "${RESULT_PARTS[$LAST_INDEX]}" != ".." ]]; then
-                unset 'RESULT_PARTS[$LAST_INDEX]'
-                RESULT_PARTS=("${RESULT_PARTS[@]}")
-            else
-                RESULT_PARTS+=("..")
-            fi
-        else
-            RESULT_PARTS+=("${PART}")
-        fi
-    done
-
-    RESULT=$(IFS=/; printf '%s' "${RESULT_PARTS[*]}")
-    RESULT="${RESULT:-.}"
-    if [[ "${TARGET_IS_DIR}" == true ]]; then
-        RESULT=$(marsh_normalize_path "${RESULT}" "directory") || return 1
-    else
-        RESULT=$(marsh_normalize_path "${RESULT}" "document") || return 1
-    fi
-    if [[ "${RESULT}" != "./" ]]; then
-        RESULT="${RESULT#./}"
-    fi
-    printf '%s\n' "${RESULT}"
-}
-
 # derives normalized target/document path values shared by document and template builds
 function marsh_get_target_document_paths {  # marsh_get_target_document_paths document site_output_root target_output_rel markdown_fileext_csv
     local DOCUMENT SITE_OUTPUT_ROOT TARGET_OUTPUT_REL MARKDOWN_FILEEXT_CSV
@@ -4495,55 +4548,6 @@ function marsh_publish_processed_output {  # marsh_publish_processed_output sour
         echo "Unable to publish processed output: ${SOURCE_FILE} -> ${DEST_FILE}" >&2
         return 1
     }
-}
-
-# returns a site-relative output path as either an absolute public URL or a normalized relative path
-function marsh_get_absolute_output_path {  # marsh_get_absolute_output_path output_path [path_kind]
-    local OUTPUT_PATH PATH_KIND NORMALIZED_PATH RELATIVE_PATH ABSOLUTE_PATH
-
-    OUTPUT_PATH="${1:-}"
-    PATH_KIND="${2:-path}"
-    [[ "${OUTPUT_PATH}" == "" ]] && return 1
-    [[ "${PATH_KIND}" == "path" || "${PATH_KIND}" == "directory" || "${PATH_KIND}" == "document" ]] || return 1
-
-    NORMALIZED_PATH=$(marsh_normalize_path "${OUTPUT_PATH}" "${PATH_KIND}") || return 1
-    if [[ "${MARSH_CONFIG_URL:-}" == "" ]]; then
-        printf '%s\n' "${NORMALIZED_PATH}"
-        return 0
-    fi
-
-    RELATIVE_PATH="${NORMALIZED_PATH}"
-    [[ "${RELATIVE_PATH}" == "./" ]] && RELATIVE_PATH=""
-    RELATIVE_PATH="${RELATIVE_PATH#./}"
-
-    ABSOLUTE_PATH="${MARSH_CONFIG_URL%/}"
-    if [[ "${RELATIVE_PATH}" != "" ]]; then
-        ABSOLUTE_PATH="${ABSOLUTE_PATH}/${RELATIVE_PATH}"
-    elif [[ "${PATH_KIND}" == "document" ]]; then
-        ABSOLUTE_PATH="${ABSOLUTE_PATH}/"
-    fi
-
-    marsh_normalize_path "${ABSOLUTE_PATH}" "${PATH_KIND}"
-}
-
-# returns the normalized parent directory for an internal relative path
-function marsh_get_internal_parent_directory {  # marsh_get_internal_parent_directory path
-    local PATH_VALUE PARENT_DIR
-
-    PATH_VALUE="${1:-}"
-    [[ "${PATH_VALUE}" == "" ]] && return 1
-
-    PATH_VALUE=$(marsh_normalize_internal_path "${PATH_VALUE}") || return 1
-    if [[ "${PATH_VALUE}" == "." ]]; then
-        printf '%s\n' '.'
-        return 0
-    fi
-    if [[ "${PATH_VALUE}" == */* ]]; then
-        PARENT_DIR="${PATH_VALUE%/*}"
-    else
-        PARENT_DIR='.'
-    fi
-    printf '%s\n' "${PARENT_DIR}"
 }
 
 # rewrites relative href values in a rendered sitemap for the destination document

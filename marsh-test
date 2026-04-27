@@ -414,7 +414,7 @@ function marsh_test_reset_temp {
 function marsh_test_group {
     local FUNCTION_NAME="${1}" ERRORS TEST_ID RES
     ERRORS=0
-    for TEST_ID in $(seq 0 99); do
+    for TEST_ID in $(seq 0 199); do
         marsh_test "${FUNCTION_NAME}:${TEST_ID}"
         RES=$?
         if [[ "${RES}" -eq 1 ]]; then

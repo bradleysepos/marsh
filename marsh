@@ -469,7 +469,6 @@ function marsh_cli {
             return 1
         fi
         MARSH_CONFIG_URL="${CONFIG_Build_URL:-}"
-        #export MARSH_CONFIG_FILE MARSH_CONFIG_FILE_DIR MARSH_CONFIG_PATH MARSH_CONFIG_URL
     fi
 
     # dependencies

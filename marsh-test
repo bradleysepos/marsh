@@ -13,7 +13,7 @@ SELF_NAME=$(basename "${SELF}")
 SYS_NAME=$(uname | awk '{ print tolower($0)}')
 HELP="\
 usage: ${SELF_NAME} [-h | --help]
-       ${SELF_NAME} [--marsh marsh] [test_name[,...]]
+       ${SELF_NAME} [--marsh marsh] [test_name [...]]
 where:
   -h, --help
         display this help text

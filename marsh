@@ -699,6 +699,285 @@ function marsh_cli {
     return "${COMMAND_STATUS:-0}"
 }
 
+#
+# Utility functions
+#
+
+# checks for required external tools
+function marsh_check_dependencies {  # marsh_check_dependencies $DEP1 $DEP2 ...
+    local DEPS_EACH FOUND DEP
+    local -a DEPS ERRORS DEPS_MULTI
+    DEPS=("${@}");
+    ERRORS=()
+    for DEPS_EACH in "${DEPS[@]}"; do
+        DEPS_MULTI=(${DEPS_EACH//|/ })
+        FOUND=false
+        for DEP in "${DEPS_MULTI[@]}"; do
+            if [[ "${DEP}" == */* ]]; then
+                if [[ -x "${DEP}" ]]; then
+                    FOUND=true
+                fi
+                break
+            elif command -v "${DEP}" >/dev/null 2>&1; then
+                FOUND=true
+                break
+            fi
+        done
+        if [[ "${FOUND}" == false ]]; then
+            ERRORS+=("${DEPS_EACH}")
+        fi
+    done
+    if [[ "${#ERRORS[@]}" -ne 0 ]]; then
+        echo "dependencies: ${DEPS[@]}" >&2
+        echo "unable to find command(s): ${ERRORS[*]}" >&2
+        return 1
+    fi
+}
+
+# copies files from local sources
+function marsh_copy_files {  # marsh_copy_files source dest force
+    local SOURCE DEST FORCE
+    local SOURCE_DIR FILES_LIST FILE
+
+    # init
+    SOURCE="${1:-}"
+    DEST="${2:-}"
+    if [[ "${SOURCE}" == "" ]]; then
+        echo "Internal error copying files: source empty" >&2
+        return 1
+    elif [[ "${DEST}" == "" ]]; then
+        echo "Internal error copying files: destination empty" >&2
+        return 1
+    fi
+    SOURCE_DIR="${SOURCE%/*}"
+    SOURCE_DIR="${SOURCE_DIR:-.}"
+    FORCE="${3:-}"
+
+    # select files for copy
+    if [[ -d "${SOURCE}" ]]; then
+        FILES_LIST="${SOURCE#$SOURCE_DIR/}"
+        DEST="${DEST%/$FILES_LIST}"
+    else
+        FILES_LIST=$(cd "${SOURCE_DIR}" >/dev/null 2>&1 && find . -maxdepth 1 -name "${SOURCE##*/}" | sed -e 's/^\.\///' -e 's/^\.$//')
+        if [[ $? -ne 0 ]]; then
+            echo "Unable to change into directory: ${SOURCE_DIR}" >&2
+            return 1
+        fi
+    fi
+
+    while IFS= read -r FILE; do
+        [[ "${FILE}" == "" ]] && continue
+        # sanity
+        if [[ "${SOURCE_DIR}/${FILE}" == "${DEST%/}/${FILE}" ]]; then
+            # same source and destination
+            echo "Source and destination paths are equal: ${DEST}" >&2
+            return 1
+        fi
+        if [[ -e "${DEST%/}/${FILE}" ]] && [[ "${FORCE}" != true ]]; then
+            # path exists
+            echo "Path exists (--force to overwrite): ${DEST%/}/${FILE}" >&2
+            return 1
+        fi
+        # create path
+        DEST="${DEST%/.}"
+        if ! mkdir -p "${DEST}"; then
+            echo "Unable to create path: ${DEST}" >&2
+            return 1
+        fi
+        # clean destination
+        if ! rm -rf "${DEST%/}/${FILE}"; then
+            echo "Unable to replace path: ${DEST}" >&2
+            return 1
+        fi
+        # copy
+        if ! cp -R "${SOURCE_DIR}/${FILE}" "${DEST%/}/${FILE}"; then
+            echo "Unable to copy file: ${SOURCE_DIR}/${FILE} -> ${DEST%/}/${FILE}" >&2
+            return 1
+        fi
+    done <<< "${FILES_LIST}"
+    return 0
+}
+
+# escapes arbitrary text into a stable cache-safe path component
+function marsh_escape_cache_component {  # marsh_escape_cache_component value
+    local VALUE
+
+    # init
+    [[ "${1+isset}" == "isset" ]] || return 1
+    VALUE="${1}"
+
+    # escape separators and path syntax that would change cache addressing
+    VALUE="${VALUE//%/%25}"
+    VALUE="${VALUE//$'\034'/%1C}"
+    VALUE="${VALUE//$'\035'/%1D}"
+    VALUE="${VALUE//\//%2F}"
+    VALUE="${VALUE//\\/%5C}"
+    VALUE="${VALUE//:/%3A}"
+    VALUE="${VALUE//$'\n'/%0A}"
+    VALUE="${VALUE//$'\r'/%0D}"
+    VALUE="${VALUE//$'\t'/%09}"
+    VALUE="${VALUE// /%20}"
+
+    # keep empty and dot-only values from collapsing into special path segments
+    case "${VALUE}" in
+        "")
+            VALUE="__empty__"
+            ;;
+        .)
+            VALUE="%2E"
+            ;;
+        ..)
+            VALUE="%2E%2E"
+            ;;
+    esac
+
+    printf '%s\n' "${VALUE}"
+}
+
+# escapes text for safe sed replacement, trimming trailing newlines to match shell command substitution behavior
+function marsh_escape_substitution {  # marsh_escape_substitution
+    sed -e ':a' -e '$!{N' -e 'ba' -e '}' -e 's/\n*$//' -e 's/[&/\]/\\&/g' -e 's/\n/\\&/g'
+}
+
+# creates an array from the contents of flat variables
+# TEST_0="foo"; TEST_1="bar"; TEST_2="baz"
+# eval $(marsh_flat_to_array "TEST" "TEST_")  # loops over TEST_{0..2}
+# echo "${TEST[*]}"                           # foo bar baz
+function marsh_flat_to_array {  # marsh_flat_to_array array_name variable_prefix
+    local ARRAY_NAME PREFIX INDEX ITEM_NAME ITEM_VALUE
+    ARRAY_NAME="${1:-}"
+    [[ "${ARRAY_NAME}" == "" ]] && return 1
+    PREFIX="${2:-}"
+    [[ "${PREFIX}" == "" ]] && return 1
+    echo "${ARRAY_NAME}=()"
+    INDEX=0
+    ITEM_NAME="${PREFIX}${INDEX}"
+    while [[ -n "${!ITEM_NAME+isset}" ]]; do
+        ITEM_VALUE="${!ITEM_NAME}"
+        echo "${ARRAY_NAME}+=(\"${ITEM_VALUE//\"/\\\"}\")"
+        INDEX=$((INDEX + 1))
+        ITEM_NAME="${PREFIX}${INDEX}"
+    done
+    return 0
+}
+
+# formats elapsed seconds as XmY.ZZZs
+function marsh_format_elapsed_time {  # marsh_format_elapsed_time elapsed_seconds
+    local ELAPSED_SECONDS
+
+    ELAPSED_SECONDS="${1:-}"
+    [[ "${ELAPSED_SECONDS}" == "" ]] && return 1
+    awk -v elapsed_seconds="${ELAPSED_SECONDS}" '
+    BEGIN {
+        elapsed = elapsed_seconds + 0
+        if (elapsed < 0) {
+            elapsed = 0
+        }
+        elapsed_millis = int((elapsed * 1000) + 0.5)
+        minutes = int(elapsed_millis / 60000)
+        seconds = (elapsed_millis % 60000) / 1000
+        printf "%dm%.3fs\n", minutes, seconds
+    }
+    '
+}
+
+# builds a cache file path from one or more stable key parts, chunking long components into nested directories
+function marsh_get_cache_path {  # marsh_get_cache_path cache_root suffix key_part [key_part...]
+    local CACHE_ROOT SUFFIX KEY_PART KEY_ESC CACHE_PATH CHUNK_SIZE
+
+    # init
+    CACHE_ROOT="${1:-}"
+    SUFFIX="${2:-}"
+    [[ "${CACHE_ROOT}" == "" ]] && return 1
+    shift 2
+    [[ "${#@}" -gt 0 ]] || return 1
+
+    # chunk size should be small enough to avoid filesystem limits on filename length
+    # and large enough to avoid excessive nesting for source paths
+    CHUNK_SIZE=120
+
+    CACHE_PATH="${CACHE_ROOT}"
+    while [[ "${#@}" -gt 0 ]]; do
+        KEY_PART="${1}"
+        shift 1
+        KEY_ESC=$(marsh_escape_cache_component "${KEY_PART}") || return 1
+
+        # split oversized keys into nested segments to avoid long filenames
+        while [[ "${#KEY_ESC}" -gt "${CHUNK_SIZE}" ]]; do
+            CACHE_PATH="${CACHE_PATH}/${KEY_ESC:0:${CHUNK_SIZE}}"
+            KEY_ESC="${KEY_ESC:${CHUNK_SIZE}}"
+        done
+        CACHE_PATH="${CACHE_PATH}/${KEY_ESC}"
+    done
+
+    printf '%s\n' "${CACHE_PATH}${SUFFIX}"
+}
+
+# prints local declarations for the given list of variable names, one per line
+function marsh_get_local_declarations {  # marsh_get_local_declarations variables_string
+    sed -n -E -e '/^$/d' -e 's/^/local /p'
+}
+
+# returns a shell-native timestamp for elapsed-time measurement
+function marsh_get_shell_timestamp {  # marsh_get_shell_timestamp
+    local NOW
+
+    if [[ "${EPOCHREALTIME:-}" != "" ]]; then
+        printf '%s\n' "${EPOCHREALTIME}"
+        return 0
+    fi
+
+    NOW="${SECONDS:-0}"
+    printf '%s.000\n' "${NOW}"
+}
+
+# prints a list of variables given their assignment commands, one per line, e.g. FOO="bar" prints FOO
+function marsh_get_variables {  # marsh_get_variables assignments_string
+    sed -E -e 's/^([^=]+[^+])[+]?=.*/\1/' | sort -u
+}
+
+# formats a count plus a simple singular or plural label derived from the input
+# not a true inflector, but useful for simple cases like "1 plan" vs "2 plans"
+function marsh_inflect {  # marsh_inflect string count
+    local STRING_VALUE COUNT_VALUE LABEL
+
+    STRING_VALUE="${1:-}"
+    COUNT_VALUE="${2:-0}"
+    [[ "${STRING_VALUE}" == "" ]] && return 1
+    [[ "${COUNT_VALUE}" =~ ^[0-9]+$ ]] || return 1
+
+    LABEL="${STRING_VALUE}"
+    if [[ "${COUNT_VALUE}" -ne 1 ]]; then
+        LABEL="${LABEL}s"
+    fi
+
+    printf '%s %s\n' "${COUNT_VALUE}" "${LABEL}"
+}
+
+# tests whether a string is an exact match for an array item
+function marsh_in_array {  # marsh_in_array needle haystack[@]
+    local e
+    for e in "${@:2}"; do
+        [[ "${e}" == "${1}" ]] && return 0;
+    done
+    return 1
+}
+
+# returns success when file extension is a markdown file extension
+function marsh_is_markdown_extension {  # marsh_is_markdown_extension file_ext markdown_fileext_csv
+    local FILE_EXT MARKDOWN_FILEEXT_CSV MD_EXT
+
+    FILE_EXT="${1:-}"
+    MARKDOWN_FILEEXT_CSV="${2:-}"
+    [[ "${FILE_EXT}" == "" ]] && return 1
+    [[ "${MARKDOWN_FILEEXT_CSV}" == "" ]] && return 1
+    FILE_EXT=$(printf '%s' "${FILE_EXT}" | awk '{ print tolower($0) }')
+    for MD_EXT in ${MARKDOWN_FILEEXT_CSV//,/ }; do
+        [[ "${FILE_EXT}" == "${MD_EXT}" ]] && return 0
+    done
+    return 1
+}
+
 # creates bash variables from yaml records
 # extended to support arrays, empty values, and more
 # https://gist.github.com/DinoChiesa/3e3c3866b51290f31243
@@ -922,64 +1201,15 @@ function marsh_parse_yaml {  # marsh_parse_yaml yaml_string_or_file variables_pr
         }'
 }
 
-# tests whether a string is an exact match for an array item
-function marsh_in_array {  # marsh_in_array needle haystack[@]
-    local e
-    for e in "${@:2}"; do
-        [[ "${e}" == "${1}" ]] && return 0;
-    done
-    return 1
-}
+# prints a single build artifact output path formatted for verbose mode
+function marsh_print_verbose_output_path {  # marsh_print_verbose_output_path output_path
+    local OUTPUT_PATH
 
-# formats a count plus a simple singular or plural label derived from the input
-# not a true inflector, but useful for simple cases like "1 plan" vs "2 plans"
-function marsh_inflect {  # marsh_inflect string count
-    local STRING_VALUE COUNT_VALUE LABEL
+    OUTPUT_PATH="${1:-}"
+    OUTPUT_PATH="${OUTPUT_PATH#./}"
+    [[ "${OUTPUT_PATH}" == "" ]] && return 0
 
-    STRING_VALUE="${1:-}"
-    COUNT_VALUE="${2:-0}"
-    [[ "${STRING_VALUE}" == "" ]] && return 1
-    [[ "${COUNT_VALUE}" =~ ^[0-9]+$ ]] || return 1
-
-    LABEL="${STRING_VALUE}"
-    if [[ "${COUNT_VALUE}" -ne 1 ]]; then
-        LABEL="${LABEL}s"
-    fi
-
-    printf '%s %s\n' "${COUNT_VALUE}" "${LABEL}"
-}
-
-# returns a shell-native timestamp for elapsed-time measurement
-function marsh_get_shell_timestamp {  # marsh_get_shell_timestamp
-    local NOW
-
-    if [[ "${EPOCHREALTIME:-}" != "" ]]; then
-        printf '%s\n' "${EPOCHREALTIME}"
-        return 0
-    fi
-
-    NOW="${SECONDS:-0}"
-    printf '%s.000\n' "${NOW}"
-}
-
-# formats elapsed seconds as XmY.ZZZs
-function marsh_format_elapsed_time {  # marsh_format_elapsed_time elapsed_seconds
-    local ELAPSED_SECONDS
-
-    ELAPSED_SECONDS="${1:-}"
-    [[ "${ELAPSED_SECONDS}" == "" ]] && return 1
-    awk -v elapsed_seconds="${ELAPSED_SECONDS}" '
-    BEGIN {
-        elapsed = elapsed_seconds + 0
-        if (elapsed < 0) {
-            elapsed = 0
-        }
-        elapsed_millis = int((elapsed * 1000) + 0.5)
-        minutes = int(elapsed_millis / 60000)
-        seconds = (elapsed_millis % 60000) / 1000
-        printf "%dm%.3fs\n", minutes, seconds
-    }
-    '
+    echo "  - ${OUTPUT_PATH}"
 }
 
 # returns success when the requested log level is included by the active log level
@@ -1028,212 +1258,6 @@ function marsh_should_log {  # marsh_should_log requested_log_level active_log_l
         return 0
     fi
     return 1
-}
-
-# prints a single build artifact output path formatted for verbose mode
-function marsh_print_verbose_output_path {  # marsh_print_verbose_output_path output_path
-    local OUTPUT_PATH
-
-    OUTPUT_PATH="${1:-}"
-    OUTPUT_PATH="${OUTPUT_PATH#./}"
-    [[ "${OUTPUT_PATH}" == "" ]] && return 0
-
-    echo "  - ${OUTPUT_PATH}"
-}
-
-# creates an array from the contents of flat variables
-# TEST_0="foo"; TEST_1="bar"; TEST_2="baz"
-# eval $(marsh_flat_to_array "TEST" "TEST_")  # loops over TEST_{0..2}
-# echo "${TEST[*]}"                           # foo bar baz
-function marsh_flat_to_array {  # marsh_flat_to_array array_name variable_prefix
-    local ARRAY_NAME PREFIX INDEX ITEM_NAME ITEM_VALUE
-    ARRAY_NAME="${1:-}"
-    [[ "${ARRAY_NAME}" == "" ]] && return 1
-    PREFIX="${2:-}"
-    [[ "${PREFIX}" == "" ]] && return 1
-    echo "${ARRAY_NAME}=()"
-    INDEX=0
-    ITEM_NAME="${PREFIX}${INDEX}"
-    while [[ -n "${!ITEM_NAME+isset}" ]]; do
-        ITEM_VALUE="${!ITEM_NAME}"
-        echo "${ARRAY_NAME}+=(\"${ITEM_VALUE//\"/\\\"}\")"
-        INDEX=$((INDEX + 1))
-        ITEM_NAME="${PREFIX}${INDEX}"
-    done
-    return 0
-}
-
-# transforms headings without relying on GNU sed multiline behavior
-function marsh_text_transform_headings {  # marsh_text_transform_headings action
-    local ACTION="${1:-}"
-    awk -v ACTION="${ACTION}" '
-    BEGIN {
-        prefix[1] = "# "
-        prefix[2] = "## "
-        prefix[3] = "### "
-        prefix[4] = "#### "
-        prefix[5] = "##### "
-        prefix[6] = "###### "
-    }
-
-    function remove_html_level(line, level, open_pattern, close_tag, open_start, open_len, rest, close_pos) {
-        open_pattern = "<h" level "[^>]*>"
-        close_tag = "</h" level ">"
-        while (match(line, open_pattern)) {
-            open_start = RSTART
-            open_len = RLENGTH
-            rest = substr(line, open_start + open_len)
-            close_pos = index(rest, close_tag)
-            if (close_pos == 0) {
-                break
-            }
-            line = substr(line, 1, open_start - 1) substr(rest, close_pos + length(close_tag))
-        }
-        return line
-    }
-
-    function remove_all_html_headings(line, level) {
-        for (level = 1; level <= 6; level++) {
-            line = remove_html_level(line, level)
-        }
-        return line
-    }
-
-    function rewrite_html_open_tags(line, from, to, tag, open_tag, attrs) {
-        tag = "<h" from "[^>]*>"
-        while (match(line, tag)) {
-            open_tag = substr(line, RSTART, RLENGTH)
-            attrs = substr(open_tag, 4, length(open_tag) - 4)
-            line = substr(line, 1, RSTART - 1) "<h" to attrs ">" substr(line, RSTART + RLENGTH)
-        }
-        return line
-    }
-
-    function rewrite_html_close_tags(line, from, to, tag) {
-        tag = "</h" from ">"
-        while (match(line, tag)) {
-            line = substr(line, 1, RSTART - 1) "</h" to ">" substr(line, RSTART + RLENGTH)
-        }
-        return line
-    }
-
-    function rewrite_html_strong_tags(line, level, open_tag, attrs) {
-        level = 6
-        while (match(line, "<h" level "[^>]*>")) {
-            open_tag = substr(line, RSTART, RLENGTH)
-            attrs = substr(open_tag, 4, length(open_tag) - 4)
-            line = substr(line, 1, RSTART - 1) "<strong" attrs ">" substr(line, RSTART + RLENGTH)
-        }
-        while (match(line, "</h" level ">")) {
-            line = substr(line, 1, RSTART - 1) "</strong>" substr(line, RSTART + RLENGTH)
-        }
-        return line
-    }
-
-    function transform_markdown(line, hashes, text, level, split_pos) {
-        if (substr(line, 1, 1) != "#") {
-            return line
-        }
-        if (match(line, /^#+ /)) {
-            split_pos = RLENGTH
-            hashes = substr(line, 1, split_pos - 1)
-            text = substr(line, split_pos + 1)
-            level = length(hashes)
-            if (ACTION == "push") {
-                level++
-                if (level == 7) {
-                    return "**" text "**"
-                }
-                return prefix[level] text
-            }
-            if (ACTION == "shift") {
-                if (level == 1) {
-                    return ""
-                }
-                return prefix[level - 1] text
-            }
-            if (ACTION == "remove") {
-                return ""
-            }
-        }
-        return line
-    }
-
-    function transform_html(line) {
-        if (index(line, "<h") == 0) {
-            return line
-        }
-        if (ACTION == "push") {
-            line = rewrite_html_strong_tags(line)
-            line = rewrite_html_open_tags(line, 5, 6)
-            line = rewrite_html_close_tags(line, 5, 6)
-            line = rewrite_html_open_tags(line, 4, 5)
-            line = rewrite_html_close_tags(line, 4, 5)
-            line = rewrite_html_open_tags(line, 3, 4)
-            line = rewrite_html_close_tags(line, 3, 4)
-            line = rewrite_html_open_tags(line, 2, 3)
-            line = rewrite_html_close_tags(line, 2, 3)
-            line = rewrite_html_open_tags(line, 1, 2)
-            line = rewrite_html_close_tags(line, 1, 2)
-            return line
-        }
-        if (ACTION == "shift") {
-            line = remove_html_level(line, 1)
-            line = rewrite_html_open_tags(line, 2, 1)
-            line = rewrite_html_close_tags(line, 2, 1)
-            line = rewrite_html_open_tags(line, 3, 2)
-            line = rewrite_html_close_tags(line, 3, 2)
-            line = rewrite_html_open_tags(line, 4, 3)
-            line = rewrite_html_close_tags(line, 4, 3)
-            line = rewrite_html_open_tags(line, 5, 4)
-            line = rewrite_html_close_tags(line, 5, 4)
-            line = rewrite_html_open_tags(line, 6, 5)
-            line = rewrite_html_close_tags(line, 6, 5)
-            return line
-        }
-        if (ACTION == "remove") {
-            return remove_all_html_headings(line)
-        }
-        return line
-    }
-
-    function emit_line(line, transformed) {
-        if (substr(line, 1, 1) != "#" && index(line, "<h") == 0) {
-            print line
-            return
-        }
-        transformed = transform_markdown(line)
-        transformed = transform_html(transformed)
-        if (transformed == "" && line != "") {
-            return
-        }
-        print transformed
-    }
-
-    {
-        if (have_pending) {
-            if ($0 ~ /^=+$/) {
-                emit_line("# " pending)
-                have_pending = 0
-                next
-            }
-            if ($0 ~ /^-+$/) {
-                emit_line("## " pending)
-                have_pending = 0
-                next
-            }
-            emit_line(pending)
-        }
-        pending = $0
-        have_pending = 1
-    }
-
-    END {
-        if (have_pending) {
-            emit_line(pending)
-        }
-    }
-    '
 }
 
 # transforms a string
@@ -2004,36 +2028,178 @@ function marsh_text_transform {  # marsh_text_transform transform [transform...]
             ;;
     esac
 }
-export -f marsh_text_transform
 
-# prints a list of variables given their assignment commands, one per line, e.g. FOO="bar" prints FOO
-function marsh_get_variables {  # marsh_get_variables assignments_string
-    sed -E -e 's/^([^=]+[^+])[+]?=.*/\1/' | sort -u
-}
+# transforms headings without relying on GNU sed multiline behavior
+function marsh_text_transform_headings {  # marsh_text_transform_headings action
+    local ACTION="${1:-}"
+    awk -v ACTION="${ACTION}" '
+    BEGIN {
+        prefix[1] = "# "
+        prefix[2] = "## "
+        prefix[3] = "### "
+        prefix[4] = "#### "
+        prefix[5] = "##### "
+        prefix[6] = "###### "
+    }
 
-# prints local declarations for the given list of variable names, one per line
-function marsh_get_local_declarations {  # marsh_get_local_declarations variables_string
-    sed -n -E -e '/^$/d' -e 's/^/local /p'
-}
+    function remove_html_level(line, level, open_pattern, close_tag, open_start, open_len, rest, close_pos) {
+        open_pattern = "<h" level "[^>]*>"
+        close_tag = "</h" level ">"
+        while (match(line, open_pattern)) {
+            open_start = RSTART
+            open_len = RLENGTH
+            rest = substr(line, open_start + open_len)
+            close_pos = index(rest, close_tag)
+            if (close_pos == 0) {
+                break
+            }
+            line = substr(line, 1, open_start - 1) substr(rest, close_pos + length(close_tag))
+        }
+        return line
+    }
 
-# escapes text for safe sed replacement, trimming trailing newlines to match shell command substitution behavior
-function marsh_escape_substitution {  # marsh_escape_substitution
-    sed -e ':a' -e '$!{N' -e 'ba' -e '}' -e 's/\n*$//' -e 's/[&/\]/\\&/g' -e 's/\n/\\&/g'
-}
+    function remove_all_html_headings(line, level) {
+        for (level = 1; level <= 6; level++) {
+            line = remove_html_level(line, level)
+        }
+        return line
+    }
 
-# returns success when file extension is a markdown file extension
-function marsh_is_markdown_extension {  # marsh_is_markdown_extension file_ext markdown_fileext_csv
-    local FILE_EXT MARKDOWN_FILEEXT_CSV MD_EXT
+    function rewrite_html_open_tags(line, from, to, tag, open_tag, attrs) {
+        tag = "<h" from "[^>]*>"
+        while (match(line, tag)) {
+            open_tag = substr(line, RSTART, RLENGTH)
+            attrs = substr(open_tag, 4, length(open_tag) - 4)
+            line = substr(line, 1, RSTART - 1) "<h" to attrs ">" substr(line, RSTART + RLENGTH)
+        }
+        return line
+    }
 
-    FILE_EXT="${1:-}"
-    MARKDOWN_FILEEXT_CSV="${2:-}"
-    [[ "${FILE_EXT}" == "" ]] && return 1
-    [[ "${MARKDOWN_FILEEXT_CSV}" == "" ]] && return 1
-    FILE_EXT=$(printf '%s' "${FILE_EXT}" | awk '{ print tolower($0) }')
-    for MD_EXT in ${MARKDOWN_FILEEXT_CSV//,/ }; do
-        [[ "${FILE_EXT}" == "${MD_EXT}" ]] && return 0
-    done
-    return 1
+    function rewrite_html_close_tags(line, from, to, tag) {
+        tag = "</h" from ">"
+        while (match(line, tag)) {
+            line = substr(line, 1, RSTART - 1) "</h" to ">" substr(line, RSTART + RLENGTH)
+        }
+        return line
+    }
+
+    function rewrite_html_strong_tags(line, level, open_tag, attrs) {
+        level = 6
+        while (match(line, "<h" level "[^>]*>")) {
+            open_tag = substr(line, RSTART, RLENGTH)
+            attrs = substr(open_tag, 4, length(open_tag) - 4)
+            line = substr(line, 1, RSTART - 1) "<strong" attrs ">" substr(line, RSTART + RLENGTH)
+        }
+        while (match(line, "</h" level ">")) {
+            line = substr(line, 1, RSTART - 1) "</strong>" substr(line, RSTART + RLENGTH)
+        }
+        return line
+    }
+
+    function transform_markdown(line, hashes, text, level, split_pos) {
+        if (substr(line, 1, 1) != "#") {
+            return line
+        }
+        if (match(line, /^#+ /)) {
+            split_pos = RLENGTH
+            hashes = substr(line, 1, split_pos - 1)
+            text = substr(line, split_pos + 1)
+            level = length(hashes)
+            if (ACTION == "push") {
+                level++
+                if (level == 7) {
+                    return "**" text "**"
+                }
+                return prefix[level] text
+            }
+            if (ACTION == "shift") {
+                if (level == 1) {
+                    return ""
+                }
+                return prefix[level - 1] text
+            }
+            if (ACTION == "remove") {
+                return ""
+            }
+        }
+        return line
+    }
+
+    function transform_html(line) {
+        if (index(line, "<h") == 0) {
+            return line
+        }
+        if (ACTION == "push") {
+            line = rewrite_html_strong_tags(line)
+            line = rewrite_html_open_tags(line, 5, 6)
+            line = rewrite_html_close_tags(line, 5, 6)
+            line = rewrite_html_open_tags(line, 4, 5)
+            line = rewrite_html_close_tags(line, 4, 5)
+            line = rewrite_html_open_tags(line, 3, 4)
+            line = rewrite_html_close_tags(line, 3, 4)
+            line = rewrite_html_open_tags(line, 2, 3)
+            line = rewrite_html_close_tags(line, 2, 3)
+            line = rewrite_html_open_tags(line, 1, 2)
+            line = rewrite_html_close_tags(line, 1, 2)
+            return line
+        }
+        if (ACTION == "shift") {
+            line = remove_html_level(line, 1)
+            line = rewrite_html_open_tags(line, 2, 1)
+            line = rewrite_html_close_tags(line, 2, 1)
+            line = rewrite_html_open_tags(line, 3, 2)
+            line = rewrite_html_close_tags(line, 3, 2)
+            line = rewrite_html_open_tags(line, 4, 3)
+            line = rewrite_html_close_tags(line, 4, 3)
+            line = rewrite_html_open_tags(line, 5, 4)
+            line = rewrite_html_close_tags(line, 5, 4)
+            line = rewrite_html_open_tags(line, 6, 5)
+            line = rewrite_html_close_tags(line, 6, 5)
+            return line
+        }
+        if (ACTION == "remove") {
+            return remove_all_html_headings(line)
+        }
+        return line
+    }
+
+    function emit_line(line, transformed) {
+        if (substr(line, 1, 1) != "#" && index(line, "<h") == 0) {
+            print line
+            return
+        }
+        transformed = transform_markdown(line)
+        transformed = transform_html(transformed)
+        if (transformed == "" && line != "") {
+            return
+        }
+        print transformed
+    }
+
+    {
+        if (have_pending) {
+            if ($0 ~ /^=+$/) {
+                emit_line("# " pending)
+                have_pending = 0
+                next
+            }
+            if ($0 ~ /^-+$/) {
+                emit_line("## " pending)
+                have_pending = 0
+                next
+            }
+            emit_line(pending)
+        }
+        pending = $0
+        have_pending = 1
+    }
+
+    END {
+        if (have_pending) {
+            emit_line(pending)
+        }
+    }
+    '
 }
 
 # resolves a template tag to shell variable assignments
@@ -2459,42 +2625,6 @@ function marsh_get_archive_metadata {  # marsh_get_archive_metadata target_outpu
     return 0
 }
 
-# escapes arbitrary text into a stable cache-safe path component
-function marsh_escape_cache_component {  # marsh_escape_cache_component value
-    local VALUE
-
-    # init
-    [[ "${1+isset}" == "isset" ]] || return 1
-    VALUE="${1}"
-
-    # escape separators and path syntax that would change cache addressing
-    VALUE="${VALUE//%/%25}"
-    VALUE="${VALUE//$'\034'/%1C}"
-    VALUE="${VALUE//$'\035'/%1D}"
-    VALUE="${VALUE//\//%2F}"
-    VALUE="${VALUE//\\/%5C}"
-    VALUE="${VALUE//:/%3A}"
-    VALUE="${VALUE//$'\n'/%0A}"
-    VALUE="${VALUE//$'\r'/%0D}"
-    VALUE="${VALUE//$'\t'/%09}"
-    VALUE="${VALUE// /%20}"
-
-    # keep empty and dot-only values from collapsing into special path segments
-    case "${VALUE}" in
-        "")
-            VALUE="__empty__"
-            ;;
-        .)
-            VALUE="%2E"
-            ;;
-        ..)
-            VALUE="%2E%2E"
-            ;;
-    esac
-
-    printf '%s\n' "${VALUE}"
-}
-
 # derives a stable cached template name from a template source path
 function marsh_get_template_cache_name {  # marsh_get_template_cache_name template_source
     local TEMPLATE_SOURCE TEMPLATE_NAME TEMPLATE_KEY
@@ -2509,38 +2639,6 @@ function marsh_get_template_cache_name {  # marsh_get_template_cache_name templa
     [[ "${TEMPLATE_NAME}" != "" ]] || TEMPLATE_NAME='template'
     TEMPLATE_KEY=$(marsh_escape_cache_component "${TEMPLATE_SOURCE}") || return 1
     printf '%s\n' "${TEMPLATE_NAME}-${TEMPLATE_KEY}"
-}
-
-# builds a cache file path from one or more stable key parts, chunking long components into nested directories
-function marsh_get_cache_path {  # marsh_get_cache_path cache_root suffix key_part [key_part...]
-    local CACHE_ROOT SUFFIX KEY_PART KEY_ESC CACHE_PATH CHUNK_SIZE
-
-    # init
-    CACHE_ROOT="${1:-}"
-    SUFFIX="${2:-}"
-    [[ "${CACHE_ROOT}" == "" ]] && return 1
-    shift 2
-    [[ "${#@}" -gt 0 ]] || return 1
-
-    # chunk size should be small enough to avoid filesystem limits on filename length
-    # and large enough to avoid excessive nesting for source paths
-    CHUNK_SIZE=120
-
-    CACHE_PATH="${CACHE_ROOT}"
-    while [[ "${#@}" -gt 0 ]]; do
-        KEY_PART="${1}"
-        shift 1
-        KEY_ESC=$(marsh_escape_cache_component "${KEY_PART}") || return 1
-
-        # split oversized keys into nested segments to avoid long filenames
-        while [[ "${#KEY_ESC}" -gt "${CHUNK_SIZE}" ]]; do
-            CACHE_PATH="${CACHE_PATH}/${KEY_ESC:0:${CHUNK_SIZE}}"
-            KEY_ESC="${KEY_ESC:${CHUNK_SIZE}}"
-        done
-        CACHE_PATH="${CACHE_PATH}/${KEY_ESC}"
-    done
-
-    printf '%s\n' "${CACHE_PATH}${SUFFIX}"
 }
 
 # finds the generated sitemap file for a target
@@ -2616,37 +2714,6 @@ function marsh_get_sitemap_lookup_path {  # marsh_get_sitemap_lookup_path target
         fi
     done
     return 1
-}
-
-# checks for required external tools
-function marsh_check_dependencies {  # marsh_check_dependencies $DEP1 $DEP2 ...
-    local DEPS_EACH FOUND DEP
-    local -a DEPS ERRORS DEPS_MULTI
-    DEPS=("${@}");
-    ERRORS=()
-    for DEPS_EACH in "${DEPS[@]}"; do
-        DEPS_MULTI=(${DEPS_EACH//|/ })
-        FOUND=false
-        for DEP in "${DEPS_MULTI[@]}"; do
-            if [[ "${DEP}" == */* ]]; then
-                if [[ -x "${DEP}" ]]; then
-                    FOUND=true
-                fi
-                break
-            elif command -v "${DEP}" >/dev/null 2>&1; then
-                FOUND=true
-                break
-            fi
-        done
-        if [[ "${FOUND}" == false ]]; then
-            ERRORS+=("${DEPS_EACH}")
-        fi
-    done
-    if [[ "${#ERRORS[@]}" -ne 0 ]]; then
-        echo "dependencies: ${DEPS[@]}" >&2
-        echo "unable to find command(s): ${ERRORS[*]}" >&2
-        return 1
-    fi
 }
 
 # prints bash variable assignments for template metadata
@@ -3189,70 +3256,6 @@ function marsh_resolve_sitemap_source_path {  # marsh_resolve_sitemap_source_pat
             ;;
     esac
     printf '%s\n' "${RESOLVED_PATH}"
-}
-
-# copies files from local sources
-function marsh_copy_files {  # marsh_copy_files source dest force
-    local SOURCE DEST FORCE
-    local SOURCE_DIR FILES_LIST FILE
-
-    # init
-    SOURCE="${1:-}"
-    DEST="${2:-}"
-    if [[ "${SOURCE}" == "" ]]; then
-        echo "Internal error copying files: source empty" >&2
-        return 1
-    elif [[ "${DEST}" == "" ]]; then
-        echo "Internal error copying files: destination empty" >&2
-        return 1
-    fi
-    SOURCE_DIR="${SOURCE%/*}"
-    SOURCE_DIR="${SOURCE_DIR:-.}"
-    FORCE="${3:-}"
-
-    # select files for copy
-    if [[ -d "${SOURCE}" ]]; then
-        FILES_LIST="${SOURCE#$SOURCE_DIR/}"
-        DEST="${DEST%/$FILES_LIST}"
-    else
-        FILES_LIST=$(cd "${SOURCE_DIR}" >/dev/null 2>&1 && find . -maxdepth 1 -name "${SOURCE##*/}" | sed -e 's/^\.\///' -e 's/^\.$//')
-        if [[ $? -ne 0 ]]; then
-            echo "Unable to change into directory: ${SOURCE_DIR}" >&2
-            return 1
-        fi
-    fi
-
-    while IFS= read -r FILE; do
-        [[ "${FILE}" == "" ]] && continue
-        # sanity
-        if [[ "${SOURCE_DIR}/${FILE}" == "${DEST%/}/${FILE}" ]]; then
-            # same source and destination
-            echo "Source and destination paths are equal: ${DEST}" >&2
-            return 1
-        fi
-        if [[ -e "${DEST%/}/${FILE}" ]] && [[ "${FORCE}" != true ]]; then
-            # path exists
-            echo "Path exists (--force to overwrite): ${DEST%/}/${FILE}" >&2
-            return 1
-        fi
-        # create path
-        DEST="${DEST%/.}"
-        if ! mkdir -p "${DEST}"; then
-            echo "Unable to create path: ${DEST}" >&2
-            return 1
-        fi
-        # clean destination
-        if ! rm -rf "${DEST%/}/${FILE}"; then
-            echo "Unable to replace path: ${DEST}" >&2
-            return 1
-        fi
-        # copy
-        if ! cp -R "${SOURCE_DIR}/${FILE}" "${DEST%/}/${FILE}"; then
-            echo "Unable to copy file: ${SOURCE_DIR}/${FILE} -> ${DEST%/}/${FILE}" >&2
-            return 1
-        fi
-    done <<< "${FILES_LIST}"
-    return 0
 }
 
 # returns a normalized relative source inventory for a source root
@@ -8015,7 +8018,7 @@ function marsh_build_target_documents {  # marsh_build_target_documents site_out
     [[ "${MARKDOWN_COMMAND}" != "markdown" ]] && PARALLEL_MARKDOWN="${MARKDOWN_COMMAND}"
     if [[ "${JOBS:-1}" -gt 1 ]] && [[ "${PARALLEL:-}" != "" ]] && [[ "$("${PARALLEL}" --version --no-notice 2>/dev/null | head -n 1 | grep -o 'GNU parallel')" == "GNU parallel" ]]; then
         export -f marsh_build_document_and_template
-        if ! "${PARALLEL}" --halt now,fail=1 --quote --no-notice --env marsh_text_transform --env marsh_build_document_and_template --jobs="${JOBS:-1}" "${SELF_DIR}/${SELF_NAME}" build-document-and-template --log-level="${LOG_LEVEL}" --markdown="${PARALLEL_MARKDOWN}" --markdown-options="${MARKDOWN_OPTIONS_CSV}" --markdown-file-extensions="${MARKDOWN_FILEEXT_CSV}" --markdown-rewrite-links="${MARKDOWN_REWRITE_LINKS}" --marsh-temp="${MARSH_TEMP}" --marsh-config-file="${MARSH_CONFIG_FILE}" --marsh-config-file-dir="${MARSH_CONFIG_FILE_DIR}" --marsh-config-path="${MARSH_CONFIG_PATH}" --marsh-config-url="${MARSH_CONFIG_URL}" --marsh-build-context-target-output-rel="${BUILD_CONTEXT_TARGET_OUTPUT_REL}" --marsh-build-context-source-root="${BUILD_CONTEXT_SOURCE_ROOT}" "${SITE_OUTPUT_ROOT}" "${TARGET_OUTPUT_REL}" {} "${SITEMAP}" "${SITEMAP_SEARCH}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_ASSETS_PATH}" ::: "${DOCUMENTS[@]}"; then
+        if ! "${PARALLEL}" --halt now,fail=1 --quote --no-notice --env marsh_build_document_and_template --jobs="${JOBS:-1}" "${SELF_DIR}/${SELF_NAME}" build-document-and-template --log-level="${LOG_LEVEL}" --markdown="${PARALLEL_MARKDOWN}" --markdown-options="${MARKDOWN_OPTIONS_CSV}" --markdown-file-extensions="${MARKDOWN_FILEEXT_CSV}" --markdown-rewrite-links="${MARKDOWN_REWRITE_LINKS}" --marsh-temp="${MARSH_TEMP}" --marsh-config-file="${MARSH_CONFIG_FILE}" --marsh-config-file-dir="${MARSH_CONFIG_FILE_DIR}" --marsh-config-path="${MARSH_CONFIG_PATH}" --marsh-config-url="${MARSH_CONFIG_URL}" --marsh-build-context-target-output-rel="${BUILD_CONTEXT_TARGET_OUTPUT_REL}" --marsh-build-context-source-root="${BUILD_CONTEXT_SOURCE_ROOT}" "${SITE_OUTPUT_ROOT}" "${TARGET_OUTPUT_REL}" {} "${SITEMAP}" "${SITEMAP_SEARCH}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_ASSETS_PATH}" ::: "${DOCUMENTS[@]}"; then
             return 1
         fi
     else

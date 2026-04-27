@@ -5,6 +5,11 @@
 # Released under the MIT License. See LICENSE for details.
 # https://github.com/bradleysepos/marsh
 
+#
+# Command line interface
+#
+
+# environment variables and help for command line interface
 function marsh_env_cli {
     NAME="marsh"
     VERSION="1.0.0-alpha.1"
@@ -47,6 +52,652 @@ where:
   --markdown-rewrite-links
         rewrite markdown syntax relative markdown links to *.html
         default: ${MARKDOWN_REWRITE_LINKS:-}"
+}
+
+# main function, entry point for command line interface
+function marsh_cli {
+    set -o pipefail
+
+    local COMMAND OPTSPEC UNKNOWN TEMP_DIR TEMPLATES_DIR LOG_LEVEL LOG_LEVELS LOG_LEVELS_CSV LOG_LEVEL_DEFAULT FORCE JOBS
+    local MARKDOWN_COMMAND MARKDOWN_REWRITE_LINKS
+    local MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV
+    local INDEX PREFIX META META_VARS CONFIG_VARS OIFS I J
+    local TARGET_COUNT TARGET_COUNT_INDEX TARGET_COUNT_PREFIX TARGET_NUMBER
+    local BUILD_START_TIME BUILD_END_TIME BUILD_ELAPSED
+    local TARGET_START_TIME TARGET_END_TIME TARGET_ELAPSED
+    local TARGET_ARCHIVE_MANIFEST
+    local TARGET_ARCHIVE_TEMPLATE TARGET_ARCHIVE_TEMPLATE_SOURCE TARGET_ARCHIVE_TEMPLATE_ASSETS_PATH
+    local SITE_SOURCE_ROOT TARGET_SOURCE_ROOT TARGET_SITEMAP_SEARCH
+    local TARGET_PLAN_ROOT
+    local BUILD_SITE_OUTPUT_ROOT BUILD_TARGET_OUTPUT_REL BUILD_DOCUMENT BUILD_SITEMAP BUILD_SITEMAP_SEARCH
+    local BUILD_CONTEXT_TARGET_OUTPUT_REL BUILD_CONTEXT_SOURCE_ROOT
+    local BUILD_TEMPLATES_DIR BUILD_TEMPLATE BUILD_NUM_TEMPLATE_OVERRIDES BUILD_TEMPLATE_ASSETS_PATH
+    local BUILD_TEMPLATE_OVERRIDE_INDEX
+    local COMMAND_STATUS
+    local -a COMMANDS OPTARRAY DEPS MARKDOWN_OPTIONS MARKDOWN_FILEEXT MARKDOWN_OPTIONS_CLIARGS MARKDOWN_UNKNOWN
+    local -a TARGET_ARCHIVE_TYPES TARGET_ARCHIVE_EXCLUDED_STATES TARGET_ARCHIVE_TEMPLATE_OVERRIDES BUILD_TEMPLATE_OVERRIDES
+
+    # args with help
+    LOG_LEVELS=('info' 'verbose')
+    LOG_LEVELS_CSV=$(IFS=, ; echo "${LOG_LEVELS[*]}")
+    LOG_LEVEL_DEFAULT='info'
+    MARKDOWN_OPTIONS=(-1.0 +alphalist -autolink -cdata +definitionlist -divquote -dldiscount +dlextra +ext +fencedcode +footnote +githubtags -header +html +image -latex +links -safelink +smarty +strikethrough +style +superscript +tables -tabstop -toc)
+    MARKDOWN_FILEEXT=('markdown' 'md' 'mkd' 'mkdn' 'mdown' 'mdtxt' 'mdtext' 'text')
+    MARKDOWN_REWRITE_LINKS=true
+
+    # env vars
+    marsh_env_cli
+
+    # commands
+    COMMANDS=('build' 'build-document' 'build-document-and-template' 'build-target-archive-queue-record' 'build-template')
+    COMMAND="${1:-}"
+
+    # validate command
+    if [[ ! "${COMMAND}" =~ ^- ]]; then
+        if [[ "${COMMAND}" == "" ]]; then
+            # command not specified
+            echo "Command not specified" >&2
+            echo -e "${HELP}"
+            return 1
+        elif ! marsh_in_array "${COMMAND}" "${COMMANDS[@]}"; then
+            # invalid command
+            echo "Invalid command: ${COMMAND}" >&2
+            echo -e "${HELP}"
+            return 1
+        fi
+        shift 1
+    else
+        # continue processing arguments
+        COMMAND=""
+    fi
+
+    # args
+    LOG_LEVEL="${LOG_LEVEL_DEFAULT}"
+    FORCE=false
+    JOBS=1
+    if [[ "${SYS_NAME}" == "darwin" ]]; then
+        JOBS=$(sysctl -n hw.ncpu)
+    elif [[ "${SYS_NAME}" == "linux" ]]; then
+        JOBS=$(nproc)
+    fi
+    MARKDOWN_COMMAND=""
+    OPTIND=1
+    OPTSPEC=":-:hvj:"
+    OPTARRAY=('-h' '--help' '-v' '--version' '--log-level' '--force' '-j' '--jobs' '--markdown' '--markdown-options' '--markdown-file-extensions' '--markdown-rewrite-links')  # all short and long options
+    OPTARRAY+=('marsh-temp' 'marsh-config-file' 'marsh-config-file-dir' 'marsh-config-path' 'marsh-config-url' 'marsh-build-context-target-output-rel' 'marsh-build-context-source-root')  # all private options
+    while getopts "${OPTSPEC}" OPT; do
+        case "${OPT}" in
+            -)
+                case "${OPTARG}" in
+                    help)
+                        # Print help and exit
+                        echo -e "${HELP}"
+                        return 0
+                        ;;
+                    help=*)
+                        # Print help and exit
+                        echo -e "${HELP}"
+                        return 0
+                        ;;
+                    version)
+                        # Print version and exit
+                        echo -e "${NAME} ${VERSION}"
+                        return 0
+                        ;;
+                    version=*)
+                        # Print version and exit
+                        echo -e "${NAME} ${VERSION}"
+                        return 0
+                        ;;
+                    jobs)
+                        if [[ -z ${!OPTIND+isset} ]] || marsh_in_array "${!OPTIND}" "${OPTARRAY[@]}"; then
+                            # Option without required argument
+                            echo "Option --${OPTARG} requires a value" >&2
+                            echo -e "${HELP}"
+                            return 1
+                        fi
+                        JOBS="${!OPTIND}"
+                        if [[ ! "${JOBS}" =~ ^[1-9][0-9]*$ ]]; then
+                            echo "Option --${OPTARG} requires a numeric value greater than zero" >&2
+                            echo -e "${HELP}"
+                            return 1
+                        fi
+                        OPTIND=$((OPTIND + 1))
+                        ;;
+                    jobs=*)
+                        JOBS="${OPTARG#*=}"
+                        if [[ ! "${JOBS}" =~ ^[1-9][0-9]*$ ]]; then
+                            echo "Option --${OPTARG} requires a numeric value greater than zero" >&2
+                            echo -e "${HELP}"
+                            return 1
+                        fi
+                        ;;
+                    markdown)
+                        if [[ -z ${!OPTIND+isset} ]] || marsh_in_array "${!OPTIND}" "${OPTARRAY[@]}"; then
+                            # Option without required argument
+                            echo "Option --${OPTARG} requires a value" >&2
+                            echo -e "${HELP}"
+                            return 1
+                        fi
+                        MARKDOWN_COMMAND="${!OPTIND}"
+                        OPTIND=$((OPTIND + 1))
+                        ;;
+                    markdown=*)
+                        MARKDOWN_COMMAND="${OPTARG#*=}"
+                        ;;
+                    markdown-options)
+                        if [[ -z ${!OPTIND+isset} ]] || marsh_in_array "${!OPTIND}" "${OPTARRAY[@]}"; then
+                            # Option without required argument
+                            echo "Option --${OPTARG} requires a value" >&2
+                            echo -e "${HELP}"
+                            return 1
+                        fi
+                        MARKDOWN_OPTIONS="${!OPTIND}"
+                        OIFS="${IFS}"
+                        IFS=$'\n'
+                        MARKDOWN_OPTIONS=(${MARKDOWN_OPTIONS//,/$IFS})
+                        IFS="${OIFS}"
+                        OPTIND=$((OPTIND + 1))
+                        ;;
+                    markdown-options=*)
+                        MARKDOWN_OPTIONS="${OPTARG#*=}"
+                        OIFS="${IFS}"
+                        IFS=$'\n'
+                        MARKDOWN_OPTIONS=(${MARKDOWN_OPTIONS//,/$IFS})
+                        IFS="${OIFS}"
+                        ;;
+                    markdown-file-extensions)
+                        if [[ -z ${!OPTIND+isset} ]] || marsh_in_array "${!OPTIND}" "${OPTARRAY[@]}"; then
+                            # Option without required argument
+                            echo "Option --${OPTARG} requires a value" >&2
+                            echo -e "${HELP}"
+                            return 1
+                        fi
+                        MARKDOWN_FILEEXT=(${!OPTIND//,/ })
+                        OPTIND=$((OPTIND + 1))
+                        ;;
+                    markdown-file-extensions=*)
+                        MARKDOWN_FILEEXT="${OPTARG#*=}"
+                        MARKDOWN_FILEEXT=(${MARKDOWN_FILEEXT//,/ })
+                        ;;
+                    markdown-rewrite-links)
+                        if [[ -z ${!OPTIND+isset} ]] || marsh_in_array "${!OPTIND}" "${OPTARRAY[@]}"; then
+                            # Option without required argument
+                            echo "Option --${OPTARG} requires a value" >&2
+                            echo -e "${HELP}"
+                            return 1
+                        fi
+                        MARKDOWN_REWRITE_LINKS=$(echo "${!OPTIND}" | awk '{ print tolower($0) }')
+                        if [[ "${MARKDOWN_REWRITE_LINKS}" != true ]] && [[ "${MARKDOWN_REWRITE_LINKS}" != false ]]; then
+                            echo "Option --${OPTARG} requires boolean string value true or false" >&2
+                            echo -e "${HELP}"
+                            return 1
+                        fi
+                        OPTIND=$((OPTIND + 1))
+                        ;;
+                    markdown-rewrite-links=*)
+                        MARKDOWN_REWRITE_LINKS=$(echo "${OPTARG#*=}" | awk '{ print tolower($0) }')
+                        if [[ "${MARKDOWN_REWRITE_LINKS}" != true ]] && [[ "${MARKDOWN_REWRITE_LINKS}" != false ]]; then
+                            echo "Option --${OPTARG%%=*} requires boolean string value true or false" >&2
+                            echo -e "${HELP}"
+                            return 1
+                        fi
+                        ;;
+                    log-level)
+                        if [[ -z ${!OPTIND+isset} ]] || marsh_in_array "${!OPTIND}" "${OPTARRAY[@]}"; then
+                            # Option without required argument
+                            echo "Option --${OPTARG} requires a value" >&2
+                            echo -e "${HELP}"
+                            return 1
+                        fi
+                        LOG_LEVEL=$(echo "${!OPTIND}" | awk '{ print tolower($0) }')
+                        if ! marsh_in_array "${LOG_LEVEL}" "${LOG_LEVELS[@]}"; then
+                            echo "Option --${OPTARG} requires one of: ${LOG_LEVELS[*]}" >&2
+                            echo -e "${HELP}"
+                            return 1
+                        fi
+                        OPTIND=$((OPTIND + 1))
+                        ;;
+                    log-level=*)
+                        LOG_LEVEL=$(echo "${OPTARG#*=}" | awk '{ print tolower($0) }')
+                        if ! marsh_in_array "${LOG_LEVEL}" "${LOG_LEVELS[@]}"; then
+                            echo "Option --${OPTARG%%=*} requires one of: ${LOG_LEVELS[*]}" >&2
+                            echo -e "${HELP}"
+                            return 1
+                        fi
+                        ;;
+                    force)
+                        FORCE=true
+                        ;;
+                    force=*)
+                        # Option with prohibited value
+                        echo "Option --${OPTARG%%=*} takes no value" >&2
+                        echo -e "${HELP}"
+                        return 1
+                        ;;
+                    marsh-temp)
+                        if [[ -z ${!OPTIND+isset} ]] || marsh_in_array "${!OPTIND}" "${OPTARRAY[@]}"; then
+                            # Option without required argument
+                            echo "Option --${OPTARG} requires a value" >&2
+                            echo -e "${HELP}"
+                            return 1
+                        fi
+                        MARSH_TEMP="${!OPTIND}"
+                        OPTIND=$((OPTIND + 1))
+                        ;;
+                    marsh-temp=*)
+                        MARSH_TEMP="${OPTARG#*=}"
+                        ;;
+                    marsh-config-file)
+                        if [[ -z ${!OPTIND+isset} ]] || marsh_in_array "${!OPTIND}" "${OPTARRAY[@]}"; then
+                            # Option without required argument
+                            echo "Option --${OPTARG} requires a value" >&2
+                            echo -e "${HELP}"
+                            return 1
+                        fi
+                        MARSH_CONFIG_FILE="${!OPTIND}"
+                        OPTIND=$((OPTIND + 1))
+                        ;;
+                    marsh-config-file=*)
+                        MARSH_CONFIG_FILE="${OPTARG#*=}"
+                        ;;
+                    marsh-config-file-dir)
+                        if [[ -z ${!OPTIND+isset} ]] || marsh_in_array "${!OPTIND}" "${OPTARRAY[@]}"; then
+                            # Option without required argument
+                            echo "Option --${OPTARG} requires a value" >&2
+                            echo -e "${HELP}"
+                            return 1
+                        fi
+                        MARSH_CONFIG_FILE_DIR="${!OPTIND}"
+                        OPTIND=$((OPTIND + 1))
+                        ;;
+                    marsh-config-file-dir=*)
+                        MARSH_CONFIG_FILE_DIR="${OPTARG#*=}"
+                        ;;
+                    marsh-config-path)
+                        if [[ -z ${!OPTIND+isset} ]] || marsh_in_array "${!OPTIND}" "${OPTARRAY[@]}"; then
+                            # Option without required argument
+                            echo "Option --${OPTARG} requires a value" >&2
+                            echo -e "${HELP}"
+                            return 1
+                        fi
+                        MARSH_CONFIG_PATH="${!OPTIND}"
+                        OPTIND=$((OPTIND + 1))
+                        ;;
+                    marsh-config-path=*)
+                        MARSH_CONFIG_PATH="${OPTARG#*=}"
+                        ;;
+                    marsh-config-url)
+                        if [[ -z ${!OPTIND+isset} ]] || marsh_in_array "${!OPTIND}" "${OPTARRAY[@]}"; then
+                            # Option without required argument
+                            echo "Option --${OPTARG} requires a value" >&2
+                            echo -e "${HELP}"
+                            return 1
+                        fi
+                        MARSH_CONFIG_URL="${!OPTIND}"
+                        OPTIND=$((OPTIND + 1))
+                        ;;
+                    marsh-config-url=*)
+                        MARSH_CONFIG_URL="${OPTARG#*=}"
+                        ;;
+                    marsh-build-context-target-output-rel)
+                        if [[ -z ${!OPTIND+isset} ]] || marsh_in_array "${!OPTIND}" "${OPTARRAY[@]}"; then
+                            echo "Option --${OPTARG} requires a value" >&2
+                            echo -e "${HELP}"
+                            return 1
+                        fi
+                        BUILD_CONTEXT_TARGET_OUTPUT_REL="${!OPTIND}"
+                        OPTIND=$((OPTIND + 1))
+                        ;;
+                    marsh-build-context-target-output-rel=*)
+                        BUILD_CONTEXT_TARGET_OUTPUT_REL="${OPTARG#*=}"
+                        ;;
+                    marsh-build-context-source-root)
+                        if [[ -z ${!OPTIND+isset} ]] || marsh_in_array "${!OPTIND}" "${OPTARRAY[@]}"; then
+                            echo "Option --${OPTARG} requires a value" >&2
+                            echo -e "${HELP}"
+                            return 1
+                        fi
+                        BUILD_CONTEXT_SOURCE_ROOT="${!OPTIND}"
+                        OPTIND=$((OPTIND + 1))
+                        ;;
+                    marsh-build-context-source-root=*)
+                        BUILD_CONTEXT_SOURCE_ROOT="${OPTARG#*=}"
+                        ;;
+                    *)
+                        if [[ "${OPTERR}" == 1 ]]; then
+                            # Invalid option specified
+                            echo "Invalid option: --${OPTARG}" >&2
+                            echo -e "${HELP}"
+                            return 1
+                        fi
+                        ;;
+                esac
+                ;;
+            h)
+                # Print help and exit
+                echo -e "${HELP}"
+                return 0
+                ;;
+            v)
+                # Print version and exit
+                echo "${NAME} ${VERSION}"
+                return 0
+                ;;
+            j)
+                # Number of jobs
+                JOBS="${OPTARG}"
+                if [[ ! "${JOBS}" =~ ^[1-9][0-9]*$ ]]; then
+                    echo "Option -${OPT} requires a numeric value greater than zero" >&2
+                    echo -e "${HELP}"
+                    return 1
+                fi
+                ;;
+            :)
+                # Option without required value
+                echo "Option -${OPTARG} requires a value" >&2
+                echo -e "${HELP}"
+                return 1
+                ;;
+            \?)
+                # Invalid option specified
+                echo "Invalid option: -${OPTARG}" >&2
+                echo -e "${HELP}"
+                return 1
+                ;;
+        esac
+    done
+    shift $((OPTIND - 1))
+
+    # revalidate command
+    if [[ "${COMMAND}" == "" ]]; then
+        # command not specified
+        echo "Command not specified" >&2
+        echo -e "${HELP}"
+        return 1
+    elif ! marsh_in_array "${COMMAND}" "${COMMANDS[@]}"; then
+        # invalid command
+        echo "Invalid command: ${COMMAND}" >&2
+        echo -e "${HELP}"
+        return 1
+    fi
+
+    # build document/template dispatch vars
+    BUILD_SITE_OUTPUT_ROOT="${1:-}"
+    BUILD_TARGET_OUTPUT_REL="${2:-}"
+    BUILD_DOCUMENT="${3:-}"
+    BUILD_SITEMAP="${4:-}"
+    BUILD_SITEMAP_SEARCH="${5:-false}"
+    BUILD_TEMPLATES_DIR="${6:-}"
+    BUILD_TEMPLATE="${7:-}"
+    BUILD_NUM_TEMPLATE_OVERRIDES="${8:-0}"
+    BUILD_TEMPLATE_OVERRIDES=()
+    BUILD_TEMPLATE_OVERRIDE_INDEX=9
+    while [[ "${#BUILD_TEMPLATE_OVERRIDES[@]}" -lt "${BUILD_NUM_TEMPLATE_OVERRIDES}" ]]; do
+        [[ -z ${!BUILD_TEMPLATE_OVERRIDE_INDEX+isset} ]] && break
+        BUILD_TEMPLATE_OVERRIDES+=("${!BUILD_TEMPLATE_OVERRIDE_INDEX}")
+        BUILD_TEMPLATE_OVERRIDE_INDEX=$((BUILD_TEMPLATE_OVERRIDE_INDEX + 1))
+    done
+    BUILD_TEMPLATE_ASSETS_PATH="${!BUILD_TEMPLATE_OVERRIDE_INDEX:-}"
+    BUILD_QUEUE_RECORD="${2:-}"
+
+    # parse config
+    if [[ "${MARSH_CONFIG_FILE:-}" == "" ]]; then
+        MARSH_CONFIG_FILE="${1:-$(pwd -P)}"
+        if [[ -d "${MARSH_CONFIG_FILE}" ]]; then
+            MARSH_CONFIG_FILE=$(cd "${MARSH_CONFIG_FILE}" && (pwd -P . 2>/dev/null || command pwd))
+            [[ "${MARSH_CONFIG_FILE}" != "" ]] && MARSH_CONFIG_FILE="${MARSH_CONFIG_FILE%/}/marsh-config.yaml"
+        fi
+        if [[ -f "${MARSH_CONFIG_FILE}" ]] && [[ -r "${MARSH_CONFIG_FILE}" ]]; then
+            MARSH_CONFIG=$(marsh_parse_yaml "${MARSH_CONFIG_FILE}" "CONFIG_")
+            [[ $? -ne 0 ]] && echo "Unable to parse yaml file: ${MARSH_CONFIG_FILE}" >&2 && return 1
+            CONFIG_VARS=$(printf '%s\n' "${MARSH_CONFIG}" | marsh_get_variables)
+            eval "$(printf '%s\n' "${CONFIG_VARS}" | marsh_get_local_declarations)"
+            eval "${MARSH_CONFIG}"
+        else
+            echo "Configuration file not found: ${MARSH_CONFIG_FILE#$SELF_DIR/}" >&2
+            return 1
+        fi
+        if [[ "${CONFIG_Build_Path:-}" != "" ]]; then
+            MARSH_CONFIG_PATH="${CONFIG_Build_Path}"
+            [[ "${MARSH_CONFIG_FILE}" =~ / ]] && MARSH_CONFIG_FILE_DIR="${MARSH_CONFIG_FILE%/*}"
+            MARSH_CONFIG_FILE_DIR="${MARSH_CONFIG_FILE_DIR:-.}"
+            [[ ! "${MARSH_CONFIG_PATH}" =~ ^/ ]] && MARSH_CONFIG_PATH="${MARSH_CONFIG_FILE_DIR}/${MARSH_CONFIG_PATH}"
+            MARSH_CONFIG_PATH="${MARSH_CONFIG_PATH#./}"
+        else
+            echo "Build directory empty or not found in config: ${MARSH_CONFIG_FILE}" >&2
+            return 1
+        fi
+        MARSH_CONFIG_URL="${CONFIG_Build_URL:-}"
+        #export MARSH_CONFIG_FILE MARSH_CONFIG_FILE_DIR MARSH_CONFIG_PATH MARSH_CONFIG_URL
+    fi
+
+    # dependencies
+    if [[ "${MARKDOWN_COMMAND}" != "" ]] && [[ "${MARKDOWN_COMMAND#\/}" == "${MARKDOWN_COMMAND}" ]]; then
+        MARKDOWN_COMMAND="$(pwd -P)/${MARKDOWN_COMMAND}"
+    fi
+    MARKDOWN_COMMAND="${MARKDOWN_COMMAND:-markdown}"
+    DEPS=("${MARKDOWN_COMMAND}")
+    marsh_check_dependencies "${DEPS[@]}" || return 1
+
+    # markdown file extensions
+    for I in "${!MARKDOWN_FILEEXT[@]}"; do
+        MARKDOWN_FILEEXT[$I]=$(printf '%s' "${MARKDOWN_FILEEXT[$I]}" | awk '{ print tolower($0) }')
+    done
+    if ! marsh_in_array "markdown" "${MARKDOWN_FILEEXT[@]}"; then
+        MARKDOWN_FILEEXT+=("markdown")
+    fi
+    MARKDOWN_FILEEXT_CSV=$(echo ${MARKDOWN_FILEEXT[@]} | sed 's/ /,/g')
+
+    # discount markdown options
+    MARKDOWN_OPTIONS_CSV=$(echo ${MARKDOWN_OPTIONS[@]} | sed 's/ /,/g')
+    MARKDOWN_OPTIONS_CLIARGS=()
+    for I in "${!MARKDOWN_OPTIONS[@]}"; do
+        MARKDOWN_OPTIONS_CLIARGS+=("-f${MARKDOWN_OPTIONS[$I]}")
+    done
+    OIFS="${IFS}"
+    IFS=$'\n'
+    MARKDOWN_UNKNOWN=($("${MARKDOWN_COMMAND}" ${MARKDOWN_OPTIONS_CLIARGS[@]} -VV 2>&1 >/dev/null | grep -i "unknown" | sed -E -e 's/^markdown: unknown option <([^>]+)>$/\1/'))
+    IFS="${OIFS}"
+    if [[ "${#MARKDOWN_UNKNOWN[@]}" -gt 0 ]]; then
+        echo -n "Unknown markdown options:" >&2
+        for UNKNOWN in "${MARKDOWN_UNKNOWN[@]}"; do
+            echo -n " '${UNKNOWN}'" >&2
+        done
+        echo ""
+        return 1
+    fi
+
+    # create target directory
+    mkdir -p "${MARSH_CONFIG_PATH}"
+
+    # keep temporary directory creation close to trap to catch quick SIGINT
+    # temporary directory
+    if [[ "${MARSH_TEMP:-}" == "" ]]; then
+        TEMP_DIR="${TMPDIR:-/tmp}"
+        TEMP_DIR="${TEMP_DIR%/}"
+        MARSH_TEMP=$(mktemp -d "${TEMP_DIR}/marsh-XXXXXX" 2>/dev/null)
+        if [[ ! -d "${MARSH_TEMP}" ]]; then
+            echo "Unable to create temporary directory: ${TEMP_DIR}/marsh-XXXXXX" >&2
+            return 1
+        fi
+    fi
+    TEMPLATES_DIR="${MARSH_TEMP}/templates"
+    mkdir -p "${TEMPLATES_DIR}"
+
+    # kills child processes and removes temporary files
+    function die_gracefully {  # die_gracefully
+        trap - EXIT INT
+        trap ":" INT  # prevent recursion due to spamming ctrl-c
+        echo "Killing all processes and cleaning up (ETA ~3 seconds)..." >&2
+        #trap - INT && kill -2 -- -$$  # should not be needed with `parallel --halt now,fail=1 ...`
+        sleep 2
+        rm -rf "${MARSH_TEMP}" || echo "Temporary files may still remain at: ${MARSH_TEMP}" >&2
+        sleep 1
+        trap - TERM && kill -- -$$
+    }
+
+    # work
+    if [[ "${COMMAND}" == "build" ]]; then
+        # die gracefully
+        trap "die_gracefully" EXIT INT TERM
+
+        # build everything
+        if marsh_should_log "info" "${LOG_LEVEL}" "${LOG_LEVELS_CSV}"; then
+            echo -n "${NAME} ${VERSION}"
+            [[ "${JOBS:-1}" -gt 1 ]] && echo -n " (${JOBS} jobs)"
+            echo ""
+            echo "${CONFIG_Build_Name:-No Name} (${MARSH_CONFIG_FILE#$SELF_DIR/})"
+            echo "${CONFIG_Build_Path%/} -> ${CONFIG_Build_URL%/}"
+        fi
+        TARGET_COUNT=0
+        TARGET_COUNT_INDEX=0
+        TARGET_COUNT_PREFIX="CONFIG_Build_Targets_${TARGET_COUNT_INDEX}_"
+        while marsh_get_target_metadata "${TARGET_COUNT_PREFIX}" "TARGET_" >/dev/null; do
+            TARGET_COUNT=$((TARGET_COUNT + 1))
+            TARGET_COUNT_INDEX=$((TARGET_COUNT_INDEX + 1))
+            TARGET_COUNT_PREFIX="CONFIG_Build_Targets_${TARGET_COUNT_INDEX}_"
+        done
+        if marsh_should_log "info" "${LOG_LEVEL}" "${LOG_LEVELS_CSV}"; then
+            echo "Building $(marsh_inflect 'target' "${TARGET_COUNT}")"
+        fi
+
+        SITE_SOURCE_ROOT=$(marsh_get_site_source_root_path "${MARSH_CONFIG_FILE_DIR:-.}") || {
+            echo "Unable to resolve site source root from target sources" >&2
+            die_gracefully
+        }
+
+        # build
+        INDEX=0
+        TARGET_NUMBER=1
+        PREFIX="CONFIG_Build_Targets_${INDEX}_"
+        while META=$(marsh_get_target_metadata "${PREFIX}" "TARGET_"); do
+            TARGET_START_TIME=$(marsh_get_shell_timestamp) || die_gracefully
+            if [[ "${BUILD_START_TIME:-}" == "" ]]; then
+                BUILD_START_TIME="${TARGET_START_TIME}"
+            fi
+            META_VARS=$(echo "${META}" | marsh_get_variables)
+            eval "$(printf '%s\n' "${META_VARS}" | marsh_get_local_declarations)"
+            eval "${META}"
+            if marsh_should_log "info" "${LOG_LEVEL}" "${LOG_LEVELS_CSV}"; then
+                echo "Building target ${TARGET_NUMBER}: ${TARGET_NAME:-}"
+                echo "Target ${TARGET_NUMBER}: planning build"
+            fi
+
+            # get template
+            if [[ "${TARGET_TEMPLATE_SOURCE:-}" != "" ]]; then
+                TARGET_TEMPLATE_SOURCE=$(marsh_resolve_config_path "${MARSH_CONFIG_FILE_DIR}" "${TARGET_TEMPLATE_SOURCE}") || die_gracefully
+                for I in "${!TARGET_TEMPLATE_OVERRIDES[@]}"; do
+                    [[ "${TARGET_TEMPLATE_OVERRIDES[$I]:-}" == "" ]] && continue
+                    TARGET_TEMPLATE_OVERRIDES[$I]=$(marsh_resolve_config_path "${MARSH_CONFIG_FILE_DIR}" "${TARGET_TEMPLATE_OVERRIDES[$I]}") || die_gracefully
+                done
+                marsh_get_template_cache_path "${TEMPLATES_DIR}" "${TARGET_TEMPLATE}" "${TARGET_TEMPLATE_SOURCE}" >/dev/null || die_gracefully
+            fi
+
+            # get source files for target
+            if [[ "${TARGET_FORCE}" == true ]] || [[ "${FORCE}" == true ]]; then
+                TARGET_FORCE=true
+            fi
+            if [[ ! "${TARGET_SOURCE}" =~ ^/ ]]; then
+                TARGET_SOURCE=$(marsh_resolve_config_path "${MARSH_CONFIG_FILE_DIR}" "${TARGET_SOURCE}") || die_gracefully
+            fi
+            if [[ "${TARGET_SOURCE}" != "" ]]; then
+                TARGET_SOURCE_ROOT=$(marsh_get_source_root_path "${TARGET_SOURCE}") || die_gracefully
+                BUILD_CONTEXT_SOURCE_ROOT="${TARGET_SOURCE_ROOT}"
+            fi
+
+            BUILD_CONTEXT_TARGET_OUTPUT_REL="${TARGET_PATH}"
+            [[ "${TARGET_SOURCE:-}" != "" ]] || BUILD_CONTEXT_SOURCE_ROOT=""
+
+            TARGET_PLAN_ROOT=$(marsh_plan_target \
+                        "${SITE_SOURCE_ROOT}" \
+                        "${MARSH_CONFIG_PATH}" \
+                        "${TARGET_PATH}" \
+                        "${TARGET_FORCE}" \
+                        "${TARGET_SOURCE}" \
+                        "${TARGET_SITEMAP}" \
+                        "${TARGET_SITEMAP_SEARCH}" \
+                        "${TEMPLATES_DIR}" \
+                        "${TARGET_TEMPLATE:-}" \
+                        "${#TARGET_TEMPLATE_OVERRIDES[@]}" \
+                        "${TARGET_TEMPLATE_OVERRIDES[@]}" \
+                        "${TARGET_TEMPLATE_ASSETS_PATH:-}" \
+                        "${BUILD_CONTEXT_SOURCE_ROOT}" \
+                        "${MARKDOWN_FILEEXT_CSV}" \
+                        "${MARSH_CONFIG_FILE_DIR}" \
+                        "${TARGET_NAME}" \
+                        "${TARGET_TEMPLATE_SOURCE:-}") || die_gracefully
+
+            marsh_build_planned_target \
+                        "${MARSH_CONFIG_PATH}" \
+                        "${LOG_LEVEL}" \
+                        "${LOG_LEVELS_CSV}" \
+                        "${JOBS}" \
+                        "${MARKDOWN_COMMAND}" \
+                        "${MARKDOWN_OPTIONS_CSV}" \
+                        "${MARKDOWN_FILEEXT_CSV}" \
+                        "${MARKDOWN_REWRITE_LINKS}" \
+                        "${TARGET_PLAN_ROOT}" \
+                        "${TARGET_NUMBER}" || die_gracefully
+
+            marsh_clean_target_temp "${MARSH_CONFIG_PATH}/${TARGET_PATH}" || die_gracefully
+            TARGET_END_TIME=$(marsh_get_shell_timestamp) || die_gracefully
+            BUILD_END_TIME="${TARGET_END_TIME}"
+            TARGET_ELAPSED=$(awk -v start_time="${TARGET_START_TIME}" -v end_time="${TARGET_END_TIME}" 'BEGIN { printf "%.6f", (end_time - start_time) }') || die_gracefully
+            if marsh_should_log "info" "${LOG_LEVEL}" "${LOG_LEVELS_CSV}"; then
+                echo "Target ${TARGET_NUMBER}: completed in $(marsh_format_elapsed_time "${TARGET_ELAPSED}")"
+            fi
+            INDEX=$((INDEX+1))
+            TARGET_NUMBER=$((TARGET_NUMBER + 1))
+            PREFIX="CONFIG_Build_Targets_${INDEX}_"
+        done
+
+        if [[ "${BUILD_START_TIME:-}" == "" ]] || [[ "${BUILD_END_TIME:-}" == "" ]]; then
+            BUILD_ELAPSED="0.000000"
+        else
+            BUILD_ELAPSED=$(awk -v start_time="${BUILD_START_TIME}" -v end_time="${BUILD_END_TIME}" 'BEGIN { printf "%.6f", (end_time - start_time) }') || die_gracefully
+        fi
+        if marsh_should_log "info" "${LOG_LEVEL}" "${LOG_LEVELS_CSV}"; then
+            echo "Completed $(marsh_inflect 'target' "${TARGET_COUNT}") in $(marsh_format_elapsed_time "${BUILD_ELAPSED}")"
+        fi
+
+        # clean up
+        rm -rf "${MARSH_TEMP}"
+        trap - EXIT INT TERM
+    elif [[ "${COMMAND}" == "build-document" ]] || [[ "${COMMAND}" == "build-document-and-template" ]] || [[ "${COMMAND}" == "build-target-archive-queue-record" ]] || [[ "${COMMAND}" == "build-template" ]]; then
+        BUILD_SITE_OUTPUT_ROOT="${BUILD_SITE_OUTPUT_ROOT%/}"
+        BUILD_SITE_OUTPUT_ROOT="${BUILD_SITE_OUTPUT_ROOT:-.}"
+        BUILD_TARGET_OUTPUT_REL="${BUILD_TARGET_OUTPUT_REL%/}"
+        BUILD_TARGET_OUTPUT_REL="${BUILD_TARGET_OUTPUT_REL:-.}"
+        BUILD_CONTEXT_TARGET_OUTPUT_REL="${BUILD_CONTEXT_TARGET_OUTPUT_REL%/}"
+        BUILD_CONTEXT_TARGET_OUTPUT_REL="${BUILD_CONTEXT_TARGET_OUTPUT_REL:-${BUILD_TARGET_OUTPUT_REL}}"
+    fi
+
+    if [[ "${COMMAND}" == "build-document" ]]; then
+        # build single document
+        COMMAND_STATUS=0
+        marsh_build_document "${BUILD_SITE_OUTPUT_ROOT}" "${BUILD_TARGET_OUTPUT_REL}" "${BUILD_DOCUMENT}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_FILEEXT_CSV}" "${MARKDOWN_REWRITE_LINKS}" "${BUILD_CONTEXT_TARGET_OUTPUT_REL}" "${BUILD_CONTEXT_SOURCE_ROOT}"
+        COMMAND_STATUS=$?
+    elif [[ "${COMMAND}" == "build-document-and-template" ]]; then
+        # build single document and apply template where configured
+        COMMAND_STATUS=0
+        marsh_build_document_and_template "${BUILD_SITE_OUTPUT_ROOT}" "${BUILD_TARGET_OUTPUT_REL}" "${BUILD_DOCUMENT}" "${BUILD_SITEMAP}" "${BUILD_SITEMAP_SEARCH}" "${BUILD_TEMPLATES_DIR}" "${BUILD_TEMPLATE}" "${LOG_LEVEL}" "${LOG_LEVELS_CSV}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_FILEEXT_CSV}" "${MARKDOWN_REWRITE_LINKS}" "${#BUILD_TEMPLATE_OVERRIDES[@]}" "${BUILD_TEMPLATE_OVERRIDES[@]}" "${BUILD_TEMPLATE_ASSETS_PATH}" "${BUILD_CONTEXT_TARGET_OUTPUT_REL}" "${BUILD_CONTEXT_SOURCE_ROOT}"
+        COMMAND_STATUS=$?
+    elif [[ "${COMMAND}" == "build-target-archive-queue-record" ]]; then
+        # build one queued archive document using persisted archive-plan context
+        COMMAND_STATUS=0
+        marsh_build_target_archive_queue_record_document "${BUILD_SITE_OUTPUT_ROOT}" "${LOG_LEVEL}" "${LOG_LEVELS_CSV}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_FILEEXT_CSV}" "${MARKDOWN_REWRITE_LINKS}" "${BUILD_QUEUE_RECORD}"
+        COMMAND_STATUS=$?
+    elif [[ "${COMMAND}" == "build-template" ]]; then
+        # build template for document
+        COMMAND_STATUS=0
+        marsh_build_template "${BUILD_SITE_OUTPUT_ROOT}" "${BUILD_TARGET_OUTPUT_REL}" "${BUILD_DOCUMENT}" "${BUILD_SITEMAP}" "${BUILD_SITEMAP_SEARCH}" "${BUILD_TEMPLATES_DIR}" "${BUILD_TEMPLATE}" "${LOG_LEVEL}" "${LOG_LEVELS_CSV}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_FILEEXT_CSV}" "${MARKDOWN_REWRITE_LINKS}" "${#BUILD_TEMPLATE_OVERRIDES[@]}" "${BUILD_TEMPLATE_OVERRIDES[@]}" "${BUILD_TEMPLATE_ASSETS_PATH}" "${BUILD_CONTEXT_TARGET_OUTPUT_REL}" "${BUILD_CONTEXT_SOURCE_ROOT}"
+        COMMAND_STATUS=$?
+    fi
+
+    # done
+    set +o pipefail
+    return "${COMMAND_STATUS:-0}"
 }
 
 # creates bash variables from yaml records
@@ -7365,7 +8016,7 @@ function marsh_build_target_documents {  # marsh_build_target_documents site_out
     [[ "${MARKDOWN_COMMAND}" != "markdown" ]] && PARALLEL_MARKDOWN="${MARKDOWN_COMMAND}"
     if [[ "${JOBS:-1}" -gt 1 ]] && [[ "${PARALLEL:-}" != "" ]] && [[ "$("${PARALLEL}" --version --no-notice 2>/dev/null | head -n 1 | grep -o 'GNU parallel')" == "GNU parallel" ]]; then
         export -f marsh_build_document_and_template
-        if ! "${PARALLEL}" --halt now,fail=1 --quote --no-notice --env marsh_text_transform --env marsh_process_markdown --env marsh_build_document_and_template --jobs="${JOBS:-1}" "${SELF_DIR}/${SELF_NAME}" build-document-and-template --log-level="${LOG_LEVEL}" --markdown="${PARALLEL_MARKDOWN}" --markdown-options="${MARKDOWN_OPTIONS_CSV}" --markdown-file-extensions="${MARKDOWN_FILEEXT_CSV}" --markdown-rewrite-links="${MARKDOWN_REWRITE_LINKS}" --marsh-temp="${MARSH_TEMP}" --marsh-config-file="${MARSH_CONFIG_FILE}" --marsh-config-file-dir="${MARSH_CONFIG_FILE_DIR}" --marsh-config-path="${MARSH_CONFIG_PATH}" --marsh-config-url="${MARSH_CONFIG_URL}" --marsh-build-context-target-output-rel="${BUILD_CONTEXT_TARGET_OUTPUT_REL}" --marsh-build-context-source-root="${BUILD_CONTEXT_SOURCE_ROOT}" "${SITE_OUTPUT_ROOT}" "${TARGET_OUTPUT_REL}" {} "${SITEMAP}" "${SITEMAP_SEARCH}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_ASSETS_PATH}" ::: "${DOCUMENTS[@]}"; then
+        if ! "${PARALLEL}" --halt now,fail=1 --quote --no-notice --env marsh_text_transform --env marsh_build_document_and_template --jobs="${JOBS:-1}" "${SELF_DIR}/${SELF_NAME}" build-document-and-template --log-level="${LOG_LEVEL}" --markdown="${PARALLEL_MARKDOWN}" --markdown-options="${MARKDOWN_OPTIONS_CSV}" --markdown-file-extensions="${MARKDOWN_FILEEXT_CSV}" --markdown-rewrite-links="${MARKDOWN_REWRITE_LINKS}" --marsh-temp="${MARSH_TEMP}" --marsh-config-file="${MARSH_CONFIG_FILE}" --marsh-config-file-dir="${MARSH_CONFIG_FILE_DIR}" --marsh-config-path="${MARSH_CONFIG_PATH}" --marsh-config-url="${MARSH_CONFIG_URL}" --marsh-build-context-target-output-rel="${BUILD_CONTEXT_TARGET_OUTPUT_REL}" --marsh-build-context-source-root="${BUILD_CONTEXT_SOURCE_ROOT}" "${SITE_OUTPUT_ROOT}" "${TARGET_OUTPUT_REL}" {} "${SITEMAP}" "${SITEMAP_SEARCH}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_ASSETS_PATH}" ::: "${DOCUMENTS[@]}"; then
             return 1
         fi
     else
@@ -7449,653 +8100,6 @@ function marsh_build_planned_target_documents {  # marsh_build_planned_target_do
 
     [[ "${#DOCUMENTS[@]}" -gt 0 ]] || return 0
     marsh_build_target_documents "${SITE_OUTPUT_ROOT}" "${PLAN_TARGET_OUTPUT_REL}" "${LOG_LEVEL}" "${LOG_LEVELS_CSV}" "${JOBS}" "${SITEMAP}" "${SITEMAP_SEARCH}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_FILEEXT_CSV}" "${MARKDOWN_REWRITE_LINKS}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_ASSETS_PATH}" "${PLAN_TARGET_OUTPUT_REL}" "${PLAN_SOURCE_ROOT}" "${DOCUMENTS[@]}"
-}
-
-# main function, entry point for command line interface
-function marsh_cli {
-    set -o pipefail
-
-    local COMMAND OPTSPEC UNKNOWN TEMP_DIR TEMPLATES_DIR LOG_LEVEL LOG_LEVELS LOG_LEVELS_CSV LOG_LEVEL_DEFAULT FORCE JOBS
-    local MARKDOWN_COMMAND MARKDOWN_REWRITE_LINKS
-    local MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV
-    local INDEX PREFIX META META_VARS CONFIG_VARS OIFS I J
-    local TARGET_COUNT TARGET_COUNT_INDEX TARGET_COUNT_PREFIX TARGET_NUMBER
-    local BUILD_START_TIME BUILD_END_TIME BUILD_ELAPSED
-    local TARGET_START_TIME TARGET_END_TIME TARGET_ELAPSED
-    local TARGET_ARCHIVE_MANIFEST
-    local TARGET_ARCHIVE_TEMPLATE TARGET_ARCHIVE_TEMPLATE_SOURCE TARGET_ARCHIVE_TEMPLATE_ASSETS_PATH
-    local SITE_SOURCE_ROOT TARGET_SOURCE_ROOT TARGET_SITEMAP_SEARCH
-    local TARGET_PLAN_ROOT
-    local BUILD_SITE_OUTPUT_ROOT BUILD_TARGET_OUTPUT_REL BUILD_DOCUMENT BUILD_SITEMAP BUILD_SITEMAP_SEARCH
-    local BUILD_CONTEXT_TARGET_OUTPUT_REL BUILD_CONTEXT_SOURCE_ROOT
-    local BUILD_TEMPLATES_DIR BUILD_TEMPLATE BUILD_NUM_TEMPLATE_OVERRIDES BUILD_TEMPLATE_ASSETS_PATH
-    local BUILD_TEMPLATE_OVERRIDE_INDEX
-    local COMMAND_STATUS
-    local -a COMMANDS OPTARRAY DEPS MARKDOWN_OPTIONS MARKDOWN_FILEEXT MARKDOWN_OPTIONS_CLIARGS MARKDOWN_UNKNOWN
-    local -a TARGET_ARCHIVE_TYPES TARGET_ARCHIVE_EXCLUDED_STATES TARGET_ARCHIVE_TEMPLATE_OVERRIDES BUILD_TEMPLATE_OVERRIDES
-
-    # args with help
-    LOG_LEVELS=('info' 'verbose')
-    LOG_LEVELS_CSV=$(IFS=, ; echo "${LOG_LEVELS[*]}")
-    LOG_LEVEL_DEFAULT='info'
-    MARKDOWN_OPTIONS=(-1.0 +alphalist -autolink -cdata +definitionlist -divquote -dldiscount +dlextra +ext +fencedcode +footnote +githubtags -header +html +image -latex +links -safelink +smarty +strikethrough +style +superscript +tables -tabstop -toc)
-    MARKDOWN_FILEEXT=('markdown' 'md' 'mkd' 'mkdn' 'mdown' 'mdtxt' 'mdtext' 'text')
-    MARKDOWN_REWRITE_LINKS=true
-
-    # env vars
-    marsh_env_cli
-
-    # commands
-    COMMANDS=('build' 'build-document' 'build-document-and-template' 'build-target-archive-queue-record' 'build-template')
-    COMMAND="${1:-}"
-
-    # validate command
-    if [[ ! "${COMMAND}" =~ ^- ]]; then
-        if [[ "${COMMAND}" == "" ]]; then
-            # command not specified
-            echo "Command not specified" >&2
-            echo -e "${HELP}"
-            return 1
-        elif ! marsh_in_array "${COMMAND}" "${COMMANDS[@]}"; then
-            # invalid command
-            echo "Invalid command: ${COMMAND}" >&2
-            echo -e "${HELP}"
-            return 1
-        fi
-        shift 1
-    else
-        # continue processing arguments
-        COMMAND=""
-    fi
-
-    # args
-    LOG_LEVEL="${LOG_LEVEL_DEFAULT}"
-    FORCE=false
-    JOBS=1
-    if [[ "${SYS_NAME}" == "darwin" ]]; then
-        JOBS=$(sysctl -n hw.ncpu)
-    elif [[ "${SYS_NAME}" == "linux" ]]; then
-        JOBS=$(nproc)
-    fi
-    MARKDOWN_COMMAND=""
-    OPTIND=1
-    OPTSPEC=":-:hvj:"
-    OPTARRAY=('-h' '--help' '-v' '--version' '--log-level' '--force' '-j' '--jobs' '--markdown' '--markdown-options' '--markdown-file-extensions' '--markdown-rewrite-links')  # all short and long options
-    OPTARRAY+=('marsh-temp' 'marsh-config-file' 'marsh-config-file-dir' 'marsh-config-path' 'marsh-config-url' 'marsh-build-context-target-output-rel' 'marsh-build-context-source-root')  # all private options
-    while getopts "${OPTSPEC}" OPT; do
-        case "${OPT}" in
-            -)
-                case "${OPTARG}" in
-                    help)
-                        # Print help and exit
-                        echo -e "${HELP}"
-                        return 0
-                        ;;
-                    help=*)
-                        # Print help and exit
-                        echo -e "${HELP}"
-                        return 0
-                        ;;
-                    version)
-                        # Print version and exit
-                        echo -e "${NAME} ${VERSION}"
-                        return 0
-                        ;;
-                    version=*)
-                        # Print version and exit
-                        echo -e "${NAME} ${VERSION}"
-                        return 0
-                        ;;
-                    jobs)
-                        if [[ -z ${!OPTIND+isset} ]] || marsh_in_array "${!OPTIND}" "${OPTARRAY[@]}"; then
-                            # Option without required argument
-                            echo "Option --${OPTARG} requires a value" >&2
-                            echo -e "${HELP}"
-                            return 1
-                        fi
-                        JOBS="${!OPTIND}"
-                        if [[ ! "${JOBS}" =~ ^[1-9][0-9]*$ ]]; then
-                            echo "Option --${OPTARG} requires a numeric value greater than zero" >&2
-                            echo -e "${HELP}"
-                            return 1
-                        fi
-                        OPTIND=$((OPTIND + 1))
-                        ;;
-                    jobs=*)
-                        JOBS="${OPTARG#*=}"
-                        if [[ ! "${JOBS}" =~ ^[1-9][0-9]*$ ]]; then
-                            echo "Option --${OPTARG} requires a numeric value greater than zero" >&2
-                            echo -e "${HELP}"
-                            return 1
-                        fi
-                        ;;
-                    markdown)
-                        if [[ -z ${!OPTIND+isset} ]] || marsh_in_array "${!OPTIND}" "${OPTARRAY[@]}"; then
-                            # Option without required argument
-                            echo "Option --${OPTARG} requires a value" >&2
-                            echo -e "${HELP}"
-                            return 1
-                        fi
-                        MARKDOWN_COMMAND="${!OPTIND}"
-                        OPTIND=$((OPTIND + 1))
-                        ;;
-                    markdown=*)
-                        MARKDOWN_COMMAND="${OPTARG#*=}"
-                        ;;
-                    markdown-options)
-                        if [[ -z ${!OPTIND+isset} ]] || marsh_in_array "${!OPTIND}" "${OPTARRAY[@]}"; then
-                            # Option without required argument
-                            echo "Option --${OPTARG} requires a value" >&2
-                            echo -e "${HELP}"
-                            return 1
-                        fi
-                        MARKDOWN_OPTIONS="${!OPTIND}"
-                        OIFS="${IFS}"
-                        IFS=$'\n'
-                        MARKDOWN_OPTIONS=(${MARKDOWN_OPTIONS//,/$IFS})
-                        IFS="${OIFS}"
-                        OPTIND=$((OPTIND + 1))
-                        ;;
-                    markdown-options=*)
-                        MARKDOWN_OPTIONS="${OPTARG#*=}"
-                        OIFS="${IFS}"
-                        IFS=$'\n'
-                        MARKDOWN_OPTIONS=(${MARKDOWN_OPTIONS//,/$IFS})
-                        IFS="${OIFS}"
-                        ;;
-                    markdown-file-extensions)
-                        if [[ -z ${!OPTIND+isset} ]] || marsh_in_array "${!OPTIND}" "${OPTARRAY[@]}"; then
-                            # Option without required argument
-                            echo "Option --${OPTARG} requires a value" >&2
-                            echo -e "${HELP}"
-                            return 1
-                        fi
-                        MARKDOWN_FILEEXT=(${!OPTIND//,/ })
-                        OPTIND=$((OPTIND + 1))
-                        ;;
-                    markdown-file-extensions=*)
-                        MARKDOWN_FILEEXT="${OPTARG#*=}"
-                        MARKDOWN_FILEEXT=(${MARKDOWN_FILEEXT//,/ })
-                        ;;
-                    markdown-rewrite-links)
-                        if [[ -z ${!OPTIND+isset} ]] || marsh_in_array "${!OPTIND}" "${OPTARRAY[@]}"; then
-                            # Option without required argument
-                            echo "Option --${OPTARG} requires a value" >&2
-                            echo -e "${HELP}"
-                            return 1
-                        fi
-                        MARKDOWN_REWRITE_LINKS=$(echo "${!OPTIND}" | awk '{ print tolower($0) }')
-                        if [[ "${MARKDOWN_REWRITE_LINKS}" != true ]] && [[ "${MARKDOWN_REWRITE_LINKS}" != false ]]; then
-                            echo "Option --${OPTARG} requires boolean string value true or false" >&2
-                            echo -e "${HELP}"
-                            return 1
-                        fi
-                        OPTIND=$((OPTIND + 1))
-                        ;;
-                    markdown-rewrite-links=*)
-                        MARKDOWN_REWRITE_LINKS=$(echo "${OPTARG#*=}" | awk '{ print tolower($0) }')
-                        if [[ "${MARKDOWN_REWRITE_LINKS}" != true ]] && [[ "${MARKDOWN_REWRITE_LINKS}" != false ]]; then
-                            echo "Option --${OPTARG%%=*} requires boolean string value true or false" >&2
-                            echo -e "${HELP}"
-                            return 1
-                        fi
-                        ;;
-                    log-level)
-                        if [[ -z ${!OPTIND+isset} ]] || marsh_in_array "${!OPTIND}" "${OPTARRAY[@]}"; then
-                            # Option without required argument
-                            echo "Option --${OPTARG} requires a value" >&2
-                            echo -e "${HELP}"
-                            return 1
-                        fi
-                        LOG_LEVEL=$(echo "${!OPTIND}" | awk '{ print tolower($0) }')
-                        if ! marsh_in_array "${LOG_LEVEL}" "${LOG_LEVELS[@]}"; then
-                            echo "Option --${OPTARG} requires one of: ${LOG_LEVELS[*]}" >&2
-                            echo -e "${HELP}"
-                            return 1
-                        fi
-                        OPTIND=$((OPTIND + 1))
-                        ;;
-                    log-level=*)
-                        LOG_LEVEL=$(echo "${OPTARG#*=}" | awk '{ print tolower($0) }')
-                        if ! marsh_in_array "${LOG_LEVEL}" "${LOG_LEVELS[@]}"; then
-                            echo "Option --${OPTARG%%=*} requires one of: ${LOG_LEVELS[*]}" >&2
-                            echo -e "${HELP}"
-                            return 1
-                        fi
-                        ;;
-                    force)
-                        FORCE=true
-                        ;;
-                    force=*)
-                        # Option with prohibited value
-                        echo "Option --${OPTARG%%=*} takes no value" >&2
-                        echo -e "${HELP}"
-                        return 1
-                        ;;
-                    marsh-temp)
-                        if [[ -z ${!OPTIND+isset} ]] || marsh_in_array "${!OPTIND}" "${OPTARRAY[@]}"; then
-                            # Option without required argument
-                            echo "Option --${OPTARG} requires a value" >&2
-                            echo -e "${HELP}"
-                            return 1
-                        fi
-                        MARSH_TEMP="${!OPTIND}"
-                        OPTIND=$((OPTIND + 1))
-                        ;;
-                    marsh-temp=*)
-                        MARSH_TEMP="${OPTARG#*=}"
-                        ;;
-                    marsh-config-file)
-                        if [[ -z ${!OPTIND+isset} ]] || marsh_in_array "${!OPTIND}" "${OPTARRAY[@]}"; then
-                            # Option without required argument
-                            echo "Option --${OPTARG} requires a value" >&2
-                            echo -e "${HELP}"
-                            return 1
-                        fi
-                        MARSH_CONFIG_FILE="${!OPTIND}"
-                        OPTIND=$((OPTIND + 1))
-                        ;;
-                    marsh-config-file=*)
-                        MARSH_CONFIG_FILE="${OPTARG#*=}"
-                        ;;
-                    marsh-config-file-dir)
-                        if [[ -z ${!OPTIND+isset} ]] || marsh_in_array "${!OPTIND}" "${OPTARRAY[@]}"; then
-                            # Option without required argument
-                            echo "Option --${OPTARG} requires a value" >&2
-                            echo -e "${HELP}"
-                            return 1
-                        fi
-                        MARSH_CONFIG_FILE_DIR="${!OPTIND}"
-                        OPTIND=$((OPTIND + 1))
-                        ;;
-                    marsh-config-file-dir=*)
-                        MARSH_CONFIG_FILE_DIR="${OPTARG#*=}"
-                        ;;
-                    marsh-config-path)
-                        if [[ -z ${!OPTIND+isset} ]] || marsh_in_array "${!OPTIND}" "${OPTARRAY[@]}"; then
-                            # Option without required argument
-                            echo "Option --${OPTARG} requires a value" >&2
-                            echo -e "${HELP}"
-                            return 1
-                        fi
-                        MARSH_CONFIG_PATH="${!OPTIND}"
-                        OPTIND=$((OPTIND + 1))
-                        ;;
-                    marsh-config-path=*)
-                        MARSH_CONFIG_PATH="${OPTARG#*=}"
-                        ;;
-                    marsh-config-url)
-                        if [[ -z ${!OPTIND+isset} ]] || marsh_in_array "${!OPTIND}" "${OPTARRAY[@]}"; then
-                            # Option without required argument
-                            echo "Option --${OPTARG} requires a value" >&2
-                            echo -e "${HELP}"
-                            return 1
-                        fi
-                        MARSH_CONFIG_URL="${!OPTIND}"
-                        OPTIND=$((OPTIND + 1))
-                        ;;
-                    marsh-config-url=*)
-                        MARSH_CONFIG_URL="${OPTARG#*=}"
-                        ;;
-                    marsh-build-context-target-output-rel)
-                        if [[ -z ${!OPTIND+isset} ]] || marsh_in_array "${!OPTIND}" "${OPTARRAY[@]}"; then
-                            echo "Option --${OPTARG} requires a value" >&2
-                            echo -e "${HELP}"
-                            return 1
-                        fi
-                        BUILD_CONTEXT_TARGET_OUTPUT_REL="${!OPTIND}"
-                        OPTIND=$((OPTIND + 1))
-                        ;;
-                    marsh-build-context-target-output-rel=*)
-                        BUILD_CONTEXT_TARGET_OUTPUT_REL="${OPTARG#*=}"
-                        ;;
-                    marsh-build-context-source-root)
-                        if [[ -z ${!OPTIND+isset} ]] || marsh_in_array "${!OPTIND}" "${OPTARRAY[@]}"; then
-                            echo "Option --${OPTARG} requires a value" >&2
-                            echo -e "${HELP}"
-                            return 1
-                        fi
-                        BUILD_CONTEXT_SOURCE_ROOT="${!OPTIND}"
-                        OPTIND=$((OPTIND + 1))
-                        ;;
-                    marsh-build-context-source-root=*)
-                        BUILD_CONTEXT_SOURCE_ROOT="${OPTARG#*=}"
-                        ;;
-                    *)
-                        if [[ "${OPTERR}" == 1 ]]; then
-                            # Invalid option specified
-                            echo "Invalid option: --${OPTARG}" >&2
-                            echo -e "${HELP}"
-                            return 1
-                        fi
-                        ;;
-                esac
-                ;;
-            h)
-                # Print help and exit
-                echo -e "${HELP}"
-                return 0
-                ;;
-            v)
-                # Print version and exit
-                echo "${NAME} ${VERSION}"
-                return 0
-                ;;
-            j)
-                # Number of jobs
-                JOBS="${OPTARG}"
-                if [[ ! "${JOBS}" =~ ^[1-9][0-9]*$ ]]; then
-                    echo "Option -${OPT} requires a numeric value greater than zero" >&2
-                    echo -e "${HELP}"
-                    return 1
-                fi
-                ;;
-            :)
-                # Option without required value
-                echo "Option -${OPTARG} requires a value" >&2
-                echo -e "${HELP}"
-                return 1
-                ;;
-            \?)
-                # Invalid option specified
-                echo "Invalid option: -${OPTARG}" >&2
-                echo -e "${HELP}"
-                return 1
-                ;;
-        esac
-    done
-    shift $((OPTIND - 1))
-
-    # revalidate command
-    if [[ "${COMMAND}" == "" ]]; then
-        # command not specified
-        echo "Command not specified" >&2
-        echo -e "${HELP}"
-        return 1
-    elif ! marsh_in_array "${COMMAND}" "${COMMANDS[@]}"; then
-        # invalid command
-        echo "Invalid command: ${COMMAND}" >&2
-        echo -e "${HELP}"
-        return 1
-    fi
-
-    # build document/template dispatch vars
-    BUILD_SITE_OUTPUT_ROOT="${1:-}"
-    BUILD_TARGET_OUTPUT_REL="${2:-}"
-    BUILD_DOCUMENT="${3:-}"
-    BUILD_SITEMAP="${4:-}"
-    BUILD_SITEMAP_SEARCH="${5:-false}"
-    BUILD_TEMPLATES_DIR="${6:-}"
-    BUILD_TEMPLATE="${7:-}"
-    BUILD_NUM_TEMPLATE_OVERRIDES="${8:-0}"
-    BUILD_TEMPLATE_OVERRIDES=()
-    BUILD_TEMPLATE_OVERRIDE_INDEX=9
-    while [[ "${#BUILD_TEMPLATE_OVERRIDES[@]}" -lt "${BUILD_NUM_TEMPLATE_OVERRIDES}" ]]; do
-        [[ -z ${!BUILD_TEMPLATE_OVERRIDE_INDEX+isset} ]] && break
-        BUILD_TEMPLATE_OVERRIDES+=("${!BUILD_TEMPLATE_OVERRIDE_INDEX}")
-        BUILD_TEMPLATE_OVERRIDE_INDEX=$((BUILD_TEMPLATE_OVERRIDE_INDEX + 1))
-    done
-    BUILD_TEMPLATE_ASSETS_PATH="${!BUILD_TEMPLATE_OVERRIDE_INDEX:-}"
-    BUILD_QUEUE_RECORD="${2:-}"
-
-    # parse config
-    if [[ "${MARSH_CONFIG_FILE:-}" == "" ]]; then
-        MARSH_CONFIG_FILE="${1:-$(pwd -P)}"
-        if [[ -d "${MARSH_CONFIG_FILE}" ]]; then
-            MARSH_CONFIG_FILE=$(cd "${MARSH_CONFIG_FILE}" && (pwd -P . 2>/dev/null || command pwd))
-            [[ "${MARSH_CONFIG_FILE}" != "" ]] && MARSH_CONFIG_FILE="${MARSH_CONFIG_FILE%/}/marsh-config.yaml"
-        fi
-        if [[ -f "${MARSH_CONFIG_FILE}" ]] && [[ -r "${MARSH_CONFIG_FILE}" ]]; then
-            MARSH_CONFIG=$(marsh_parse_yaml "${MARSH_CONFIG_FILE}" "CONFIG_")
-            [[ $? -ne 0 ]] && echo "Unable to parse yaml file: ${MARSH_CONFIG_FILE}" >&2 && return 1
-            CONFIG_VARS=$(printf '%s\n' "${MARSH_CONFIG}" | marsh_get_variables)
-            eval "$(printf '%s\n' "${CONFIG_VARS}" | marsh_get_local_declarations)"
-            eval "${MARSH_CONFIG}"
-        else
-            echo "Configuration file not found: ${MARSH_CONFIG_FILE#$SELF_DIR/}" >&2
-            return 1
-        fi
-        if [[ "${CONFIG_Build_Path:-}" != "" ]]; then
-            MARSH_CONFIG_PATH="${CONFIG_Build_Path}"
-            [[ "${MARSH_CONFIG_FILE}" =~ / ]] && MARSH_CONFIG_FILE_DIR="${MARSH_CONFIG_FILE%/*}"
-            MARSH_CONFIG_FILE_DIR="${MARSH_CONFIG_FILE_DIR:-.}"
-            [[ ! "${MARSH_CONFIG_PATH}" =~ ^/ ]] && MARSH_CONFIG_PATH="${MARSH_CONFIG_FILE_DIR}/${MARSH_CONFIG_PATH}"
-            MARSH_CONFIG_PATH="${MARSH_CONFIG_PATH#./}"
-        else
-            echo "Build directory empty or not found in config: ${MARSH_CONFIG_FILE}" >&2
-            return 1
-        fi
-        MARSH_CONFIG_URL="${CONFIG_Build_URL:-}"
-        #export MARSH_CONFIG_FILE MARSH_CONFIG_FILE_DIR MARSH_CONFIG_PATH MARSH_CONFIG_URL
-    fi
-
-    # dependencies
-    if [[ "${MARKDOWN_COMMAND}" != "" ]] && [[ "${MARKDOWN_COMMAND#\/}" == "${MARKDOWN_COMMAND}" ]]; then
-        MARKDOWN_COMMAND="$(pwd -P)/${MARKDOWN_COMMAND}"
-    fi
-    MARKDOWN_COMMAND="${MARKDOWN_COMMAND:-markdown}"
-    DEPS=("${MARKDOWN_COMMAND}")
-    marsh_check_dependencies "${DEPS[@]}" || return 1
-
-    # markdown file extensions
-    for I in "${!MARKDOWN_FILEEXT[@]}"; do
-        MARKDOWN_FILEEXT[$I]=$(printf '%s' "${MARKDOWN_FILEEXT[$I]}" | awk '{ print tolower($0) }')
-    done
-    if ! marsh_in_array "markdown" "${MARKDOWN_FILEEXT[@]}"; then
-        MARKDOWN_FILEEXT+=("markdown")
-    fi
-    MARKDOWN_FILEEXT_CSV=$(echo ${MARKDOWN_FILEEXT[@]} | sed 's/ /,/g')
-
-    # discount markdown options
-    MARKDOWN_OPTIONS_CSV=$(echo ${MARKDOWN_OPTIONS[@]} | sed 's/ /,/g')
-    MARKDOWN_OPTIONS_CLIARGS=()
-    for I in "${!MARKDOWN_OPTIONS[@]}"; do
-        MARKDOWN_OPTIONS_CLIARGS+=("-f${MARKDOWN_OPTIONS[$I]}")
-    done
-    OIFS="${IFS}"
-    IFS=$'\n'
-    MARKDOWN_UNKNOWN=($("${MARKDOWN_COMMAND}" ${MARKDOWN_OPTIONS_CLIARGS[@]} -VV 2>&1 >/dev/null | grep -i "unknown" | sed -E -e 's/^markdown: unknown option <([^>]+)>$/\1/'))
-    IFS="${OIFS}"
-    if [[ "${#MARKDOWN_UNKNOWN[@]}" -gt 0 ]]; then
-        echo -n "Unknown markdown options:" >&2
-        for UNKNOWN in "${MARKDOWN_UNKNOWN[@]}"; do
-            echo -n " '${UNKNOWN}'" >&2
-        done
-        echo ""
-        return 1
-    fi
-    export -f marsh_process_markdown
-
-    # create target directory
-    mkdir -p "${MARSH_CONFIG_PATH}"
-
-    # keep temporary directory creation close to trap to catch quick SIGINT
-    # temporary directory
-    if [[ "${MARSH_TEMP:-}" == "" ]]; then
-        TEMP_DIR="${TMPDIR:-/tmp}"
-        TEMP_DIR="${TEMP_DIR%/}"
-        MARSH_TEMP=$(mktemp -d "${TEMP_DIR}/marsh-XXXXXX" 2>/dev/null)
-        if [[ ! -d "${MARSH_TEMP}" ]]; then
-            echo "Unable to create temporary directory: ${TEMP_DIR}/marsh-XXXXXX" >&2
-            return 1
-        fi
-    fi
-    TEMPLATES_DIR="${MARSH_TEMP}/templates"
-    mkdir -p "${TEMPLATES_DIR}"
-
-    # kills child processes and removes temporary files
-    function die_gracefully {  # die_gracefully
-        trap - EXIT INT
-        trap ":" INT  # prevent recursion due to spamming ctrl-c
-        echo "Killing all processes and cleaning up (ETA ~3 seconds)..." >&2
-        #trap - INT && kill -2 -- -$$  # should not be needed with `parallel --halt now,fail=1 ...`
-        sleep 2
-        rm -rf "${MARSH_TEMP}" || echo "Temporary files may still remain at: ${MARSH_TEMP}" >&2
-        sleep 1
-        trap - TERM && kill -- -$$
-    }
-
-    # work
-    if [[ "${COMMAND}" == "build" ]]; then
-        # die gracefully
-        trap "die_gracefully" EXIT INT TERM
-
-        # build everything
-        if marsh_should_log "info" "${LOG_LEVEL}" "${LOG_LEVELS_CSV}"; then
-            echo -n "${NAME} ${VERSION}"
-            [[ "${JOBS:-1}" -gt 1 ]] && echo -n " (${JOBS} jobs)"
-            echo ""
-            echo "${CONFIG_Build_Name:-No Name} (${MARSH_CONFIG_FILE#$SELF_DIR/})"
-            echo "${CONFIG_Build_Path%/} -> ${CONFIG_Build_URL%/}"
-        fi
-        TARGET_COUNT=0
-        TARGET_COUNT_INDEX=0
-        TARGET_COUNT_PREFIX="CONFIG_Build_Targets_${TARGET_COUNT_INDEX}_"
-        while marsh_get_target_metadata "${TARGET_COUNT_PREFIX}" "TARGET_" >/dev/null; do
-            TARGET_COUNT=$((TARGET_COUNT + 1))
-            TARGET_COUNT_INDEX=$((TARGET_COUNT_INDEX + 1))
-            TARGET_COUNT_PREFIX="CONFIG_Build_Targets_${TARGET_COUNT_INDEX}_"
-        done
-        if marsh_should_log "info" "${LOG_LEVEL}" "${LOG_LEVELS_CSV}"; then
-            echo "Building $(marsh_inflect 'target' "${TARGET_COUNT}")"
-        fi
-
-        SITE_SOURCE_ROOT=$(marsh_get_site_source_root_path "${MARSH_CONFIG_FILE_DIR:-.}") || {
-            echo "Unable to resolve site source root from target sources" >&2
-            die_gracefully
-        }
-
-        # build
-        INDEX=0
-        TARGET_NUMBER=1
-        PREFIX="CONFIG_Build_Targets_${INDEX}_"
-        while META=$(marsh_get_target_metadata "${PREFIX}" "TARGET_"); do
-            TARGET_START_TIME=$(marsh_get_shell_timestamp) || die_gracefully
-            if [[ "${BUILD_START_TIME:-}" == "" ]]; then
-                BUILD_START_TIME="${TARGET_START_TIME}"
-            fi
-            META_VARS=$(echo "${META}" | marsh_get_variables)
-            eval "$(printf '%s\n' "${META_VARS}" | marsh_get_local_declarations)"
-            eval "${META}"
-            if marsh_should_log "info" "${LOG_LEVEL}" "${LOG_LEVELS_CSV}"; then
-                echo "Building target ${TARGET_NUMBER}: ${TARGET_NAME:-}"
-                echo "Target ${TARGET_NUMBER}: planning build"
-            fi
-
-            # get template
-            if [[ "${TARGET_TEMPLATE_SOURCE:-}" != "" ]]; then
-                TARGET_TEMPLATE_SOURCE=$(marsh_resolve_config_path "${MARSH_CONFIG_FILE_DIR}" "${TARGET_TEMPLATE_SOURCE}") || die_gracefully
-                for I in "${!TARGET_TEMPLATE_OVERRIDES[@]}"; do
-                    [[ "${TARGET_TEMPLATE_OVERRIDES[$I]:-}" == "" ]] && continue
-                    TARGET_TEMPLATE_OVERRIDES[$I]=$(marsh_resolve_config_path "${MARSH_CONFIG_FILE_DIR}" "${TARGET_TEMPLATE_OVERRIDES[$I]}") || die_gracefully
-                done
-                marsh_get_template_cache_path "${TEMPLATES_DIR}" "${TARGET_TEMPLATE}" "${TARGET_TEMPLATE_SOURCE}" >/dev/null || die_gracefully
-            fi
-
-            # get source files for target
-            if [[ "${TARGET_FORCE}" == true ]] || [[ "${FORCE}" == true ]]; then
-                TARGET_FORCE=true
-            fi
-            if [[ ! "${TARGET_SOURCE}" =~ ^/ ]]; then
-                TARGET_SOURCE=$(marsh_resolve_config_path "${MARSH_CONFIG_FILE_DIR}" "${TARGET_SOURCE}") || die_gracefully
-            fi
-            if [[ "${TARGET_SOURCE}" != "" ]]; then
-                TARGET_SOURCE_ROOT=$(marsh_get_source_root_path "${TARGET_SOURCE}") || die_gracefully
-                BUILD_CONTEXT_SOURCE_ROOT="${TARGET_SOURCE_ROOT}"
-            fi
-
-            BUILD_CONTEXT_TARGET_OUTPUT_REL="${TARGET_PATH}"
-            [[ "${TARGET_SOURCE:-}" != "" ]] || BUILD_CONTEXT_SOURCE_ROOT=""
-
-            TARGET_PLAN_ROOT=$(marsh_plan_target \
-                        "${SITE_SOURCE_ROOT}" \
-                        "${MARSH_CONFIG_PATH}" \
-                        "${TARGET_PATH}" \
-                        "${TARGET_FORCE}" \
-                        "${TARGET_SOURCE}" \
-                        "${TARGET_SITEMAP}" \
-                        "${TARGET_SITEMAP_SEARCH}" \
-                        "${TEMPLATES_DIR}" \
-                        "${TARGET_TEMPLATE:-}" \
-                        "${#TARGET_TEMPLATE_OVERRIDES[@]}" \
-                        "${TARGET_TEMPLATE_OVERRIDES[@]}" \
-                        "${TARGET_TEMPLATE_ASSETS_PATH:-}" \
-                        "${BUILD_CONTEXT_SOURCE_ROOT}" \
-                        "${MARKDOWN_FILEEXT_CSV}" \
-                        "${MARSH_CONFIG_FILE_DIR}" \
-                        "${TARGET_NAME}" \
-                        "${TARGET_TEMPLATE_SOURCE:-}") || die_gracefully
-
-            marsh_build_planned_target \
-                        "${MARSH_CONFIG_PATH}" \
-                        "${LOG_LEVEL}" \
-                        "${LOG_LEVELS_CSV}" \
-                        "${JOBS}" \
-                        "${MARKDOWN_COMMAND}" \
-                        "${MARKDOWN_OPTIONS_CSV}" \
-                        "${MARKDOWN_FILEEXT_CSV}" \
-                        "${MARKDOWN_REWRITE_LINKS}" \
-                        "${TARGET_PLAN_ROOT}" \
-                        "${TARGET_NUMBER}" || die_gracefully
-
-            marsh_clean_target_temp "${MARSH_CONFIG_PATH}/${TARGET_PATH}" || die_gracefully
-            TARGET_END_TIME=$(marsh_get_shell_timestamp) || die_gracefully
-            BUILD_END_TIME="${TARGET_END_TIME}"
-            TARGET_ELAPSED=$(awk -v start_time="${TARGET_START_TIME}" -v end_time="${TARGET_END_TIME}" 'BEGIN { printf "%.6f", (end_time - start_time) }') || die_gracefully
-            if marsh_should_log "info" "${LOG_LEVEL}" "${LOG_LEVELS_CSV}"; then
-                echo "Target ${TARGET_NUMBER}: completed in $(marsh_format_elapsed_time "${TARGET_ELAPSED}")"
-            fi
-            INDEX=$((INDEX+1))
-            TARGET_NUMBER=$((TARGET_NUMBER + 1))
-            PREFIX="CONFIG_Build_Targets_${INDEX}_"
-        done
-
-        if [[ "${BUILD_START_TIME:-}" == "" ]] || [[ "${BUILD_END_TIME:-}" == "" ]]; then
-            BUILD_ELAPSED="0.000000"
-        else
-            BUILD_ELAPSED=$(awk -v start_time="${BUILD_START_TIME}" -v end_time="${BUILD_END_TIME}" 'BEGIN { printf "%.6f", (end_time - start_time) }') || die_gracefully
-        fi
-        if marsh_should_log "info" "${LOG_LEVEL}" "${LOG_LEVELS_CSV}"; then
-            echo "Completed $(marsh_inflect 'target' "${TARGET_COUNT}") in $(marsh_format_elapsed_time "${BUILD_ELAPSED}")"
-        fi
-
-        # clean up
-        rm -rf "${MARSH_TEMP}"
-        trap - EXIT INT TERM
-    elif [[ "${COMMAND}" == "build-document" ]] || [[ "${COMMAND}" == "build-document-and-template" ]] || [[ "${COMMAND}" == "build-target-archive-queue-record" ]] || [[ "${COMMAND}" == "build-template" ]]; then
-        BUILD_SITE_OUTPUT_ROOT="${BUILD_SITE_OUTPUT_ROOT%/}"
-        BUILD_SITE_OUTPUT_ROOT="${BUILD_SITE_OUTPUT_ROOT:-.}"
-        BUILD_TARGET_OUTPUT_REL="${BUILD_TARGET_OUTPUT_REL%/}"
-        BUILD_TARGET_OUTPUT_REL="${BUILD_TARGET_OUTPUT_REL:-.}"
-        BUILD_CONTEXT_TARGET_OUTPUT_REL="${BUILD_CONTEXT_TARGET_OUTPUT_REL%/}"
-        BUILD_CONTEXT_TARGET_OUTPUT_REL="${BUILD_CONTEXT_TARGET_OUTPUT_REL:-${BUILD_TARGET_OUTPUT_REL}}"
-    fi
-
-    if [[ "${COMMAND}" == "build-document" ]]; then
-        # build single document
-        COMMAND_STATUS=0
-        marsh_build_document "${BUILD_SITE_OUTPUT_ROOT}" "${BUILD_TARGET_OUTPUT_REL}" "${BUILD_DOCUMENT}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_FILEEXT_CSV}" "${MARKDOWN_REWRITE_LINKS}" "${BUILD_CONTEXT_TARGET_OUTPUT_REL}" "${BUILD_CONTEXT_SOURCE_ROOT}"
-        COMMAND_STATUS=$?
-    elif [[ "${COMMAND}" == "build-document-and-template" ]]; then
-        # build single document and apply template where configured
-        COMMAND_STATUS=0
-        marsh_build_document_and_template "${BUILD_SITE_OUTPUT_ROOT}" "${BUILD_TARGET_OUTPUT_REL}" "${BUILD_DOCUMENT}" "${BUILD_SITEMAP}" "${BUILD_SITEMAP_SEARCH}" "${BUILD_TEMPLATES_DIR}" "${BUILD_TEMPLATE}" "${LOG_LEVEL}" "${LOG_LEVELS_CSV}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_FILEEXT_CSV}" "${MARKDOWN_REWRITE_LINKS}" "${#BUILD_TEMPLATE_OVERRIDES[@]}" "${BUILD_TEMPLATE_OVERRIDES[@]}" "${BUILD_TEMPLATE_ASSETS_PATH}" "${BUILD_CONTEXT_TARGET_OUTPUT_REL}" "${BUILD_CONTEXT_SOURCE_ROOT}"
-        COMMAND_STATUS=$?
-    elif [[ "${COMMAND}" == "build-target-archive-queue-record" ]]; then
-        # build one queued archive document using persisted archive-plan context
-        COMMAND_STATUS=0
-        marsh_build_target_archive_queue_record_document "${BUILD_SITE_OUTPUT_ROOT}" "${LOG_LEVEL}" "${LOG_LEVELS_CSV}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_FILEEXT_CSV}" "${MARKDOWN_REWRITE_LINKS}" "${BUILD_QUEUE_RECORD}"
-        COMMAND_STATUS=$?
-    elif [[ "${COMMAND}" == "build-template" ]]; then
-        # build template for document
-        COMMAND_STATUS=0
-        marsh_build_template "${BUILD_SITE_OUTPUT_ROOT}" "${BUILD_TARGET_OUTPUT_REL}" "${BUILD_DOCUMENT}" "${BUILD_SITEMAP}" "${BUILD_SITEMAP_SEARCH}" "${BUILD_TEMPLATES_DIR}" "${BUILD_TEMPLATE}" "${LOG_LEVEL}" "${LOG_LEVELS_CSV}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_FILEEXT_CSV}" "${MARKDOWN_REWRITE_LINKS}" "${#BUILD_TEMPLATE_OVERRIDES[@]}" "${BUILD_TEMPLATE_OVERRIDES[@]}" "${BUILD_TEMPLATE_ASSETS_PATH}" "${BUILD_CONTEXT_TARGET_OUTPUT_REL}" "${BUILD_CONTEXT_SOURCE_ROOT}"
-        COMMAND_STATUS=$?
-    fi
-
-    # done
-    set +o pipefail
-    return "${COMMAND_STATUS:-0}"
 }
 
 # run only when executed, not when sourced

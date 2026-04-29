@@ -6700,503 +6700,9 @@ function marsh_write_document_metadata_artifacts {  # marsh_write_document_metad
     }
 }
 
-# loads cached archive metadata for a document
-function marsh_get_archive_metadata {  # marsh_get_archive_metadata target_output_root document
-    local TARGET_OUTPUT_ROOT DOCUMENT
-    local INDEX META DOCUMENT_SITE_REL META_PREFIX META_ASSIGNMENTS META_VARS TARGET_OUTPUT_REL
-    local TYPE_VAR TYPE URI ABSPATH VALUE_ESC
-    local -a STATE
-
-    # init
-    TARGET_OUTPUT_ROOT="${1:-}"
-    DOCUMENT="${2:-}"
-    [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
-    [[ "${DOCUMENT}" == "" ]] && return 1
-    TARGET_OUTPUT_ROOT=$(marsh_get_target_directory_path "${TARGET_OUTPUT_ROOT}") || return 1
-    DOCUMENT_SITE_REL=$(marsh_normalize_internal_path "${DOCUMENT}" 2>/dev/null) || return 1
-    [[ "${DOCUMENT_SITE_REL}" == "." ]] && return 1
-
-    # use cache where available
-    INDEX=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "${DOCUMENT_SITE_REL}" "archive-meta" 2>/dev/null) || INDEX=""
-    if [[ -f "${INDEX}" ]] && [[ -r "${INDEX}" ]]; then
-        cat "${INDEX}"
-        return 0
-    fi
-
-    # get archive metadata from the document metadata
-    META=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "${DOCUMENT_SITE_REL}" "meta-yaml" 2>/dev/null) || META=""
-    [[ -f "${META}" ]] && [[ -r "${META}" ]] || return 1
-
-    # parse
-    META_PREFIX=$(echo "marsh_archive_${META}_" | sed -E -e 's/[^A-Za-z0-9_]/_/g')
-    META_PREFIX=$(echo "${META_PREFIX}" | sed -E -e 's/_{2,}/_/g')
-    META_ASSIGNMENTS=$(marsh_get_document_metadata "${META}" "${META_PREFIX}")
-    [[ $? -ne 0 ]] && return 1
-    META_VARS=$(echo "${META_ASSIGNMENTS}" | marsh_get_variables)
-    eval "$(printf '%s\n' "${META_VARS}" | marsh_get_local_declarations)"
-    eval "${META_ASSIGNMENTS}"
-
-    # keep only the metadata that archive generation actually needs
-    # reconstruct public paths here so archive generation does not need to repeat it
-    TYPE_VAR="${META_PREFIX}Type"
-    TYPE="${!TYPE_VAR:-}"
-    TARGET_OUTPUT_REL=$(marsh_get_target_output_path "${TARGET_OUTPUT_ROOT}") || return 1
-    if [[ "${TARGET_OUTPUT_REL}" == "." ]]; then
-        URI="${DOCUMENT_SITE_REL}"
-    else
-        URI="${TARGET_OUTPUT_REL}/${DOCUMENT_SITE_REL}"
-    fi
-    URI="${URI%.markdown}.html"
-    URI=$(marsh_get_absolute_output_path "${URI}" "document") || return 1
-    ABSPATH=""
-    [[ "${URI}" =~ / ]] && ABSPATH="${URI%/*}"
-
-    # reconstruct state array
-    STATE=()
-    eval $(marsh_flat_to_array "STATE" "${META_PREFIX}State_")
-
-    # output shell variable assignments
-    printf 'TYPE=%q\n' "${TYPE}"
-    printf 'URI=%q\n' "${URI}"
-    printf 'ABSPATH=%q\n' "${ABSPATH}"
-    echo "STATE=()"
-    for VALUE_ESC in "${STATE[@]}"; do
-        printf 'STATE+=(%q)\n' "${VALUE_ESC}"
-    done
-
-    return 0
-}
-
-# returns the aggregate archive-queue root under the target plan root
-function marsh_get_target_archive_queue_root {  # marsh_get_target_archive_queue_root target_plan_root
-    local TARGET_PLAN_ROOT
-
-    TARGET_PLAN_ROOT="${1:-}"
-    [[ "${TARGET_PLAN_ROOT}" == "" ]] && return 1
-    printf '%s\n' "${TARGET_PLAN_ROOT}/archive-queue"
-}
-
-# returns the aggregate archive-queue records path under the target plan root
-function marsh_get_target_archive_queue_records_path {  # marsh_get_target_archive_queue_records_path target_plan_root
-    local TARGET_PLAN_ROOT TARGET_ARCHIVE_QUEUE_ROOT
-
-    TARGET_PLAN_ROOT="${1:-}"
-    [[ "${TARGET_PLAN_ROOT}" == "" ]] && return 1
-    TARGET_ARCHIVE_QUEUE_ROOT=$(marsh_get_target_archive_queue_root "${TARGET_PLAN_ROOT}") || return 1
-    printf '%s\n' "${TARGET_ARCHIVE_QUEUE_ROOT}/records"
-}
-
-# builds one aggregate archive-queue record from a document record and archive plan root
-function marsh_build_target_archive_queue_record {  # marsh_build_target_archive_queue_record archive_plan_root document_record
-    local ARCHIVE_PLAN_ROOT DOCUMENT_RECORD
-    local DOCUMENT_ID SOURCE_RELPATH TARGET_OUTPUT_REL SOURCE_ROOT
-    local DOCUMENT_ID_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC
-
-    ARCHIVE_PLAN_ROOT="${1:-}"
-    DOCUMENT_RECORD="${2:-}"
-    [[ "${ARCHIVE_PLAN_ROOT}" == "" ]] && return 1
-    [[ "${DOCUMENT_RECORD}" == "" ]] && return 1
-
-    IFS=$'\t' read -r DOCUMENT_ID_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC <<< "${DOCUMENT_RECORD}"
-    [[ "${DOCUMENT_ID_ESC}" == "" ]] && return 1
-
-    # keep document identity and archive-plan context explicit in the queue record
-    printf '%q\t%q\t%q\t%q\t%q\n' \
-        "${DOCUMENT_ID_ESC}" \
-        "${SOURCE_RELPATH_ESC}" \
-        "${TARGET_OUTPUT_REL_ESC}" \
-        "${SOURCE_ROOT_ESC}" \
-        "${ARCHIVE_PLAN_ROOT}"
-}
-
-# parses one aggregate archive-queue record into shell assignments
-function marsh_parse_target_archive_queue_record {  # marsh_parse_target_archive_queue_record archive_queue_record
-    local ARCHIVE_QUEUE_RECORD
-    local DOCUMENT_ID_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC ARCHIVE_PLAN_ROOT_ESC
-    local DOCUMENT_ID SOURCE_RELPATH TARGET_OUTPUT_REL SOURCE_ROOT ARCHIVE_PLAN_ROOT
-
-    ARCHIVE_QUEUE_RECORD="${1:-}"
-    [[ "${ARCHIVE_QUEUE_RECORD}" == "" ]] && return 1
-
-    IFS=$'\t' read -r DOCUMENT_ID_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC ARCHIVE_PLAN_ROOT_ESC <<< "${ARCHIVE_QUEUE_RECORD}"
-    [[ "${DOCUMENT_ID_ESC}" == "" ]] && return 1
-    [[ "${ARCHIVE_PLAN_ROOT_ESC}" == "" ]] && return 1
-
-    printf 'DOCUMENT_ID=%q\n' "${DOCUMENT_ID_ESC}"
-    printf 'SOURCE_RELPATH=%q\n' "${SOURCE_RELPATH_ESC}"
-    printf 'TARGET_OUTPUT_REL=%q\n' "${TARGET_OUTPUT_REL_ESC}"
-    printf 'SOURCE_ROOT=%q\n' "${SOURCE_ROOT_ESC}"
-    printf 'ARCHIVE_PLAN_ROOT=%q\n' "${ARCHIVE_PLAN_ROOT_ESC}"
-}
-
-# writes aggregate archive-queue records under the target plan root
-function marsh_write_target_archive_queue_records {  # marsh_write_target_archive_queue_records target_plan_root records[@]
-    local TARGET_PLAN_ROOT TARGET_ARCHIVE_QUEUE_ROOT TARGET_ARCHIVE_QUEUE_RECORDS_FILE TARGET_ARCHIVE_QUEUE_RECORDS_TEMP RECORD
-
-    TARGET_PLAN_ROOT="${1:-}"
-    shift 1
-    [[ "${TARGET_PLAN_ROOT}" == "" ]] && return 1
-
-    TARGET_ARCHIVE_QUEUE_ROOT=$(marsh_get_target_archive_queue_root "${TARGET_PLAN_ROOT}") || return 1
-    TARGET_ARCHIVE_QUEUE_RECORDS_FILE=$(marsh_get_target_archive_queue_records_path "${TARGET_PLAN_ROOT}") || return 1
-    mkdir -p "${TARGET_ARCHIVE_QUEUE_ROOT}" >/dev/null 2>&1 || {
-        echo "Unable to create target archive queue path: ${TARGET_ARCHIVE_QUEUE_ROOT}" >&2
-        return 1
-    }
-    TARGET_ARCHIVE_QUEUE_RECORDS_TEMP=$(mktemp "${TARGET_ARCHIVE_QUEUE_ROOT}/records-XXXXXX" 2>/dev/null) || {
-        echo "Unable to write target archive queue temporary file: ${TARGET_ARCHIVE_QUEUE_ROOT}/records-XXXXXX" >&2
-        return 1
-    }
-
-    while [[ "${#@}" -gt 0 ]]; do
-        RECORD="${1:-}"
-        shift 1
-        [[ "${RECORD}" == "" ]] && continue
-        printf '%s\n' "${RECORD}"
-    done > "${TARGET_ARCHIVE_QUEUE_RECORDS_TEMP}" || {
-        echo "Unable to write target archive queue temporary file: ${TARGET_ARCHIVE_QUEUE_RECORDS_TEMP}" >&2
-        rm -f "${TARGET_ARCHIVE_QUEUE_RECORDS_TEMP}"
-        return 1
-    }
-    mv "${TARGET_ARCHIVE_QUEUE_RECORDS_TEMP}" "${TARGET_ARCHIVE_QUEUE_RECORDS_FILE}" 2>/dev/null || {
-        echo "Unable to write target archive queue file: ${TARGET_ARCHIVE_QUEUE_RECORDS_FILE}" >&2
-        rm -f "${TARGET_ARCHIVE_QUEUE_RECORDS_TEMP}"
-        return 1
-    }
-}
-
-# writes one aggregate archive queue from the provided archive plan roots
-function marsh_write_target_archive_queue_from_archive_plans {  # marsh_write_target_archive_queue_from_archive_plans target_plan_root archive_plan_roots[@]
-    local TARGET_PLAN_ROOT ARCHIVE_PLAN_ROOT ARCHIVE_PLAN_DOCUMENTS_FILE DOCUMENT_RECORD QUEUE_RECORD
-    local -a QUEUE_RECORDS
-
-    TARGET_PLAN_ROOT="${1:-}"
-    shift 1
-    [[ "${TARGET_PLAN_ROOT}" == "" ]] && return 1
-
-    QUEUE_RECORDS=()
-    while [[ "${#@}" -gt 0 ]]; do
-        ARCHIVE_PLAN_ROOT="${1:-}"
-        shift 1
-        [[ "${ARCHIVE_PLAN_ROOT}" == "" ]] && continue
-        ARCHIVE_PLAN_DOCUMENTS_FILE="${ARCHIVE_PLAN_ROOT}/documents"
-        [[ -f "${ARCHIVE_PLAN_DOCUMENTS_FILE}" ]] && [[ -r "${ARCHIVE_PLAN_DOCUMENTS_FILE}" ]] || {
-            echo "Archive plan documents file not found: ${ARCHIVE_PLAN_DOCUMENTS_FILE}" >&2
-            return 1
-        }
-
-        # keep the queue order aligned with archive plan order and persisted document order
-        while IFS= read -r DOCUMENT_RECORD; do
-            [[ "${DOCUMENT_RECORD}" == "" ]] && continue
-            QUEUE_RECORD=$(marsh_build_target_archive_queue_record "${ARCHIVE_PLAN_ROOT}" "${DOCUMENT_RECORD}") || return 1
-            QUEUE_RECORDS+=("${QUEUE_RECORD}")
-        done < "${ARCHIVE_PLAN_DOCUMENTS_FILE}"
-    done
-
-    marsh_write_target_archive_queue_records "${TARGET_PLAN_ROOT}" "${QUEUE_RECORDS[@]}"
-}
-
-# reads aggregate archive-queue records from the target plan root
-function marsh_read_target_archive_queue_records {  # marsh_read_target_archive_queue_records target_plan_root
-    local TARGET_PLAN_ROOT TARGET_ARCHIVE_QUEUE_RECORDS_FILE
-
-    TARGET_PLAN_ROOT="${1:-}"
-    [[ "${TARGET_PLAN_ROOT}" == "" ]] && return 1
-
-    TARGET_ARCHIVE_QUEUE_RECORDS_FILE=$(marsh_get_target_archive_queue_records_path "${TARGET_PLAN_ROOT}") || return 1
-    [[ -f "${TARGET_ARCHIVE_QUEUE_RECORDS_FILE}" ]] && [[ -r "${TARGET_ARCHIVE_QUEUE_RECORDS_FILE}" ]] || return 1
-    cat "${TARGET_ARCHIVE_QUEUE_RECORDS_FILE}"
-}
-
-# resolves an archive temp artifact path under the target temp work tree
-function marsh_get_archive_temp_path {  # marsh_get_archive_temp_path target_output_root archive_source artifact
-    local TARGET_OUTPUT_ROOT ARCHIVE_SOURCE ARTIFACT TARGET_BUILD_TEMP_ROOT ARCHIVE_KEY ARCHIVE_ROOT
-
-    TARGET_OUTPUT_ROOT="${1:-}"
-    ARCHIVE_SOURCE="${2:-}"
-    ARTIFACT="${3:-}"
-    [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
-    [[ "${ARCHIVE_SOURCE}" == "" ]] && return 1
-    [[ "${ARTIFACT}" == "" ]] && return 1
-    [[ "${ARCHIVE_SOURCE}" != /* ]] || return 1
-
-    TARGET_BUILD_TEMP_ROOT=$(marsh_get_target_temp_root "${TARGET_OUTPUT_ROOT}") || return 1
-    ARCHIVE_KEY=$(marsh_normalize_internal_path "${ARCHIVE_SOURCE}") || return 1
-    [[ "${ARCHIVE_KEY}" == "." ]] && return 1
-    ARCHIVE_ROOT="${TARGET_BUILD_TEMP_ROOT}/archives/${ARCHIVE_KEY}"
-
-    case "${ARTIFACT}" in
-        root)
-            printf '%s\n' "${ARCHIVE_ROOT}"
-            ;;
-        source)
-            printf '%s\n' "${ARCHIVE_ROOT}/source"
-            ;;
-        subdocuments)
-            printf '%s\n' "${ARCHIVE_ROOT}/subdocuments"
-            ;;
-        subdocuments-manifest)
-            printf '%s\n' "${ARCHIVE_ROOT}/subdocuments.manifest"
-            ;;
-        *)
-            return 1
-            ;;
-    esac
-}
-
-# returns paginated archive root for an archive source path
-function marsh_get_archive_page_root {  # marsh_get_archive_page_root archive_source
-    local ARCHIVE_SOURCE ARCHIVE_DIR ARCHIVE_NAME PAGE_ROOT
-
-    ARCHIVE_SOURCE="${1:-}"
-    [[ "${ARCHIVE_SOURCE}" == "" ]] && return 1
-    ARCHIVE_DIR=$(marsh_get_internal_parent_directory "${ARCHIVE_SOURCE}") || return 1
-    ARCHIVE_NAME="${ARCHIVE_SOURCE##*/}"
-    if [[ "${ARCHIVE_NAME%.*}" == "index" ]]; then
-        PAGE_ROOT="${ARCHIVE_DIR}/page"
-    else
-        PAGE_ROOT="${ARCHIVE_SOURCE%.*}/page"
-    fi
-    printf '%s\n' "${PAGE_ROOT#./}"
-}
-
-# returns the common archive root directory for a related set of archive outputs
-function marsh_get_archive_root_path {  # marsh_get_archive_root_path archive_path[@]
-    local ARCHIVE_PATH CURRENT_DIR COMMON_DIR NEXT_DIR
-    local COMMON_COUNT INDEX
-    local -a COMMON_PARTS NEXT_PARTS
-
-    ARCHIVE_PATH="${1:-}"
-    [[ "${ARCHIVE_PATH}" == "" ]] && return 1
-    shift 1
-
-    COMMON_DIR=$(marsh_get_internal_parent_directory "${ARCHIVE_PATH}") || return 1
-
-    for ARCHIVE_PATH in "$@"; do
-        [[ "${ARCHIVE_PATH}" == "" ]] && continue
-        NEXT_DIR=$(marsh_get_internal_parent_directory "${ARCHIVE_PATH}") || return 1
-
-        COMMON_PARTS=()
-        NEXT_PARTS=()
-        if [[ "${COMMON_DIR}" != "." ]]; then
-            IFS='/' read -r -a COMMON_PARTS <<< "${COMMON_DIR}"
-        fi
-        if [[ "${NEXT_DIR}" != "." ]]; then
-            IFS='/' read -r -a NEXT_PARTS <<< "${NEXT_DIR}"
-        fi
-
-        COMMON_COUNT=0
-        while [[ "${COMMON_COUNT}" -lt "${#COMMON_PARTS[@]}" ]] && [[ "${COMMON_COUNT}" -lt "${#NEXT_PARTS[@]}" ]] && [[ "${COMMON_PARTS[$COMMON_COUNT]}" == "${NEXT_PARTS[$COMMON_COUNT]}" ]]; do
-            COMMON_COUNT=$((COMMON_COUNT + 1))
-        done
-
-        if [[ "${COMMON_COUNT}" -eq 0 ]]; then
-            COMMON_DIR='.'
-        else
-            COMMON_DIR="${COMMON_PARTS[0]}"
-            for ((INDEX=1; INDEX<COMMON_COUNT; INDEX++)); do
-                COMMON_DIR+="/${COMMON_PARTS[$INDEX]}"
-            done
-        fi
-    done
-
-    marsh_normalize_path "${COMMON_DIR}" "directory"
-}
-
-# returns numbered paginated archive source path for a page
-function marsh_get_archive_page_source {  # marsh_get_archive_page_source archive_source page_num
-    local ARCHIVE_SOURCE PAGE_NUM PAGE_ROOT ARCHIVE_EXT
-
-    ARCHIVE_SOURCE="${1:-}"
-    PAGE_NUM="${2:-}"
-    [[ "${ARCHIVE_SOURCE}" == "" ]] && return 1
-    [[ "${PAGE_NUM}" == "" ]] && return 1
-    PAGE_ROOT=$(marsh_get_archive_page_root "${ARCHIVE_SOURCE}") || return 1
-    ARCHIVE_EXT="${ARCHIVE_SOURCE##*.}"
-    printf '%s\n' "${PAGE_ROOT}/${PAGE_NUM}/index.${ARCHIVE_EXT}"
-}
-
-# returns output uri for an archive source path
-function marsh_get_archive_page_uri {  # marsh_get_archive_page_uri target_output_root archive_source_rel
-    local TARGET_OUTPUT_ROOT ARCHIVE_SOURCE_REL TARGET_OUTPUT_REL URI
-
-    TARGET_OUTPUT_ROOT="${1:-}"
-    ARCHIVE_SOURCE_REL="${2:-}"
-    [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
-    [[ "${ARCHIVE_SOURCE_REL}" == "" ]] && return 1
-
-    TARGET_OUTPUT_REL=$(marsh_get_target_output_path "${TARGET_OUTPUT_ROOT}") || return 1
-    if [[ "${TARGET_OUTPUT_REL}" == "." ]]; then
-        URI="${ARCHIVE_SOURCE_REL}"
-    else
-        URI="${TARGET_OUTPUT_REL}/${ARCHIVE_SOURCE_REL}"
-    fi
-    URI="${URI%.*}.html"
-    marsh_get_absolute_output_path "${URI}" "document"
-}
-
-# writes a single archive source page and its page-local subdocuments
-function marsh_write_archive_page {  # marsh_write_archive_page encoding target_output_root archive_source archive_title language langcode paginated page page_total page_size page_subdocuments_total archive_subdocuments_total current_uri canonical_uri first_uri prev_uri next_uri last_uri current_href canonical_href first_href prev_href next_href last_href archive_root_path archive_root_href #documents[@] documents[@] document_uris[@] document_abspaths[@]
-    local ENCODING TARGET_OUTPUT_ROOT ARCHIVE_SOURCE ARCHIVE_OUTPUT_SOURCE_PATH ARCHIVE_TEMP_SOURCE_FILE ARCHIVE_TITLE LANGUAGE LANGCODE PAGINATED
-    local PAGE PAGE_TOTAL PAGE_SIZE PAGE_SUBDOCUMENTS_TOTAL ARCHIVE_SUBDOCUMENTS_TOTAL
-    local PAGE_URI PAGE_CANONICAL_URI PAGE_FIRST_URI PAGE_PREV_URI PAGE_NEXT_URI PAGE_LAST_URI
-    local PAGE_HREF PAGE_CANONICAL_HREF PAGE_FIRST_HREF PAGE_PREV_HREF PAGE_NEXT_HREF PAGE_LAST_HREF
-    local ARCHIVE_ROOT_PATH ARCHIVE_ROOT_HREF
-    local NUM_DOCUMENTS DOCUMENT INDEX URI ABSPATH MANIFEST_FILE
-    local PAGE_IS_FIRST PAGE_IS_LAST PAGE_HAS_PREV PAGE_HAS_NEXT PAGE_HAS_SUBDOCUMENTS
-    local -a DOCUMENTS DOCUMENT_URIS DOCUMENT_ABSPATHS
-
-    ENCODING="${1:-}"
-    TARGET_OUTPUT_ROOT="${2:-}"
-    ARCHIVE_SOURCE="${3:-}"
-    [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
-    [[ "${ARCHIVE_SOURCE}" == "" ]] && return 1
-    shift 3
-    ARCHIVE_TITLE="${1:-}"
-    LANGUAGE="${2:-}"
-    LANGCODE="${3:-}"
-    PAGINATED="${4:-false}"
-    PAGE="${5:-1}"
-    PAGE_TOTAL="${6:-1}"
-    PAGE_SIZE="${7:-}"
-    PAGE_SUBDOCUMENTS_TOTAL="${8:-0}"
-    ARCHIVE_SUBDOCUMENTS_TOTAL="${9:-0}"
-    PAGE_URI="${10:-}"
-    PAGE_CANONICAL_URI="${11:-}"
-    PAGE_FIRST_URI="${12:-}"
-    PAGE_PREV_URI="${13:-}"
-    PAGE_NEXT_URI="${14:-}"
-    PAGE_LAST_URI="${15:-}"
-    PAGE_HREF="${16:-}"
-    PAGE_CANONICAL_HREF="${17:-}"
-    PAGE_FIRST_HREF="${18:-}"
-    PAGE_PREV_HREF="${19:-}"
-    PAGE_NEXT_HREF="${20:-}"
-    PAGE_LAST_HREF="${21:-}"
-    ARCHIVE_ROOT_PATH="${22:-}"
-    ARCHIVE_ROOT_HREF="${23:-}"
-    shift 23
-    NUM_DOCUMENTS="${1:-0}"
-    shift 1
-    DOCUMENTS=()
-    while [[ "${NUM_DOCUMENTS}" -gt 0 ]] && [[ "${#@}" -gt 0 ]]; do
-        DOCUMENTS+=("${1}")
-        NUM_DOCUMENTS=$((NUM_DOCUMENTS - 1))
-        shift 1
-    done
-    DOCUMENT_URIS=()
-    INDEX=0
-    while [[ "${INDEX}" -lt "${#DOCUMENTS[@]}" ]] && [[ "${#@}" -gt 0 ]]; do
-        DOCUMENT_URIS+=("${1}")
-        INDEX=$((INDEX + 1))
-        shift 1
-    done
-    DOCUMENT_ABSPATHS=()
-    INDEX=0
-    while [[ "${INDEX}" -lt "${#DOCUMENTS[@]}" ]] && [[ "${#@}" -gt 0 ]]; do
-        DOCUMENT_ABSPATHS+=("${1}")
-        INDEX=$((INDEX + 1))
-        shift 1
-    done
-
-    # page metadata
-    ARCHIVE_OUTPUT_SOURCE_PATH="${TARGET_OUTPUT_ROOT}/${ARCHIVE_SOURCE}"
-    ARCHIVE_TEMP_SOURCE_FILE=$(marsh_get_archive_temp_path "${TARGET_OUTPUT_ROOT}" "${ARCHIVE_SOURCE}" "source") || return 1
-    PAGE_IS_FIRST=false
-    PAGE_IS_LAST=false
-    PAGE_HAS_PREV=false
-    PAGE_HAS_NEXT=false
-    PAGE_HAS_SUBDOCUMENTS=false
-    [[ "${PAGE}" -eq 1 ]] && PAGE_IS_FIRST=true
-    [[ "${PAGE}" -eq "${PAGE_TOTAL}" ]] && PAGE_IS_LAST=true
-    [[ "${PAGE_PREV_URI}" != "" ]] && PAGE_HAS_PREV=true
-    [[ "${PAGE_NEXT_URI}" != "" ]] && PAGE_HAS_NEXT=true
-    [[ "${PAGE_SUBDOCUMENTS_TOTAL}" -gt 0 ]] && PAGE_HAS_SUBDOCUMENTS=true
-
-    # Keep final output directories present for later archive page publication.
-    mkdir -p "${ARCHIVE_OUTPUT_SOURCE_PATH%/*}" >/dev/null 2>&1 || {
-        echo "Unable to create archive output directory: ${ARCHIVE_OUTPUT_SOURCE_PATH%/*}" >&2
-        return 1
-    }
-
-    mkdir -p "${ARCHIVE_TEMP_SOURCE_FILE%/*}" >/dev/null 2>&1 || {
-        echo "Unable to create archive temp directory: ${ARCHIVE_TEMP_SOURCE_FILE%/*}" >&2
-        return 1
-    }
-    rm -f "${ARCHIVE_OUTPUT_SOURCE_PATH}" >/dev/null 2>&1 || {
-        echo "Unable to remove stale archive file: ${ARCHIVE_OUTPUT_SOURCE_PATH}" >&2
-        return 1
-    }
-
-    # write the generated archive source with page metadata
-    echo "---" > "${ARCHIVE_TEMP_SOURCE_FILE}" 2>/dev/null || {
-        echo "Unable to write archive file: ${ARCHIVE_TEMP_SOURCE_FILE}" >&2
-        return 1
-    }
-    if [[ "${ENCODING}" == "html" ]]; then
-        echo "Type: archive" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-    else
-        echo "Type: archive-${ENCODING}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-    fi
-    echo "Date: $(date -u '+%Y-%m-%d %H:%M:%S')" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-    echo "Title: ${ARCHIVE_TITLE}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-    echo "Language: ${LANGUAGE}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-    echo "Language_Code: ${LANGCODE}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-    echo "Archive_Root_Path: ${ARCHIVE_ROOT_PATH}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-    echo "Archive_Root_Href: ${ARCHIVE_ROOT_HREF}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-    if [[ "${ENCODING}" == "html" ]]; then
-        echo "Paginated: ${PAGINATED}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-        echo "Page: ${PAGE}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-        echo "Page_Total: ${PAGE_TOTAL}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-        echo "Page_Size: ${PAGE_SIZE}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-        echo "Page_Subdocuments_Total: ${PAGE_SUBDOCUMENTS_TOTAL}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-        echo "Archive_Subdocuments_Total: ${ARCHIVE_SUBDOCUMENTS_TOTAL}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-        echo "Page_Is_First: ${PAGE_IS_FIRST}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-        echo "Page_Is_Last: ${PAGE_IS_LAST}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-        echo "Page_Has_Prev: ${PAGE_HAS_PREV}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-        echo "Page_Has_Next: ${PAGE_HAS_NEXT}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-        echo "Page_Has_Subdocuments: ${PAGE_HAS_SUBDOCUMENTS}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-        echo "Page_URI: ${PAGE_URI}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-        echo "Page_Canonical_URI: ${PAGE_CANONICAL_URI}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-        echo "Page_First_URI: ${PAGE_FIRST_URI}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-        echo "Page_Prev_URI: ${PAGE_PREV_URI}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-        echo "Page_Next_URI: ${PAGE_NEXT_URI}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-        echo "Page_Last_URI: ${PAGE_LAST_URI}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-        echo "Page_Href: ${PAGE_HREF}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-        echo "Page_Canonical_Href: ${PAGE_CANONICAL_HREF}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-        echo "Page_First_Href: ${PAGE_FIRST_HREF}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-        echo "Page_Prev_Href: ${PAGE_PREV_HREF}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-        echo "Page_Next_Href: ${PAGE_NEXT_HREF}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-        echo "Page_Last_Href: ${PAGE_LAST_HREF}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-    fi
-    echo "---" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-
-    # create manifest of the subdocuments for this page
-    if [[ "${#DOCUMENTS[@]}" -gt 0 ]]; then
-        MANIFEST_FILE=$(marsh_get_archive_temp_path "${TARGET_OUTPUT_ROOT}" "${ARCHIVE_SOURCE}" "subdocuments-manifest") || return 1
-        mkdir -p "${MANIFEST_FILE%/*}" >/dev/null 2>&1 || {
-            echo "Unable to create archive manifest temp directory: ${MANIFEST_FILE%/*}" >&2
-            return 1
-        }
-        {
-            INDEX=0
-            for DOCUMENT in "${DOCUMENTS[@]}"; do
-                URI="${DOCUMENT_URIS[$INDEX]:-}"
-                ABSPATH="${DOCUMENT_ABSPATHS[$INDEX]:-}"
-                printf '%q\t%q\t%q\n' "${DOCUMENT}" "${URI}" "${ABSPATH}" || {
-                    echo "Unable to write archive subdocument manifest: ${MANIFEST_FILE}" >&2
-                    return 1
-                }
-                INDEX=$((INDEX + 1))
-            done
-        } > "${MANIFEST_FILE}" || {
-            echo "Unable to create archive subdocument manifest: ${MANIFEST_FILE}" >&2
-            return 1
-        }
-    fi
-
-    return 0
-}
+#
+# Archives
+#
 
 # builds an archive of directory contents from a prepared manifest, sorted by descending date
 function marsh_build_archive {  # marsh_build_archive encoding target_output_root archive_source archive_title language langcode count page_size #types[@] types[@] #excluded_states[@] excluded_states[@] archive_manifest archive_root_path
@@ -7497,165 +7003,198 @@ function marsh_build_archive {  # marsh_build_archive encoding target_output_roo
     return 0
 }
 
-# writes an archive manifest under the target plan root from planned target documents
-function marsh_write_target_archive_manifest {  # marsh_write_target_archive_manifest site_output_root markdown_fileext_csv target_plan_root [document_records[@]]
-    local SITE_OUTPUT_ROOT MARKDOWN_FILEEXT_CSV TARGET_PLAN_ROOT MANIFEST_FILE MANIFEST_TEMP DOCUMENT_RECORD
-    local DOCUMENT_ID_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC
-    local DOCUMENT_ID SOURCE_RELPATH TARGET_OUTPUT_REL SOURCE_ROOT DOCUMENT_SOURCE_FILE BUILD_CONTEXT_OUTPUT_ROOT
-    local DOCUMENT_ARTIFACT_PATHS DOCUMENT_ARTIFACT_ROOT DOCUMENT_ARTIFACT_CONTENT DOCUMENT_ARTIFACT_META_YAML DOCUMENT_ARTIFACT_META DOCUMENT_ARTIFACT_ARCHIVE_META META_ASSIGNMENTS META_VARS META_PREFIX TYPE_VAR
-    local TYPE URI ABSPATH STATE_JOINED OIFS DOCUMENT_OUTPUT_REL
-    local -a DOCUMENT_RECORDS_IN STATE
+# loads cached archive metadata for a document
+function marsh_get_archive_metadata {  # marsh_get_archive_metadata target_output_root document
+    local TARGET_OUTPUT_ROOT DOCUMENT
+    local INDEX META DOCUMENT_SITE_REL META_PREFIX META_ASSIGNMENTS META_VARS TARGET_OUTPUT_REL
+    local TYPE_VAR TYPE URI ABSPATH VALUE_ESC
+    local -a STATE
 
-    SITE_OUTPUT_ROOT="${1:-}"
-    MARKDOWN_FILEEXT_CSV="${2:-}"
-    TARGET_PLAN_ROOT="${3:-}"
-    [[ "${SITE_OUTPUT_ROOT}" == "" ]] && return 1
-    [[ "${MARKDOWN_FILEEXT_CSV}" == "" ]] && return 1
-    [[ "${TARGET_PLAN_ROOT}" == "" ]] && return 1
-    shift 3
-    DOCUMENT_RECORDS_IN=("$@")
+    # init
+    TARGET_OUTPUT_ROOT="${1:-}"
+    DOCUMENT="${2:-}"
+    [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
+    [[ "${DOCUMENT}" == "" ]] && return 1
+    TARGET_OUTPUT_ROOT=$(marsh_get_target_directory_path "${TARGET_OUTPUT_ROOT}") || return 1
+    DOCUMENT_SITE_REL=$(marsh_normalize_internal_path "${DOCUMENT}" 2>/dev/null) || return 1
+    [[ "${DOCUMENT_SITE_REL}" == "." ]] && return 1
 
-    MANIFEST_FILE="${TARGET_PLAN_ROOT}/archive-manifest"
-    MANIFEST_TEMP=$(mktemp "${TARGET_PLAN_ROOT}/archive-manifest-XXXXXX") || return 1
-    [[ "${#DOCUMENT_RECORDS_IN[@]}" -gt 0 ]] || return 1
+    # use cache where available
+    INDEX=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "${DOCUMENT_SITE_REL}" "archive-meta" 2>/dev/null) || INDEX=""
+    if [[ -f "${INDEX}" ]] && [[ -r "${INDEX}" ]]; then
+        cat "${INDEX}"
+        return 0
+    fi
 
-    # require caller-supplied document records on the fast path
-    while IFS=$'\t' read -r DOCUMENT_ID DOCUMENT_RECORD; do
-        [[ "${DOCUMENT_ID}" == "" ]] && continue
-        [[ "${DOCUMENT_RECORD}" == "" ]] && continue
+    # get archive metadata from the document metadata
+    META=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "${DOCUMENT_SITE_REL}" "meta-yaml" 2>/dev/null) || META=""
+    [[ -f "${META}" ]] && [[ -r "${META}" ]] || return 1
 
-        IFS=$'\t' read -r DOCUMENT_ID_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC <<< "${DOCUMENT_RECORD}"
-        [[ "${DOCUMENT_ID_ESC}" == "" ]] && continue
-        eval "DOCUMENT_ID=${DOCUMENT_ID_ESC}"
-        eval "SOURCE_RELPATH=${SOURCE_RELPATH_ESC}"
-        eval "TARGET_OUTPUT_REL=${TARGET_OUTPUT_REL_ESC}"
-        eval "SOURCE_ROOT=${SOURCE_ROOT_ESC}"
-        [[ "${SOURCE_ROOT}" == "" ]] && {
-            rm -f "${MANIFEST_TEMP}"
-            return 1
-        }
+    # parse
+    META_PREFIX=$(echo "marsh_archive_${META}_" | sed -E -e 's/[^A-Za-z0-9_]/_/g')
+    META_PREFIX=$(echo "${META_PREFIX}" | sed -E -e 's/_{2,}/_/g')
+    META_ASSIGNMENTS=$(marsh_get_document_metadata "${META}" "${META_PREFIX}")
+    [[ $? -ne 0 ]] && return 1
+    META_VARS=$(echo "${META_ASSIGNMENTS}" | marsh_get_variables)
+    eval "$(printf '%s\n' "${META_VARS}" | marsh_get_local_declarations)"
+    eval "${META_ASSIGNMENTS}"
 
-        DOCUMENT_SOURCE_FILE="${SOURCE_ROOT}/${SOURCE_RELPATH}"
-        [[ -f "${DOCUMENT_SOURCE_FILE}" ]] && [[ -r "${DOCUMENT_SOURCE_FILE}" ]] || {
-            rm -f "${MANIFEST_TEMP}"
-            return 1
-        }
-        BUILD_CONTEXT_OUTPUT_ROOT=$(marsh_get_target_directory_path "${SITE_OUTPUT_ROOT}/${TARGET_OUTPUT_REL}") || {
-            rm -f "${MANIFEST_TEMP}"
-            return 1
-        }
+    # keep only the metadata that archive generation actually needs
+    # reconstruct public paths here so archive generation does not need to repeat it
+    TYPE_VAR="${META_PREFIX}Type"
+    TYPE="${!TYPE_VAR:-}"
+    TARGET_OUTPUT_REL=$(marsh_get_target_output_path "${TARGET_OUTPUT_ROOT}") || return 1
+    if [[ "${TARGET_OUTPUT_REL}" == "." ]]; then
+        URI="${DOCUMENT_SITE_REL}"
+    else
+        URI="${TARGET_OUTPUT_REL}/${DOCUMENT_SITE_REL}"
+    fi
+    URI="${URI%.markdown}.html"
+    URI=$(marsh_get_absolute_output_path "${URI}" "document") || return 1
+    ABSPATH=""
+    [[ "${URI}" =~ / ]] && ABSPATH="${URI%/*}"
 
-        TYPE=""
-        STATE=()
-        if [[ -f "${DOCUMENT_SOURCE_FILE}" ]] && marsh_has_frontmatter "${DOCUMENT_SOURCE_FILE}"; then
-            # archive planning must not seed raw content artifacts, only metadata artifacts
-            if ! marsh_write_document_metadata_artifacts "${BUILD_CONTEXT_OUTPUT_ROOT}" "${DOCUMENT_ID}" "${DOCUMENT_SOURCE_FILE}"; then
-                echo "Unable to plan archive metadata: ${DOCUMENT_SOURCE_FILE}" >&2
-                rm -f "${MANIFEST_TEMP}"
-                return 1
-            fi
-            DOCUMENT_ARTIFACT_PATHS=$(marsh_get_document_artifacts "${BUILD_CONTEXT_OUTPUT_ROOT}" "${DOCUMENT_ID}") || {
-                rm -f "${MANIFEST_TEMP}"
-                return 1
-            }
-            eval "${DOCUMENT_ARTIFACT_PATHS}"
-            META_PREFIX=$(echo "planned_archive_${DOCUMENT_ARTIFACT_META_YAML}_" | sed -E -e 's/[^A-Za-z0-9_]/_/g')
-            META_PREFIX=$(echo "${META_PREFIX}" | sed -E -e 's/_{2,}/_/g')
-            META_ASSIGNMENTS=$(marsh_get_document_metadata "${DOCUMENT_ARTIFACT_META_YAML}" "${META_PREFIX}") || {
-                echo "Unable to plan archive metadata: ${DOCUMENT_SOURCE_FILE}" >&2
-                rm -f "${MANIFEST_TEMP}"
-                return 1
-            }
-            META_VARS=$(echo "${META_ASSIGNMENTS}" | marsh_get_variables)
-            eval "$(printf '%s\n' "${META_VARS}" | marsh_get_local_declarations)"
-            eval "${META_ASSIGNMENTS}"
-            TYPE_VAR="${META_PREFIX}Type"
-            TYPE="${!TYPE_VAR:-}"
-            eval "$(marsh_flat_to_array "STATE" "${META_PREFIX}State_")"
-        else
-            echo "Unable to plan archive metadata: ${DOCUMENT_SOURCE_FILE}" >&2
-            rm -f "${MANIFEST_TEMP}"
-            return 1
-        fi
+    # reconstruct state array
+    STATE=()
+    eval $(marsh_flat_to_array "STATE" "${META_PREFIX}State_")
 
-        eval "$(marsh_get_target_document_paths "${DOCUMENT_ID}" "${SITE_OUTPUT_ROOT}" "${TARGET_OUTPUT_REL}" "${MARKDOWN_FILEEXT_CSV}")" || return 1
-        URI=$(marsh_get_absolute_output_path "${DOCUMENT_OUTPUT_REL}" "document") || return 1
-        ABSPATH=""
-        [[ "${URI}" =~ / ]] && ABSPATH="${URI%/*}"
+    # output shell variable assignments
+    printf 'TYPE=%q\n' "${TYPE}"
+    printf 'URI=%q\n' "${URI}"
+    printf 'ABSPATH=%q\n' "${ABSPATH}"
+    echo "STATE=()"
+    for VALUE_ESC in "${STATE[@]}"; do
+        printf 'STATE+=(%q)\n' "${VALUE_ESC}"
+    done
 
-        OIFS="${IFS}"
-        IFS=$(printf '\034')
-        STATE_JOINED="${STATE[*]}"
-        IFS="${OIFS}"
-        printf '%q\t%q\t%q\t%q\t%q\n' "${DOCUMENT_ID}" "${TYPE}" "${URI}" "${ABSPATH}" "${STATE_JOINED}"
-    done < <(
-        for DOCUMENT_RECORD in "${DOCUMENT_RECORDS_IN[@]}"; do
-            [[ "${DOCUMENT_RECORD}" == "" ]] && continue
-            IFS=$'\t' read -r DOCUMENT_ID_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC <<< "${DOCUMENT_RECORD}"
-            [[ "${DOCUMENT_ID_ESC}" == "" ]] && continue
-            eval "DOCUMENT_ID=${DOCUMENT_ID_ESC}"
-            printf '%s\t%s\n' "${DOCUMENT_ID}" "${DOCUMENT_RECORD}"
-        done | sort -nr -t/
-    ) > "${MANIFEST_TEMP}" || {
-        rm -f "${MANIFEST_TEMP}"
-        return 1
-    }
-
-    mv "${MANIFEST_TEMP}" "${MANIFEST_FILE}" 2>/dev/null || {
-        rm -f "${MANIFEST_TEMP}"
-        return 1
-    }
+    return 0
 }
 
-# writes persisted archive-plan context for later archive execution
-function marsh_write_archive_plan_context {  # marsh_write_archive_plan_context context_file build_context_target_output_rel build_context_source_root target_sitemap target_sitemap_search templates_dir template #template_overrides[@] template_overrides[@] template_assets_path
-    local CONTEXT_FILE BUILD_CONTEXT_TARGET_OUTPUT_REL BUILD_CONTEXT_SOURCE_ROOT TARGET_SITEMAP TARGET_SITEMAP_SEARCH TEMPLATES_DIR TEMPLATE
-    local NUM_TEMPLATE_OVERRIDES TEMPLATE_ASSETS_PATH CONTEXT_TEMP TEMPLATE_OVERRIDE
-    local -a TEMPLATE_OVERRIDES
+# returns paginated archive root for an archive source path
+function marsh_get_archive_page_root {  # marsh_get_archive_page_root archive_source
+    local ARCHIVE_SOURCE ARCHIVE_DIR ARCHIVE_NAME PAGE_ROOT
 
-    CONTEXT_FILE="${1:-}"
-    BUILD_CONTEXT_TARGET_OUTPUT_REL="${2:-}"
-    BUILD_CONTEXT_SOURCE_ROOT="${3:-}"
-    TARGET_SITEMAP="${4:-}"
-    TARGET_SITEMAP_SEARCH="${5:-false}"
-    TEMPLATES_DIR="${6:-}"
-    TEMPLATE="${7:-}"
-    [[ "${CONTEXT_FILE}" == "" ]] && return 1
-    [[ "${BUILD_CONTEXT_TARGET_OUTPUT_REL}" == "" ]] && return 1
-    shift 7
-    NUM_TEMPLATE_OVERRIDES="${1:-0}"
+    ARCHIVE_SOURCE="${1:-}"
+    [[ "${ARCHIVE_SOURCE}" == "" ]] && return 1
+    ARCHIVE_DIR=$(marsh_get_internal_parent_directory "${ARCHIVE_SOURCE}") || return 1
+    ARCHIVE_NAME="${ARCHIVE_SOURCE##*/}"
+    if [[ "${ARCHIVE_NAME%.*}" == "index" ]]; then
+        PAGE_ROOT="${ARCHIVE_DIR}/page"
+    else
+        PAGE_ROOT="${ARCHIVE_SOURCE%.*}/page"
+    fi
+    printf '%s\n' "${PAGE_ROOT#./}"
+}
+
+# returns numbered paginated archive source path for a page
+function marsh_get_archive_page_source {  # marsh_get_archive_page_source archive_source page_num
+    local ARCHIVE_SOURCE PAGE_NUM PAGE_ROOT ARCHIVE_EXT
+
+    ARCHIVE_SOURCE="${1:-}"
+    PAGE_NUM="${2:-}"
+    [[ "${ARCHIVE_SOURCE}" == "" ]] && return 1
+    [[ "${PAGE_NUM}" == "" ]] && return 1
+    PAGE_ROOT=$(marsh_get_archive_page_root "${ARCHIVE_SOURCE}") || return 1
+    ARCHIVE_EXT="${ARCHIVE_SOURCE##*.}"
+    printf '%s\n' "${PAGE_ROOT}/${PAGE_NUM}/index.${ARCHIVE_EXT}"
+}
+
+# returns output uri for an archive source path
+function marsh_get_archive_page_uri {  # marsh_get_archive_page_uri target_output_root archive_source_rel
+    local TARGET_OUTPUT_ROOT ARCHIVE_SOURCE_REL TARGET_OUTPUT_REL URI
+
+    TARGET_OUTPUT_ROOT="${1:-}"
+    ARCHIVE_SOURCE_REL="${2:-}"
+    [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
+    [[ "${ARCHIVE_SOURCE_REL}" == "" ]] && return 1
+
+    TARGET_OUTPUT_REL=$(marsh_get_target_output_path "${TARGET_OUTPUT_ROOT}") || return 1
+    if [[ "${TARGET_OUTPUT_REL}" == "." ]]; then
+        URI="${ARCHIVE_SOURCE_REL}"
+    else
+        URI="${TARGET_OUTPUT_REL}/${ARCHIVE_SOURCE_REL}"
+    fi
+    URI="${URI%.*}.html"
+    marsh_get_absolute_output_path "${URI}" "document"
+}
+
+# returns the common archive root directory for a related set of archive outputs
+function marsh_get_archive_root_path {  # marsh_get_archive_root_path archive_path[@]
+    local ARCHIVE_PATH CURRENT_DIR COMMON_DIR NEXT_DIR
+    local COMMON_COUNT INDEX
+    local -a COMMON_PARTS NEXT_PARTS
+
+    ARCHIVE_PATH="${1:-}"
+    [[ "${ARCHIVE_PATH}" == "" ]] && return 1
     shift 1
-    TEMPLATE_OVERRIDES=()
-    while [[ "${NUM_TEMPLATE_OVERRIDES}" -gt 0 ]] && [[ "${#@}" -gt 0 ]]; do
-        TEMPLATE_OVERRIDES+=("${1}")
-        NUM_TEMPLATE_OVERRIDES=$((NUM_TEMPLATE_OVERRIDES - 1))
-        shift 1
-    done
-    TEMPLATE_ASSETS_PATH="${1:-}"
 
-    CONTEXT_TEMP=$(mktemp "${CONTEXT_FILE%/*}/context-XXXXXX") || return 1
-    {
-        # keep the current executor field while persisting the build-context names explicitly
-        printf 'TARGET_OUTPUT_REL=%q\n' "${BUILD_CONTEXT_TARGET_OUTPUT_REL}"
-        printf 'BUILD_CONTEXT_TARGET_OUTPUT_REL=%q\n' "${BUILD_CONTEXT_TARGET_OUTPUT_REL}"
-        printf 'BUILD_CONTEXT_SOURCE_ROOT=%q\n' "${BUILD_CONTEXT_SOURCE_ROOT}"
-        printf 'TARGET_SITEMAP=%q\n' "${TARGET_SITEMAP}"
-        printf 'TARGET_SITEMAP_SEARCH=%q\n' "${TARGET_SITEMAP_SEARCH}"
-        printf 'TEMPLATES_DIR=%q\n' "${TEMPLATES_DIR}"
-        printf 'TEMPLATE=%q\n' "${TEMPLATE}"
-        printf 'TEMPLATE_ASSETS_PATH=%q\n' "${TEMPLATE_ASSETS_PATH}"
-        echo 'TEMPLATE_OVERRIDES=()'
-        for TEMPLATE_OVERRIDE in "${TEMPLATE_OVERRIDES[@]}"; do
-            printf 'TEMPLATE_OVERRIDES+=(%q)\n' "${TEMPLATE_OVERRIDE}"
+    COMMON_DIR=$(marsh_get_internal_parent_directory "${ARCHIVE_PATH}") || return 1
+
+    for ARCHIVE_PATH in "$@"; do
+        [[ "${ARCHIVE_PATH}" == "" ]] && continue
+        NEXT_DIR=$(marsh_get_internal_parent_directory "${ARCHIVE_PATH}") || return 1
+
+        COMMON_PARTS=()
+        NEXT_PARTS=()
+        if [[ "${COMMON_DIR}" != "." ]]; then
+            IFS='/' read -r -a COMMON_PARTS <<< "${COMMON_DIR}"
+        fi
+        if [[ "${NEXT_DIR}" != "." ]]; then
+            IFS='/' read -r -a NEXT_PARTS <<< "${NEXT_DIR}"
+        fi
+
+        COMMON_COUNT=0
+        while [[ "${COMMON_COUNT}" -lt "${#COMMON_PARTS[@]}" ]] && [[ "${COMMON_COUNT}" -lt "${#NEXT_PARTS[@]}" ]] && [[ "${COMMON_PARTS[$COMMON_COUNT]}" == "${NEXT_PARTS[$COMMON_COUNT]}" ]]; do
+            COMMON_COUNT=$((COMMON_COUNT + 1))
         done
-    } > "${CONTEXT_TEMP}" || {
-        rm -f "${CONTEXT_TEMP}"
-        return 1
-    }
-    mv "${CONTEXT_TEMP}" "${CONTEXT_FILE}" 2>/dev/null || {
-        rm -f "${CONTEXT_TEMP}"
-        return 1
-    }
+
+        if [[ "${COMMON_COUNT}" -eq 0 ]]; then
+            COMMON_DIR='.'
+        else
+            COMMON_DIR="${COMMON_PARTS[0]}"
+            for ((INDEX=1; INDEX<COMMON_COUNT; INDEX++)); do
+                COMMON_DIR+="/${COMMON_PARTS[$INDEX]}"
+            done
+        fi
+    done
+
+    marsh_normalize_path "${COMMON_DIR}" "directory"
+}
+
+# resolves an archive temp artifact path under the target temp work tree
+function marsh_get_archive_temp_path {  # marsh_get_archive_temp_path target_output_root archive_source artifact
+    local TARGET_OUTPUT_ROOT ARCHIVE_SOURCE ARTIFACT TARGET_BUILD_TEMP_ROOT ARCHIVE_KEY ARCHIVE_ROOT
+
+    TARGET_OUTPUT_ROOT="${1:-}"
+    ARCHIVE_SOURCE="${2:-}"
+    ARTIFACT="${3:-}"
+    [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
+    [[ "${ARCHIVE_SOURCE}" == "" ]] && return 1
+    [[ "${ARTIFACT}" == "" ]] && return 1
+    [[ "${ARCHIVE_SOURCE}" != /* ]] || return 1
+
+    TARGET_BUILD_TEMP_ROOT=$(marsh_get_target_temp_root "${TARGET_OUTPUT_ROOT}") || return 1
+    ARCHIVE_KEY=$(marsh_normalize_internal_path "${ARCHIVE_SOURCE}") || return 1
+    [[ "${ARCHIVE_KEY}" == "." ]] && return 1
+    ARCHIVE_ROOT="${TARGET_BUILD_TEMP_ROOT}/archives/${ARCHIVE_KEY}"
+
+    case "${ARTIFACT}" in
+        root)
+            printf '%s\n' "${ARCHIVE_ROOT}"
+            ;;
+        source)
+            printf '%s\n' "${ARCHIVE_ROOT}/source"
+            ;;
+        subdocuments)
+            printf '%s\n' "${ARCHIVE_ROOT}/subdocuments"
+            ;;
+        subdocuments-manifest)
+            printf '%s\n' "${ARCHIVE_ROOT}/subdocuments.manifest"
+            ;;
+        *)
+            return 1
+            ;;
+    esac
 }
 
 # plans target archives
@@ -7789,203 +7328,6 @@ function marsh_plan_archive_pages {  # marsh_plan_archive_pages target_output_ro
     }
 
     printf '%s\n' "${ARCHIVE_PLAN_ROOT}"
-}
-
-# loads and validates persisted archive-plan context for queue and plan executors
-function marsh_load_archive_plan_build_context {  # marsh_load_archive_plan_build_context archive_plan_root
-    local ARCHIVE_PLAN_ROOT CONTEXT_FILE ARCHIVE_PLAN_CONTEXT ARCHIVE_PLAN_CONTEXT_VARS
-
-    ARCHIVE_PLAN_ROOT="${1:-}"
-    [[ "${ARCHIVE_PLAN_ROOT}" == "" ]] && return 1
-
-    CONTEXT_FILE="${ARCHIVE_PLAN_ROOT}/context"
-    [[ -f "${CONTEXT_FILE}" ]] && [[ -r "${CONTEXT_FILE}" ]] || {
-        echo "Archive plan context file not found: ${CONTEXT_FILE}" >&2
-        return 1
-    }
-    ARCHIVE_PLAN_CONTEXT=$(<"${CONTEXT_FILE}") || {
-        echo "Unable to read archive plan context file: ${CONTEXT_FILE}" >&2
-        return 1
-    }
-
-    # fail early on corrupted persisted context before queue execution fans out
-    ARCHIVE_PLAN_CONTEXT_VARS=$(echo "${ARCHIVE_PLAN_CONTEXT}" | marsh_get_variables)
-    eval "$(printf '%s\n' "${ARCHIVE_PLAN_CONTEXT_VARS}" | marsh_get_local_declarations)" 2>/dev/null || {
-        echo "Unable to prepare archive plan context variables: ${CONTEXT_FILE}" >&2
-        return 1
-    }
-    eval "${ARCHIVE_PLAN_CONTEXT}" 2>/dev/null || {
-        echo "Unable to evaluate archive plan context: ${CONTEXT_FILE}" >&2
-        return 1
-    }
-    [[ "${BUILD_CONTEXT_TARGET_OUTPUT_REL+isset}" == "isset" ]] || {
-        echo "Archive plan context missing BUILD_CONTEXT_TARGET_OUTPUT_REL: ${CONTEXT_FILE}" >&2
-        return 1
-    }
-    [[ "${BUILD_CONTEXT_SOURCE_ROOT+isset}" == "isset" ]] || {
-        echo "Archive plan context missing BUILD_CONTEXT_SOURCE_ROOT: ${CONTEXT_FILE}" >&2
-        return 1
-    }
-
-    printf '%s\n' "${ARCHIVE_PLAN_CONTEXT}"
-}
-
-# builds aggregate archive-queue records for a target
-function marsh_build_target_archive_queue {  # marsh_build_target_archive_queue site_output_root log_level log_levels_csv jobs markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links target_plan_root
-    local SITE_OUTPUT_ROOT LOG_LEVEL LOG_LEVELS_CSV JOBS MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_REWRITE_LINKS TARGET_PLAN_ROOT
-    local TARGET_ARCHIVE_QUEUE_RECORDS_FILE QUEUE_RECORD DOCUMENT_RECORD
-    local QUEUE_DOCUMENT_ID_ESC QUEUE_ARCHIVE_PLAN_ROOT_ESC QUEUE_DOCUMENT_ID QUEUE_ARCHIVE_PLAN_ROOT
-    local CURRENT_ARCHIVE_PLAN_ROOT CONTEXT_FILE ARCHIVE_PLAN_CONTEXT ARCHIVE_PLAN_CONTEXT_VARS TARGET_OUTPUT_REL TARGET_SITEMAP TARGET_SITEMAP_SEARCH TEMPLATES_DIR TEMPLATE TEMPLATE_ASSETS_PATH
-    local BUILD_CONTEXT_TARGET_OUTPUT_REL BUILD_CONTEXT_SOURCE_ROOT DOCUMENTS_FILE CURRENT_DOCUMENT_ID_ESC CURRENT_DOCUMENT_ID CURRENT_DOCUMENT_INDEX
-    local PARALLEL PARALLEL_MARKDOWN
-    local -a TEMPLATE_OVERRIDES QUEUE_RECORDS CURRENT_DOCUMENT_RECORDS
-
-    SITE_OUTPUT_ROOT="${1:-}"
-    LOG_LEVEL="${2:-}"
-    LOG_LEVELS_CSV="${3:-}"
-    JOBS="${4:-1}"
-    MARKDOWN_COMMAND="${5:-}"
-    MARKDOWN_OPTIONS_CSV="${6:-}"
-    MARKDOWN_FILEEXT_CSV="${7:-}"
-    MARKDOWN_REWRITE_LINKS="${8:-}"
-    TARGET_PLAN_ROOT="${9:-}"
-    [[ "${SITE_OUTPUT_ROOT}" == "" ]] && return 1
-    [[ "${MARKDOWN_COMMAND}" == "" ]] && return 1
-    [[ "${MARKDOWN_FILEEXT_CSV}" == "" ]] && return 1
-    [[ "${MARKDOWN_REWRITE_LINKS}" == "" ]] && return 1
-    [[ "${TARGET_PLAN_ROOT}" == "" ]] && return 1
-
-    TARGET_ARCHIVE_QUEUE_RECORDS_FILE=$(marsh_get_target_archive_queue_records_path "${TARGET_PLAN_ROOT}") || return 1
-    [[ -f "${TARGET_ARCHIVE_QUEUE_RECORDS_FILE}" ]] && [[ -r "${TARGET_ARCHIVE_QUEUE_RECORDS_FILE}" ]] || {
-        echo "Target archive queue records file not found: ${TARGET_ARCHIVE_QUEUE_RECORDS_FILE}" >&2
-        return 1
-    }
-
-    QUEUE_RECORDS=()
-    while IFS= read -r QUEUE_RECORD; do
-        [[ "${QUEUE_RECORD}" == "" ]] && continue
-        QUEUE_RECORDS+=("${QUEUE_RECORD}")
-    done < "${TARGET_ARCHIVE_QUEUE_RECORDS_FILE}"
-    [[ "${#QUEUE_RECORDS[@]}" -gt 0 ]] || return 0
-
-    PARALLEL=$(command -v parallel 2>/dev/null)
-    PARALLEL_MARKDOWN=""
-    [[ "${MARKDOWN_COMMAND}" != "markdown" ]] && PARALLEL_MARKDOWN="${MARKDOWN_COMMAND}"
-    if [[ "${#QUEUE_RECORDS[@]}" -gt 2 ]] && [[ "${JOBS:-1}" -gt 1 ]] && [[ "${PARALLEL:-}" != "" ]] && [[ "$(${PARALLEL} --version --no-notice 2>/dev/null | head -n 1 | grep -o 'GNU parallel')" == "GNU parallel" ]]; then
-        CURRENT_ARCHIVE_PLAN_ROOT=""
-        for QUEUE_RECORD in "${QUEUE_RECORDS[@]}"; do
-            IFS=$'\t' read -r _ _ _ _ QUEUE_ARCHIVE_PLAN_ROOT_ESC <<< "${QUEUE_RECORD}"
-            [[ "${QUEUE_ARCHIVE_PLAN_ROOT_ESC}" == "" ]] && return 1
-            eval "QUEUE_ARCHIVE_PLAN_ROOT=${QUEUE_ARCHIVE_PLAN_ROOT_ESC}"
-            if [[ "${CURRENT_ARCHIVE_PLAN_ROOT}" == "${QUEUE_ARCHIVE_PLAN_ROOT}" ]]; then
-                continue
-            fi
-            CURRENT_ARCHIVE_PLAN_ROOT="${QUEUE_ARCHIVE_PLAN_ROOT}"
-            eval "$(marsh_load_archive_plan_build_context "${CURRENT_ARCHIVE_PLAN_ROOT}")" || return 1
-            TARGET_OUTPUT_REL="${BUILD_CONTEXT_TARGET_OUTPUT_REL}"
-
-            # pre-copy template assets once per archive plan before parallel workers start
-            if [[ "${TEMPLATES_DIR}" != "" ]] && [[ "${TEMPLATE}" != "" ]]; then
-                marsh_copy_template_assets "${SITE_OUTPUT_ROOT}" "${TARGET_OUTPUT_REL}" "${LOG_LEVEL}" "${LOG_LEVELS_CSV}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_ASSETS_PATH}" || return 1
-            fi
-        done
-
-        if ! "${PARALLEL}" --halt now,fail=1 --quote --no-notice --jobs="${JOBS:-1}" "${SELF_DIR}/${SELF_NAME}" build-target-archive-queue-record --log-level="${LOG_LEVEL}" --markdown="${PARALLEL_MARKDOWN}" --markdown-options="${MARKDOWN_OPTIONS_CSV}" --markdown-file-extensions="${MARKDOWN_FILEEXT_CSV}" --markdown-rewrite-links="${MARKDOWN_REWRITE_LINKS}" --marsh-temp="${MARSH_TEMP}" --marsh-config-file="${MARSH_CONFIG_FILE}" --marsh-config-file-dir="${MARSH_CONFIG_FILE_DIR}" --marsh-config-path="${MARSH_CONFIG_PATH}" --marsh-config-url="${MARSH_CONFIG_URL}" "${SITE_OUTPUT_ROOT}" {} ::: "${QUEUE_RECORDS[@]}"; then
-            return 1
-        fi
-        return 0
-    fi
-
-    CURRENT_ARCHIVE_PLAN_ROOT=""
-    CURRENT_DOCUMENT_INDEX=0
-    CURRENT_DOCUMENT_RECORDS=()
-    for QUEUE_RECORD in "${QUEUE_RECORDS[@]}"; do
-        IFS=$'\t' read -r QUEUE_DOCUMENT_ID_ESC _ _ _ QUEUE_ARCHIVE_PLAN_ROOT_ESC <<< "${QUEUE_RECORD}"
-        [[ "${QUEUE_DOCUMENT_ID_ESC}" == "" ]] && continue
-        [[ "${QUEUE_ARCHIVE_PLAN_ROOT_ESC}" == "" ]] && return 1
-        eval "QUEUE_DOCUMENT_ID=${QUEUE_DOCUMENT_ID_ESC}"
-        eval "QUEUE_ARCHIVE_PLAN_ROOT=${QUEUE_ARCHIVE_PLAN_ROOT_ESC}"
-
-        if [[ "${CURRENT_ARCHIVE_PLAN_ROOT}" != "${QUEUE_ARCHIVE_PLAN_ROOT}" ]]; then
-            CURRENT_ARCHIVE_PLAN_ROOT="${QUEUE_ARCHIVE_PLAN_ROOT}"
-            CURRENT_DOCUMENT_INDEX=0
-            CURRENT_DOCUMENT_RECORDS=()
-
-            eval "$(marsh_load_archive_plan_build_context "${CURRENT_ARCHIVE_PLAN_ROOT}")" || return 1
-            TARGET_OUTPUT_REL="${BUILD_CONTEXT_TARGET_OUTPUT_REL}"
-
-            DOCUMENTS_FILE="${CURRENT_ARCHIVE_PLAN_ROOT}/documents"
-            [[ -f "${DOCUMENTS_FILE}" ]] && [[ -r "${DOCUMENTS_FILE}" ]] || {
-                echo "Archive plan documents file not found: ${DOCUMENTS_FILE}" >&2
-                return 1
-            }
-            while IFS= read -r DOCUMENT_RECORD; do
-                [[ "${DOCUMENT_RECORD}" == "" ]] && continue
-                CURRENT_DOCUMENT_RECORDS+=("${DOCUMENT_RECORD}")
-            done < "${DOCUMENTS_FILE}"
-
-            # copy assets once per archive plan before rendering that plan's queued records
-            if [[ "${TEMPLATES_DIR}" != "" ]] && [[ "${TEMPLATE}" != "" ]]; then
-                marsh_copy_template_assets "${SITE_OUTPUT_ROOT}" "${TARGET_OUTPUT_REL}" "${LOG_LEVEL}" "${LOG_LEVELS_CSV}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_ASSETS_PATH}" || return 1
-            fi
-        fi
-
-        DOCUMENT_RECORD="${CURRENT_DOCUMENT_RECORDS[$CURRENT_DOCUMENT_INDEX]:-}"
-        [[ "${DOCUMENT_RECORD}" != "" ]] || {
-            echo "Archive queue record has no matching document record: ${QUEUE_DOCUMENT_ID}" >&2
-            return 1
-        }
-        IFS=$'\t' read -r CURRENT_DOCUMENT_ID_ESC _ <<< "${DOCUMENT_RECORD}"
-        eval "CURRENT_DOCUMENT_ID=${CURRENT_DOCUMENT_ID_ESC}"
-
-        # queue generation preserves document order within each archive plan
-        if [[ "${CURRENT_DOCUMENT_ID}" != "${QUEUE_DOCUMENT_ID}" ]]; then
-            echo "Archive queue record out of sync with archive plan documents: ${CURRENT_ARCHIVE_PLAN_ROOT}" >&2
-            return 1
-        fi
-
-        marsh_build_planned_target_documents "${SITE_OUTPUT_ROOT}" "${LOG_LEVEL}" "${LOG_LEVELS_CSV}" '1' "${TARGET_SITEMAP}" "${TARGET_SITEMAP_SEARCH}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_FILEEXT_CSV}" "${MARKDOWN_REWRITE_LINKS}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_ASSETS_PATH}" "${DOCUMENT_RECORD}" || return 1
-        CURRENT_DOCUMENT_INDEX=$((CURRENT_DOCUMENT_INDEX + 1))
-    done
-}
-
-# builds one archive queue record by loading its archive-plan context
-function marsh_build_target_archive_queue_record_document {  # marsh_build_target_archive_queue_record_document site_output_root log_level log_levels_csv markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links archive_queue_record
-    local SITE_OUTPUT_ROOT LOG_LEVEL LOG_LEVELS_CSV MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_REWRITE_LINKS ARCHIVE_QUEUE_RECORD
-    local DOCUMENT_ID_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC ARCHIVE_PLAN_ROOT_ESC
-    local DOCUMENT_ID SOURCE_RELPATH TARGET_OUTPUT_REL SOURCE_ROOT ARCHIVE_PLAN_ROOT
-    local CONTEXT_FILE ARCHIVE_PLAN_CONTEXT ARCHIVE_PLAN_CONTEXT_VARS TARGET_SITEMAP TARGET_SITEMAP_SEARCH TEMPLATES_DIR TEMPLATE TEMPLATE_ASSETS_PATH
-    local BUILD_CONTEXT_TARGET_OUTPUT_REL BUILD_CONTEXT_SOURCE_ROOT
-    local -a TEMPLATE_OVERRIDES
-
-    SITE_OUTPUT_ROOT="${1:-}"
-    LOG_LEVEL="${2:-}"
-    LOG_LEVELS_CSV="${3:-}"
-    MARKDOWN_COMMAND="${4:-}"
-    MARKDOWN_OPTIONS_CSV="${5:-}"
-    MARKDOWN_FILEEXT_CSV="${6:-}"
-    MARKDOWN_REWRITE_LINKS="${7:-}"
-    ARCHIVE_QUEUE_RECORD="${8:-}"
-    [[ "${SITE_OUTPUT_ROOT}" == "" ]] && return 1
-    [[ "${MARKDOWN_COMMAND}" == "" ]] && return 1
-    [[ "${MARKDOWN_FILEEXT_CSV}" == "" ]] && return 1
-    [[ "${MARKDOWN_REWRITE_LINKS}" == "" ]] && return 1
-    [[ "${ARCHIVE_QUEUE_RECORD}" == "" ]] && return 1
-
-    IFS=$'\t' read -r DOCUMENT_ID_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC ARCHIVE_PLAN_ROOT_ESC <<< "${ARCHIVE_QUEUE_RECORD}"
-    [[ "${DOCUMENT_ID_ESC}" == "" ]] && return 1
-    [[ "${ARCHIVE_PLAN_ROOT_ESC}" == "" ]] && return 1
-    eval "DOCUMENT_ID=${DOCUMENT_ID_ESC}"
-    eval "SOURCE_RELPATH=${SOURCE_RELPATH_ESC}"
-    eval "TARGET_OUTPUT_REL=${TARGET_OUTPUT_REL_ESC}"
-    eval "SOURCE_ROOT=${SOURCE_ROOT_ESC}"
-    eval "ARCHIVE_PLAN_ROOT=${ARCHIVE_PLAN_ROOT_ESC}"
-
-    eval "$(marsh_load_archive_plan_build_context "${ARCHIVE_PLAN_ROOT}")" || return 1
-    [[ "${TARGET_OUTPUT_REL}" == "${BUILD_CONTEXT_TARGET_OUTPUT_REL}" ]] || return 1
-    [[ "${SOURCE_ROOT}" == "${BUILD_CONTEXT_SOURCE_ROOT}" ]] || return 1
-
-    marsh_build_document_and_template "${SITE_OUTPUT_ROOT}" "${TARGET_OUTPUT_REL}" "${DOCUMENT_ID}" "${TARGET_SITEMAP}" "${TARGET_SITEMAP_SEARCH}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${LOG_LEVEL}" "${LOG_LEVELS_CSV}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_FILEEXT_CSV}" "${MARKDOWN_REWRITE_LINKS}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_ASSETS_PATH}" "${BUILD_CONTEXT_TARGET_OUTPUT_REL}" "${BUILD_CONTEXT_SOURCE_ROOT}"
 }
 
 # plans all archives configured for one target
@@ -8126,6 +7468,672 @@ function marsh_plan_target_archives {  # marsh_plan_target_archives site_output_
             "${BUILD_CONTEXT_SOURCE_ROOT}") || return 1
         printf '%s\n' "${TARGET_ARCHIVE_PLAN_ROOT}"
     done
+}
+
+# writes a single archive source page and its page-local subdocuments
+function marsh_write_archive_page {  # marsh_write_archive_page encoding target_output_root archive_source archive_title language langcode paginated page page_total page_size page_subdocuments_total archive_subdocuments_total current_uri canonical_uri first_uri prev_uri next_uri last_uri current_href canonical_href first_href prev_href next_href last_href archive_root_path archive_root_href #documents[@] documents[@] document_uris[@] document_abspaths[@]
+    local ENCODING TARGET_OUTPUT_ROOT ARCHIVE_SOURCE ARCHIVE_OUTPUT_SOURCE_PATH ARCHIVE_TEMP_SOURCE_FILE ARCHIVE_TITLE LANGUAGE LANGCODE PAGINATED
+    local PAGE PAGE_TOTAL PAGE_SIZE PAGE_SUBDOCUMENTS_TOTAL ARCHIVE_SUBDOCUMENTS_TOTAL
+    local PAGE_URI PAGE_CANONICAL_URI PAGE_FIRST_URI PAGE_PREV_URI PAGE_NEXT_URI PAGE_LAST_URI
+    local PAGE_HREF PAGE_CANONICAL_HREF PAGE_FIRST_HREF PAGE_PREV_HREF PAGE_NEXT_HREF PAGE_LAST_HREF
+    local ARCHIVE_ROOT_PATH ARCHIVE_ROOT_HREF
+    local NUM_DOCUMENTS DOCUMENT INDEX URI ABSPATH MANIFEST_FILE
+    local PAGE_IS_FIRST PAGE_IS_LAST PAGE_HAS_PREV PAGE_HAS_NEXT PAGE_HAS_SUBDOCUMENTS
+    local -a DOCUMENTS DOCUMENT_URIS DOCUMENT_ABSPATHS
+
+    ENCODING="${1:-}"
+    TARGET_OUTPUT_ROOT="${2:-}"
+    ARCHIVE_SOURCE="${3:-}"
+    [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
+    [[ "${ARCHIVE_SOURCE}" == "" ]] && return 1
+    shift 3
+    ARCHIVE_TITLE="${1:-}"
+    LANGUAGE="${2:-}"
+    LANGCODE="${3:-}"
+    PAGINATED="${4:-false}"
+    PAGE="${5:-1}"
+    PAGE_TOTAL="${6:-1}"
+    PAGE_SIZE="${7:-}"
+    PAGE_SUBDOCUMENTS_TOTAL="${8:-0}"
+    ARCHIVE_SUBDOCUMENTS_TOTAL="${9:-0}"
+    PAGE_URI="${10:-}"
+    PAGE_CANONICAL_URI="${11:-}"
+    PAGE_FIRST_URI="${12:-}"
+    PAGE_PREV_URI="${13:-}"
+    PAGE_NEXT_URI="${14:-}"
+    PAGE_LAST_URI="${15:-}"
+    PAGE_HREF="${16:-}"
+    PAGE_CANONICAL_HREF="${17:-}"
+    PAGE_FIRST_HREF="${18:-}"
+    PAGE_PREV_HREF="${19:-}"
+    PAGE_NEXT_HREF="${20:-}"
+    PAGE_LAST_HREF="${21:-}"
+    ARCHIVE_ROOT_PATH="${22:-}"
+    ARCHIVE_ROOT_HREF="${23:-}"
+    shift 23
+    NUM_DOCUMENTS="${1:-0}"
+    shift 1
+    DOCUMENTS=()
+    while [[ "${NUM_DOCUMENTS}" -gt 0 ]] && [[ "${#@}" -gt 0 ]]; do
+        DOCUMENTS+=("${1}")
+        NUM_DOCUMENTS=$((NUM_DOCUMENTS - 1))
+        shift 1
+    done
+    DOCUMENT_URIS=()
+    INDEX=0
+    while [[ "${INDEX}" -lt "${#DOCUMENTS[@]}" ]] && [[ "${#@}" -gt 0 ]]; do
+        DOCUMENT_URIS+=("${1}")
+        INDEX=$((INDEX + 1))
+        shift 1
+    done
+    DOCUMENT_ABSPATHS=()
+    INDEX=0
+    while [[ "${INDEX}" -lt "${#DOCUMENTS[@]}" ]] && [[ "${#@}" -gt 0 ]]; do
+        DOCUMENT_ABSPATHS+=("${1}")
+        INDEX=$((INDEX + 1))
+        shift 1
+    done
+
+    # page metadata
+    ARCHIVE_OUTPUT_SOURCE_PATH="${TARGET_OUTPUT_ROOT}/${ARCHIVE_SOURCE}"
+    ARCHIVE_TEMP_SOURCE_FILE=$(marsh_get_archive_temp_path "${TARGET_OUTPUT_ROOT}" "${ARCHIVE_SOURCE}" "source") || return 1
+    PAGE_IS_FIRST=false
+    PAGE_IS_LAST=false
+    PAGE_HAS_PREV=false
+    PAGE_HAS_NEXT=false
+    PAGE_HAS_SUBDOCUMENTS=false
+    [[ "${PAGE}" -eq 1 ]] && PAGE_IS_FIRST=true
+    [[ "${PAGE}" -eq "${PAGE_TOTAL}" ]] && PAGE_IS_LAST=true
+    [[ "${PAGE_PREV_URI}" != "" ]] && PAGE_HAS_PREV=true
+    [[ "${PAGE_NEXT_URI}" != "" ]] && PAGE_HAS_NEXT=true
+    [[ "${PAGE_SUBDOCUMENTS_TOTAL}" -gt 0 ]] && PAGE_HAS_SUBDOCUMENTS=true
+
+    # Keep final output directories present for later archive page publication.
+    mkdir -p "${ARCHIVE_OUTPUT_SOURCE_PATH%/*}" >/dev/null 2>&1 || {
+        echo "Unable to create archive output directory: ${ARCHIVE_OUTPUT_SOURCE_PATH%/*}" >&2
+        return 1
+    }
+
+    mkdir -p "${ARCHIVE_TEMP_SOURCE_FILE%/*}" >/dev/null 2>&1 || {
+        echo "Unable to create archive temp directory: ${ARCHIVE_TEMP_SOURCE_FILE%/*}" >&2
+        return 1
+    }
+    rm -f "${ARCHIVE_OUTPUT_SOURCE_PATH}" >/dev/null 2>&1 || {
+        echo "Unable to remove stale archive file: ${ARCHIVE_OUTPUT_SOURCE_PATH}" >&2
+        return 1
+    }
+
+    # write the generated archive source with page metadata
+    echo "---" > "${ARCHIVE_TEMP_SOURCE_FILE}" 2>/dev/null || {
+        echo "Unable to write archive file: ${ARCHIVE_TEMP_SOURCE_FILE}" >&2
+        return 1
+    }
+    if [[ "${ENCODING}" == "html" ]]; then
+        echo "Type: archive" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+    else
+        echo "Type: archive-${ENCODING}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+    fi
+    echo "Date: $(date -u '+%Y-%m-%d %H:%M:%S')" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+    echo "Title: ${ARCHIVE_TITLE}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+    echo "Language: ${LANGUAGE}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+    echo "Language_Code: ${LANGCODE}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+    echo "Archive_Root_Path: ${ARCHIVE_ROOT_PATH}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+    echo "Archive_Root_Href: ${ARCHIVE_ROOT_HREF}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+    if [[ "${ENCODING}" == "html" ]]; then
+        echo "Paginated: ${PAGINATED}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+        echo "Page: ${PAGE}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+        echo "Page_Total: ${PAGE_TOTAL}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+        echo "Page_Size: ${PAGE_SIZE}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+        echo "Page_Subdocuments_Total: ${PAGE_SUBDOCUMENTS_TOTAL}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+        echo "Archive_Subdocuments_Total: ${ARCHIVE_SUBDOCUMENTS_TOTAL}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+        echo "Page_Is_First: ${PAGE_IS_FIRST}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+        echo "Page_Is_Last: ${PAGE_IS_LAST}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+        echo "Page_Has_Prev: ${PAGE_HAS_PREV}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+        echo "Page_Has_Next: ${PAGE_HAS_NEXT}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+        echo "Page_Has_Subdocuments: ${PAGE_HAS_SUBDOCUMENTS}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+        echo "Page_URI: ${PAGE_URI}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+        echo "Page_Canonical_URI: ${PAGE_CANONICAL_URI}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+        echo "Page_First_URI: ${PAGE_FIRST_URI}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+        echo "Page_Prev_URI: ${PAGE_PREV_URI}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+        echo "Page_Next_URI: ${PAGE_NEXT_URI}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+        echo "Page_Last_URI: ${PAGE_LAST_URI}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+        echo "Page_Href: ${PAGE_HREF}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+        echo "Page_Canonical_Href: ${PAGE_CANONICAL_HREF}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+        echo "Page_First_Href: ${PAGE_FIRST_HREF}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+        echo "Page_Prev_Href: ${PAGE_PREV_HREF}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+        echo "Page_Next_Href: ${PAGE_NEXT_HREF}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+        echo "Page_Last_Href: ${PAGE_LAST_HREF}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+    fi
+    echo "---" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+
+    # create manifest of the subdocuments for this page
+    if [[ "${#DOCUMENTS[@]}" -gt 0 ]]; then
+        MANIFEST_FILE=$(marsh_get_archive_temp_path "${TARGET_OUTPUT_ROOT}" "${ARCHIVE_SOURCE}" "subdocuments-manifest") || return 1
+        mkdir -p "${MANIFEST_FILE%/*}" >/dev/null 2>&1 || {
+            echo "Unable to create archive manifest temp directory: ${MANIFEST_FILE%/*}" >&2
+            return 1
+        }
+        {
+            INDEX=0
+            for DOCUMENT in "${DOCUMENTS[@]}"; do
+                URI="${DOCUMENT_URIS[$INDEX]:-}"
+                ABSPATH="${DOCUMENT_ABSPATHS[$INDEX]:-}"
+                printf '%q\t%q\t%q\n' "${DOCUMENT}" "${URI}" "${ABSPATH}" || {
+                    echo "Unable to write archive subdocument manifest: ${MANIFEST_FILE}" >&2
+                    return 1
+                }
+                INDEX=$((INDEX + 1))
+            done
+        } > "${MANIFEST_FILE}" || {
+            echo "Unable to create archive subdocument manifest: ${MANIFEST_FILE}" >&2
+            return 1
+        }
+    fi
+
+    return 0
+}
+
+# writes an archive manifest under the target plan root from planned target documents
+function marsh_write_target_archive_manifest {  # marsh_write_target_archive_manifest site_output_root markdown_fileext_csv target_plan_root [document_records[@]]
+    local SITE_OUTPUT_ROOT MARKDOWN_FILEEXT_CSV TARGET_PLAN_ROOT MANIFEST_FILE MANIFEST_TEMP DOCUMENT_RECORD
+    local DOCUMENT_ID_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC
+    local DOCUMENT_ID SOURCE_RELPATH TARGET_OUTPUT_REL SOURCE_ROOT DOCUMENT_SOURCE_FILE BUILD_CONTEXT_OUTPUT_ROOT
+    local DOCUMENT_ARTIFACT_PATHS DOCUMENT_ARTIFACT_ROOT DOCUMENT_ARTIFACT_CONTENT DOCUMENT_ARTIFACT_META_YAML DOCUMENT_ARTIFACT_META DOCUMENT_ARTIFACT_ARCHIVE_META META_ASSIGNMENTS META_VARS META_PREFIX TYPE_VAR
+    local TYPE URI ABSPATH STATE_JOINED OIFS DOCUMENT_OUTPUT_REL
+    local -a DOCUMENT_RECORDS_IN STATE
+
+    SITE_OUTPUT_ROOT="${1:-}"
+    MARKDOWN_FILEEXT_CSV="${2:-}"
+    TARGET_PLAN_ROOT="${3:-}"
+    [[ "${SITE_OUTPUT_ROOT}" == "" ]] && return 1
+    [[ "${MARKDOWN_FILEEXT_CSV}" == "" ]] && return 1
+    [[ "${TARGET_PLAN_ROOT}" == "" ]] && return 1
+    shift 3
+    DOCUMENT_RECORDS_IN=("$@")
+
+    MANIFEST_FILE="${TARGET_PLAN_ROOT}/archive-manifest"
+    MANIFEST_TEMP=$(mktemp "${TARGET_PLAN_ROOT}/archive-manifest-XXXXXX") || return 1
+    [[ "${#DOCUMENT_RECORDS_IN[@]}" -gt 0 ]] || return 1
+
+    # require caller-supplied document records on the fast path
+    while IFS=$'\t' read -r DOCUMENT_ID DOCUMENT_RECORD; do
+        [[ "${DOCUMENT_ID}" == "" ]] && continue
+        [[ "${DOCUMENT_RECORD}" == "" ]] && continue
+
+        IFS=$'\t' read -r DOCUMENT_ID_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC <<< "${DOCUMENT_RECORD}"
+        [[ "${DOCUMENT_ID_ESC}" == "" ]] && continue
+        eval "DOCUMENT_ID=${DOCUMENT_ID_ESC}"
+        eval "SOURCE_RELPATH=${SOURCE_RELPATH_ESC}"
+        eval "TARGET_OUTPUT_REL=${TARGET_OUTPUT_REL_ESC}"
+        eval "SOURCE_ROOT=${SOURCE_ROOT_ESC}"
+        [[ "${SOURCE_ROOT}" == "" ]] && {
+            rm -f "${MANIFEST_TEMP}"
+            return 1
+        }
+
+        DOCUMENT_SOURCE_FILE="${SOURCE_ROOT}/${SOURCE_RELPATH}"
+        [[ -f "${DOCUMENT_SOURCE_FILE}" ]] && [[ -r "${DOCUMENT_SOURCE_FILE}" ]] || {
+            rm -f "${MANIFEST_TEMP}"
+            return 1
+        }
+        BUILD_CONTEXT_OUTPUT_ROOT=$(marsh_get_target_directory_path "${SITE_OUTPUT_ROOT}/${TARGET_OUTPUT_REL}") || {
+            rm -f "${MANIFEST_TEMP}"
+            return 1
+        }
+
+        TYPE=""
+        STATE=()
+        if [[ -f "${DOCUMENT_SOURCE_FILE}" ]] && marsh_has_frontmatter "${DOCUMENT_SOURCE_FILE}"; then
+            # archive planning must not seed raw content artifacts, only metadata artifacts
+            if ! marsh_write_document_metadata_artifacts "${BUILD_CONTEXT_OUTPUT_ROOT}" "${DOCUMENT_ID}" "${DOCUMENT_SOURCE_FILE}"; then
+                echo "Unable to plan archive metadata: ${DOCUMENT_SOURCE_FILE}" >&2
+                rm -f "${MANIFEST_TEMP}"
+                return 1
+            fi
+            DOCUMENT_ARTIFACT_PATHS=$(marsh_get_document_artifacts "${BUILD_CONTEXT_OUTPUT_ROOT}" "${DOCUMENT_ID}") || {
+                rm -f "${MANIFEST_TEMP}"
+                return 1
+            }
+            eval "${DOCUMENT_ARTIFACT_PATHS}"
+            META_PREFIX=$(echo "planned_archive_${DOCUMENT_ARTIFACT_META_YAML}_" | sed -E -e 's/[^A-Za-z0-9_]/_/g')
+            META_PREFIX=$(echo "${META_PREFIX}" | sed -E -e 's/_{2,}/_/g')
+            META_ASSIGNMENTS=$(marsh_get_document_metadata "${DOCUMENT_ARTIFACT_META_YAML}" "${META_PREFIX}") || {
+                echo "Unable to plan archive metadata: ${DOCUMENT_SOURCE_FILE}" >&2
+                rm -f "${MANIFEST_TEMP}"
+                return 1
+            }
+            META_VARS=$(echo "${META_ASSIGNMENTS}" | marsh_get_variables)
+            eval "$(printf '%s\n' "${META_VARS}" | marsh_get_local_declarations)"
+            eval "${META_ASSIGNMENTS}"
+            TYPE_VAR="${META_PREFIX}Type"
+            TYPE="${!TYPE_VAR:-}"
+            eval "$(marsh_flat_to_array "STATE" "${META_PREFIX}State_")"
+        else
+            echo "Unable to plan archive metadata: ${DOCUMENT_SOURCE_FILE}" >&2
+            rm -f "${MANIFEST_TEMP}"
+            return 1
+        fi
+
+        eval "$(marsh_get_target_document_paths "${DOCUMENT_ID}" "${SITE_OUTPUT_ROOT}" "${TARGET_OUTPUT_REL}" "${MARKDOWN_FILEEXT_CSV}")" || return 1
+        URI=$(marsh_get_absolute_output_path "${DOCUMENT_OUTPUT_REL}" "document") || return 1
+        ABSPATH=""
+        [[ "${URI}" =~ / ]] && ABSPATH="${URI%/*}"
+
+        OIFS="${IFS}"
+        IFS=$(printf '\034')
+        STATE_JOINED="${STATE[*]}"
+        IFS="${OIFS}"
+        printf '%q\t%q\t%q\t%q\t%q\n' "${DOCUMENT_ID}" "${TYPE}" "${URI}" "${ABSPATH}" "${STATE_JOINED}"
+    done < <(
+        for DOCUMENT_RECORD in "${DOCUMENT_RECORDS_IN[@]}"; do
+            [[ "${DOCUMENT_RECORD}" == "" ]] && continue
+            IFS=$'\t' read -r DOCUMENT_ID_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC <<< "${DOCUMENT_RECORD}"
+            [[ "${DOCUMENT_ID_ESC}" == "" ]] && continue
+            eval "DOCUMENT_ID=${DOCUMENT_ID_ESC}"
+            printf '%s\t%s\n' "${DOCUMENT_ID}" "${DOCUMENT_RECORD}"
+        done | sort -nr -t/
+    ) > "${MANIFEST_TEMP}" || {
+        rm -f "${MANIFEST_TEMP}"
+        return 1
+    }
+
+    mv "${MANIFEST_TEMP}" "${MANIFEST_FILE}" 2>/dev/null || {
+        rm -f "${MANIFEST_TEMP}"
+        return 1
+    }
+}
+
+#
+# Archive queue management
+#
+
+# builds aggregate archive-queue records for a target
+function marsh_build_target_archive_queue {  # marsh_build_target_archive_queue site_output_root log_level log_levels_csv jobs markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links target_plan_root
+    local SITE_OUTPUT_ROOT LOG_LEVEL LOG_LEVELS_CSV JOBS MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_REWRITE_LINKS TARGET_PLAN_ROOT
+    local TARGET_ARCHIVE_QUEUE_RECORDS_FILE QUEUE_RECORD DOCUMENT_RECORD
+    local QUEUE_DOCUMENT_ID_ESC QUEUE_ARCHIVE_PLAN_ROOT_ESC QUEUE_DOCUMENT_ID QUEUE_ARCHIVE_PLAN_ROOT
+    local CURRENT_ARCHIVE_PLAN_ROOT CONTEXT_FILE ARCHIVE_PLAN_CONTEXT ARCHIVE_PLAN_CONTEXT_VARS TARGET_OUTPUT_REL TARGET_SITEMAP TARGET_SITEMAP_SEARCH TEMPLATES_DIR TEMPLATE TEMPLATE_ASSETS_PATH
+    local BUILD_CONTEXT_TARGET_OUTPUT_REL BUILD_CONTEXT_SOURCE_ROOT DOCUMENTS_FILE CURRENT_DOCUMENT_ID_ESC CURRENT_DOCUMENT_ID CURRENT_DOCUMENT_INDEX
+    local PARALLEL PARALLEL_MARKDOWN
+    local -a TEMPLATE_OVERRIDES QUEUE_RECORDS CURRENT_DOCUMENT_RECORDS
+
+    SITE_OUTPUT_ROOT="${1:-}"
+    LOG_LEVEL="${2:-}"
+    LOG_LEVELS_CSV="${3:-}"
+    JOBS="${4:-1}"
+    MARKDOWN_COMMAND="${5:-}"
+    MARKDOWN_OPTIONS_CSV="${6:-}"
+    MARKDOWN_FILEEXT_CSV="${7:-}"
+    MARKDOWN_REWRITE_LINKS="${8:-}"
+    TARGET_PLAN_ROOT="${9:-}"
+    [[ "${SITE_OUTPUT_ROOT}" == "" ]] && return 1
+    [[ "${MARKDOWN_COMMAND}" == "" ]] && return 1
+    [[ "${MARKDOWN_FILEEXT_CSV}" == "" ]] && return 1
+    [[ "${MARKDOWN_REWRITE_LINKS}" == "" ]] && return 1
+    [[ "${TARGET_PLAN_ROOT}" == "" ]] && return 1
+
+    TARGET_ARCHIVE_QUEUE_RECORDS_FILE=$(marsh_get_target_archive_queue_records_path "${TARGET_PLAN_ROOT}") || return 1
+    [[ -f "${TARGET_ARCHIVE_QUEUE_RECORDS_FILE}" ]] && [[ -r "${TARGET_ARCHIVE_QUEUE_RECORDS_FILE}" ]] || {
+        echo "Target archive queue records file not found: ${TARGET_ARCHIVE_QUEUE_RECORDS_FILE}" >&2
+        return 1
+    }
+
+    QUEUE_RECORDS=()
+    while IFS= read -r QUEUE_RECORD; do
+        [[ "${QUEUE_RECORD}" == "" ]] && continue
+        QUEUE_RECORDS+=("${QUEUE_RECORD}")
+    done < "${TARGET_ARCHIVE_QUEUE_RECORDS_FILE}"
+    [[ "${#QUEUE_RECORDS[@]}" -gt 0 ]] || return 0
+
+    PARALLEL=$(command -v parallel 2>/dev/null)
+    PARALLEL_MARKDOWN=""
+    [[ "${MARKDOWN_COMMAND}" != "markdown" ]] && PARALLEL_MARKDOWN="${MARKDOWN_COMMAND}"
+    if [[ "${#QUEUE_RECORDS[@]}" -gt 2 ]] && [[ "${JOBS:-1}" -gt 1 ]] && [[ "${PARALLEL:-}" != "" ]] && [[ "$(${PARALLEL} --version --no-notice 2>/dev/null | head -n 1 | grep -o 'GNU parallel')" == "GNU parallel" ]]; then
+        CURRENT_ARCHIVE_PLAN_ROOT=""
+        for QUEUE_RECORD in "${QUEUE_RECORDS[@]}"; do
+            IFS=$'\t' read -r _ _ _ _ QUEUE_ARCHIVE_PLAN_ROOT_ESC <<< "${QUEUE_RECORD}"
+            [[ "${QUEUE_ARCHIVE_PLAN_ROOT_ESC}" == "" ]] && return 1
+            eval "QUEUE_ARCHIVE_PLAN_ROOT=${QUEUE_ARCHIVE_PLAN_ROOT_ESC}"
+            if [[ "${CURRENT_ARCHIVE_PLAN_ROOT}" == "${QUEUE_ARCHIVE_PLAN_ROOT}" ]]; then
+                continue
+            fi
+            CURRENT_ARCHIVE_PLAN_ROOT="${QUEUE_ARCHIVE_PLAN_ROOT}"
+            eval "$(marsh_load_archive_plan_build_context "${CURRENT_ARCHIVE_PLAN_ROOT}")" || return 1
+            TARGET_OUTPUT_REL="${BUILD_CONTEXT_TARGET_OUTPUT_REL}"
+
+            # pre-copy template assets once per archive plan before parallel workers start
+            if [[ "${TEMPLATES_DIR}" != "" ]] && [[ "${TEMPLATE}" != "" ]]; then
+                marsh_copy_template_assets "${SITE_OUTPUT_ROOT}" "${TARGET_OUTPUT_REL}" "${LOG_LEVEL}" "${LOG_LEVELS_CSV}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_ASSETS_PATH}" || return 1
+            fi
+        done
+
+        if ! "${PARALLEL}" --halt now,fail=1 --quote --no-notice --jobs="${JOBS:-1}" "${SELF_DIR}/${SELF_NAME}" build-target-archive-queue-record --log-level="${LOG_LEVEL}" --markdown="${PARALLEL_MARKDOWN}" --markdown-options="${MARKDOWN_OPTIONS_CSV}" --markdown-file-extensions="${MARKDOWN_FILEEXT_CSV}" --markdown-rewrite-links="${MARKDOWN_REWRITE_LINKS}" --marsh-temp="${MARSH_TEMP}" --marsh-config-file="${MARSH_CONFIG_FILE}" --marsh-config-file-dir="${MARSH_CONFIG_FILE_DIR}" --marsh-config-path="${MARSH_CONFIG_PATH}" --marsh-config-url="${MARSH_CONFIG_URL}" "${SITE_OUTPUT_ROOT}" {} ::: "${QUEUE_RECORDS[@]}"; then
+            return 1
+        fi
+        return 0
+    fi
+
+    CURRENT_ARCHIVE_PLAN_ROOT=""
+    CURRENT_DOCUMENT_INDEX=0
+    CURRENT_DOCUMENT_RECORDS=()
+    for QUEUE_RECORD in "${QUEUE_RECORDS[@]}"; do
+        IFS=$'\t' read -r QUEUE_DOCUMENT_ID_ESC _ _ _ QUEUE_ARCHIVE_PLAN_ROOT_ESC <<< "${QUEUE_RECORD}"
+        [[ "${QUEUE_DOCUMENT_ID_ESC}" == "" ]] && continue
+        [[ "${QUEUE_ARCHIVE_PLAN_ROOT_ESC}" == "" ]] && return 1
+        eval "QUEUE_DOCUMENT_ID=${QUEUE_DOCUMENT_ID_ESC}"
+        eval "QUEUE_ARCHIVE_PLAN_ROOT=${QUEUE_ARCHIVE_PLAN_ROOT_ESC}"
+
+        if [[ "${CURRENT_ARCHIVE_PLAN_ROOT}" != "${QUEUE_ARCHIVE_PLAN_ROOT}" ]]; then
+            CURRENT_ARCHIVE_PLAN_ROOT="${QUEUE_ARCHIVE_PLAN_ROOT}"
+            CURRENT_DOCUMENT_INDEX=0
+            CURRENT_DOCUMENT_RECORDS=()
+
+            eval "$(marsh_load_archive_plan_build_context "${CURRENT_ARCHIVE_PLAN_ROOT}")" || return 1
+            TARGET_OUTPUT_REL="${BUILD_CONTEXT_TARGET_OUTPUT_REL}"
+
+            DOCUMENTS_FILE="${CURRENT_ARCHIVE_PLAN_ROOT}/documents"
+            [[ -f "${DOCUMENTS_FILE}" ]] && [[ -r "${DOCUMENTS_FILE}" ]] || {
+                echo "Archive plan documents file not found: ${DOCUMENTS_FILE}" >&2
+                return 1
+            }
+            while IFS= read -r DOCUMENT_RECORD; do
+                [[ "${DOCUMENT_RECORD}" == "" ]] && continue
+                CURRENT_DOCUMENT_RECORDS+=("${DOCUMENT_RECORD}")
+            done < "${DOCUMENTS_FILE}"
+
+            # copy assets once per archive plan before rendering that plan's queued records
+            if [[ "${TEMPLATES_DIR}" != "" ]] && [[ "${TEMPLATE}" != "" ]]; then
+                marsh_copy_template_assets "${SITE_OUTPUT_ROOT}" "${TARGET_OUTPUT_REL}" "${LOG_LEVEL}" "${LOG_LEVELS_CSV}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_ASSETS_PATH}" || return 1
+            fi
+        fi
+
+        DOCUMENT_RECORD="${CURRENT_DOCUMENT_RECORDS[$CURRENT_DOCUMENT_INDEX]:-}"
+        [[ "${DOCUMENT_RECORD}" != "" ]] || {
+            echo "Archive queue record has no matching document record: ${QUEUE_DOCUMENT_ID}" >&2
+            return 1
+        }
+        IFS=$'\t' read -r CURRENT_DOCUMENT_ID_ESC _ <<< "${DOCUMENT_RECORD}"
+        eval "CURRENT_DOCUMENT_ID=${CURRENT_DOCUMENT_ID_ESC}"
+
+        # queue generation preserves document order within each archive plan
+        if [[ "${CURRENT_DOCUMENT_ID}" != "${QUEUE_DOCUMENT_ID}" ]]; then
+            echo "Archive queue record out of sync with archive plan documents: ${CURRENT_ARCHIVE_PLAN_ROOT}" >&2
+            return 1
+        fi
+
+        marsh_build_planned_target_documents "${SITE_OUTPUT_ROOT}" "${LOG_LEVEL}" "${LOG_LEVELS_CSV}" '1' "${TARGET_SITEMAP}" "${TARGET_SITEMAP_SEARCH}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_FILEEXT_CSV}" "${MARKDOWN_REWRITE_LINKS}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_ASSETS_PATH}" "${DOCUMENT_RECORD}" || return 1
+        CURRENT_DOCUMENT_INDEX=$((CURRENT_DOCUMENT_INDEX + 1))
+    done
+}
+
+# builds one aggregate archive-queue record from a document record and archive plan root
+function marsh_build_target_archive_queue_record {  # marsh_build_target_archive_queue_record archive_plan_root document_record
+    local ARCHIVE_PLAN_ROOT DOCUMENT_RECORD
+    local DOCUMENT_ID SOURCE_RELPATH TARGET_OUTPUT_REL SOURCE_ROOT
+    local DOCUMENT_ID_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC
+
+    ARCHIVE_PLAN_ROOT="${1:-}"
+    DOCUMENT_RECORD="${2:-}"
+    [[ "${ARCHIVE_PLAN_ROOT}" == "" ]] && return 1
+    [[ "${DOCUMENT_RECORD}" == "" ]] && return 1
+
+    IFS=$'\t' read -r DOCUMENT_ID_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC <<< "${DOCUMENT_RECORD}"
+    [[ "${DOCUMENT_ID_ESC}" == "" ]] && return 1
+
+    # keep document identity and archive-plan context explicit in the queue record
+    printf '%q\t%q\t%q\t%q\t%q\n' \
+        "${DOCUMENT_ID_ESC}" \
+        "${SOURCE_RELPATH_ESC}" \
+        "${TARGET_OUTPUT_REL_ESC}" \
+        "${SOURCE_ROOT_ESC}" \
+        "${ARCHIVE_PLAN_ROOT}"
+}
+
+# builds one archive queue record by loading its archive-plan context
+function marsh_build_target_archive_queue_record_document {  # marsh_build_target_archive_queue_record_document site_output_root log_level log_levels_csv markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links archive_queue_record
+    local SITE_OUTPUT_ROOT LOG_LEVEL LOG_LEVELS_CSV MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_REWRITE_LINKS ARCHIVE_QUEUE_RECORD
+    local DOCUMENT_ID_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC ARCHIVE_PLAN_ROOT_ESC
+    local DOCUMENT_ID SOURCE_RELPATH TARGET_OUTPUT_REL SOURCE_ROOT ARCHIVE_PLAN_ROOT
+    local CONTEXT_FILE ARCHIVE_PLAN_CONTEXT ARCHIVE_PLAN_CONTEXT_VARS TARGET_SITEMAP TARGET_SITEMAP_SEARCH TEMPLATES_DIR TEMPLATE TEMPLATE_ASSETS_PATH
+    local BUILD_CONTEXT_TARGET_OUTPUT_REL BUILD_CONTEXT_SOURCE_ROOT
+    local -a TEMPLATE_OVERRIDES
+
+    SITE_OUTPUT_ROOT="${1:-}"
+    LOG_LEVEL="${2:-}"
+    LOG_LEVELS_CSV="${3:-}"
+    MARKDOWN_COMMAND="${4:-}"
+    MARKDOWN_OPTIONS_CSV="${5:-}"
+    MARKDOWN_FILEEXT_CSV="${6:-}"
+    MARKDOWN_REWRITE_LINKS="${7:-}"
+    ARCHIVE_QUEUE_RECORD="${8:-}"
+    [[ "${SITE_OUTPUT_ROOT}" == "" ]] && return 1
+    [[ "${MARKDOWN_COMMAND}" == "" ]] && return 1
+    [[ "${MARKDOWN_FILEEXT_CSV}" == "" ]] && return 1
+    [[ "${MARKDOWN_REWRITE_LINKS}" == "" ]] && return 1
+    [[ "${ARCHIVE_QUEUE_RECORD}" == "" ]] && return 1
+
+    IFS=$'\t' read -r DOCUMENT_ID_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC ARCHIVE_PLAN_ROOT_ESC <<< "${ARCHIVE_QUEUE_RECORD}"
+    [[ "${DOCUMENT_ID_ESC}" == "" ]] && return 1
+    [[ "${ARCHIVE_PLAN_ROOT_ESC}" == "" ]] && return 1
+    eval "DOCUMENT_ID=${DOCUMENT_ID_ESC}"
+    eval "SOURCE_RELPATH=${SOURCE_RELPATH_ESC}"
+    eval "TARGET_OUTPUT_REL=${TARGET_OUTPUT_REL_ESC}"
+    eval "SOURCE_ROOT=${SOURCE_ROOT_ESC}"
+    eval "ARCHIVE_PLAN_ROOT=${ARCHIVE_PLAN_ROOT_ESC}"
+
+    eval "$(marsh_load_archive_plan_build_context "${ARCHIVE_PLAN_ROOT}")" || return 1
+    [[ "${TARGET_OUTPUT_REL}" == "${BUILD_CONTEXT_TARGET_OUTPUT_REL}" ]] || return 1
+    [[ "${SOURCE_ROOT}" == "${BUILD_CONTEXT_SOURCE_ROOT}" ]] || return 1
+
+    marsh_build_document_and_template "${SITE_OUTPUT_ROOT}" "${TARGET_OUTPUT_REL}" "${DOCUMENT_ID}" "${TARGET_SITEMAP}" "${TARGET_SITEMAP_SEARCH}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${LOG_LEVEL}" "${LOG_LEVELS_CSV}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_FILEEXT_CSV}" "${MARKDOWN_REWRITE_LINKS}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_ASSETS_PATH}" "${BUILD_CONTEXT_TARGET_OUTPUT_REL}" "${BUILD_CONTEXT_SOURCE_ROOT}"
+}
+
+# returns the aggregate archive-queue records path under the target plan root
+function marsh_get_target_archive_queue_records_path {  # marsh_get_target_archive_queue_records_path target_plan_root
+    local TARGET_PLAN_ROOT TARGET_ARCHIVE_QUEUE_ROOT
+
+    TARGET_PLAN_ROOT="${1:-}"
+    [[ "${TARGET_PLAN_ROOT}" == "" ]] && return 1
+    TARGET_ARCHIVE_QUEUE_ROOT=$(marsh_get_target_archive_queue_root "${TARGET_PLAN_ROOT}") || return 1
+    printf '%s\n' "${TARGET_ARCHIVE_QUEUE_ROOT}/records"
+}
+
+# returns the aggregate archive-queue root under the target plan root
+function marsh_get_target_archive_queue_root {  # marsh_get_target_archive_queue_root target_plan_root
+    local TARGET_PLAN_ROOT
+
+    TARGET_PLAN_ROOT="${1:-}"
+    [[ "${TARGET_PLAN_ROOT}" == "" ]] && return 1
+    printf '%s\n' "${TARGET_PLAN_ROOT}/archive-queue"
+}
+
+# loads and validates persisted archive-plan context for queue and plan executors
+function marsh_load_archive_plan_build_context {  # marsh_load_archive_plan_build_context archive_plan_root
+    local ARCHIVE_PLAN_ROOT CONTEXT_FILE ARCHIVE_PLAN_CONTEXT ARCHIVE_PLAN_CONTEXT_VARS
+
+    ARCHIVE_PLAN_ROOT="${1:-}"
+    [[ "${ARCHIVE_PLAN_ROOT}" == "" ]] && return 1
+
+    CONTEXT_FILE="${ARCHIVE_PLAN_ROOT}/context"
+    [[ -f "${CONTEXT_FILE}" ]] && [[ -r "${CONTEXT_FILE}" ]] || {
+        echo "Archive plan context file not found: ${CONTEXT_FILE}" >&2
+        return 1
+    }
+    ARCHIVE_PLAN_CONTEXT=$(<"${CONTEXT_FILE}") || {
+        echo "Unable to read archive plan context file: ${CONTEXT_FILE}" >&2
+        return 1
+    }
+
+    # fail early on corrupted persisted context before queue execution fans out
+    ARCHIVE_PLAN_CONTEXT_VARS=$(echo "${ARCHIVE_PLAN_CONTEXT}" | marsh_get_variables)
+    eval "$(printf '%s\n' "${ARCHIVE_PLAN_CONTEXT_VARS}" | marsh_get_local_declarations)" 2>/dev/null || {
+        echo "Unable to prepare archive plan context variables: ${CONTEXT_FILE}" >&2
+        return 1
+    }
+    eval "${ARCHIVE_PLAN_CONTEXT}" 2>/dev/null || {
+        echo "Unable to evaluate archive plan context: ${CONTEXT_FILE}" >&2
+        return 1
+    }
+    [[ "${BUILD_CONTEXT_TARGET_OUTPUT_REL+isset}" == "isset" ]] || {
+        echo "Archive plan context missing BUILD_CONTEXT_TARGET_OUTPUT_REL: ${CONTEXT_FILE}" >&2
+        return 1
+    }
+    [[ "${BUILD_CONTEXT_SOURCE_ROOT+isset}" == "isset" ]] || {
+        echo "Archive plan context missing BUILD_CONTEXT_SOURCE_ROOT: ${CONTEXT_FILE}" >&2
+        return 1
+    }
+
+    printf '%s\n' "${ARCHIVE_PLAN_CONTEXT}"
+}
+
+# parses one aggregate archive-queue record into shell assignments
+function marsh_parse_target_archive_queue_record {  # marsh_parse_target_archive_queue_record archive_queue_record
+    local ARCHIVE_QUEUE_RECORD
+    local DOCUMENT_ID_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC ARCHIVE_PLAN_ROOT_ESC
+    local DOCUMENT_ID SOURCE_RELPATH TARGET_OUTPUT_REL SOURCE_ROOT ARCHIVE_PLAN_ROOT
+
+    ARCHIVE_QUEUE_RECORD="${1:-}"
+    [[ "${ARCHIVE_QUEUE_RECORD}" == "" ]] && return 1
+
+    IFS=$'\t' read -r DOCUMENT_ID_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC ARCHIVE_PLAN_ROOT_ESC <<< "${ARCHIVE_QUEUE_RECORD}"
+    [[ "${DOCUMENT_ID_ESC}" == "" ]] && return 1
+    [[ "${ARCHIVE_PLAN_ROOT_ESC}" == "" ]] && return 1
+
+    printf 'DOCUMENT_ID=%q\n' "${DOCUMENT_ID_ESC}"
+    printf 'SOURCE_RELPATH=%q\n' "${SOURCE_RELPATH_ESC}"
+    printf 'TARGET_OUTPUT_REL=%q\n' "${TARGET_OUTPUT_REL_ESC}"
+    printf 'SOURCE_ROOT=%q\n' "${SOURCE_ROOT_ESC}"
+    printf 'ARCHIVE_PLAN_ROOT=%q\n' "${ARCHIVE_PLAN_ROOT_ESC}"
+}
+
+# reads aggregate archive-queue records from the target plan root
+function marsh_read_target_archive_queue_records {  # marsh_read_target_archive_queue_records target_plan_root
+    local TARGET_PLAN_ROOT TARGET_ARCHIVE_QUEUE_RECORDS_FILE
+
+    TARGET_PLAN_ROOT="${1:-}"
+    [[ "${TARGET_PLAN_ROOT}" == "" ]] && return 1
+
+    TARGET_ARCHIVE_QUEUE_RECORDS_FILE=$(marsh_get_target_archive_queue_records_path "${TARGET_PLAN_ROOT}") || return 1
+    [[ -f "${TARGET_ARCHIVE_QUEUE_RECORDS_FILE}" ]] && [[ -r "${TARGET_ARCHIVE_QUEUE_RECORDS_FILE}" ]] || return 1
+    cat "${TARGET_ARCHIVE_QUEUE_RECORDS_FILE}"
+}
+
+# writes persisted archive-plan context for later archive execution
+function marsh_write_archive_plan_context {  # marsh_write_archive_plan_context context_file build_context_target_output_rel build_context_source_root target_sitemap target_sitemap_search templates_dir template #template_overrides[@] template_overrides[@] template_assets_path
+    local CONTEXT_FILE BUILD_CONTEXT_TARGET_OUTPUT_REL BUILD_CONTEXT_SOURCE_ROOT TARGET_SITEMAP TARGET_SITEMAP_SEARCH TEMPLATES_DIR TEMPLATE
+    local NUM_TEMPLATE_OVERRIDES TEMPLATE_ASSETS_PATH CONTEXT_TEMP TEMPLATE_OVERRIDE
+    local -a TEMPLATE_OVERRIDES
+
+    CONTEXT_FILE="${1:-}"
+    BUILD_CONTEXT_TARGET_OUTPUT_REL="${2:-}"
+    BUILD_CONTEXT_SOURCE_ROOT="${3:-}"
+    TARGET_SITEMAP="${4:-}"
+    TARGET_SITEMAP_SEARCH="${5:-false}"
+    TEMPLATES_DIR="${6:-}"
+    TEMPLATE="${7:-}"
+    [[ "${CONTEXT_FILE}" == "" ]] && return 1
+    [[ "${BUILD_CONTEXT_TARGET_OUTPUT_REL}" == "" ]] && return 1
+    shift 7
+    NUM_TEMPLATE_OVERRIDES="${1:-0}"
+    shift 1
+    TEMPLATE_OVERRIDES=()
+    while [[ "${NUM_TEMPLATE_OVERRIDES}" -gt 0 ]] && [[ "${#@}" -gt 0 ]]; do
+        TEMPLATE_OVERRIDES+=("${1}")
+        NUM_TEMPLATE_OVERRIDES=$((NUM_TEMPLATE_OVERRIDES - 1))
+        shift 1
+    done
+    TEMPLATE_ASSETS_PATH="${1:-}"
+
+    CONTEXT_TEMP=$(mktemp "${CONTEXT_FILE%/*}/context-XXXXXX") || return 1
+    {
+        # keep the current executor field while persisting the build-context names explicitly
+        printf 'TARGET_OUTPUT_REL=%q\n' "${BUILD_CONTEXT_TARGET_OUTPUT_REL}"
+        printf 'BUILD_CONTEXT_TARGET_OUTPUT_REL=%q\n' "${BUILD_CONTEXT_TARGET_OUTPUT_REL}"
+        printf 'BUILD_CONTEXT_SOURCE_ROOT=%q\n' "${BUILD_CONTEXT_SOURCE_ROOT}"
+        printf 'TARGET_SITEMAP=%q\n' "${TARGET_SITEMAP}"
+        printf 'TARGET_SITEMAP_SEARCH=%q\n' "${TARGET_SITEMAP_SEARCH}"
+        printf 'TEMPLATES_DIR=%q\n' "${TEMPLATES_DIR}"
+        printf 'TEMPLATE=%q\n' "${TEMPLATE}"
+        printf 'TEMPLATE_ASSETS_PATH=%q\n' "${TEMPLATE_ASSETS_PATH}"
+        echo 'TEMPLATE_OVERRIDES=()'
+        for TEMPLATE_OVERRIDE in "${TEMPLATE_OVERRIDES[@]}"; do
+            printf 'TEMPLATE_OVERRIDES+=(%q)\n' "${TEMPLATE_OVERRIDE}"
+        done
+    } > "${CONTEXT_TEMP}" || {
+        rm -f "${CONTEXT_TEMP}"
+        return 1
+    }
+    mv "${CONTEXT_TEMP}" "${CONTEXT_FILE}" 2>/dev/null || {
+        rm -f "${CONTEXT_TEMP}"
+        return 1
+    }
+}
+
+# writes one aggregate archive queue from the provided archive plan roots
+function marsh_write_target_archive_queue_from_archive_plans {  # marsh_write_target_archive_queue_from_archive_plans target_plan_root archive_plan_roots[@]
+    local TARGET_PLAN_ROOT ARCHIVE_PLAN_ROOT ARCHIVE_PLAN_DOCUMENTS_FILE DOCUMENT_RECORD QUEUE_RECORD
+    local -a QUEUE_RECORDS
+
+    TARGET_PLAN_ROOT="${1:-}"
+    shift 1
+    [[ "${TARGET_PLAN_ROOT}" == "" ]] && return 1
+
+    QUEUE_RECORDS=()
+    while [[ "${#@}" -gt 0 ]]; do
+        ARCHIVE_PLAN_ROOT="${1:-}"
+        shift 1
+        [[ "${ARCHIVE_PLAN_ROOT}" == "" ]] && continue
+        ARCHIVE_PLAN_DOCUMENTS_FILE="${ARCHIVE_PLAN_ROOT}/documents"
+        [[ -f "${ARCHIVE_PLAN_DOCUMENTS_FILE}" ]] && [[ -r "${ARCHIVE_PLAN_DOCUMENTS_FILE}" ]] || {
+            echo "Archive plan documents file not found: ${ARCHIVE_PLAN_DOCUMENTS_FILE}" >&2
+            return 1
+        }
+
+        # keep the queue order aligned with archive plan order and persisted document order
+        while IFS= read -r DOCUMENT_RECORD; do
+            [[ "${DOCUMENT_RECORD}" == "" ]] && continue
+            QUEUE_RECORD=$(marsh_build_target_archive_queue_record "${ARCHIVE_PLAN_ROOT}" "${DOCUMENT_RECORD}") || return 1
+            QUEUE_RECORDS+=("${QUEUE_RECORD}")
+        done < "${ARCHIVE_PLAN_DOCUMENTS_FILE}"
+    done
+
+    marsh_write_target_archive_queue_records "${TARGET_PLAN_ROOT}" "${QUEUE_RECORDS[@]}"
+}
+
+# writes aggregate archive-queue records under the target plan root
+function marsh_write_target_archive_queue_records {  # marsh_write_target_archive_queue_records target_plan_root records[@]
+    local TARGET_PLAN_ROOT TARGET_ARCHIVE_QUEUE_ROOT TARGET_ARCHIVE_QUEUE_RECORDS_FILE TARGET_ARCHIVE_QUEUE_RECORDS_TEMP RECORD
+
+    TARGET_PLAN_ROOT="${1:-}"
+    shift 1
+    [[ "${TARGET_PLAN_ROOT}" == "" ]] && return 1
+
+    TARGET_ARCHIVE_QUEUE_ROOT=$(marsh_get_target_archive_queue_root "${TARGET_PLAN_ROOT}") || return 1
+    TARGET_ARCHIVE_QUEUE_RECORDS_FILE=$(marsh_get_target_archive_queue_records_path "${TARGET_PLAN_ROOT}") || return 1
+    mkdir -p "${TARGET_ARCHIVE_QUEUE_ROOT}" >/dev/null 2>&1 || {
+        echo "Unable to create target archive queue path: ${TARGET_ARCHIVE_QUEUE_ROOT}" >&2
+        return 1
+    }
+    TARGET_ARCHIVE_QUEUE_RECORDS_TEMP=$(mktemp "${TARGET_ARCHIVE_QUEUE_ROOT}/records-XXXXXX" 2>/dev/null) || {
+        echo "Unable to write target archive queue temporary file: ${TARGET_ARCHIVE_QUEUE_ROOT}/records-XXXXXX" >&2
+        return 1
+    }
+
+    while [[ "${#@}" -gt 0 ]]; do
+        RECORD="${1:-}"
+        shift 1
+        [[ "${RECORD}" == "" ]] && continue
+        printf '%s\n' "${RECORD}"
+    done > "${TARGET_ARCHIVE_QUEUE_RECORDS_TEMP}" || {
+        echo "Unable to write target archive queue temporary file: ${TARGET_ARCHIVE_QUEUE_RECORDS_TEMP}" >&2
+        rm -f "${TARGET_ARCHIVE_QUEUE_RECORDS_TEMP}"
+        return 1
+    }
+    mv "${TARGET_ARCHIVE_QUEUE_RECORDS_TEMP}" "${TARGET_ARCHIVE_QUEUE_RECORDS_FILE}" 2>/dev/null || {
+        echo "Unable to write target archive queue file: ${TARGET_ARCHIVE_QUEUE_RECORDS_FILE}" >&2
+        rm -f "${TARGET_ARCHIVE_QUEUE_RECORDS_TEMP}"
+        return 1
+    }
 }
 
 # run only when executed, not when sourced

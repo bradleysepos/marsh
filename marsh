@@ -3445,1028 +3445,9 @@ function marsh_write_target_plan_records {  # marsh_write_target_plan_records ta
     }
 }
 
-# resolves a template tag to shell variable assignments
-function marsh_resolve_tag_metadata {  # marsh_resolve_tag_metadata tag_name prefix metadata_vars[@]
-    local TAG_NAME PREFIX METADATA_VARS TAG_VAR TAG_TYPE
-    local OIFS META_VAR NORMALIZED_TAG NORMALIZED_META MATCH_VAR MATCH_COUNT
-
-    # init
-    TAG_NAME="${1:-}"
-    [[ "${TAG_NAME}" == "" ]] && return 1
-    PREFIX="${2:-}"
-    METADATA_VARS="${3:-}"
-
-    # handle known metadata tags
-    TAG_VAR=""
-    TAG_TYPE=""
-    case "${TAG_NAME}" in
-        site.rootpath)
-            TAG_VAR="SITE_ROOTPATH"
-            TAG_TYPE="string"
-            ;;
-        site.abspath)
-            TAG_VAR="SITE_ABSPATH"
-            TAG_TYPE="string"
-            ;;
-        target.rootpath)
-            TAG_VAR="TARGET_ROOTPATH"
-            TAG_TYPE="string"
-            ;;
-        target.abspath)
-            TAG_VAR="TARGET_ABSPATH"
-            TAG_TYPE="string"
-            ;;
-        archive.rootpath)
-            TAG_VAR="ARCHIVE_ROOTPATH"
-            TAG_TYPE="string"
-            ;;
-        archive.abspath)
-            TAG_VAR="ARCHIVE_ABSPATH"
-            TAG_TYPE="string"
-            ;;
-        target.sitemap)
-            TAG_VAR="TARGET_SITEMAP"
-            TAG_TYPE="string"
-            ;;
-        template.assets.fonts)
-            TAG_VAR="TEMPLATE_TAG_ASSETS_FONTS"
-            TAG_TYPE="shell-array"
-            ;;
-        template.assets.styles)
-            TAG_VAR="TEMPLATE_TAG_ASSETS_STYLES"
-            TAG_TYPE="shell-array"
-            ;;
-        template.assets.scripts)
-            TAG_VAR="TEMPLATE_TAG_ASSETS_SCRIPTS"
-            TAG_TYPE="shell-array"
-            ;;
-        template.assets.images)
-            TAG_VAR="TEMPLATE_TAG_ASSETS_IMAGES"
-            TAG_TYPE="shell-array"
-            ;;
-        template.assets.audio)
-            TAG_VAR="TEMPLATE_TAG_ASSETS_AUDIO"
-            TAG_TYPE="shell-array"
-            ;;
-        template.assets.video)
-            TAG_VAR="TEMPLATE_TAG_ASSETS_VIDEO"
-            TAG_TYPE="shell-array"
-            ;;
-        template.assets.documents)
-            TAG_VAR="TEMPLATE_TAG_ASSETS_DOCUMENTS"
-            TAG_TYPE="shell-array"
-            ;;
-        template.assets.binaries)
-            TAG_VAR="TEMPLATE_TAG_ASSETS_BINARIES"
-            TAG_TYPE="shell-array"
-            ;;
-        template.assets.other)
-            TAG_VAR="TEMPLATE_TAG_ASSETS_OTHER"
-            TAG_TYPE="shell-array"
-            ;;
-        document.href)
-            TAG_VAR="${PREFIX}HREF"
-            TAG_TYPE="string"
-            ;;
-        document.uri)
-            TAG_VAR="${PREFIX}URI"
-            TAG_TYPE="string"
-            ;;
-        document.content)
-            TAG_VAR="${PREFIX}CONTENT"
-            TAG_TYPE="file"
-            ;;
-        document.authors)
-            TAG_VAR="${PREFIX}Authors_"
-            TAG_TYPE="array"
-            ;;
-        document.copyright)
-            TAG_VAR="${PREFIX}Copyright"
-            TAG_TYPE="string"
-            ;;
-        document.credits-url)
-            TAG_VAR="${PREFIX}Credits_URL"
-            TAG_TYPE="string"
-            ;;
-        document.date)
-            TAG_VAR="${PREFIX}Date"
-            TAG_TYPE="string"
-            ;;
-        document.language)
-            TAG_VAR="${PREFIX}Language"
-            TAG_TYPE="string"
-            ;;
-        document.language-code)
-            TAG_VAR="${PREFIX}Language_Code"
-            TAG_TYPE="string"
-            ;;
-        document.license)
-            TAG_VAR="${PREFIX}License"
-            TAG_TYPE="string"
-            ;;
-        document.license-abbr)
-            TAG_VAR="${PREFIX}License_Abbr"
-            TAG_TYPE="string"
-            ;;
-        document.license-url)
-            TAG_VAR="${PREFIX}License_URL"
-            TAG_TYPE="string"
-            ;;
-        document.project)
-            TAG_VAR="${PREFIX}Project"
-            TAG_TYPE="string"
-            ;;
-        document.project-version)
-            TAG_VAR="${PREFIX}Project_Version"
-            TAG_TYPE="string"
-            ;;
-        document.project-url)
-            TAG_VAR="${PREFIX}Project_URL"
-            TAG_TYPE="string"
-            ;;
-        document.redirect-url)
-            TAG_VAR="${PREFIX}Redirect_URL"
-            TAG_TYPE="string"
-            ;;
-        document.state)
-            TAG_VAR="${PREFIX}State_"
-            TAG_TYPE="array"
-            ;;
-        document.title)
-            TAG_VAR="${PREFIX}Title"
-            TAG_TYPE="string"
-            ;;
-        document.type)
-            TAG_VAR="${PREFIX}Type"
-            TAG_TYPE="string"
-            ;;
-        util.json-separator)
-            TAG_VAR="UTIL_JSON_SEPARATOR"
-            TAG_TYPE="string"
-            ;;
-        *)
-            ;;
-    esac
-
-    # handle all other metadata tags, only string values are supported
-    # tag names begin with 'document.' and a list of metadata variables must be provided to match against
-    # normalization follows the output pattern of converting to lowercase and replacing underscores with dashes
-    if [[ "${TAG_VAR}" == "" ]] && [[ "${TAG_TYPE}" == "" ]]; then
-        [[ "${TAG_NAME#document.}" != "${TAG_NAME}" ]] || return 1
-        [[ "${METADATA_VARS}" != "" ]] || return 1
-        NORMALIZED_TAG="${TAG_NAME#document.}"
-        NORMALIZED_TAG=$(printf '%s' "${NORMALIZED_TAG}" | awk '{ print tolower($0) }')
-        MATCH_VAR=""
-        MATCH_COUNT=0
-        OIFS="${IFS}"
-        IFS=$'\n'
-        for META_VAR in ${METADATA_VARS}; do
-            [[ "${META_VAR}" == "${PREFIX}"* ]] || continue
-            NORMALIZED_META="${META_VAR#${PREFIX}}"
-            NORMALIZED_META=$(printf '%s' "${NORMALIZED_META}" | awk '{ print tolower($0) }')
-            NORMALIZED_META="${NORMALIZED_META//_/-}"
-            [[ "${NORMALIZED_META}" == "${NORMALIZED_TAG}" ]] || continue
-            MATCH_VAR="${META_VAR}"
-            MATCH_COUNT=$((MATCH_COUNT + 1))
-        done
-        IFS="${OIFS}"
-        [[ "${MATCH_COUNT}" -eq 1 ]] || return 1
-        TAG_VAR="${MATCH_VAR}"
-        TAG_TYPE="string"
-    fi
-
-    printf 'TAG_VAR=%q\n' "${TAG_VAR}"
-    printf 'TAG_TYPE=%q\n' "${TAG_TYPE}"
-    return 0
-}
-
-# processes markdown from stdin using explicit runtime configuration
-function marsh_process_markdown {  # marsh_process_markdown markdown_command markdown_options_csv [args...]
-    local MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV OIFS I
-    local -a MARKDOWN_OPTIONS MARKDOWN_OPTIONS_CLIARGS
-
-    MARKDOWN_COMMAND="${1:-}"
-    MARKDOWN_OPTIONS_CSV="${2:-}"
-    [[ "${MARKDOWN_COMMAND}" == "" ]] && return 1
-    shift 2
-
-    MARKDOWN_OPTIONS=()
-    MARKDOWN_OPTIONS_CLIARGS=()
-    if [[ "${MARKDOWN_OPTIONS_CSV}" != "" ]]; then
-        OIFS="${IFS}"
-        IFS=$'\n'
-        MARKDOWN_OPTIONS=(${MARKDOWN_OPTIONS_CSV//,/$IFS})
-        IFS="${OIFS}"
-        for I in "${!MARKDOWN_OPTIONS[@]}"; do
-            MARKDOWN_OPTIONS_CLIARGS+=("-f${MARKDOWN_OPTIONS[$I]}")
-        done
-    fi
-
-    # normalize known output quirks of discount markdown
-    # remove invalid re[lv]="footnote" attributes
-    # fix rendering of backslash-escaped literal angle brackets
-    {
-        if [[ "${#MARKDOWN_OPTIONS_CLIARGS[@]}" -gt 0 ]]; then
-            "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CLIARGS[@]}" "$@"
-        else
-            "${MARKDOWN_COMMAND}" "$@"
-        fi
-    } | sed -E \
-        -e '/<a href="#[a-z]+:[^"]+" re[lv]="footnote">/s/ re[lv]="footnote"//g' \
-        -e 's/\\&lt;/\&lt;/g' \
-        -e 's/\\&gt;/\&gt;/g' \
-        -e 's/\\</\&lt;/g' \
-        -e 's/\\>/\&gt;/g' \
-        -e 's/(&lt;[^<>]+)>/\1\&gt;/g'
-}
-
-# returns success when file begins with yaml frontmatter
-function marsh_has_frontmatter {  # marsh_has_frontmatter source
-    local SOURCE FIRST_LINE
-
-    SOURCE="${1:-}"
-    [[ "${SOURCE}" == "" ]] && return 1
-    IFS= read -r FIRST_LINE < "${SOURCE}" || return 1
-    [[ "${FIRST_LINE}" =~ ^---\ *(#.*)?$ ]]
-}
-
-# extracts yaml frontmatter and document content
-function marsh_extract_frontmatter {  # marsh_extract_frontmatter source meta_dest content_dest
-    local SOURCE META_DEST CONTENT_DEST
-
-    # init
-    SOURCE="${1:-}"
-    META_DEST="${2:-}"
-    CONTENT_DEST="${3:-}"
-    [[ "${SOURCE}" == "" ]] && return 1
-    [[ "${META_DEST}" == "" ]] && return 1
-    [[ "${CONTENT_DEST}" == "" ]] && return 1
-
-    # prepare output files
-    rm -f "${META_DEST}" "${CONTENT_DEST}"
-    : > "${META_DEST}" || return 1
-    : > "${CONTENT_DEST}" || {
-        rm -f "${META_DEST}"
-        return 1
-    }
-
-    # extract frontmatter and content
-    awk -v meta_out="${META_DEST}" -v content_out="${CONTENT_DEST}" '
-    NR == 1 {
-        if ($0 ~ /^---[ ]*(#.*)?$/) {
-            have_yaml = 1
-            in_yaml = 1
-            if (meta_out != "") {
-                print "---" > meta_out
-            }
-            next
-        }
-    }
-    have_yaml && in_yaml {
-        if ($0 ~ /^(---|\.\.\.)[ ]*(#.*)?$/) {
-            in_yaml = 0
-            next
-        }
-        if (meta_out != "") {
-            print >> meta_out
-        }
-        next
-    }
-    {
-        print >> content_out
-    }
-    END {
-        if (!have_yaml) {
-            exit 1
-        }
-        if (meta_out != "") {
-            print "..." >> meta_out
-        }
-    }' "${SOURCE}"
-
-    # clean up on failure
-    if [[ "$?" -ne 0 ]] || [[ ! -f "${META_DEST}" ]] || [[ ! -f "${CONTENT_DEST}" ]]; then
-        rm -f "${META_DEST}" "${CONTENT_DEST}" 2>/dev/null
-        return 1
-    fi
-
-    return 0
-}
-
-# loads cached document metadata assignments where available, creating the cache from yaml when needed
-function marsh_get_document_metadata {  # marsh_get_document_metadata meta_file [prefix]
-    local META_FILE PREFIX CACHE_FILE CACHE_TEMP META_ASSIGNMENTS META_ASSIGNMENT
-    local META_NAME META_VALUE
-
-    META_FILE="${1:-}"
-    PREFIX="${2:-}"
-    [[ "${META_FILE}" == "" ]] && return 1
-
-    CACHE_FILE="${META_FILE%.yaml}"
-    if [[ ! -f "${CACHE_FILE}" ]] || [[ ! -r "${CACHE_FILE}" ]]; then
-        [[ -f "${META_FILE}" ]] && [[ -r "${META_FILE}" ]] || return 1
-        META_ASSIGNMENTS=$(marsh_parse_yaml "${META_FILE}" "")
-        [[ $? -ne 0 ]] && return 1
-        CACHE_TEMP=$(mktemp "${CACHE_FILE}.XXXXXX") || {
-            echo "Unable to create document metadata cache file: ${CACHE_FILE}.XXXXXX" >&2
-            return 1
-        }
-        while IFS= read -r META_ASSIGNMENT; do
-            [[ "${META_ASSIGNMENT}" == "" ]] && continue
-            META_NAME="${META_ASSIGNMENT%%=*}"
-            META_VALUE="${META_ASSIGNMENT#*=}"
-            printf '%s=%s\n' "${META_NAME#_}" "${META_VALUE}" >> "${CACHE_TEMP}" || {
-                rm -f "${CACHE_TEMP}"
-                return 1
-            }
-        done <<< "${META_ASSIGNMENTS}"
-        mv "${CACHE_TEMP}" "${CACHE_FILE}" 2>/dev/null || {
-            rm -f "${CACHE_TEMP}"
-            return 1
-        }
-    fi
-
-    if [[ "${PREFIX}" == "" ]]; then
-        cat "${CACHE_FILE}"
-        return 0
-    fi
-
-    while IFS= read -r META_ASSIGNMENT; do
-        [[ "${META_ASSIGNMENT}" == "" ]] && continue
-        META_NAME="${META_ASSIGNMENT%%=*}"
-        META_VALUE="${META_ASSIGNMENT#*=}"
-        printf '%s%s=%s\n' "${PREFIX}" "${META_NAME}" "${META_VALUE}"
-    done < "${CACHE_FILE}"
-
-    return 0
-}
-
-# loads cached archive metadata for a document
-function marsh_get_archive_metadata {  # marsh_get_archive_metadata target_output_root document
-    local TARGET_OUTPUT_ROOT DOCUMENT
-    local INDEX META DOCUMENT_SITE_REL META_PREFIX META_ASSIGNMENTS META_VARS TARGET_OUTPUT_REL
-    local TYPE_VAR TYPE URI ABSPATH VALUE_ESC
-    local -a STATE
-
-    # init
-    TARGET_OUTPUT_ROOT="${1:-}"
-    DOCUMENT="${2:-}"
-    [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
-    [[ "${DOCUMENT}" == "" ]] && return 1
-    TARGET_OUTPUT_ROOT=$(marsh_get_target_directory_path "${TARGET_OUTPUT_ROOT}") || return 1
-    DOCUMENT_SITE_REL=$(marsh_normalize_internal_path "${DOCUMENT}" 2>/dev/null) || return 1
-    [[ "${DOCUMENT_SITE_REL}" == "." ]] && return 1
-
-    # use cache where available
-    INDEX=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "${DOCUMENT_SITE_REL}" "archive-meta" 2>/dev/null) || INDEX=""
-    if [[ -f "${INDEX}" ]] && [[ -r "${INDEX}" ]]; then
-        cat "${INDEX}"
-        return 0
-    fi
-
-    # get archive metadata from the document metadata
-    META=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "${DOCUMENT_SITE_REL}" "meta-yaml" 2>/dev/null) || META=""
-    [[ -f "${META}" ]] && [[ -r "${META}" ]] || return 1
-
-    # parse
-    META_PREFIX=$(echo "marsh_archive_${META}_" | sed -E -e 's/[^A-Za-z0-9_]/_/g')
-    META_PREFIX=$(echo "${META_PREFIX}" | sed -E -e 's/_{2,}/_/g')
-    META_ASSIGNMENTS=$(marsh_get_document_metadata "${META}" "${META_PREFIX}")
-    [[ $? -ne 0 ]] && return 1
-    META_VARS=$(echo "${META_ASSIGNMENTS}" | marsh_get_variables)
-    eval "$(printf '%s\n' "${META_VARS}" | marsh_get_local_declarations)"
-    eval "${META_ASSIGNMENTS}"
-
-    # keep only the metadata that archive generation actually needs
-    # reconstruct public paths here so archive generation does not need to repeat it
-    TYPE_VAR="${META_PREFIX}Type"
-    TYPE="${!TYPE_VAR:-}"
-    TARGET_OUTPUT_REL=$(marsh_get_target_output_path "${TARGET_OUTPUT_ROOT}") || return 1
-    if [[ "${TARGET_OUTPUT_REL}" == "." ]]; then
-        URI="${DOCUMENT_SITE_REL}"
-    else
-        URI="${TARGET_OUTPUT_REL}/${DOCUMENT_SITE_REL}"
-    fi
-    URI="${URI%.markdown}.html"
-    URI=$(marsh_get_absolute_output_path "${URI}" "document") || return 1
-    ABSPATH=""
-    [[ "${URI}" =~ / ]] && ABSPATH="${URI%/*}"
-
-    # reconstruct state array
-    STATE=()
-    eval $(marsh_flat_to_array "STATE" "${META_PREFIX}State_")
-
-    # output shell variable assignments
-    printf 'TYPE=%q\n' "${TYPE}"
-    printf 'URI=%q\n' "${URI}"
-    printf 'ABSPATH=%q\n' "${ABSPATH}"
-    echo "STATE=()"
-    for VALUE_ESC in "${STATE[@]}"; do
-        printf 'STATE+=(%q)\n' "${VALUE_ESC}"
-    done
-
-    return 0
-}
-
-# derives a stable cached template name from a template source path
-function marsh_get_template_cache_name {  # marsh_get_template_cache_name template_source
-    local TEMPLATE_SOURCE TEMPLATE_NAME TEMPLATE_KEY
-
-    # init
-    TEMPLATE_SOURCE="${1:-}"
-    [[ "${TEMPLATE_SOURCE}" == "" ]] && return 1
-    TEMPLATE_SOURCE="${TEMPLATE_SOURCE%/}"
-
-    # combine the readable basename with the full escaped source path for uniqueness
-    TEMPLATE_NAME="${TEMPLATE_SOURCE##*/}"
-    [[ "${TEMPLATE_NAME}" != "" ]] || TEMPLATE_NAME='template'
-    TEMPLATE_KEY=$(marsh_escape_cache_component "${TEMPLATE_SOURCE}") || return 1
-    printf '%s\n' "${TEMPLATE_NAME}-${TEMPLATE_KEY}"
-}
-
-# finds the generated sitemap file for a target
-function marsh_get_sitemap_lookup_path {  # marsh_get_sitemap_lookup_path target_output_root document sitemap_file sitemap_search
-    local TARGET_OUTPUT_ROOT DOCUMENT SITEMAP_FILE SITEMAP_SEARCH
-    local CURRENT_DIR CURRENT_BASE CANDIDATE SITEMAP_RENDER_FILE
-    local LOOKUP_BASE_DIR LOOKUP_CACHE_DIR LOOKUP_CACHE_KEY LOOKUP_CACHE_FILE LOOKUP_CACHE_TEMP CACHED_LOOKUP_PATH
-
-    TARGET_OUTPUT_ROOT="${1:-}"
-    DOCUMENT="${2:-}"
-    SITEMAP_FILE="${3:-}"
-    SITEMAP_SEARCH="${4:-false}"
-    [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
-    [[ "${DOCUMENT}" == "" ]] && return 1
-    [[ "${SITEMAP_FILE}" == "" ]] && return 1
-    TARGET_OUTPUT_ROOT=$(marsh_get_target_directory_path "${TARGET_OUTPUT_ROOT}") || return 1
-
-    if [[ "${SITEMAP_SEARCH}" != true ]]; then
-        SITEMAP_RENDER_FILE=$(marsh_get_sitemap_render_path "${TARGET_OUTPUT_ROOT}" "${SITEMAP_FILE}") || return 1
-        [[ -f "${SITEMAP_RENDER_FILE}" ]] && [[ -r "${SITEMAP_RENDER_FILE}" ]] || return 1
-        printf '%s\n' "${SITEMAP_FILE}"
-        return 0
-    fi
-
-    CURRENT_DIR=$(marsh_get_internal_parent_directory "${DOCUMENT}") || return 1
-    LOOKUP_BASE_DIR=$(marsh_normalize_internal_path "${CURRENT_DIR}" "directory") || return 1
-    LOOKUP_CACHE_DIR="$(marsh_get_target_temp_root "${TARGET_OUTPUT_ROOT}")/sitemaps/lookup"
-    LOOKUP_CACHE_KEY=$(marsh_escape_cache_component "${SITEMAP_FILE}") || return 1
-    LOOKUP_CACHE_KEY+="--$(marsh_escape_cache_component "${LOOKUP_BASE_DIR}")" || return 1
-    LOOKUP_CACHE_FILE="${LOOKUP_CACHE_DIR}/${LOOKUP_CACHE_KEY}.lookup"
-
-    if [[ -f "${LOOKUP_CACHE_FILE}" ]] && [[ -r "${LOOKUP_CACHE_FILE}" ]]; then
-        CACHED_LOOKUP_PATH=$(<"${LOOKUP_CACHE_FILE}")
-        if [[ "${CACHED_LOOKUP_PATH}" != "" ]]; then
-            SITEMAP_RENDER_FILE=$(marsh_get_sitemap_render_path "${TARGET_OUTPUT_ROOT}" "${CACHED_LOOKUP_PATH}") || return 1
-            if [[ -f "${SITEMAP_RENDER_FILE}" ]] && [[ -r "${SITEMAP_RENDER_FILE}" ]]; then
-                printf '%s\n' "${CACHED_LOOKUP_PATH}"
-                return 0
-            fi
-        fi
-    fi
-
-    while true; do
-        CURRENT_BASE=$(marsh_normalize_internal_path "${CURRENT_DIR}" "directory") || return 1
-        CANDIDATE=$(marsh_resolve_relative_path "${CURRENT_BASE}" "${SITEMAP_FILE}") || return 1
-        SITEMAP_RENDER_FILE=$(marsh_get_sitemap_render_path "${TARGET_OUTPUT_ROOT}" "${CANDIDATE}") || return 1
-        if [[ -f "${SITEMAP_RENDER_FILE}" ]] && [[ -r "${SITEMAP_RENDER_FILE}" ]]; then
-            mkdir -p "${LOOKUP_CACHE_DIR}" >/dev/null 2>&1 || {
-                echo "Unable to create sitemap lookup cache directory: ${LOOKUP_CACHE_DIR}" >&2
-                return 1
-            }
-            LOOKUP_CACHE_TEMP=$(mktemp "${LOOKUP_CACHE_DIR}/lookup-XXXXXX") || {
-                echo "Unable to create sitemap lookup cache file: ${LOOKUP_CACHE_DIR}/lookup-XXXXXX" >&2
-                return 1
-            }
-            printf '%s\n' "${CANDIDATE}" > "${LOOKUP_CACHE_TEMP}" && mv "${LOOKUP_CACHE_TEMP}" "${LOOKUP_CACHE_FILE}" 2>/dev/null || {
-                if [[ ! -f "${LOOKUP_CACHE_FILE}" ]]; then
-                    rm -f "${LOOKUP_CACHE_TEMP}"
-                    return 1
-                fi
-                rm -f "${LOOKUP_CACHE_TEMP}"
-            }
-            printf '%s\n' "${CANDIDATE}"
-            return 0
-        fi
-        if [[ "${CURRENT_DIR}" == "." ]]; then
-            break
-        fi
-        if [[ "${CURRENT_DIR}" == */* ]]; then
-            CURRENT_DIR="${CURRENT_DIR%/*}"
-        else
-            CURRENT_DIR='.'
-        fi
-    done
-    return 1
-}
-
-# prints bash variable assignments for template metadata
-function marsh_parse_template_metadata {  # marsh_parse_template_metadata prefix template_dir #template_overrides[@] template_overrides[@]
-    local PREFIX TEMPLATE_DIR NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDE
-    local TEMPLATE_META TEMPLATE_META_VARS
-    local INDEX ASSET_TYPE ASSET_TYPE_UPPER ASSET FILTER_INDEX REGEX EXTENDED MATCH REPLACE EXTRA I
-    local ASSETS_INDEX ASSETS_TYPE OIFS
-    local -a TEMPLATE_OVERRIDES TEMPLATE_ASSETS_FONTS TEMPLATE_ASSETS_STYLES TEMPLATE_ASSETS_SCRIPTS TEMPLATE_ASSETS_IMAGES
-    local -a TEMPLATE_ASSETS_AUDIO TEMPLATE_ASSETS_VIDEO TEMPLATE_ASSETS_DOCUMENTS TEMPLATE_ASSETS_BINARIES TEMPLATE_ASSETS_OTHER
-    local -a ASSET_TYPES ASSETS ASSETS_TEMP
-
-    # init
-    PREFIX="${1:-}"
-    TEMPLATE_DIR="${2:-}"
-    [[ "${TEMPLATE_DIR}" == "" ]] && return 1
-    shift 2
-    NUM_TEMPLATE_OVERRIDES="${1:-0}"
-    shift 1
-    TEMPLATE_OVERRIDES=()
-    while [[ "${NUM_TEMPLATE_OVERRIDES}" -gt 0 ]] && [[ "${#@}" -gt 0 ]]; do
-        TEMPLATE_OVERRIDES+=("${1}")
-        NUM_TEMPLATE_OVERRIDES=$((NUM_TEMPLATE_OVERRIDES - 1))
-        shift 1
-    done
-
-    # load config
-    if [[ -f "${TEMPLATE_DIR}/template.yaml" ]] && [[ -r "${TEMPLATE_DIR}/template.yaml" ]]; then
-        TEMPLATE_META=$(marsh_parse_yaml "${TEMPLATE_DIR}/template.yaml" "MARSH_TEMPLATE_")
-        [[ $? -ne 0 ]] && echo "Unable to parse yaml file: ${TEMPLATE_DIR}/template.yaml" >&2 && return 1
-        TEMPLATE_META_VARS=$(echo "${TEMPLATE_META}" | marsh_get_variables)
-        eval "$(printf '%s\n' "${TEMPLATE_META_VARS}" | marsh_get_local_declarations)"
-        eval "${TEMPLATE_META}"
-    else
-        echo "Template configuration file not found: ${TEMPLATE_DIR}/template.yaml" >&2
-        return 1
-    fi
-    for TEMPLATE_OVERRIDE in "${TEMPLATE_OVERRIDES[@]}"; do
-        [[ "${TEMPLATE_OVERRIDE}" == "" ]] && continue
-        if [[ -f "${TEMPLATE_OVERRIDE}" ]] && [[ -r "${TEMPLATE_OVERRIDE}" ]]; then
-            TEMPLATE_META=$(marsh_parse_yaml "${TEMPLATE_OVERRIDE}" "MARSH_TEMPLATE_")
-            [[ $? -ne 0 ]] && echo "Unable to parse yaml file: ${TEMPLATE_OVERRIDE}" >&2 && return 1
-            TEMPLATE_META_VARS=$(echo "${TEMPLATE_META_VARS}"$'\n'"${TEMPLATE_META}" | marsh_get_variables)
-            eval "$(printf '%s\n' "${TEMPLATE_META_VARS}" | marsh_get_local_declarations)"
-            eval "${TEMPLATE_META}"
-        else
-            echo "Template configuration override file not found: ${TEMPLATE_OVERRIDE}" >&2
-            return 1
-        fi
-    done
-
-    # print partials paths relative to template dir
-    [[ "${MARSH_TEMPLATE_Template_Partials_Base:-}"     != "" ]] && echo "${PREFIX}Template_Partials_Base=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Base//\"/\\\"}\""
-    [[ "${MARSH_TEMPLATE_Template_Partials_Head:-}"     != "" ]] && echo "${PREFIX}Template_Partials_Head=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Head//\"/\\\"}\""
-    [[ "${MARSH_TEMPLATE_Template_Partials_Body:-}"     != "" ]] && echo "${PREFIX}Template_Partials_Body=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Body//\"/\\\"}\""
-    [[ "${MARSH_TEMPLATE_Template_Partials_Document:-}" != "" ]] && echo "${PREFIX}Template_Partials_Document=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Document//\"/\\\"}\""
-    [[ "${MARSH_TEMPLATE_Template_Partials_Header:-}"   != "" ]] && echo "${PREFIX}Template_Partials_Header=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Header//\"/\\\"}\""
-    [[ "${MARSH_TEMPLATE_Template_Partials_Nav:-}"      != "" ]] && echo "${PREFIX}Template_Partials_Nav=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Nav//\"/\\\"}\""
-    [[ "${MARSH_TEMPLATE_Template_Partials_Notice:-}"   != "" ]] && echo "${PREFIX}Template_Partials_Notice=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Notice//\"/\\\"}\""
-    [[ "${MARSH_TEMPLATE_Template_Partials_Footer:-}"   != "" ]] && echo "${PREFIX}Template_Partials_Footer=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Footer//\"/\\\"}\""
-    [[ "${MARSH_TEMPLATE_Template_Partials_Redirect:-}" != "" ]] && echo "${PREFIX}Template_Partials_Redirect=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Redirect//\"/\\\"}\""
-    [[ "${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Base:-}"     != "" ]] && echo "${PREFIX}Template_Partials_Archive_HTML_Base=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Base//\"/\\\"}\""
-    [[ "${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Head:-}"     != "" ]] && echo "${PREFIX}Template_Partials_Archive_HTML_Head=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Head//\"/\\\"}\""
-    [[ "${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Body:-}"     != "" ]] && echo "${PREFIX}Template_Partials_Archive_HTML_Body=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Body//\"/\\\"}\""
-    [[ "${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Document:-}" != "" ]] && echo "${PREFIX}Template_Partials_Archive_HTML_Document=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Document//\"/\\\"}\""
-    [[ "${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Header:-}"   != "" ]] && echo "${PREFIX}Template_Partials_Archive_HTML_Header=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Header//\"/\\\"}\""
-    [[ "${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Nav:-}"      != "" ]] && echo "${PREFIX}Template_Partials_Archive_HTML_Nav=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Nav//\"/\\\"}\""
-    [[ "${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Notice:-}"   != "" ]] && echo "${PREFIX}Template_Partials_Archive_HTML_Notice=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Notice//\"/\\\"}\""
-    [[ "${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Footer:-}"   != "" ]] && echo "${PREFIX}Template_Partials_Archive_HTML_Footer=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Footer//\"/\\\"}\""
-    [[ "${MARSH_TEMPLATE_Template_Partials_Archive_Atom_Base:-}"     != "" ]] && echo "${PREFIX}Template_Partials_Archive_Atom_Base=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Archive_Atom_Base//\"/\\\"}\""
-    [[ "${MARSH_TEMPLATE_Template_Partials_Archive_Atom_Body:-}"     != "" ]] && echo "${PREFIX}Template_Partials_Archive_Atom_Body=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Archive_Atom_Body//\"/\\\"}\""
-    [[ "${MARSH_TEMPLATE_Template_Partials_Archive_Atom_Document:-}" != "" ]] && echo "${PREFIX}Template_Partials_Archive_Atom_Document=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Archive_Atom_Document//\"/\\\"}\""
-    [[ "${MARSH_TEMPLATE_Template_Partials_Archive_JSON_Base:-}"     != "" ]] && echo "${PREFIX}Template_Partials_Archive_JSON_Base=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Archive_JSON_Base//\"/\\\"}\""
-    [[ "${MARSH_TEMPLATE_Template_Partials_Archive_JSON_Body:-}"     != "" ]] && echo "${PREFIX}Template_Partials_Archive_JSON_Body=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Archive_JSON_Body//\"/\\\"}\""
-    [[ "${MARSH_TEMPLATE_Template_Partials_Archive_JSON_Document:-}" != "" ]] && echo "${PREFIX}Template_Partials_Archive_JSON_Document=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Archive_JSON_Document//\"/\\\"}\""
-
-    # assets
-    ASSET_TYPES=('Fonts' 'Styles' 'Scripts' 'Images' 'Audio' 'Video' 'Documents' 'Binaries' 'Other')
-    for ASSET_TYPE in "${ASSET_TYPES[@]}"; do
-        eval "TEMPLATE_ASSETS_${ASSET_TYPE}=()"
-        INDEX=0
-        ASSET="MARSH_TEMPLATE_Template_Assets_${ASSET_TYPE}_${INDEX}"
-        ASSET="${!ASSET:-}"
-        while [[ "${ASSET}" != "" ]]; do
-            eval "TEMPLATE_ASSETS_${ASSET_TYPE}+=(\"${ASSET//\"/\\\"}\")"
-            INDEX=$((INDEX+1))
-            ASSET="MARSH_TEMPLATE_Template_Assets_${ASSET_TYPE}_${INDEX}"
-            ASSET="${!ASSET:-}"
-        done
-    done
-
-    # assets filters
-    FILTER_INDEX=0
-    REGEX="MARSH_TEMPLATE_Template_Filters_${FILTER_INDEX}_Regex"
-    REGEX="${!REGEX:-}"
-    EXTENDED="MARSH_TEMPLATE_Template_Filters_${FILTER_INDEX}_Extended"
-    EXTENDED="${!EXTENDED:-}"
-    # loop over assets filters
-    while [[ "${REGEX}" != "" ]]; do
-        # escape match
-        if [[ "$(echo ${REGEX} | grep -E '^s/.+[^\]/.*[^\]/g?$')" == "${REGEX}" ]]; then
-            MATCH=$(echo "${REGEX}" | sed -E 's/^s\/(.+[^\])\/.*[^\]\/g?/\1/' | sed 's/[[]\.|$(){}?+*^]/\\&/g')
-            REPLACE=$(echo "${REGEX}" | sed -E 's/^s\/.+[^\]\/(.*[^\])\/g?/\1/')
-            EXTRA=$(echo "${REGEX}" | sed -E 's/^s\/.+[^\]\/.*[^\]\/(g?)/\1/')
-            REGEX="s/${MATCH}/${REPLACE}/${EXTRA}"
-        elif [[ "$(echo ${REGEX} | grep -E '^s\|.+[^\]\|.*[^\]\|g?$')" == "${REGEX}" ]]; then
-            MATCH=$(echo "${REGEX}" | sed -E 's/^s\|(.+[^\])\|.*[^\]\|g?/\1/' | sed 's/[[]\.|$(){}?+*^]/\\&/g')
-            REPLACE=$(echo "${REGEX}" | sed -E 's/^s\|.+[^\]\|(.*[^\])\|g?/\1/')
-            EXTRA=$(echo "${REGEX}" | sed -E 's/^s\|.+[^\]\|.*[^\]\|(g?)/\1/')
-            REGEX="s|${MATCH}|${REPLACE}|${EXTRA}"
-        elif [[ "$(echo ${REGEX} | grep -E '^/.+[^\]/d?$')" == "${REGEX}" ]]; then
-            MATCH=$(echo "${REGEX}" | sed -E 's/^\/(.+[^\])\/d?/\1/' | sed 's/[[]\.|$(){}?+*^]/\\&/g')
-            REPLACE=""
-            EXTRA=$(echo "${REGEX}" | sed -E 's/^\/.+[^\]\/(d?)/\1/')
-            REGEX="/${MATCH}/${EXTRA}"
-        else
-            continue
-        fi
-        ASSETS_INDEX=0
-        ASSETS_TYPE="MARSH_TEMPLATE_Template_Filters_${FILTER_INDEX}_Assets_${ASSETS_INDEX}"
-        ASSETS_TYPE="${!ASSETS_TYPE}"
-        # loop over assets types for filter
-        while [[ "${ASSETS_TYPE}" != "" ]]; do
-            ASSETS="TEMPLATE_ASSETS_${ASSETS_TYPE}[@]"
-            OIFS="${IFS}"
-            IFS=$'\n'
-            ASSETS=(${!ASSETS})
-            IFS="${OIFS}"
-            ASSETS_TEMP=()
-            # loop over all individual assets of this type
-            for ASSET in "${ASSETS[@]}"; do
-                # do regex
-                if [[ "${EXTENDED}" == true ]]; then
-                    ASSET=$(echo "${ASSET}" | sed -E "${REGEX}" 2>/dev/null)
-                else
-                    ASSET=$(echo "${ASSET}" | sed "${REGEX}" 2>/dev/null)
-                fi
-                # remove empty
-                if [[ "${ASSET:-}" != "" ]]; then
-                    ASSETS_TEMP+=("${ASSET}")
-                fi
-            done
-            # update original array
-            eval "TEMPLATE_ASSETS_${ASSETS_TYPE}=()"
-            for I in "${!ASSETS_TEMP[@]}"; do
-                eval "TEMPLATE_ASSETS_${ASSETS_TYPE}+=(\"${ASSETS_TEMP[$I]//\"/\\\"}\")"
-            done
-            ASSETS_INDEX=$((ASSETS_INDEX+1))
-            ASSETS_TYPE="MARSH_TEMPLATE_Template_Filters_${FILTER_INDEX}_Assets_${ASSETS_INDEX}"
-            ASSETS_TYPE="${!ASSETS_TYPE:-}"
-        done
-        FILTER_INDEX=$((FILTER_INDEX+1))
-        REGEX="MARSH_TEMPLATE_Template_Filters_${FILTER_INDEX}_Regex"
-        REGEX="${!REGEX:-}"
-        EXTENDED="MARSH_TEMPLATE_Template_Filters_${FILTER_INDEX}_Extended"
-        EXTENDED="${!EXTENDED:-}"
-        ASSETS_INDEX=0
-        ASSETS_TYPE="MARSH_TEMPLATE_Template_Filters_${FILTER_INDEX}_Assets_${ASSETS_INDEX}"
-        ASSETS_TYPE="${!ASSETS_TYPE:-}"
-    done
-
-    # print assets
-    for ASSET_TYPE in "${ASSET_TYPES[@]}"; do
-        ASSET_TYPE_UPPER=$(echo "${ASSET_TYPE}" | awk '{ print toupper($0) }')
-        ASSETS="TEMPLATE_ASSETS_${ASSET_TYPE}[@]"
-        OIFS="${IFS}"
-        IFS=$'\n'
-        ASSETS=(${!ASSETS})
-        IFS="${OIFS}"
-        echo "${PREFIX}ASSETS_${ASSET_TYPE_UPPER}=()"
-        for ASSET in "${ASSETS[@]}"; do
-            [[ "${ASSET:-}" != "" ]] && echo "${PREFIX}ASSETS_${ASSET_TYPE_UPPER}+=(\"${ASSET//\"/\\\"}\")"
-        done
-    done
-}
-
-# loads cached template metadata assignments where available
-function marsh_get_template_metadata {  # marsh_get_template_metadata prefix template_dir #template_overrides[@] template_overrides[@]
-    local PREFIX TEMPLATE_DIR NUM_TEMPLATE_OVERRIDES
-    local CACHE_DIR CACHE_KEY CACHE_FILE CACHE_TEMP TEMPLATE_META
-    local -a TEMPLATE_OVERRIDES
-
-    # init
-    PREFIX="${1:-}"
-    TEMPLATE_DIR="${2:-}"
-    [[ "${TEMPLATE_DIR}" == "" ]] && return 1
-    shift 2
-    NUM_TEMPLATE_OVERRIDES="${1:-0}"
-    shift 1
-    TEMPLATE_OVERRIDES=()
-    while [[ "${NUM_TEMPLATE_OVERRIDES}" -gt 0 ]] && [[ "${#@}" -gt 0 ]]; do
-        TEMPLATE_OVERRIDES+=("${1}")
-        NUM_TEMPLATE_OVERRIDES=$((NUM_TEMPLATE_OVERRIDES - 1))
-        shift 1
-    done
-
-    # create cache directory and key
-    CACHE_DIR="${MARSH_TEMP}/template-metadata-cache"
-    mkdir -p "${CACHE_DIR}" >/dev/null 2>&1 || {
-        echo "Unable to create template metadata cache directory: ${CACHE_DIR}" >&2
-        return 1
-    }
-    CACHE_FILE=$(marsh_get_cache_path "${CACHE_DIR}" ".meta" "$(printf '%s\034' "${PREFIX}" "${TEMPLATE_DIR}" "${TEMPLATE_OVERRIDES[@]}")") || return 1
-    if [[ -f "${CACHE_FILE}" ]] && [[ -r "${CACHE_FILE}" ]]; then
-        cat "${CACHE_FILE}"
-        return 0
-    fi
-
-    # parse and cache template metadata
-    TEMPLATE_META=$(marsh_parse_template_metadata "${PREFIX}" "${TEMPLATE_DIR}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}")
-    [[ $? -ne 0 ]] && return 1
-    mkdir -p "${CACHE_FILE%/*}" >/dev/null 2>&1 || {
-        echo "Unable to create template metadata cache path: ${CACHE_FILE%/*}" >&2
-        return 1
-    }
-    CACHE_TEMP=$(mktemp "${CACHE_FILE%/*}/metadata-XXXXXX") || {
-        echo "Unable to create template metadata cache file: ${CACHE_FILE%/*}/metadata-XXXXXX" >&2
-        return 1
-    }
-    printf '%s\n' "${TEMPLATE_META}" > "${CACHE_TEMP}" || {
-        echo "Unable to write template metadata cache file: ${CACHE_TEMP}" >&2
-        rm -f "${CACHE_TEMP}"
-        return 1
-    }
-    mv "${CACHE_TEMP}" "${CACHE_FILE}" 2>/dev/null || rm -f "${CACHE_TEMP}"
-    printf '%s\n' "${TEMPLATE_META}"
-}
-
-# returns the intermediate render path for a target sitemap
-function marsh_get_sitemap_render_path {  # marsh_get_sitemap_render_path target_output_root sitemap_path
-    local TARGET_OUTPUT_ROOT SITEMAP_PATH TARGET_BUILD_TEMP_ROOT SITEMAP_RENDER_CACHE_DIR SITEMAP_RENDER_KEY SITEMAP_RENDER_FILE
-
-    TARGET_OUTPUT_ROOT="${1:-}"
-    SITEMAP_PATH="${2:-}"
-    [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
-    [[ "${SITEMAP_PATH}" == "" ]] && return 1
-    TARGET_OUTPUT_ROOT=$(marsh_get_target_directory_path "${TARGET_OUTPUT_ROOT}") || return 1
-    TARGET_BUILD_TEMP_ROOT=$(marsh_get_target_temp_root "${TARGET_OUTPUT_ROOT}") || return 1
-
-    SITEMAP_RENDER_CACHE_DIR="${TARGET_BUILD_TEMP_ROOT}/sitemaps/render"
-    mkdir -p "${SITEMAP_RENDER_CACHE_DIR}" >/dev/null 2>&1 || {
-        echo "Unable to create sitemap render cache directory: ${SITEMAP_RENDER_CACHE_DIR}" >&2
-        return 1
-    }
-    SITEMAP_RENDER_KEY=$(marsh_escape_cache_component "${SITEMAP_PATH}") || return 1
-    SITEMAP_RENDER_FILE="${SITEMAP_RENDER_CACHE_DIR}/${SITEMAP_RENDER_KEY}.sitemap.html"
-    printf '%s\n' "${SITEMAP_RENDER_FILE}"
-}
-
-# resolves a sitemap temp artifact path under the target temp work tree
-function marsh_get_sitemap_temp_path {  # marsh_get_sitemap_temp_path target_output_root sitemap_path artifact
-    local TARGET_OUTPUT_ROOT SITEMAP_PATH ARTIFACT SITEMAP_RENDER_FILE SITEMAP_RENDER_DIR SITEMAP_KEY SITEMAP_TEMP_ROOT
-
-    TARGET_OUTPUT_ROOT="${1:-}"
-    SITEMAP_PATH="${2:-}"
-    ARTIFACT="${3:-}"
-    [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
-    [[ "${SITEMAP_PATH}" == "" ]] && return 1
-    [[ "${ARTIFACT}" == "" ]] && return 1
-
-    SITEMAP_RENDER_FILE=$(marsh_get_sitemap_render_path "${TARGET_OUTPUT_ROOT}" "${SITEMAP_PATH}") || return 1
-    SITEMAP_RENDER_DIR="${SITEMAP_RENDER_FILE%/*}"
-    SITEMAP_KEY="${SITEMAP_RENDER_FILE##*/}"
-    SITEMAP_KEY="${SITEMAP_KEY%.sitemap.html}"
-    SITEMAP_TEMP_ROOT="${SITEMAP_RENDER_DIR%/render}/work/${SITEMAP_KEY}"
-
-    case "${ARTIFACT}" in
-        root)
-            printf '%s\n' "${SITEMAP_TEMP_ROOT}"
-            ;;
-        content)
-            printf '%s\n' "${SITEMAP_TEMP_ROOT}/content"
-            ;;
-        meta-yaml)
-            printf '%s\n' "${SITEMAP_TEMP_ROOT}/meta.yaml"
-            ;;
-        *)
-            return 1
-            ;;
-    esac
-}
-
-# resolves a target sitemap source path against the target source root and validates it stays inside the site source tree
-function marsh_resolve_sitemap_source_path {  # marsh_resolve_sitemap_source_path site_source_root source_root sitemap_path
-    local SITE_SOURCE_ROOT SOURCE_ROOT SITEMAP_PATH RESOLVED_PATH RESOLVED_DIR RESOLVED_NAME
-
-    SITE_SOURCE_ROOT="${1:-}"
-    SOURCE_ROOT="${2:-}"
-    SITEMAP_PATH="${3:-}"
-    [[ "${SITE_SOURCE_ROOT}" == "" ]] && return 1
-    [[ "${SOURCE_ROOT}" == "" ]] && return 1
-    [[ "${SITEMAP_PATH}" == "" ]] && return 1
-    [[ -d "${SITE_SOURCE_ROOT}" ]] || {
-        echo "Site source root not found for sitemap: ${SITE_SOURCE_ROOT}" >&2
-        return 1
-    }
-    [[ -d "${SOURCE_ROOT}" ]] || {
-        echo "Target source root not found for sitemap: ${SOURCE_ROOT}" >&2
-        return 1
-    }
-    SITE_SOURCE_ROOT=$(cd "${SITE_SOURCE_ROOT}" && (pwd -P . 2>/dev/null || command pwd)) || {
-        echo "Unable to resolve site source root for sitemap: ${SITE_SOURCE_ROOT}" >&2
-        return 1
-    }
-    SOURCE_ROOT=$(cd "${SOURCE_ROOT}" && (pwd -P . 2>/dev/null || command pwd)) || {
-        echo "Unable to resolve target source root for sitemap: ${SOURCE_ROOT}" >&2
-        return 1
-    }
-
-    if [[ "${SITEMAP_PATH}" =~ ^/ ]]; then
-        RESOLVED_PATH="${SITEMAP_PATH}"
-    else
-        RESOLVED_PATH="${SOURCE_ROOT}/${SITEMAP_PATH}"
-    fi
-    RESOLVED_DIR="${RESOLVED_PATH%/*}"
-    RESOLVED_NAME="${RESOLVED_PATH##*/}"
-    RESOLVED_DIR="${RESOLVED_DIR:-.}"
-    [[ -d "${RESOLVED_DIR}" ]] || {
-        echo "Sitemap source directory not found: ${RESOLVED_DIR}" >&2
-        return 1
-    }
-    RESOLVED_DIR=$(cd "${RESOLVED_DIR}" && (pwd -P . 2>/dev/null || command pwd)) || {
-        echo "Unable to resolve sitemap source directory: ${RESOLVED_DIR}" >&2
-        return 1
-    }
-    RESOLVED_PATH="${RESOLVED_DIR}/${RESOLVED_NAME}"
-    [[ -f "${RESOLVED_PATH}" ]] && [[ -r "${RESOLVED_PATH}" ]] || {
-        echo "Sitemap source file not found or unreadable: ${RESOLVED_PATH}" >&2
-        return 1
-    }
-    case "${RESOLVED_PATH}" in
-        "${SITE_SOURCE_ROOT}"|"${SITE_SOURCE_ROOT}"/*)
-            ;;
-        *)
-            echo "Sitemap source path resolves outside site source root: ${RESOLVED_PATH}" >&2
-            return 1
-            ;;
-    esac
-    printf '%s\n' "${RESOLVED_PATH}"
-}
-
-# resolves a template asset output path relative to the target root and rejects traversal beyond the site root
-function marsh_resolve_template_asset_output_path {  # marsh_resolve_template_asset_output_path target_output_rel asset_path [template_assets_path]
-    local TARGET_OUTPUT_REL ASSET_PATH TEMPLATE_ASSETS_PATH COMBINED_PATH ASSET_OUTPUT_REL
-
-    TARGET_OUTPUT_REL="${1:-}"
-    ASSET_PATH="${2:-}"
-    TEMPLATE_ASSETS_PATH="${3:-}"
-    [[ "${TARGET_OUTPUT_REL}" == "" ]] && return 1
-    [[ "${ASSET_PATH}" == "" ]] && return 1
-    [[ "${ASSET_PATH}" != /* ]] || return 1
-    [[ "${TEMPLATE_ASSETS_PATH}" != /* ]] || return 1
-
-    TARGET_OUTPUT_REL=$(marsh_normalize_internal_path "${TARGET_OUTPUT_REL}" "directory") || return 1
-    COMBINED_PATH="${ASSET_PATH}"
-    if [[ "${TEMPLATE_ASSETS_PATH}" != "" ]]; then
-        COMBINED_PATH="${TEMPLATE_ASSETS_PATH%/}/${ASSET_PATH}"
-    fi
-    ASSET_OUTPUT_REL=$(marsh_resolve_relative_path "${TARGET_OUTPUT_REL}" "${COMBINED_PATH}") || return 1
-    case "${ASSET_OUTPUT_REL}" in
-        ..|../*)
-            return 1
-            ;;
-    esac
-
-    printf '%s\n' "${ASSET_OUTPUT_REL}"
-}
-
-# returns the existing template asset paths declared by template metadata and overrides
-function marsh_get_template_assets {  # marsh_get_template_assets templates_dir template #template_overrides[@] template_overrides[@]
-    local TEMPLATES_DIR TEMPLATE NUM_TEMPLATE_OVERRIDES
-    local TEMPLATE_PREFIX TEMPLATE_META TEMPLATE_META_VARS
-    local ASSET ASSET_PATH
-    local -a TEMPLATE_OVERRIDES TEMPLATE_ASSETS_ALL
-
-    TEMPLATES_DIR="${1:-}"
-    TEMPLATE="${2:-}"
-    [[ "${TEMPLATES_DIR}" == "" ]] && return 1
-    [[ "${TEMPLATE}" == "" ]] && return 1
-    shift 2
-    NUM_TEMPLATE_OVERRIDES="${1:-0}"
-    shift 1
-    TEMPLATE_OVERRIDES=()
-    while [[ "${NUM_TEMPLATE_OVERRIDES}" -gt 0 ]] && [[ "${#@}" -gt 0 ]]; do
-        TEMPLATE_OVERRIDES+=("${1}")
-        NUM_TEMPLATE_OVERRIDES=$((NUM_TEMPLATE_OVERRIDES - 1))
-        shift 1
-    done
-
-    TEMPLATE_PREFIX="TEMPLATE_"
-    TEMPLATE_META=$(marsh_get_template_metadata "${TEMPLATE_PREFIX}" "${TEMPLATES_DIR}/${TEMPLATE}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}") || {
-        echo "Unable to load template metadata: ${TEMPLATES_DIR}/${TEMPLATE}" >&2
-        return 1
-    }
-    TEMPLATE_META_VARS=$(echo "${TEMPLATE_META}" | marsh_get_variables)
-    eval "$(printf '%s\n' "${TEMPLATE_META_VARS}" | marsh_get_local_declarations)"
-    eval "${TEMPLATE_META}"
-
-    TEMPLATE_ASSETS_ALL=()
-    TEMPLATE_ASSETS_ALL+=("${TEMPLATE_ASSETS_FONTS[@]}")
-    TEMPLATE_ASSETS_ALL+=("${TEMPLATE_ASSETS_STYLES[@]}")
-    TEMPLATE_ASSETS_ALL+=("${TEMPLATE_ASSETS_SCRIPTS[@]}")
-    TEMPLATE_ASSETS_ALL+=("${TEMPLATE_ASSETS_IMAGES[@]}")
-    TEMPLATE_ASSETS_ALL+=("${TEMPLATE_ASSETS_AUDIO[@]}")
-    TEMPLATE_ASSETS_ALL+=("${TEMPLATE_ASSETS_VIDEO[@]}")
-    TEMPLATE_ASSETS_ALL+=("${TEMPLATE_ASSETS_DOCUMENTS[@]}")
-    TEMPLATE_ASSETS_ALL+=("${TEMPLATE_ASSETS_BINARIES[@]}")
-    TEMPLATE_ASSETS_ALL+=("${TEMPLATE_ASSETS_OTHER[@]}")
-
-    for ASSET in "${TEMPLATE_ASSETS_ALL[@]}"; do
-        ASSET_PATH="${ASSET%\?*}"
-        [[ -e "${TEMPLATES_DIR}/${TEMPLATE}/${ASSET_PATH}" ]] && [[ -r "${TEMPLATES_DIR}/${TEMPLATE}/${ASSET_PATH}" ]] || continue
-        printf '%s\n' "${ASSET}"
-    done
-}
-
-# loads cached target-relative template asset output paths for one template context
-function marsh_get_template_asset_output_paths {  # marsh_get_template_asset_output_paths target_output_rel templates_dir template #template_overrides[@] template_overrides[@] template_assets_path
-    local TARGET_OUTPUT_REL TEMPLATES_DIR TEMPLATE NUM_TEMPLATE_OVERRIDES TEMPLATE_ASSETS_PATH
-    local CACHE_DIR CACHE_KEY CACHE_FILE CACHE_TEMP TEMPLATE_PREFIX TEMPLATE_META TEMPLATE_META_VARS
-    local ASSET_TYPE ASSETS_VAR ASSET ASSET_PATH ASSET_OUTPUT_PATH
-    local OUTPUT OIFS
-    local -a TEMPLATE_OVERRIDES ASSET_TYPES ASSETS
-
-    # init
-    TARGET_OUTPUT_REL="${1:-}"
-    TEMPLATES_DIR="${2:-}"
-    TEMPLATE="${3:-}"
-    [[ "${TARGET_OUTPUT_REL}" == "" ]] && return 1
-    [[ "${TEMPLATES_DIR}" == "" ]] && return 1
-    [[ "${TEMPLATE}" == "" ]] && return 1
-    shift 3
-    NUM_TEMPLATE_OVERRIDES="${1:-0}"
-    shift 1
-    TEMPLATE_OVERRIDES=()
-    while [[ "${NUM_TEMPLATE_OVERRIDES}" -gt 0 ]] && [[ "${#@}" -gt 0 ]]; do
-        TEMPLATE_OVERRIDES+=("${1}")
-        NUM_TEMPLATE_OVERRIDES=$((NUM_TEMPLATE_OVERRIDES - 1))
-        shift 1
-    done
-    TEMPLATE_ASSETS_PATH="${1:-}"
-
-    # normalize cache inputs so equivalent paths share one entry
-    TARGET_OUTPUT_REL=$(marsh_normalize_internal_path "${TARGET_OUTPUT_REL}") || return 1
-    TEMPLATE_ASSETS_PATH="${TEMPLATE_ASSETS_PATH#/}"
-    if [[ "${TEMPLATE_ASSETS_PATH}" != "" ]]; then
-        TEMPLATE_ASSETS_PATH=$(marsh_normalize_internal_path "${TEMPLATE_ASSETS_PATH}") || return 1
-        [[ "${TEMPLATE_ASSETS_PATH}" == "." ]] && TEMPLATE_ASSETS_PATH=""
-    fi
-
-    CACHE_DIR="${MARSH_TEMP}/template-asset-output-cache"
-    mkdir -p "${CACHE_DIR}" >/dev/null 2>&1 || {
-        echo "Unable to create template asset output cache directory: ${CACHE_DIR}" >&2
-        return 1
-    }
-    CACHE_FILE=$(marsh_get_cache_path "${CACHE_DIR}" ".paths" "$({
-        printf '%s\034%s\034%s\034' "${TARGET_OUTPUT_REL}" "${TEMPLATES_DIR}/${TEMPLATE}" "${TEMPLATE_ASSETS_PATH}"
-        printf '%s\034' "${TEMPLATE_OVERRIDES[@]}"
-    })") || return 1
-    # reuse precomputed target-relative outputs for the same template context
-    if [[ -f "${CACHE_FILE}" ]] && [[ -r "${CACHE_FILE}" ]]; then
-        cat "${CACHE_FILE}"
-        return 0
-    fi
-
-    # load template metadata once before resolving each asset type
-    TEMPLATE_PREFIX="TEMPLATE_"
-    TEMPLATE_META=$(marsh_get_template_metadata "${TEMPLATE_PREFIX}" "${TEMPLATES_DIR}/${TEMPLATE}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}") || {
-        echo "Unable to load template metadata: ${TEMPLATES_DIR}/${TEMPLATE}" >&2
-        return 1
-    }
-    TEMPLATE_META_VARS=$(echo "${TEMPLATE_META}" | marsh_get_variables)
-    eval "$(printf '%s\n' "${TEMPLATE_META_VARS}" | marsh_get_local_declarations)"
-    eval "${TEMPLATE_META}"
-
-    # store shell assignments so callers can eval one cached output map
-    ASSET_TYPES=('FONTS' 'STYLES' 'SCRIPTS' 'IMAGES' 'AUDIO' 'VIDEO' 'DOCUMENTS' 'BINARIES' 'OTHER')
-    OUTPUT=""
-    for ASSET_TYPE in "${ASSET_TYPES[@]}"; do
-        OUTPUT+="TEMPLATE_ASSET_OUTPUT_PATHS_${ASSET_TYPE}=()"$'\n'
-        ASSETS_VAR="TEMPLATE_ASSETS_${ASSET_TYPE}[@]"
-        OIFS="${IFS}"
-        IFS=$'\n'
-        ASSETS=(${!ASSETS_VAR})
-        IFS="${OIFS}"
-        for ASSET in "${ASSETS[@]}"; do
-            [[ "${ASSET}" == "" ]] && continue
-            ASSET_PATH="${ASSET%\?*}"
-            ASSET_OUTPUT_PATH=$(marsh_resolve_template_asset_output_path "${TARGET_OUTPUT_REL}" "${ASSET_PATH}" "${TEMPLATE_ASSETS_PATH}") || return 1
-            OUTPUT+="TEMPLATE_ASSET_OUTPUT_PATHS_${ASSET_TYPE}+=(\"${ASSET_OUTPUT_PATH//\"/\\\"}\")"$'\n'
-        done
-    done
-
-    # write the cached output map atomically
-    mkdir -p "${CACHE_FILE%/*}" >/dev/null 2>&1 || {
-        echo "Unable to create template asset output cache path: ${CACHE_FILE%/*}" >&2
-        return 1
-    }
-    CACHE_TEMP=$(mktemp "${CACHE_FILE%/*}/paths-XXXXXX") || {
-        echo "Unable to create template asset output cache file: ${CACHE_FILE%/*}/paths-XXXXXX" >&2
-        return 1
-    }
-    printf '%s' "${OUTPUT}" > "${CACHE_TEMP}" || {
-        echo "Unable to write template asset output cache file: ${CACHE_TEMP}" >&2
-        rm -f "${CACHE_TEMP}"
-        return 1
-    }
-    mv "${CACHE_TEMP}" "${CACHE_FILE}" 2>/dev/null || rm -f "${CACHE_TEMP}"
-    printf '%s' "${OUTPUT}"
-}
+#
+# Templates
+#
 
 # copies template assets into the build output, resolving output paths relative to the target root
 function marsh_copy_template_assets {  # marsh_copy_template_assets site_output_root target_output_rel log_level log_levels_csv templates_dir template #template_overrides[@] template_overrides[@] template_assets_path
@@ -4592,999 +3573,6 @@ function marsh_copy_template_assets {  # marsh_copy_template_assets site_output_
         fi
         rm -f "${ASSET_COPY_CACHE_TEMP}"
     }
-}
-
-# returns the aggregate archive-queue root under the target plan root
-function marsh_get_target_archive_queue_root {  # marsh_get_target_archive_queue_root target_plan_root
-    local TARGET_PLAN_ROOT
-
-    TARGET_PLAN_ROOT="${1:-}"
-    [[ "${TARGET_PLAN_ROOT}" == "" ]] && return 1
-    printf '%s\n' "${TARGET_PLAN_ROOT}/archive-queue"
-}
-
-# returns the aggregate archive-queue records path under the target plan root
-function marsh_get_target_archive_queue_records_path {  # marsh_get_target_archive_queue_records_path target_plan_root
-    local TARGET_PLAN_ROOT TARGET_ARCHIVE_QUEUE_ROOT
-
-    TARGET_PLAN_ROOT="${1:-}"
-    [[ "${TARGET_PLAN_ROOT}" == "" ]] && return 1
-    TARGET_ARCHIVE_QUEUE_ROOT=$(marsh_get_target_archive_queue_root "${TARGET_PLAN_ROOT}") || return 1
-    printf '%s\n' "${TARGET_ARCHIVE_QUEUE_ROOT}/records"
-}
-
-# builds one aggregate archive-queue record from a document record and archive plan root
-function marsh_build_target_archive_queue_record {  # marsh_build_target_archive_queue_record archive_plan_root document_record
-    local ARCHIVE_PLAN_ROOT DOCUMENT_RECORD
-    local DOCUMENT_ID SOURCE_RELPATH TARGET_OUTPUT_REL SOURCE_ROOT
-    local DOCUMENT_ID_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC
-
-    ARCHIVE_PLAN_ROOT="${1:-}"
-    DOCUMENT_RECORD="${2:-}"
-    [[ "${ARCHIVE_PLAN_ROOT}" == "" ]] && return 1
-    [[ "${DOCUMENT_RECORD}" == "" ]] && return 1
-
-    IFS=$'\t' read -r DOCUMENT_ID_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC <<< "${DOCUMENT_RECORD}"
-    [[ "${DOCUMENT_ID_ESC}" == "" ]] && return 1
-
-    # keep document identity and archive-plan context explicit in the queue record
-    printf '%q\t%q\t%q\t%q\t%q\n' \
-        "${DOCUMENT_ID_ESC}" \
-        "${SOURCE_RELPATH_ESC}" \
-        "${TARGET_OUTPUT_REL_ESC}" \
-        "${SOURCE_ROOT_ESC}" \
-        "${ARCHIVE_PLAN_ROOT}"
-}
-
-# parses one aggregate archive-queue record into shell assignments
-function marsh_parse_target_archive_queue_record {  # marsh_parse_target_archive_queue_record archive_queue_record
-    local ARCHIVE_QUEUE_RECORD
-    local DOCUMENT_ID_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC ARCHIVE_PLAN_ROOT_ESC
-    local DOCUMENT_ID SOURCE_RELPATH TARGET_OUTPUT_REL SOURCE_ROOT ARCHIVE_PLAN_ROOT
-
-    ARCHIVE_QUEUE_RECORD="${1:-}"
-    [[ "${ARCHIVE_QUEUE_RECORD}" == "" ]] && return 1
-
-    IFS=$'\t' read -r DOCUMENT_ID_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC ARCHIVE_PLAN_ROOT_ESC <<< "${ARCHIVE_QUEUE_RECORD}"
-    [[ "${DOCUMENT_ID_ESC}" == "" ]] && return 1
-    [[ "${ARCHIVE_PLAN_ROOT_ESC}" == "" ]] && return 1
-
-    printf 'DOCUMENT_ID=%q\n' "${DOCUMENT_ID_ESC}"
-    printf 'SOURCE_RELPATH=%q\n' "${SOURCE_RELPATH_ESC}"
-    printf 'TARGET_OUTPUT_REL=%q\n' "${TARGET_OUTPUT_REL_ESC}"
-    printf 'SOURCE_ROOT=%q\n' "${SOURCE_ROOT_ESC}"
-    printf 'ARCHIVE_PLAN_ROOT=%q\n' "${ARCHIVE_PLAN_ROOT_ESC}"
-}
-
-# writes aggregate archive-queue records under the target plan root
-function marsh_write_target_archive_queue_records {  # marsh_write_target_archive_queue_records target_plan_root records[@]
-    local TARGET_PLAN_ROOT TARGET_ARCHIVE_QUEUE_ROOT TARGET_ARCHIVE_QUEUE_RECORDS_FILE TARGET_ARCHIVE_QUEUE_RECORDS_TEMP RECORD
-
-    TARGET_PLAN_ROOT="${1:-}"
-    shift 1
-    [[ "${TARGET_PLAN_ROOT}" == "" ]] && return 1
-
-    TARGET_ARCHIVE_QUEUE_ROOT=$(marsh_get_target_archive_queue_root "${TARGET_PLAN_ROOT}") || return 1
-    TARGET_ARCHIVE_QUEUE_RECORDS_FILE=$(marsh_get_target_archive_queue_records_path "${TARGET_PLAN_ROOT}") || return 1
-    mkdir -p "${TARGET_ARCHIVE_QUEUE_ROOT}" >/dev/null 2>&1 || {
-        echo "Unable to create target archive queue path: ${TARGET_ARCHIVE_QUEUE_ROOT}" >&2
-        return 1
-    }
-    TARGET_ARCHIVE_QUEUE_RECORDS_TEMP=$(mktemp "${TARGET_ARCHIVE_QUEUE_ROOT}/records-XXXXXX" 2>/dev/null) || {
-        echo "Unable to write target archive queue temporary file: ${TARGET_ARCHIVE_QUEUE_ROOT}/records-XXXXXX" >&2
-        return 1
-    }
-
-    while [[ "${#@}" -gt 0 ]]; do
-        RECORD="${1:-}"
-        shift 1
-        [[ "${RECORD}" == "" ]] && continue
-        printf '%s\n' "${RECORD}"
-    done > "${TARGET_ARCHIVE_QUEUE_RECORDS_TEMP}" || {
-        echo "Unable to write target archive queue temporary file: ${TARGET_ARCHIVE_QUEUE_RECORDS_TEMP}" >&2
-        rm -f "${TARGET_ARCHIVE_QUEUE_RECORDS_TEMP}"
-        return 1
-    }
-    mv "${TARGET_ARCHIVE_QUEUE_RECORDS_TEMP}" "${TARGET_ARCHIVE_QUEUE_RECORDS_FILE}" 2>/dev/null || {
-        echo "Unable to write target archive queue file: ${TARGET_ARCHIVE_QUEUE_RECORDS_FILE}" >&2
-        rm -f "${TARGET_ARCHIVE_QUEUE_RECORDS_TEMP}"
-        return 1
-    }
-}
-
-# writes one aggregate archive queue from the provided archive plan roots
-function marsh_write_target_archive_queue_from_archive_plans {  # marsh_write_target_archive_queue_from_archive_plans target_plan_root archive_plan_roots[@]
-    local TARGET_PLAN_ROOT ARCHIVE_PLAN_ROOT ARCHIVE_PLAN_DOCUMENTS_FILE DOCUMENT_RECORD QUEUE_RECORD
-    local -a QUEUE_RECORDS
-
-    TARGET_PLAN_ROOT="${1:-}"
-    shift 1
-    [[ "${TARGET_PLAN_ROOT}" == "" ]] && return 1
-
-    QUEUE_RECORDS=()
-    while [[ "${#@}" -gt 0 ]]; do
-        ARCHIVE_PLAN_ROOT="${1:-}"
-        shift 1
-        [[ "${ARCHIVE_PLAN_ROOT}" == "" ]] && continue
-        ARCHIVE_PLAN_DOCUMENTS_FILE="${ARCHIVE_PLAN_ROOT}/documents"
-        [[ -f "${ARCHIVE_PLAN_DOCUMENTS_FILE}" ]] && [[ -r "${ARCHIVE_PLAN_DOCUMENTS_FILE}" ]] || {
-            echo "Archive plan documents file not found: ${ARCHIVE_PLAN_DOCUMENTS_FILE}" >&2
-            return 1
-        }
-
-        # keep the queue order aligned with archive plan order and persisted document order
-        while IFS= read -r DOCUMENT_RECORD; do
-            [[ "${DOCUMENT_RECORD}" == "" ]] && continue
-            QUEUE_RECORD=$(marsh_build_target_archive_queue_record "${ARCHIVE_PLAN_ROOT}" "${DOCUMENT_RECORD}") || return 1
-            QUEUE_RECORDS+=("${QUEUE_RECORD}")
-        done < "${ARCHIVE_PLAN_DOCUMENTS_FILE}"
-    done
-
-    marsh_write_target_archive_queue_records "${TARGET_PLAN_ROOT}" "${QUEUE_RECORDS[@]}"
-}
-
-# reads aggregate archive-queue records from the target plan root
-function marsh_read_target_archive_queue_records {  # marsh_read_target_archive_queue_records target_plan_root
-    local TARGET_PLAN_ROOT TARGET_ARCHIVE_QUEUE_RECORDS_FILE
-
-    TARGET_PLAN_ROOT="${1:-}"
-    [[ "${TARGET_PLAN_ROOT}" == "" ]] && return 1
-
-    TARGET_ARCHIVE_QUEUE_RECORDS_FILE=$(marsh_get_target_archive_queue_records_path "${TARGET_PLAN_ROOT}") || return 1
-    [[ -f "${TARGET_ARCHIVE_QUEUE_RECORDS_FILE}" ]] && [[ -r "${TARGET_ARCHIVE_QUEUE_RECORDS_FILE}" ]] || return 1
-    cat "${TARGET_ARCHIVE_QUEUE_RECORDS_FILE}"
-}
-
-# resolves a document temp artifact path under the target temp work tree
-function marsh_get_document_temp_path {  # marsh_get_document_temp_path target_output_root document artifact
-    local TARGET_OUTPUT_ROOT DOCUMENT ARTIFACT TARGET_BUILD_TEMP_ROOT DOCUMENT_KEY DOCUMENT_ROOT
-
-    TARGET_OUTPUT_ROOT="${1:-}"
-    DOCUMENT="${2:-}"
-    ARTIFACT="${3:-}"
-    [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
-    [[ "${DOCUMENT}" == "" ]] && return 1
-    [[ "${ARTIFACT}" == "" ]] && return 1
-    [[ "${DOCUMENT}" != /* ]] || return 1
-
-    TARGET_BUILD_TEMP_ROOT=$(marsh_get_target_temp_root "${TARGET_OUTPUT_ROOT}") || return 1
-    # Document temp artifacts are keyed by site-relative document path so nested target builds share them.
-    DOCUMENT_KEY=$(marsh_normalize_internal_path "${DOCUMENT}") || return 1
-    [[ "${DOCUMENT_KEY}" == "." ]] && return 1
-    DOCUMENT_ROOT="${TARGET_BUILD_TEMP_ROOT}/documents/${DOCUMENT_KEY}"
-
-    case "${ARTIFACT}" in
-        root)
-            printf '%s\n' "${DOCUMENT_ROOT}"
-            ;;
-        content)
-            printf '%s\n' "${DOCUMENT_ROOT}/content"
-            ;;
-        meta-yaml)
-            printf '%s\n' "${DOCUMENT_ROOT}/meta.yaml"
-            ;;
-        meta)
-            printf '%s\n' "${DOCUMENT_ROOT}/meta"
-            ;;
-        archive-meta)
-            printf '%s\n' "${DOCUMENT_ROOT}/archive-meta"
-            ;;
-        *)
-            return 1
-            ;;
-    esac
-}
-
-# resolves an archive temp artifact path under the target temp work tree
-function marsh_get_archive_temp_path {  # marsh_get_archive_temp_path target_output_root archive_source artifact
-    local TARGET_OUTPUT_ROOT ARCHIVE_SOURCE ARTIFACT TARGET_BUILD_TEMP_ROOT ARCHIVE_KEY ARCHIVE_ROOT
-
-    TARGET_OUTPUT_ROOT="${1:-}"
-    ARCHIVE_SOURCE="${2:-}"
-    ARTIFACT="${3:-}"
-    [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
-    [[ "${ARCHIVE_SOURCE}" == "" ]] && return 1
-    [[ "${ARTIFACT}" == "" ]] && return 1
-    [[ "${ARCHIVE_SOURCE}" != /* ]] || return 1
-
-    TARGET_BUILD_TEMP_ROOT=$(marsh_get_target_temp_root "${TARGET_OUTPUT_ROOT}") || return 1
-    ARCHIVE_KEY=$(marsh_normalize_internal_path "${ARCHIVE_SOURCE}") || return 1
-    [[ "${ARCHIVE_KEY}" == "." ]] && return 1
-    ARCHIVE_ROOT="${TARGET_BUILD_TEMP_ROOT}/archives/${ARCHIVE_KEY}"
-
-    case "${ARTIFACT}" in
-        root)
-            printf '%s\n' "${ARCHIVE_ROOT}"
-            ;;
-        source)
-            printf '%s\n' "${ARCHIVE_ROOT}/source"
-            ;;
-        subdocuments)
-            printf '%s\n' "${ARCHIVE_ROOT}/subdocuments"
-            ;;
-        subdocuments-manifest)
-            printf '%s\n' "${ARCHIVE_ROOT}/subdocuments.manifest"
-            ;;
-        *)
-            return 1
-            ;;
-    esac
-}
-
-# resolves the temp render path for a processed output file under the target temp work tree
-function marsh_get_render_temp_path {  # marsh_get_render_temp_path target_output_root output_path
-    local TARGET_OUTPUT_ROOT OUTPUT_PATH TARGET_BUILD_TEMP_ROOT OUTPUT_KEY
-
-    TARGET_OUTPUT_ROOT="${1:-}"
-    OUTPUT_PATH="${2:-}"
-    [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
-    [[ "${OUTPUT_PATH}" == "" ]] && return 1
-    [[ "${OUTPUT_PATH}" != /* ]] || return 1
-
-    TARGET_BUILD_TEMP_ROOT=$(marsh_get_target_temp_root "${TARGET_OUTPUT_ROOT}") || return 1
-    OUTPUT_KEY=$(marsh_normalize_internal_path "${OUTPUT_PATH}") || return 1
-    [[ "${OUTPUT_KEY}" == "." ]] && return 1
-
-    printf '%s\n' "${TARGET_BUILD_TEMP_ROOT}/render/${OUTPUT_KEY}"
-}
-
-# publishes a completed processed output file to its final destination
-function marsh_publish_processed_output {  # marsh_publish_processed_output source_file dest_file
-    local SOURCE_FILE DEST_FILE DEST_DIR
-
-    SOURCE_FILE="${1:-}"
-    DEST_FILE="${2:-}"
-    [[ "${SOURCE_FILE}" == "" ]] && return 1
-    [[ "${DEST_FILE}" == "" ]] && return 1
-    [[ -f "${SOURCE_FILE}" ]] && [[ -r "${SOURCE_FILE}" ]] || return 1
-
-    DEST_DIR="${DEST_FILE%/*}"
-    [[ "${DEST_DIR}" == "${DEST_FILE}" ]] && DEST_DIR='.'
-    mkdir -p "${DEST_DIR}" >/dev/null 2>&1 || {
-        echo "Unable to create published output path: ${DEST_DIR}" >&2
-        return 1
-    }
-    rm -f "${DEST_FILE}" >/dev/null 2>&1 || {
-        echo "Unable to replace published output path: ${DEST_FILE}" >&2
-        return 1
-    }
-    cp "${SOURCE_FILE}" "${DEST_FILE}" >/dev/null 2>&1 || {
-        echo "Unable to publish processed output: ${SOURCE_FILE} -> ${DEST_FILE}" >&2
-        return 1
-    }
-}
-
-# rewrites relative href values in a rendered sitemap for the destination document
-function marsh_rewrite_sitemap_links {  # marsh_rewrite_sitemap_links sitemap_file sitemap_dir document_base_path
-    local SITEMAP_FILE SITEMAP_DIR DOCUMENT_BASE_PATH
-    local HREF HREF_TARGET HREF_SUFFIX RESOLVED_HREF REWRITTEN_HREF
-    local SEARCH_ESC REPLACEMENT_ESC REPLACEMENTS SCRATCH_FILE
-    local -a HREFS
-
-    SITEMAP_FILE="${1:-}"
-    SITEMAP_DIR="${2:-}"
-    DOCUMENT_BASE_PATH="${3:-}"
-    [[ "${SITEMAP_FILE}" == "" ]] && return 1
-    [[ "${SITEMAP_DIR}" == "" ]] && return 1
-    [[ "${DOCUMENT_BASE_PATH}" == "" ]] && return 1
-
-    HREFS=()
-    while IFS= read -r HREF; do
-        [[ "${HREF}" == "" ]] && continue
-        HREFS+=("${HREF}")
-    done < <(grep -Eo 'href="[^"]+"' "${SITEMAP_FILE}" | sed -E 's/^href="([^"]+)"$/\1/' | sort -u)
-    [[ "${#HREFS[@]}" -eq 0 ]] && return 0
-
-    REPLACEMENTS=$(mktemp "${MARSH_TEMP}/sitemap-links-XXXXXX") || {
-        echo "Unable to create sitemap link replacement file: ${MARSH_TEMP}/sitemap-links-XXXXXX" >&2
-        return 1
-    }
-    for HREF in "${HREFS[@]}"; do
-        case "${HREF}" in
-            \#*|/*|*://*|mailto:*|tel:*|javascript:*|data:*|//* )
-                continue
-                ;;
-        esac
-        HREF_TARGET="${HREF%%\#*}"
-        HREF_TARGET="${HREF_TARGET%%\?*}"
-        HREF_SUFFIX="${HREF#${HREF_TARGET}}"
-        RESOLVED_HREF=$(marsh_resolve_relative_path "${SITEMAP_DIR}" "${HREF_TARGET}") || {
-            rm -f "${REPLACEMENTS}"
-            return 1
-        }
-        REWRITTEN_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "${RESOLVED_HREF}") || {
-            rm -f "${REPLACEMENTS}"
-            return 1
-        }
-        REWRITTEN_HREF="${REWRITTEN_HREF}${HREF_SUFFIX}"
-        SEARCH_ESC=$(printf '%s' "href=\"${HREF}\"" | sed -e 's/[\\]/\\\\/g' -e 's/[][/.|$(){}?+*^]/\\&/g')
-        REPLACEMENT_ESC=$(printf '%s' "href=\"${REWRITTEN_HREF}\"" | marsh_escape_substitution)
-        printf 's/%s/%s/g\n' "${SEARCH_ESC}" "${REPLACEMENT_ESC}" >> "${REPLACEMENTS}" || {
-            echo "Unable to write sitemap link replacement file: ${REPLACEMENTS}" >&2
-            rm -f "${REPLACEMENTS}"
-            return 1
-        }
-    done
-
-    if [[ -s "${REPLACEMENTS}" ]]; then
-        SCRATCH_FILE="${REPLACEMENTS}.scratch"
-        <"${SITEMAP_FILE}" sed -E -f "${REPLACEMENTS}" > "${SCRATCH_FILE}" || {
-            echo "Unable to write rewritten sitemap scratch file: ${SCRATCH_FILE}" >&2
-            rm -f "${REPLACEMENTS}" "${SCRATCH_FILE}"
-            return 1
-        }
-        mv "${SCRATCH_FILE}" "${SITEMAP_FILE}" 2>/dev/null || {
-            echo "Unable to publish rewritten sitemap file: ${SITEMAP_FILE}" >&2
-            rm -f "${REPLACEMENTS}" "${SCRATCH_FILE}"
-            return 1
-        }
-    fi
-    rm -f "${REPLACEMENTS}"
-    return 0
-}
-
-# returns a cached processed sitemap for a document base path, building it on miss
-function marsh_get_processed_sitemap {  # marsh_get_processed_sitemap sitemap_render_path sitemap_dir document_base_path
-    local SITEMAP_RENDER_PATH SITEMAP_DIR DOCUMENT_BASE_PATH
-    local CACHE_DIR CACHE_KEY CACHE_FILE CACHE_TEMP RENDER_DIR RENDER_KEY
-
-    SITEMAP_RENDER_PATH="${1:-}"
-    SITEMAP_DIR="${2:-}"
-    DOCUMENT_BASE_PATH="${3:-}"
-    [[ "${SITEMAP_RENDER_PATH}" == "" ]] && return 1
-    [[ "${SITEMAP_DIR}" == "" ]] && return 1
-    [[ "${DOCUMENT_BASE_PATH}" == "" ]] && return 1
-    [[ -f "${SITEMAP_RENDER_PATH}" ]] && [[ -r "${SITEMAP_RENDER_PATH}" ]] || return 1
-
-    RENDER_DIR="${SITEMAP_RENDER_PATH%/*}"
-    if [[ "${RENDER_DIR}" == */sitemaps/render ]]; then
-        CACHE_DIR="${RENDER_DIR%/render}/processed"
-    else
-        CACHE_DIR="${MARSH_TEMP}/processed-sitemap-cache"
-    fi
-    mkdir -p "${CACHE_DIR}" >/dev/null 2>&1 || {
-        echo "Unable to create processed sitemap cache directory: ${CACHE_DIR}" >&2
-        return 1
-    }
-    RENDER_KEY="${SITEMAP_RENDER_PATH##*/}"
-    CACHE_KEY=$(marsh_escape_cache_component "${SITEMAP_DIR}") || return 1
-    CACHE_KEY+="--$(marsh_escape_cache_component "${DOCUMENT_BASE_PATH}")" || return 1
-    CACHE_FILE="${CACHE_DIR}/${CACHE_KEY}--${RENDER_KEY}"
-    if [[ -f "${CACHE_FILE}" ]] && [[ -r "${CACHE_FILE}" ]]; then
-        printf '%s\n' "${CACHE_FILE}"
-        return 0
-    fi
-
-    CACHE_TEMP=$(mktemp "${CACHE_DIR}/processed-XXXXXX") || {
-        echo "Unable to create processed sitemap cache file: ${CACHE_DIR}/processed-XXXXXX" >&2
-        return 1
-    }
-    cp "${SITEMAP_RENDER_PATH}" "${CACHE_TEMP}" || {
-        echo "Unable to copy rendered sitemap for processing: ${SITEMAP_RENDER_PATH}" >&2
-        rm -f "${CACHE_TEMP}"
-        return 1
-    }
-    marsh_rewrite_sitemap_links "${CACHE_TEMP}" "${SITEMAP_DIR}" "${DOCUMENT_BASE_PATH}" || {
-        echo "Unable to rewrite processed sitemap links: ${SITEMAP_RENDER_PATH}" >&2
-        rm -f "${CACHE_TEMP}"
-        return 1
-    }
-    mv "${CACHE_TEMP}" "${CACHE_FILE}" 2>/dev/null || {
-        if [[ ! -f "${CACHE_FILE}" ]]; then
-            echo "Unable to publish processed sitemap cache file: ${CACHE_FILE}" >&2
-            rm -f "${CACHE_TEMP}"
-            return 1
-        fi
-        rm -f "${CACHE_TEMP}"
-    }
-
-    printf '%s\n' "${CACHE_FILE}"
-    return 0
-}
-
-# returns paginated archive root for an archive source path
-function marsh_get_archive_page_root {  # marsh_get_archive_page_root archive_source
-    local ARCHIVE_SOURCE ARCHIVE_DIR ARCHIVE_NAME PAGE_ROOT
-
-    ARCHIVE_SOURCE="${1:-}"
-    [[ "${ARCHIVE_SOURCE}" == "" ]] && return 1
-    ARCHIVE_DIR=$(marsh_get_internal_parent_directory "${ARCHIVE_SOURCE}") || return 1
-    ARCHIVE_NAME="${ARCHIVE_SOURCE##*/}"
-    if [[ "${ARCHIVE_NAME%.*}" == "index" ]]; then
-        PAGE_ROOT="${ARCHIVE_DIR}/page"
-    else
-        PAGE_ROOT="${ARCHIVE_SOURCE%.*}/page"
-    fi
-    printf '%s\n' "${PAGE_ROOT#./}"
-}
-
-# returns the common archive root directory for a related set of archive outputs
-function marsh_get_archive_root_path {  # marsh_get_archive_root_path archive_path[@]
-    local ARCHIVE_PATH CURRENT_DIR COMMON_DIR NEXT_DIR
-    local COMMON_COUNT INDEX
-    local -a COMMON_PARTS NEXT_PARTS
-
-    ARCHIVE_PATH="${1:-}"
-    [[ "${ARCHIVE_PATH}" == "" ]] && return 1
-    shift 1
-
-    COMMON_DIR=$(marsh_get_internal_parent_directory "${ARCHIVE_PATH}") || return 1
-
-    for ARCHIVE_PATH in "$@"; do
-        [[ "${ARCHIVE_PATH}" == "" ]] && continue
-        NEXT_DIR=$(marsh_get_internal_parent_directory "${ARCHIVE_PATH}") || return 1
-
-        COMMON_PARTS=()
-        NEXT_PARTS=()
-        if [[ "${COMMON_DIR}" != "." ]]; then
-            IFS='/' read -r -a COMMON_PARTS <<< "${COMMON_DIR}"
-        fi
-        if [[ "${NEXT_DIR}" != "." ]]; then
-            IFS='/' read -r -a NEXT_PARTS <<< "${NEXT_DIR}"
-        fi
-
-        COMMON_COUNT=0
-        while [[ "${COMMON_COUNT}" -lt "${#COMMON_PARTS[@]}" ]] && [[ "${COMMON_COUNT}" -lt "${#NEXT_PARTS[@]}" ]] && [[ "${COMMON_PARTS[$COMMON_COUNT]}" == "${NEXT_PARTS[$COMMON_COUNT]}" ]]; do
-            COMMON_COUNT=$((COMMON_COUNT + 1))
-        done
-
-        if [[ "${COMMON_COUNT}" -eq 0 ]]; then
-            COMMON_DIR='.'
-        else
-            COMMON_DIR="${COMMON_PARTS[0]}"
-            for ((INDEX=1; INDEX<COMMON_COUNT; INDEX++)); do
-                COMMON_DIR+="/${COMMON_PARTS[$INDEX]}"
-            done
-        fi
-    done
-
-    marsh_normalize_path "${COMMON_DIR}" "directory"
-}
-
-# returns numbered paginated archive source path for a page
-function marsh_get_archive_page_source {  # marsh_get_archive_page_source archive_source page_num
-    local ARCHIVE_SOURCE PAGE_NUM PAGE_ROOT ARCHIVE_EXT
-
-    ARCHIVE_SOURCE="${1:-}"
-    PAGE_NUM="${2:-}"
-    [[ "${ARCHIVE_SOURCE}" == "" ]] && return 1
-    [[ "${PAGE_NUM}" == "" ]] && return 1
-    PAGE_ROOT=$(marsh_get_archive_page_root "${ARCHIVE_SOURCE}") || return 1
-    ARCHIVE_EXT="${ARCHIVE_SOURCE##*.}"
-    printf '%s\n' "${PAGE_ROOT}/${PAGE_NUM}/index.${ARCHIVE_EXT}"
-}
-
-# returns output uri for an archive source path
-function marsh_get_archive_page_uri {  # marsh_get_archive_page_uri target_output_root archive_source_rel
-    local TARGET_OUTPUT_ROOT ARCHIVE_SOURCE_REL TARGET_OUTPUT_REL URI
-
-    TARGET_OUTPUT_ROOT="${1:-}"
-    ARCHIVE_SOURCE_REL="${2:-}"
-    [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
-    [[ "${ARCHIVE_SOURCE_REL}" == "" ]] && return 1
-
-    TARGET_OUTPUT_REL=$(marsh_get_target_output_path "${TARGET_OUTPUT_ROOT}") || return 1
-    if [[ "${TARGET_OUTPUT_REL}" == "." ]]; then
-        URI="${ARCHIVE_SOURCE_REL}"
-    else
-        URI="${TARGET_OUTPUT_REL}/${ARCHIVE_SOURCE_REL}"
-    fi
-    URI="${URI%.*}.html"
-    marsh_get_absolute_output_path "${URI}" "document"
-}
-
-# writes a single archive source page and its page-local subdocuments
-function marsh_write_archive_page {  # marsh_write_archive_page encoding target_output_root archive_source archive_title language langcode paginated page page_total page_size page_subdocuments_total archive_subdocuments_total current_uri canonical_uri first_uri prev_uri next_uri last_uri current_href canonical_href first_href prev_href next_href last_href archive_root_path archive_root_href #documents[@] documents[@] document_uris[@] document_abspaths[@]
-    local ENCODING TARGET_OUTPUT_ROOT ARCHIVE_SOURCE ARCHIVE_OUTPUT_SOURCE_PATH ARCHIVE_TEMP_SOURCE_FILE ARCHIVE_TITLE LANGUAGE LANGCODE PAGINATED
-    local PAGE PAGE_TOTAL PAGE_SIZE PAGE_SUBDOCUMENTS_TOTAL ARCHIVE_SUBDOCUMENTS_TOTAL
-    local PAGE_URI PAGE_CANONICAL_URI PAGE_FIRST_URI PAGE_PREV_URI PAGE_NEXT_URI PAGE_LAST_URI
-    local PAGE_HREF PAGE_CANONICAL_HREF PAGE_FIRST_HREF PAGE_PREV_HREF PAGE_NEXT_HREF PAGE_LAST_HREF
-    local ARCHIVE_ROOT_PATH ARCHIVE_ROOT_HREF
-    local NUM_DOCUMENTS DOCUMENT INDEX URI ABSPATH MANIFEST_FILE
-    local PAGE_IS_FIRST PAGE_IS_LAST PAGE_HAS_PREV PAGE_HAS_NEXT PAGE_HAS_SUBDOCUMENTS
-    local -a DOCUMENTS DOCUMENT_URIS DOCUMENT_ABSPATHS
-
-    ENCODING="${1:-}"
-    TARGET_OUTPUT_ROOT="${2:-}"
-    ARCHIVE_SOURCE="${3:-}"
-    [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
-    [[ "${ARCHIVE_SOURCE}" == "" ]] && return 1
-    shift 3
-    ARCHIVE_TITLE="${1:-}"
-    LANGUAGE="${2:-}"
-    LANGCODE="${3:-}"
-    PAGINATED="${4:-false}"
-    PAGE="${5:-1}"
-    PAGE_TOTAL="${6:-1}"
-    PAGE_SIZE="${7:-}"
-    PAGE_SUBDOCUMENTS_TOTAL="${8:-0}"
-    ARCHIVE_SUBDOCUMENTS_TOTAL="${9:-0}"
-    PAGE_URI="${10:-}"
-    PAGE_CANONICAL_URI="${11:-}"
-    PAGE_FIRST_URI="${12:-}"
-    PAGE_PREV_URI="${13:-}"
-    PAGE_NEXT_URI="${14:-}"
-    PAGE_LAST_URI="${15:-}"
-    PAGE_HREF="${16:-}"
-    PAGE_CANONICAL_HREF="${17:-}"
-    PAGE_FIRST_HREF="${18:-}"
-    PAGE_PREV_HREF="${19:-}"
-    PAGE_NEXT_HREF="${20:-}"
-    PAGE_LAST_HREF="${21:-}"
-    ARCHIVE_ROOT_PATH="${22:-}"
-    ARCHIVE_ROOT_HREF="${23:-}"
-    shift 23
-    NUM_DOCUMENTS="${1:-0}"
-    shift 1
-    DOCUMENTS=()
-    while [[ "${NUM_DOCUMENTS}" -gt 0 ]] && [[ "${#@}" -gt 0 ]]; do
-        DOCUMENTS+=("${1}")
-        NUM_DOCUMENTS=$((NUM_DOCUMENTS - 1))
-        shift 1
-    done
-    DOCUMENT_URIS=()
-    INDEX=0
-    while [[ "${INDEX}" -lt "${#DOCUMENTS[@]}" ]] && [[ "${#@}" -gt 0 ]]; do
-        DOCUMENT_URIS+=("${1}")
-        INDEX=$((INDEX + 1))
-        shift 1
-    done
-    DOCUMENT_ABSPATHS=()
-    INDEX=0
-    while [[ "${INDEX}" -lt "${#DOCUMENTS[@]}" ]] && [[ "${#@}" -gt 0 ]]; do
-        DOCUMENT_ABSPATHS+=("${1}")
-        INDEX=$((INDEX + 1))
-        shift 1
-    done
-
-    # page metadata
-    ARCHIVE_OUTPUT_SOURCE_PATH="${TARGET_OUTPUT_ROOT}/${ARCHIVE_SOURCE}"
-    ARCHIVE_TEMP_SOURCE_FILE=$(marsh_get_archive_temp_path "${TARGET_OUTPUT_ROOT}" "${ARCHIVE_SOURCE}" "source") || return 1
-    PAGE_IS_FIRST=false
-    PAGE_IS_LAST=false
-    PAGE_HAS_PREV=false
-    PAGE_HAS_NEXT=false
-    PAGE_HAS_SUBDOCUMENTS=false
-    [[ "${PAGE}" -eq 1 ]] && PAGE_IS_FIRST=true
-    [[ "${PAGE}" -eq "${PAGE_TOTAL}" ]] && PAGE_IS_LAST=true
-    [[ "${PAGE_PREV_URI}" != "" ]] && PAGE_HAS_PREV=true
-    [[ "${PAGE_NEXT_URI}" != "" ]] && PAGE_HAS_NEXT=true
-    [[ "${PAGE_SUBDOCUMENTS_TOTAL}" -gt 0 ]] && PAGE_HAS_SUBDOCUMENTS=true
-
-    # Keep final output directories present for later archive page publication.
-    mkdir -p "${ARCHIVE_OUTPUT_SOURCE_PATH%/*}" >/dev/null 2>&1 || {
-        echo "Unable to create archive output directory: ${ARCHIVE_OUTPUT_SOURCE_PATH%/*}" >&2
-        return 1
-    }
-
-    mkdir -p "${ARCHIVE_TEMP_SOURCE_FILE%/*}" >/dev/null 2>&1 || {
-        echo "Unable to create archive temp directory: ${ARCHIVE_TEMP_SOURCE_FILE%/*}" >&2
-        return 1
-    }
-    rm -f "${ARCHIVE_OUTPUT_SOURCE_PATH}" >/dev/null 2>&1 || {
-        echo "Unable to remove stale archive file: ${ARCHIVE_OUTPUT_SOURCE_PATH}" >&2
-        return 1
-    }
-
-    # write the generated archive source with page metadata
-    echo "---" > "${ARCHIVE_TEMP_SOURCE_FILE}" 2>/dev/null || {
-        echo "Unable to write archive file: ${ARCHIVE_TEMP_SOURCE_FILE}" >&2
-        return 1
-    }
-    if [[ "${ENCODING}" == "html" ]]; then
-        echo "Type: archive" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-    else
-        echo "Type: archive-${ENCODING}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-    fi
-    echo "Date: $(date -u '+%Y-%m-%d %H:%M:%S')" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-    echo "Title: ${ARCHIVE_TITLE}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-    echo "Language: ${LANGUAGE}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-    echo "Language_Code: ${LANGCODE}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-    echo "Archive_Root_Path: ${ARCHIVE_ROOT_PATH}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-    echo "Archive_Root_Href: ${ARCHIVE_ROOT_HREF}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-    if [[ "${ENCODING}" == "html" ]]; then
-        echo "Paginated: ${PAGINATED}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-        echo "Page: ${PAGE}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-        echo "Page_Total: ${PAGE_TOTAL}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-        echo "Page_Size: ${PAGE_SIZE}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-        echo "Page_Subdocuments_Total: ${PAGE_SUBDOCUMENTS_TOTAL}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-        echo "Archive_Subdocuments_Total: ${ARCHIVE_SUBDOCUMENTS_TOTAL}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-        echo "Page_Is_First: ${PAGE_IS_FIRST}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-        echo "Page_Is_Last: ${PAGE_IS_LAST}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-        echo "Page_Has_Prev: ${PAGE_HAS_PREV}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-        echo "Page_Has_Next: ${PAGE_HAS_NEXT}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-        echo "Page_Has_Subdocuments: ${PAGE_HAS_SUBDOCUMENTS}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-        echo "Page_URI: ${PAGE_URI}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-        echo "Page_Canonical_URI: ${PAGE_CANONICAL_URI}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-        echo "Page_First_URI: ${PAGE_FIRST_URI}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-        echo "Page_Prev_URI: ${PAGE_PREV_URI}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-        echo "Page_Next_URI: ${PAGE_NEXT_URI}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-        echo "Page_Last_URI: ${PAGE_LAST_URI}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-        echo "Page_Href: ${PAGE_HREF}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-        echo "Page_Canonical_Href: ${PAGE_CANONICAL_HREF}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-        echo "Page_First_Href: ${PAGE_FIRST_HREF}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-        echo "Page_Prev_Href: ${PAGE_PREV_HREF}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-        echo "Page_Next_Href: ${PAGE_NEXT_HREF}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-        echo "Page_Last_Href: ${PAGE_LAST_HREF}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-    fi
-    echo "---" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-
-    # create manifest of the subdocuments for this page
-    if [[ "${#DOCUMENTS[@]}" -gt 0 ]]; then
-        MANIFEST_FILE=$(marsh_get_archive_temp_path "${TARGET_OUTPUT_ROOT}" "${ARCHIVE_SOURCE}" "subdocuments-manifest") || return 1
-        mkdir -p "${MANIFEST_FILE%/*}" >/dev/null 2>&1 || {
-            echo "Unable to create archive manifest temp directory: ${MANIFEST_FILE%/*}" >&2
-            return 1
-        }
-        {
-            INDEX=0
-            for DOCUMENT in "${DOCUMENTS[@]}"; do
-                URI="${DOCUMENT_URIS[$INDEX]:-}"
-                ABSPATH="${DOCUMENT_ABSPATHS[$INDEX]:-}"
-                printf '%q\t%q\t%q\n' "${DOCUMENT}" "${URI}" "${ABSPATH}" || {
-                    echo "Unable to write archive subdocument manifest: ${MANIFEST_FILE}" >&2
-                    return 1
-                }
-                INDEX=$((INDEX + 1))
-            done
-        } > "${MANIFEST_FILE}" || {
-            echo "Unable to create archive subdocument manifest: ${MANIFEST_FILE}" >&2
-            return 1
-        }
-    fi
-
-    return 0
-}
-
-# builds an archive of directory contents from a prepared manifest, sorted by descending date
-function marsh_build_archive {  # marsh_build_archive encoding target_output_root archive_source archive_title language langcode count page_size #types[@] types[@] #excluded_states[@] excluded_states[@] archive_manifest archive_root_path
-    local ENCODING TARGET_OUTPUT_ROOT ARCHIVE_SOURCE_REL ARCHIVE_TITLE LANGUAGE LANGCODE
-    local COUNT PAGE_SIZE NUM_TYPES NUM_EXCLUDED_STATES
-    local VALID DOCUMENT TYPE STATE_JOINED OIFS E
-    local ARCHIVE_MANIFEST MANIFEST_DOCUMENT_ESC MANIFEST_TYPE_ESC MANIFEST_URI_ESC MANIFEST_ABSPATH_ESC MANIFEST_STATE_ESC
-    local URI ABSPATH
-    local PAGINATED PAGE_TOTAL PAGE PAGE_START PAGE_END PAGE_INDEX PAGE_SUBDOCUMENTS_TOTAL
-    local ARCHIVE_SUBDOCUMENTS_TOTAL
-    local PAGE_ARCHIVE_SOURCE_REL PAGE_ALIAS_ARCHIVE_SOURCE_REL PAGE_ROOT
-    local PAGE_URI PAGE_CANONICAL_URI PAGE_FIRST_URI PAGE_PREV_URI PAGE_NEXT_URI PAGE_LAST_URI
-    local PAGE_HREF PAGE_CANONICAL_HREF PAGE_FIRST_HREF PAGE_PREV_HREF PAGE_NEXT_HREF PAGE_LAST_HREF
-    local PAGE_PREV_ARCHIVE_SOURCE_REL PAGE_NEXT_ARCHIVE_SOURCE_REL PAGE_LAST_ARCHIVE_SOURCE_REL
-    local PAGE_OUTPUT_PATH PAGE_CANONICAL_OUTPUT_PATH PAGE_FIRST_OUTPUT_PATH PAGE_PREV_OUTPUT_PATH PAGE_NEXT_OUTPUT_PATH PAGE_LAST_OUTPUT_PATH PAGE_BASE_PATH
-    local ARCHIVE_ROOT_PATH PAGE_ARCHIVE_ROOT_HREF
-    local -a TYPES EXCLUDED_STATES STATE VALID_DOCUMENTS VALID_DOCUMENT_URIS VALID_DOCUMENT_ABSPATHS
-    local -a ARCHIVE_PAGES PAGE_DOCUMENTS PAGE_DOCUMENT_URIS PAGE_DOCUMENT_ABSPATHS
-
-    # init
-    ENCODING="${1:-html}"
-    TARGET_OUTPUT_ROOT="${2:-}"
-    ARCHIVE_SOURCE_REL="${3:-}"
-    [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
-    [[ "${ARCHIVE_SOURCE_REL}" == "" ]] && return 1
-    shift 3
-    ARCHIVE_TITLE="${1:-}"
-    LANGUAGE="${2:-}"
-    LANGCODE="${3:-}"
-    shift 3
-    COUNT="${1:-}"
-    PAGE_SIZE="${2:-}"
-    shift 2
-    NUM_TYPES="${1:-0}"
-    shift 1
-    TYPES=()
-    while [[ "${NUM_TYPES}" -gt 0 ]] && [[ "${#@}" -gt 0 ]]; do
-        TYPES+=("${1}")
-        NUM_TYPES=$((NUM_TYPES - 1 ))
-        shift
-    done
-    NUM_EXCLUDED_STATES="${1:-0}"
-    shift 1
-    EXCLUDED_STATES=()
-    while [[ "${NUM_EXCLUDED_STATES}" -gt 0 ]] && [[ "${#@}" -gt 0 ]]; do
-        EXCLUDED_STATES+=("${1}")
-        NUM_EXCLUDED_STATES=$((NUM_EXCLUDED_STATES - 1 ))
-        shift
-    done
-    ARCHIVE_MANIFEST="${1:-}"
-    ARCHIVE_ROOT_PATH="${2:-}"
-    [[ "${ARCHIVE_MANIFEST}" == "" ]] && return 1
-
-    if [[ "${ARCHIVE_ROOT_PATH}" == "" ]]; then
-        ARCHIVE_ROOT_PATH=$(marsh_get_archive_root_path "${ARCHIVE_SOURCE_REL}") || return 1
-    else
-        ARCHIVE_ROOT_PATH=$(marsh_normalize_path "${ARCHIVE_ROOT_PATH}" "directory") || return 1
-    fi
-
-    # sanity check archive count
-    if [[ "${COUNT}" != "" ]] && [[ ! "${COUNT}" =~ ^[0-9]+$ ]]; then
-        echo "Invalid archive count: ${COUNT}" >&2
-        return 1
-    fi
-
-    # sanity check; only html archives may be paginated
-    PAGINATED=false
-    if [[ "${ENCODING}" == "html" ]] && [[ "${PAGE_SIZE}" =~ ^[0-9]+$ ]] && [[ "${PAGE_SIZE}" -gt 0 ]]; then
-        PAGINATED=true
-        PAGE_ROOT=$(marsh_get_archive_page_root "${ARCHIVE_SOURCE_REL}") || return 1
-        rm -rf "${TARGET_OUTPUT_ROOT}/${PAGE_ROOT}" >/dev/null 2>&1 || {
-            echo "Unable to clean paginated archive path: ${TARGET_OUTPUT_ROOT}/${PAGE_ROOT}" >&2
-            return 1
-        }
-    else
-        PAGE_SIZE=""
-    fi
-
-    # sanity check manifest
-    [[ -f "${ARCHIVE_MANIFEST}" ]] && [[ -r "${ARCHIVE_MANIFEST}" ]] || {
-        echo "Archive manifest not found: ${ARCHIVE_MANIFEST}" >&2
-        return 1
-    }
-
-    # complete document set before pagination
-    VALID=0
-    VALID_DOCUMENTS=()
-    VALID_DOCUMENT_URIS=()
-    VALID_DOCUMENT_ABSPATHS=()
-    while IFS=$'\t' read -r MANIFEST_DOCUMENT_ESC MANIFEST_TYPE_ESC MANIFEST_URI_ESC MANIFEST_ABSPATH_ESC MANIFEST_STATE_ESC; do
-        [[ "${MANIFEST_DOCUMENT_ESC}" == "" ]] && continue
-        DOCUMENT=""
-        TYPE=""
-        URI=""
-        ABSPATH=""
-        STATE_JOINED=""
-        STATE=()
-        eval "DOCUMENT=${MANIFEST_DOCUMENT_ESC}"
-        eval "TYPE=${MANIFEST_TYPE_ESC}"
-        eval "URI=${MANIFEST_URI_ESC}"
-        eval "ABSPATH=${MANIFEST_ABSPATH_ESC}"
-        eval "STATE_JOINED=${MANIFEST_STATE_ESC}"
-        if [[ "${STATE_JOINED}" != "" ]]; then
-            OIFS="${IFS}"
-            IFS=$(printf '\034')
-            STATE=(${STATE_JOINED})
-            IFS="${OIFS}"
-        fi
-        if [[ "${COUNT}" != "" ]] && [[ "${VALID}" -ge "${COUNT}" ]]; then
-            break
-        fi
-        if [[ "${TYPE%%-*}" == "archive" ]]; then
-            continue
-        fi
-        if [[ "${#TYPES[@]}" -gt 0 ]] && ! marsh_in_array "${TYPE}" "${TYPES[@]}"; then
-            continue
-        fi
-        if [[ "${#EXCLUDED_STATES[@]}" -gt 0 ]]; then
-            for E in "${EXCLUDED_STATES[@]}"; do
-                if marsh_in_array "${E}" "${STATE[@]}"; then
-                    continue 2
-                fi
-            done
-        fi
-        VALID=$((VALID + 1))
-        VALID_DOCUMENTS+=("${DOCUMENT}")
-        VALID_DOCUMENT_URIS+=("${URI:-}")
-        VALID_DOCUMENT_ABSPATHS+=("${ABSPATH:-}")
-    done < "${ARCHIVE_MANIFEST}"
-
-    # create page set for paginated html archives
-    # create at least one page even where there are no subdocuments
-    ARCHIVE_PAGES=()
-    ARCHIVE_SUBDOCUMENTS_TOTAL="${#VALID_DOCUMENTS[@]}"
-    PAGE_TOTAL=1
-    if [[ "${PAGINATED}" == true ]]; then
-        PAGE_TOTAL=$(( (ARCHIVE_SUBDOCUMENTS_TOTAL + PAGE_SIZE - 1) / PAGE_SIZE ))
-        [[ "${PAGE_TOTAL}" -lt 1 ]] && PAGE_TOTAL=1
-    fi
-    PAGE_CANONICAL_URI=$(marsh_get_archive_page_uri "${TARGET_OUTPUT_ROOT}" "${ARCHIVE_SOURCE_REL}") || return 1
-    PAGE_FIRST_URI="${PAGE_CANONICAL_URI}"
-    PAGE_CANONICAL_OUTPUT_PATH="${ARCHIVE_SOURCE_REL%.*}.html"
-    PAGE_FIRST_OUTPUT_PATH="${PAGE_CANONICAL_OUTPUT_PATH}"
-    if [[ "${PAGINATED}" == true ]] && [[ "${PAGE_TOTAL}" -gt 1 ]]; then
-        PAGE_LAST_ARCHIVE_SOURCE_REL=$(marsh_get_archive_page_source "${ARCHIVE_SOURCE_REL}" "${PAGE_TOTAL}") || return 1
-        PAGE_LAST_URI=$(marsh_get_archive_page_uri "${TARGET_OUTPUT_ROOT}" "${PAGE_LAST_ARCHIVE_SOURCE_REL}") || return 1
-        PAGE_LAST_OUTPUT_PATH="${PAGE_LAST_ARCHIVE_SOURCE_REL%.*}.html"
-    else
-        PAGE_LAST_URI="${PAGE_CANONICAL_URI}"
-        PAGE_LAST_OUTPUT_PATH="${PAGE_CANONICAL_OUTPUT_PATH}"
-    fi
-    for ((PAGE=1; PAGE<=PAGE_TOTAL; PAGE++)); do
-        PAGE_DOCUMENTS=()
-        PAGE_DOCUMENT_URIS=()
-        PAGE_DOCUMENT_ABSPATHS=()
-        if [[ "${PAGINATED}" == true ]]; then
-            PAGE_START=$(( (PAGE - 1) * PAGE_SIZE ))
-            PAGE_END=$(( PAGE_START + PAGE_SIZE - 1 ))
-        else
-            PAGE_START=0
-            PAGE_END=$(( ARCHIVE_SUBDOCUMENTS_TOTAL - 1 ))
-        fi
-        for ((PAGE_INDEX=PAGE_START; PAGE_INDEX<=PAGE_END; PAGE_INDEX++)); do
-            if [[ "${PAGE_INDEX}" -lt 0 ]] || [[ "${PAGE_INDEX}" -ge "${ARCHIVE_SUBDOCUMENTS_TOTAL}" ]]; then
-                continue
-            fi
-            PAGE_DOCUMENTS+=("${VALID_DOCUMENTS[$PAGE_INDEX]}")
-            PAGE_DOCUMENT_URIS+=("${VALID_DOCUMENT_URIS[$PAGE_INDEX]}")
-            PAGE_DOCUMENT_ABSPATHS+=("${VALID_DOCUMENT_ABSPATHS[$PAGE_INDEX]}")
-        done
-        PAGE_SUBDOCUMENTS_TOTAL="${#PAGE_DOCUMENTS[@]}"
-
-        if [[ "${PAGINATED}" == true ]] && [[ "${PAGE}" -gt 1 ]]; then
-            PAGE_ARCHIVE_SOURCE_REL=$(marsh_get_archive_page_source "${ARCHIVE_SOURCE_REL}" "${PAGE}") || return 1
-        else
-            PAGE_ARCHIVE_SOURCE_REL="${ARCHIVE_SOURCE_REL}"
-        fi
-        PAGE_URI=$(marsh_get_archive_page_uri "${TARGET_OUTPUT_ROOT}" "${PAGE_ARCHIVE_SOURCE_REL}") || return 1
-        PAGE_OUTPUT_PATH="${PAGE_ARCHIVE_SOURCE_REL%.*}.html"
-        PAGE_BASE_PATH="./${PAGE_OUTPUT_PATH}"
-        PAGE_BASE_PATH="${PAGE_BASE_PATH%/*}"
-        PAGE_BASE_PATH="${PAGE_BASE_PATH#./}"
-        PAGE_BASE_PATH="${PAGE_BASE_PATH:-.}"
-        PAGE_BASE_PATH=$(marsh_normalize_path "${PAGE_BASE_PATH}" "directory") || return 1
-        PAGE_PREV_URI=""
-        PAGE_NEXT_URI=""
-        PAGE_PREV_OUTPUT_PATH=""
-        PAGE_NEXT_OUTPUT_PATH=""
-        if [[ "${PAGE}" -gt 1 ]]; then
-            if [[ "${PAGE}" -eq 2 ]]; then
-                PAGE_PREV_ARCHIVE_SOURCE_REL="${ARCHIVE_SOURCE_REL}"
-            else
-                PAGE_PREV_ARCHIVE_SOURCE_REL=$(marsh_get_archive_page_source "${ARCHIVE_SOURCE_REL}" "$((PAGE - 1))") || return 1
-            fi
-            PAGE_PREV_URI=$(marsh_get_archive_page_uri "${TARGET_OUTPUT_ROOT}" "${PAGE_PREV_ARCHIVE_SOURCE_REL}") || return 1
-            PAGE_PREV_OUTPUT_PATH="${PAGE_PREV_ARCHIVE_SOURCE_REL%.*}.html"
-        fi
-        if [[ "${PAGE}" -lt "${PAGE_TOTAL}" ]]; then
-            PAGE_NEXT_ARCHIVE_SOURCE_REL=$(marsh_get_archive_page_source "${ARCHIVE_SOURCE_REL}" "$((PAGE + 1))") || return 1
-            PAGE_NEXT_URI=$(marsh_get_archive_page_uri "${TARGET_OUTPUT_ROOT}" "${PAGE_NEXT_ARCHIVE_SOURCE_REL}") || return 1
-            PAGE_NEXT_OUTPUT_PATH="${PAGE_NEXT_ARCHIVE_SOURCE_REL%.*}.html"
-        fi
-        PAGE_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${PAGE_OUTPUT_PATH}") || return 1
-        PAGE_CANONICAL_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${PAGE_CANONICAL_OUTPUT_PATH}") || return 1
-        PAGE_FIRST_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${PAGE_FIRST_OUTPUT_PATH}") || return 1
-        PAGE_PREV_HREF=""
-        [[ "${PAGE_PREV_OUTPUT_PATH}" != "" ]] && PAGE_PREV_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${PAGE_PREV_OUTPUT_PATH}") || true
-        PAGE_NEXT_HREF=""
-        [[ "${PAGE_NEXT_OUTPUT_PATH}" != "" ]] && PAGE_NEXT_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${PAGE_NEXT_OUTPUT_PATH}") || true
-        PAGE_LAST_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${PAGE_LAST_OUTPUT_PATH}") || return 1
-        PAGE_ARCHIVE_ROOT_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${ARCHIVE_ROOT_PATH}") || return 1
-
-        marsh_write_archive_page \
-            "${ENCODING}" \
-            "${TARGET_OUTPUT_ROOT}" \
-            "${PAGE_ARCHIVE_SOURCE_REL}" \
-            "${ARCHIVE_TITLE}" \
-            "${LANGUAGE}" \
-            "${LANGCODE}" \
-            "${PAGINATED}" \
-            "${PAGE}" \
-            "${PAGE_TOTAL}" \
-            "${PAGE_SIZE}" \
-            "${PAGE_SUBDOCUMENTS_TOTAL}" \
-            "${ARCHIVE_SUBDOCUMENTS_TOTAL}" \
-            "${PAGE_URI}" \
-            "${PAGE_CANONICAL_URI}" \
-            "${PAGE_FIRST_URI}" \
-            "${PAGE_PREV_URI}" \
-            "${PAGE_NEXT_URI}" \
-            "${PAGE_LAST_URI}" \
-            "${PAGE_HREF}" \
-            "${PAGE_CANONICAL_HREF}" \
-            "${PAGE_FIRST_HREF}" \
-            "${PAGE_PREV_HREF}" \
-            "${PAGE_NEXT_HREF}" \
-            "${PAGE_LAST_HREF}" \
-            "${ARCHIVE_ROOT_PATH}" \
-            "${PAGE_ARCHIVE_ROOT_HREF}" \
-            "${#PAGE_DOCUMENTS[@]}" \
-            "${PAGE_DOCUMENTS[@]}" \
-            "${PAGE_DOCUMENT_URIS[@]}" \
-            "${PAGE_DOCUMENT_ABSPATHS[@]}" || return 1
-        ARCHIVE_PAGES+=("${PAGE_ARCHIVE_SOURCE_REL}")
-
-        if [[ "${PAGINATED}" == true ]] && [[ "${PAGE}" -eq 1 ]]; then
-            PAGE_ALIAS_ARCHIVE_SOURCE_REL=$(marsh_get_archive_page_source "${ARCHIVE_SOURCE_REL}" '1') || return 1
-            PAGE_URI=$(marsh_get_archive_page_uri "${TARGET_OUTPUT_ROOT}" "${PAGE_ALIAS_ARCHIVE_SOURCE_REL}") || return 1
-            PAGE_OUTPUT_PATH="${PAGE_ALIAS_ARCHIVE_SOURCE_REL%.*}.html"
-            PAGE_BASE_PATH="./${PAGE_OUTPUT_PATH}"
-            PAGE_BASE_PATH="${PAGE_BASE_PATH%/*}"
-            PAGE_BASE_PATH="${PAGE_BASE_PATH#./}"
-            PAGE_BASE_PATH="${PAGE_BASE_PATH:-.}"
-            PAGE_BASE_PATH=$(marsh_normalize_path "${PAGE_BASE_PATH}" "directory") || return 1
-            PAGE_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${PAGE_OUTPUT_PATH}") || return 1
-            PAGE_CANONICAL_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${PAGE_CANONICAL_OUTPUT_PATH}") || return 1
-            PAGE_FIRST_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${PAGE_FIRST_OUTPUT_PATH}") || return 1
-            PAGE_NEXT_HREF=""
-            [[ "${PAGE_NEXT_OUTPUT_PATH}" != "" ]] && PAGE_NEXT_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${PAGE_NEXT_OUTPUT_PATH}") || true
-            PAGE_LAST_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${PAGE_LAST_OUTPUT_PATH}") || return 1
-            PAGE_ARCHIVE_ROOT_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${ARCHIVE_ROOT_PATH}") || return 1
-            marsh_write_archive_page \
-                "${ENCODING}" \
-                "${TARGET_OUTPUT_ROOT}" \
-                "${PAGE_ALIAS_ARCHIVE_SOURCE_REL}" \
-                "${ARCHIVE_TITLE}" \
-                "${LANGUAGE}" \
-                "${LANGCODE}" \
-                "${PAGINATED}" \
-                '1' \
-                "${PAGE_TOTAL}" \
-                "${PAGE_SIZE}" \
-                "${PAGE_SUBDOCUMENTS_TOTAL}" \
-                "${ARCHIVE_SUBDOCUMENTS_TOTAL}" \
-                "${PAGE_URI}" \
-                "${PAGE_CANONICAL_URI}" \
-                "${PAGE_FIRST_URI}" \
-                '' \
-                "${PAGE_NEXT_URI}" \
-                "${PAGE_LAST_URI}" \
-                "${PAGE_HREF}" \
-                "${PAGE_CANONICAL_HREF}" \
-                "${PAGE_FIRST_HREF}" \
-                '' \
-                "${PAGE_NEXT_HREF}" \
-                "${PAGE_LAST_HREF}" \
-                "${ARCHIVE_ROOT_PATH}" \
-                "${PAGE_ARCHIVE_ROOT_HREF}" \
-                "${#PAGE_DOCUMENTS[@]}" \
-                "${PAGE_DOCUMENTS[@]}" \
-                "${PAGE_DOCUMENT_URIS[@]}" \
-                "${PAGE_DOCUMENT_ABSPATHS[@]}" || return 1
-            ARCHIVE_PAGES+=("${PAGE_ALIAS_ARCHIVE_SOURCE_REL}")
-        fi
-    done
-
-    printf '%s\n' "${ARCHIVE_PAGES[@]}"
-    return 0
-}
-
-# builds a sitemap
-function marsh_build_sitemap {  # marsh_build_sitemap target_output_root sitemap_file sitemap_source markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links
-    local TARGET_OUTPUT_ROOT SITEMAP_FILE SITEMAP_SOURCE MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_REWRITE_LINKS
-    local SITEMAP_RENDER_FILE TEXT_TRANSFORM SITEMAP_CONTENT_FILE SITEMAP_META_FILE
-
-    # init
-    TARGET_OUTPUT_ROOT="${1:-}"
-    SITEMAP_FILE="${2:-}"
-    SITEMAP_SOURCE="${3:-}"
-    MARKDOWN_COMMAND="${4:-}"
-    MARKDOWN_OPTIONS_CSV="${5:-}"
-    MARKDOWN_FILEEXT_CSV="${6:-}"
-    MARKDOWN_REWRITE_LINKS="${7:-}"
-    [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
-    [[ "${SITEMAP_FILE}" == "" ]]   && return 1
-    [[ "${SITEMAP_SOURCE}" == "" ]] && return 1
-    [[ "${MARKDOWN_COMMAND}" == "" ]] && return 1
-    [[ "${MARKDOWN_FILEEXT_CSV}" == "" ]] && return 1
-    [[ "${MARKDOWN_REWRITE_LINKS}" == "" ]] && return 1
-
-    SITEMAP_RENDER_FILE=$(marsh_get_sitemap_render_path "${TARGET_OUTPUT_ROOT}" "${SITEMAP_FILE}") || return 1
-    mkdir -p "${SITEMAP_RENDER_FILE%/*}" >/dev/null 2>&1 || {
-        echo "Unable to create sitemap render path: ${SITEMAP_RENDER_FILE%/*}" >&2
-        return 1
-    }
-    SITEMAP_CONTENT_FILE="${SITEMAP_SOURCE}"
-    SITEMAP_META_FILE=""
-    if marsh_has_frontmatter "${SITEMAP_SOURCE}"; then
-        SITEMAP_CONTENT_FILE=$(marsh_get_sitemap_temp_path "${TARGET_OUTPUT_ROOT}" "${SITEMAP_FILE}" "content") || return 1
-        SITEMAP_META_FILE=$(marsh_get_sitemap_temp_path "${TARGET_OUTPUT_ROOT}" "${SITEMAP_FILE}" "meta-yaml") || return 1
-        mkdir -p "${SITEMAP_CONTENT_FILE%/*}" >/dev/null 2>&1 || {
-            echo "Unable to create sitemap temp path: ${SITEMAP_CONTENT_FILE%/*}" >&2
-            return 1
-        }
-        marsh_extract_frontmatter "${SITEMAP_SOURCE}" "${SITEMAP_META_FILE}" "${SITEMAP_CONTENT_FILE}" || {
-            rm -f "${SITEMAP_META_FILE}" "${SITEMAP_CONTENT_FILE}"
-            echo "Unable to extract sitemap frontmatter: ${SITEMAP_SOURCE}" >&2
-            return 1
-        }
-    fi
-    TEXT_TRANSFORM=
-    if [[ "${MARKDOWN_REWRITE_LINKS}" == true ]]; then
-        TEXT_TRANSFORM="links:replace-ext:${MARKDOWN_FILEEXT_CSV}:html"
-    fi
-    <"${SITEMAP_CONTENT_FILE}" marsh_text_transform ${TEXT_TRANSFORM} | marsh_process_markdown "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" > "${SITEMAP_RENDER_FILE}" || {
-        rm -f "${SITEMAP_META_FILE}" "${SITEMAP_CONTENT_FILE}"
-        echo "Unable to render sitemap markdown: ${SITEMAP_SOURCE}" >&2
-        return 1
-    }
-    rm -f "${SITEMAP_META_FILE}" "${SITEMAP_CONTENT_FILE}"
 }
 
 # builds a template and applies it to a document
@@ -6776,6 +4764,2047 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
     fi
 }
 
+# loads cached target-relative template asset output paths for one template context
+function marsh_get_template_asset_output_paths {  # marsh_get_template_asset_output_paths target_output_rel templates_dir template #template_overrides[@] template_overrides[@] template_assets_path
+    local TARGET_OUTPUT_REL TEMPLATES_DIR TEMPLATE NUM_TEMPLATE_OVERRIDES TEMPLATE_ASSETS_PATH
+    local CACHE_DIR CACHE_KEY CACHE_FILE CACHE_TEMP TEMPLATE_PREFIX TEMPLATE_META TEMPLATE_META_VARS
+    local ASSET_TYPE ASSETS_VAR ASSET ASSET_PATH ASSET_OUTPUT_PATH
+    local OUTPUT OIFS
+    local -a TEMPLATE_OVERRIDES ASSET_TYPES ASSETS
+
+    # init
+    TARGET_OUTPUT_REL="${1:-}"
+    TEMPLATES_DIR="${2:-}"
+    TEMPLATE="${3:-}"
+    [[ "${TARGET_OUTPUT_REL}" == "" ]] && return 1
+    [[ "${TEMPLATES_DIR}" == "" ]] && return 1
+    [[ "${TEMPLATE}" == "" ]] && return 1
+    shift 3
+    NUM_TEMPLATE_OVERRIDES="${1:-0}"
+    shift 1
+    TEMPLATE_OVERRIDES=()
+    while [[ "${NUM_TEMPLATE_OVERRIDES}" -gt 0 ]] && [[ "${#@}" -gt 0 ]]; do
+        TEMPLATE_OVERRIDES+=("${1}")
+        NUM_TEMPLATE_OVERRIDES=$((NUM_TEMPLATE_OVERRIDES - 1))
+        shift 1
+    done
+    TEMPLATE_ASSETS_PATH="${1:-}"
+
+    # normalize cache inputs so equivalent paths share one entry
+    TARGET_OUTPUT_REL=$(marsh_normalize_internal_path "${TARGET_OUTPUT_REL}") || return 1
+    TEMPLATE_ASSETS_PATH="${TEMPLATE_ASSETS_PATH#/}"
+    if [[ "${TEMPLATE_ASSETS_PATH}" != "" ]]; then
+        TEMPLATE_ASSETS_PATH=$(marsh_normalize_internal_path "${TEMPLATE_ASSETS_PATH}") || return 1
+        [[ "${TEMPLATE_ASSETS_PATH}" == "." ]] && TEMPLATE_ASSETS_PATH=""
+    fi
+
+    CACHE_DIR="${MARSH_TEMP}/template-asset-output-cache"
+    mkdir -p "${CACHE_DIR}" >/dev/null 2>&1 || {
+        echo "Unable to create template asset output cache directory: ${CACHE_DIR}" >&2
+        return 1
+    }
+    CACHE_FILE=$(marsh_get_cache_path "${CACHE_DIR}" ".paths" "$({
+        printf '%s\034%s\034%s\034' "${TARGET_OUTPUT_REL}" "${TEMPLATES_DIR}/${TEMPLATE}" "${TEMPLATE_ASSETS_PATH}"
+        printf '%s\034' "${TEMPLATE_OVERRIDES[@]}"
+    })") || return 1
+    # reuse precomputed target-relative outputs for the same template context
+    if [[ -f "${CACHE_FILE}" ]] && [[ -r "${CACHE_FILE}" ]]; then
+        cat "${CACHE_FILE}"
+        return 0
+    fi
+
+    # load template metadata once before resolving each asset type
+    TEMPLATE_PREFIX="TEMPLATE_"
+    TEMPLATE_META=$(marsh_get_template_metadata "${TEMPLATE_PREFIX}" "${TEMPLATES_DIR}/${TEMPLATE}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}") || {
+        echo "Unable to load template metadata: ${TEMPLATES_DIR}/${TEMPLATE}" >&2
+        return 1
+    }
+    TEMPLATE_META_VARS=$(echo "${TEMPLATE_META}" | marsh_get_variables)
+    eval "$(printf '%s\n' "${TEMPLATE_META_VARS}" | marsh_get_local_declarations)"
+    eval "${TEMPLATE_META}"
+
+    # store shell assignments so callers can eval one cached output map
+    ASSET_TYPES=('FONTS' 'STYLES' 'SCRIPTS' 'IMAGES' 'AUDIO' 'VIDEO' 'DOCUMENTS' 'BINARIES' 'OTHER')
+    OUTPUT=""
+    for ASSET_TYPE in "${ASSET_TYPES[@]}"; do
+        OUTPUT+="TEMPLATE_ASSET_OUTPUT_PATHS_${ASSET_TYPE}=()"$'\n'
+        ASSETS_VAR="TEMPLATE_ASSETS_${ASSET_TYPE}[@]"
+        OIFS="${IFS}"
+        IFS=$'\n'
+        ASSETS=(${!ASSETS_VAR})
+        IFS="${OIFS}"
+        for ASSET in "${ASSETS[@]}"; do
+            [[ "${ASSET}" == "" ]] && continue
+            ASSET_PATH="${ASSET%\?*}"
+            ASSET_OUTPUT_PATH=$(marsh_resolve_template_asset_output_path "${TARGET_OUTPUT_REL}" "${ASSET_PATH}" "${TEMPLATE_ASSETS_PATH}") || return 1
+            OUTPUT+="TEMPLATE_ASSET_OUTPUT_PATHS_${ASSET_TYPE}+=(\"${ASSET_OUTPUT_PATH//\"/\\\"}\")"$'\n'
+        done
+    done
+
+    # write the cached output map atomically
+    mkdir -p "${CACHE_FILE%/*}" >/dev/null 2>&1 || {
+        echo "Unable to create template asset output cache path: ${CACHE_FILE%/*}" >&2
+        return 1
+    }
+    CACHE_TEMP=$(mktemp "${CACHE_FILE%/*}/paths-XXXXXX") || {
+        echo "Unable to create template asset output cache file: ${CACHE_FILE%/*}/paths-XXXXXX" >&2
+        return 1
+    }
+    printf '%s' "${OUTPUT}" > "${CACHE_TEMP}" || {
+        echo "Unable to write template asset output cache file: ${CACHE_TEMP}" >&2
+        rm -f "${CACHE_TEMP}"
+        return 1
+    }
+    mv "${CACHE_TEMP}" "${CACHE_FILE}" 2>/dev/null || rm -f "${CACHE_TEMP}"
+    printf '%s' "${OUTPUT}"
+}
+
+# returns the existing template asset paths declared by template metadata and overrides
+function marsh_get_template_assets {  # marsh_get_template_assets templates_dir template #template_overrides[@] template_overrides[@]
+    local TEMPLATES_DIR TEMPLATE NUM_TEMPLATE_OVERRIDES
+    local TEMPLATE_PREFIX TEMPLATE_META TEMPLATE_META_VARS
+    local ASSET ASSET_PATH
+    local -a TEMPLATE_OVERRIDES TEMPLATE_ASSETS_ALL
+
+    TEMPLATES_DIR="${1:-}"
+    TEMPLATE="${2:-}"
+    [[ "${TEMPLATES_DIR}" == "" ]] && return 1
+    [[ "${TEMPLATE}" == "" ]] && return 1
+    shift 2
+    NUM_TEMPLATE_OVERRIDES="${1:-0}"
+    shift 1
+    TEMPLATE_OVERRIDES=()
+    while [[ "${NUM_TEMPLATE_OVERRIDES}" -gt 0 ]] && [[ "${#@}" -gt 0 ]]; do
+        TEMPLATE_OVERRIDES+=("${1}")
+        NUM_TEMPLATE_OVERRIDES=$((NUM_TEMPLATE_OVERRIDES - 1))
+        shift 1
+    done
+
+    TEMPLATE_PREFIX="TEMPLATE_"
+    TEMPLATE_META=$(marsh_get_template_metadata "${TEMPLATE_PREFIX}" "${TEMPLATES_DIR}/${TEMPLATE}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}") || {
+        echo "Unable to load template metadata: ${TEMPLATES_DIR}/${TEMPLATE}" >&2
+        return 1
+    }
+    TEMPLATE_META_VARS=$(echo "${TEMPLATE_META}" | marsh_get_variables)
+    eval "$(printf '%s\n' "${TEMPLATE_META_VARS}" | marsh_get_local_declarations)"
+    eval "${TEMPLATE_META}"
+
+    TEMPLATE_ASSETS_ALL=()
+    TEMPLATE_ASSETS_ALL+=("${TEMPLATE_ASSETS_FONTS[@]}")
+    TEMPLATE_ASSETS_ALL+=("${TEMPLATE_ASSETS_STYLES[@]}")
+    TEMPLATE_ASSETS_ALL+=("${TEMPLATE_ASSETS_SCRIPTS[@]}")
+    TEMPLATE_ASSETS_ALL+=("${TEMPLATE_ASSETS_IMAGES[@]}")
+    TEMPLATE_ASSETS_ALL+=("${TEMPLATE_ASSETS_AUDIO[@]}")
+    TEMPLATE_ASSETS_ALL+=("${TEMPLATE_ASSETS_VIDEO[@]}")
+    TEMPLATE_ASSETS_ALL+=("${TEMPLATE_ASSETS_DOCUMENTS[@]}")
+    TEMPLATE_ASSETS_ALL+=("${TEMPLATE_ASSETS_BINARIES[@]}")
+    TEMPLATE_ASSETS_ALL+=("${TEMPLATE_ASSETS_OTHER[@]}")
+
+    for ASSET in "${TEMPLATE_ASSETS_ALL[@]}"; do
+        ASSET_PATH="${ASSET%\?*}"
+        [[ -e "${TEMPLATES_DIR}/${TEMPLATE}/${ASSET_PATH}" ]] && [[ -r "${TEMPLATES_DIR}/${TEMPLATE}/${ASSET_PATH}" ]] || continue
+        printf '%s\n' "${ASSET}"
+    done
+}
+
+# derives a stable cached template name from a template source path
+function marsh_get_template_cache_name {  # marsh_get_template_cache_name template_source
+    local TEMPLATE_SOURCE TEMPLATE_NAME TEMPLATE_KEY
+
+    # init
+    TEMPLATE_SOURCE="${1:-}"
+    [[ "${TEMPLATE_SOURCE}" == "" ]] && return 1
+    TEMPLATE_SOURCE="${TEMPLATE_SOURCE%/}"
+
+    # combine the readable basename with the full escaped source path for uniqueness
+    TEMPLATE_NAME="${TEMPLATE_SOURCE##*/}"
+    [[ "${TEMPLATE_NAME}" != "" ]] || TEMPLATE_NAME='template'
+    TEMPLATE_KEY=$(marsh_escape_cache_component "${TEMPLATE_SOURCE}") || return 1
+    printf '%s\n' "${TEMPLATE_NAME}-${TEMPLATE_KEY}"
+}
+
+# returns the cached template path, creating it when needed
+function marsh_get_template_cache_path {  # marsh_get_template_cache_path templates_dir template template_source
+    local TEMPLATES_DIR TEMPLATE TEMPLATE_SOURCE TEMPLATE_CACHE_PATH
+
+    TEMPLATES_DIR="${1:-}"
+    TEMPLATE="${2:-}"
+    TEMPLATE_SOURCE="${3:-}"
+    [[ "${TEMPLATES_DIR}" == "" ]] && return 1
+    [[ "${TEMPLATE}" == "" ]] && return 1
+    [[ "${TEMPLATE_SOURCE}" == "" ]] && return 1
+    TEMPLATE_CACHE_PATH="${TEMPLATES_DIR}/${TEMPLATE}"
+
+    if [[ ! -e "${TEMPLATE_CACHE_PATH}" ]]; then
+        marsh_copy_files "${TEMPLATE_SOURCE}/*" \
+                "${TEMPLATE_CACHE_PATH}" \
+                false || return 1
+    fi
+
+    [[ -e "${TEMPLATE_CACHE_PATH}" ]] || {
+        echo "Template cache path not found after copy: ${TEMPLATE_CACHE_PATH}" >&2
+        return 1
+    }
+    printf '%s\n' "${TEMPLATE_CACHE_PATH}"
+}
+
+# loads cached template metadata assignments where available
+function marsh_get_template_metadata {  # marsh_get_template_metadata prefix template_dir #template_overrides[@] template_overrides[@]
+    local PREFIX TEMPLATE_DIR NUM_TEMPLATE_OVERRIDES
+    local CACHE_DIR CACHE_KEY CACHE_FILE CACHE_TEMP TEMPLATE_META
+    local -a TEMPLATE_OVERRIDES
+
+    # init
+    PREFIX="${1:-}"
+    TEMPLATE_DIR="${2:-}"
+    [[ "${TEMPLATE_DIR}" == "" ]] && return 1
+    shift 2
+    NUM_TEMPLATE_OVERRIDES="${1:-0}"
+    shift 1
+    TEMPLATE_OVERRIDES=()
+    while [[ "${NUM_TEMPLATE_OVERRIDES}" -gt 0 ]] && [[ "${#@}" -gt 0 ]]; do
+        TEMPLATE_OVERRIDES+=("${1}")
+        NUM_TEMPLATE_OVERRIDES=$((NUM_TEMPLATE_OVERRIDES - 1))
+        shift 1
+    done
+
+    # create cache directory and key
+    CACHE_DIR="${MARSH_TEMP}/template-metadata-cache"
+    mkdir -p "${CACHE_DIR}" >/dev/null 2>&1 || {
+        echo "Unable to create template metadata cache directory: ${CACHE_DIR}" >&2
+        return 1
+    }
+    CACHE_FILE=$(marsh_get_cache_path "${CACHE_DIR}" ".meta" "$(printf '%s\034' "${PREFIX}" "${TEMPLATE_DIR}" "${TEMPLATE_OVERRIDES[@]}")") || return 1
+    if [[ -f "${CACHE_FILE}" ]] && [[ -r "${CACHE_FILE}" ]]; then
+        cat "${CACHE_FILE}"
+        return 0
+    fi
+
+    # parse and cache template metadata
+    TEMPLATE_META=$(marsh_parse_template_metadata "${PREFIX}" "${TEMPLATE_DIR}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}")
+    [[ $? -ne 0 ]] && return 1
+    mkdir -p "${CACHE_FILE%/*}" >/dev/null 2>&1 || {
+        echo "Unable to create template metadata cache path: ${CACHE_FILE%/*}" >&2
+        return 1
+    }
+    CACHE_TEMP=$(mktemp "${CACHE_FILE%/*}/metadata-XXXXXX") || {
+        echo "Unable to create template metadata cache file: ${CACHE_FILE%/*}/metadata-XXXXXX" >&2
+        return 1
+    }
+    printf '%s\n' "${TEMPLATE_META}" > "${CACHE_TEMP}" || {
+        echo "Unable to write template metadata cache file: ${CACHE_TEMP}" >&2
+        rm -f "${CACHE_TEMP}"
+        return 1
+    }
+    mv "${CACHE_TEMP}" "${CACHE_FILE}" 2>/dev/null || rm -f "${CACHE_TEMP}"
+    printf '%s\n' "${TEMPLATE_META}"
+}
+
+# prints bash variable assignments for template metadata
+function marsh_parse_template_metadata {  # marsh_parse_template_metadata prefix template_dir #template_overrides[@] template_overrides[@]
+    local PREFIX TEMPLATE_DIR NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDE
+    local TEMPLATE_META TEMPLATE_META_VARS
+    local INDEX ASSET_TYPE ASSET_TYPE_UPPER ASSET FILTER_INDEX REGEX EXTENDED MATCH REPLACE EXTRA I
+    local ASSETS_INDEX ASSETS_TYPE OIFS
+    local -a TEMPLATE_OVERRIDES TEMPLATE_ASSETS_FONTS TEMPLATE_ASSETS_STYLES TEMPLATE_ASSETS_SCRIPTS TEMPLATE_ASSETS_IMAGES
+    local -a TEMPLATE_ASSETS_AUDIO TEMPLATE_ASSETS_VIDEO TEMPLATE_ASSETS_DOCUMENTS TEMPLATE_ASSETS_BINARIES TEMPLATE_ASSETS_OTHER
+    local -a ASSET_TYPES ASSETS ASSETS_TEMP
+
+    # init
+    PREFIX="${1:-}"
+    TEMPLATE_DIR="${2:-}"
+    [[ "${TEMPLATE_DIR}" == "" ]] && return 1
+    shift 2
+    NUM_TEMPLATE_OVERRIDES="${1:-0}"
+    shift 1
+    TEMPLATE_OVERRIDES=()
+    while [[ "${NUM_TEMPLATE_OVERRIDES}" -gt 0 ]] && [[ "${#@}" -gt 0 ]]; do
+        TEMPLATE_OVERRIDES+=("${1}")
+        NUM_TEMPLATE_OVERRIDES=$((NUM_TEMPLATE_OVERRIDES - 1))
+        shift 1
+    done
+
+    # load config
+    if [[ -f "${TEMPLATE_DIR}/template.yaml" ]] && [[ -r "${TEMPLATE_DIR}/template.yaml" ]]; then
+        TEMPLATE_META=$(marsh_parse_yaml "${TEMPLATE_DIR}/template.yaml" "MARSH_TEMPLATE_")
+        [[ $? -ne 0 ]] && echo "Unable to parse yaml file: ${TEMPLATE_DIR}/template.yaml" >&2 && return 1
+        TEMPLATE_META_VARS=$(echo "${TEMPLATE_META}" | marsh_get_variables)
+        eval "$(printf '%s\n' "${TEMPLATE_META_VARS}" | marsh_get_local_declarations)"
+        eval "${TEMPLATE_META}"
+    else
+        echo "Template configuration file not found: ${TEMPLATE_DIR}/template.yaml" >&2
+        return 1
+    fi
+    for TEMPLATE_OVERRIDE in "${TEMPLATE_OVERRIDES[@]}"; do
+        [[ "${TEMPLATE_OVERRIDE}" == "" ]] && continue
+        if [[ -f "${TEMPLATE_OVERRIDE}" ]] && [[ -r "${TEMPLATE_OVERRIDE}" ]]; then
+            TEMPLATE_META=$(marsh_parse_yaml "${TEMPLATE_OVERRIDE}" "MARSH_TEMPLATE_")
+            [[ $? -ne 0 ]] && echo "Unable to parse yaml file: ${TEMPLATE_OVERRIDE}" >&2 && return 1
+            TEMPLATE_META_VARS=$(echo "${TEMPLATE_META_VARS}"$'\n'"${TEMPLATE_META}" | marsh_get_variables)
+            eval "$(printf '%s\n' "${TEMPLATE_META_VARS}" | marsh_get_local_declarations)"
+            eval "${TEMPLATE_META}"
+        else
+            echo "Template configuration override file not found: ${TEMPLATE_OVERRIDE}" >&2
+            return 1
+        fi
+    done
+
+    # print partials paths relative to template dir
+    [[ "${MARSH_TEMPLATE_Template_Partials_Base:-}"     != "" ]] && echo "${PREFIX}Template_Partials_Base=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Base//\"/\\\"}\""
+    [[ "${MARSH_TEMPLATE_Template_Partials_Head:-}"     != "" ]] && echo "${PREFIX}Template_Partials_Head=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Head//\"/\\\"}\""
+    [[ "${MARSH_TEMPLATE_Template_Partials_Body:-}"     != "" ]] && echo "${PREFIX}Template_Partials_Body=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Body//\"/\\\"}\""
+    [[ "${MARSH_TEMPLATE_Template_Partials_Document:-}" != "" ]] && echo "${PREFIX}Template_Partials_Document=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Document//\"/\\\"}\""
+    [[ "${MARSH_TEMPLATE_Template_Partials_Header:-}"   != "" ]] && echo "${PREFIX}Template_Partials_Header=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Header//\"/\\\"}\""
+    [[ "${MARSH_TEMPLATE_Template_Partials_Nav:-}"      != "" ]] && echo "${PREFIX}Template_Partials_Nav=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Nav//\"/\\\"}\""
+    [[ "${MARSH_TEMPLATE_Template_Partials_Notice:-}"   != "" ]] && echo "${PREFIX}Template_Partials_Notice=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Notice//\"/\\\"}\""
+    [[ "${MARSH_TEMPLATE_Template_Partials_Footer:-}"   != "" ]] && echo "${PREFIX}Template_Partials_Footer=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Footer//\"/\\\"}\""
+    [[ "${MARSH_TEMPLATE_Template_Partials_Redirect:-}" != "" ]] && echo "${PREFIX}Template_Partials_Redirect=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Redirect//\"/\\\"}\""
+    [[ "${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Base:-}"     != "" ]] && echo "${PREFIX}Template_Partials_Archive_HTML_Base=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Base//\"/\\\"}\""
+    [[ "${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Head:-}"     != "" ]] && echo "${PREFIX}Template_Partials_Archive_HTML_Head=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Head//\"/\\\"}\""
+    [[ "${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Body:-}"     != "" ]] && echo "${PREFIX}Template_Partials_Archive_HTML_Body=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Body//\"/\\\"}\""
+    [[ "${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Document:-}" != "" ]] && echo "${PREFIX}Template_Partials_Archive_HTML_Document=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Document//\"/\\\"}\""
+    [[ "${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Header:-}"   != "" ]] && echo "${PREFIX}Template_Partials_Archive_HTML_Header=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Header//\"/\\\"}\""
+    [[ "${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Nav:-}"      != "" ]] && echo "${PREFIX}Template_Partials_Archive_HTML_Nav=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Nav//\"/\\\"}\""
+    [[ "${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Notice:-}"   != "" ]] && echo "${PREFIX}Template_Partials_Archive_HTML_Notice=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Notice//\"/\\\"}\""
+    [[ "${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Footer:-}"   != "" ]] && echo "${PREFIX}Template_Partials_Archive_HTML_Footer=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Footer//\"/\\\"}\""
+    [[ "${MARSH_TEMPLATE_Template_Partials_Archive_Atom_Base:-}"     != "" ]] && echo "${PREFIX}Template_Partials_Archive_Atom_Base=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Archive_Atom_Base//\"/\\\"}\""
+    [[ "${MARSH_TEMPLATE_Template_Partials_Archive_Atom_Body:-}"     != "" ]] && echo "${PREFIX}Template_Partials_Archive_Atom_Body=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Archive_Atom_Body//\"/\\\"}\""
+    [[ "${MARSH_TEMPLATE_Template_Partials_Archive_Atom_Document:-}" != "" ]] && echo "${PREFIX}Template_Partials_Archive_Atom_Document=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Archive_Atom_Document//\"/\\\"}\""
+    [[ "${MARSH_TEMPLATE_Template_Partials_Archive_JSON_Base:-}"     != "" ]] && echo "${PREFIX}Template_Partials_Archive_JSON_Base=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Archive_JSON_Base//\"/\\\"}\""
+    [[ "${MARSH_TEMPLATE_Template_Partials_Archive_JSON_Body:-}"     != "" ]] && echo "${PREFIX}Template_Partials_Archive_JSON_Body=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Archive_JSON_Body//\"/\\\"}\""
+    [[ "${MARSH_TEMPLATE_Template_Partials_Archive_JSON_Document:-}" != "" ]] && echo "${PREFIX}Template_Partials_Archive_JSON_Document=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Archive_JSON_Document//\"/\\\"}\""
+
+    # assets
+    ASSET_TYPES=('Fonts' 'Styles' 'Scripts' 'Images' 'Audio' 'Video' 'Documents' 'Binaries' 'Other')
+    for ASSET_TYPE in "${ASSET_TYPES[@]}"; do
+        eval "TEMPLATE_ASSETS_${ASSET_TYPE}=()"
+        INDEX=0
+        ASSET="MARSH_TEMPLATE_Template_Assets_${ASSET_TYPE}_${INDEX}"
+        ASSET="${!ASSET:-}"
+        while [[ "${ASSET}" != "" ]]; do
+            eval "TEMPLATE_ASSETS_${ASSET_TYPE}+=(\"${ASSET//\"/\\\"}\")"
+            INDEX=$((INDEX+1))
+            ASSET="MARSH_TEMPLATE_Template_Assets_${ASSET_TYPE}_${INDEX}"
+            ASSET="${!ASSET:-}"
+        done
+    done
+
+    # assets filters
+    FILTER_INDEX=0
+    REGEX="MARSH_TEMPLATE_Template_Filters_${FILTER_INDEX}_Regex"
+    REGEX="${!REGEX:-}"
+    EXTENDED="MARSH_TEMPLATE_Template_Filters_${FILTER_INDEX}_Extended"
+    EXTENDED="${!EXTENDED:-}"
+    # loop over assets filters
+    while [[ "${REGEX}" != "" ]]; do
+        # escape match
+        if [[ "$(echo ${REGEX} | grep -E '^s/.+[^\]/.*[^\]/g?$')" == "${REGEX}" ]]; then
+            MATCH=$(echo "${REGEX}" | sed -E 's/^s\/(.+[^\])\/.*[^\]\/g?/\1/' | sed 's/[[]\.|$(){}?+*^]/\\&/g')
+            REPLACE=$(echo "${REGEX}" | sed -E 's/^s\/.+[^\]\/(.*[^\])\/g?/\1/')
+            EXTRA=$(echo "${REGEX}" | sed -E 's/^s\/.+[^\]\/.*[^\]\/(g?)/\1/')
+            REGEX="s/${MATCH}/${REPLACE}/${EXTRA}"
+        elif [[ "$(echo ${REGEX} | grep -E '^s\|.+[^\]\|.*[^\]\|g?$')" == "${REGEX}" ]]; then
+            MATCH=$(echo "${REGEX}" | sed -E 's/^s\|(.+[^\])\|.*[^\]\|g?/\1/' | sed 's/[[]\.|$(){}?+*^]/\\&/g')
+            REPLACE=$(echo "${REGEX}" | sed -E 's/^s\|.+[^\]\|(.*[^\])\|g?/\1/')
+            EXTRA=$(echo "${REGEX}" | sed -E 's/^s\|.+[^\]\|.*[^\]\|(g?)/\1/')
+            REGEX="s|${MATCH}|${REPLACE}|${EXTRA}"
+        elif [[ "$(echo ${REGEX} | grep -E '^/.+[^\]/d?$')" == "${REGEX}" ]]; then
+            MATCH=$(echo "${REGEX}" | sed -E 's/^\/(.+[^\])\/d?/\1/' | sed 's/[[]\.|$(){}?+*^]/\\&/g')
+            REPLACE=""
+            EXTRA=$(echo "${REGEX}" | sed -E 's/^\/.+[^\]\/(d?)/\1/')
+            REGEX="/${MATCH}/${EXTRA}"
+        else
+            continue
+        fi
+        ASSETS_INDEX=0
+        ASSETS_TYPE="MARSH_TEMPLATE_Template_Filters_${FILTER_INDEX}_Assets_${ASSETS_INDEX}"
+        ASSETS_TYPE="${!ASSETS_TYPE}"
+        # loop over assets types for filter
+        while [[ "${ASSETS_TYPE}" != "" ]]; do
+            ASSETS="TEMPLATE_ASSETS_${ASSETS_TYPE}[@]"
+            OIFS="${IFS}"
+            IFS=$'\n'
+            ASSETS=(${!ASSETS})
+            IFS="${OIFS}"
+            ASSETS_TEMP=()
+            # loop over all individual assets of this type
+            for ASSET in "${ASSETS[@]}"; do
+                # do regex
+                if [[ "${EXTENDED}" == true ]]; then
+                    ASSET=$(echo "${ASSET}" | sed -E "${REGEX}" 2>/dev/null)
+                else
+                    ASSET=$(echo "${ASSET}" | sed "${REGEX}" 2>/dev/null)
+                fi
+                # remove empty
+                if [[ "${ASSET:-}" != "" ]]; then
+                    ASSETS_TEMP+=("${ASSET}")
+                fi
+            done
+            # update original array
+            eval "TEMPLATE_ASSETS_${ASSETS_TYPE}=()"
+            for I in "${!ASSETS_TEMP[@]}"; do
+                eval "TEMPLATE_ASSETS_${ASSETS_TYPE}+=(\"${ASSETS_TEMP[$I]//\"/\\\"}\")"
+            done
+            ASSETS_INDEX=$((ASSETS_INDEX+1))
+            ASSETS_TYPE="MARSH_TEMPLATE_Template_Filters_${FILTER_INDEX}_Assets_${ASSETS_INDEX}"
+            ASSETS_TYPE="${!ASSETS_TYPE:-}"
+        done
+        FILTER_INDEX=$((FILTER_INDEX+1))
+        REGEX="MARSH_TEMPLATE_Template_Filters_${FILTER_INDEX}_Regex"
+        REGEX="${!REGEX:-}"
+        EXTENDED="MARSH_TEMPLATE_Template_Filters_${FILTER_INDEX}_Extended"
+        EXTENDED="${!EXTENDED:-}"
+        ASSETS_INDEX=0
+        ASSETS_TYPE="MARSH_TEMPLATE_Template_Filters_${FILTER_INDEX}_Assets_${ASSETS_INDEX}"
+        ASSETS_TYPE="${!ASSETS_TYPE:-}"
+    done
+
+    # print assets
+    for ASSET_TYPE in "${ASSET_TYPES[@]}"; do
+        ASSET_TYPE_UPPER=$(echo "${ASSET_TYPE}" | awk '{ print toupper($0) }')
+        ASSETS="TEMPLATE_ASSETS_${ASSET_TYPE}[@]"
+        OIFS="${IFS}"
+        IFS=$'\n'
+        ASSETS=(${!ASSETS})
+        IFS="${OIFS}"
+        echo "${PREFIX}ASSETS_${ASSET_TYPE_UPPER}=()"
+        for ASSET in "${ASSETS[@]}"; do
+            [[ "${ASSET:-}" != "" ]] && echo "${PREFIX}ASSETS_${ASSET_TYPE_UPPER}+=(\"${ASSET//\"/\\\"}\")"
+        done
+    done
+}
+
+# resolves a template tag to shell variable assignments
+function marsh_resolve_tag_metadata {  # marsh_resolve_tag_metadata tag_name prefix metadata_vars[@]
+    local TAG_NAME PREFIX METADATA_VARS TAG_VAR TAG_TYPE
+    local OIFS META_VAR NORMALIZED_TAG NORMALIZED_META MATCH_VAR MATCH_COUNT
+
+    # init
+    TAG_NAME="${1:-}"
+    [[ "${TAG_NAME}" == "" ]] && return 1
+    PREFIX="${2:-}"
+    METADATA_VARS="${3:-}"
+
+    # handle known metadata tags
+    TAG_VAR=""
+    TAG_TYPE=""
+    case "${TAG_NAME}" in
+        site.rootpath)
+            TAG_VAR="SITE_ROOTPATH"
+            TAG_TYPE="string"
+            ;;
+        site.abspath)
+            TAG_VAR="SITE_ABSPATH"
+            TAG_TYPE="string"
+            ;;
+        target.rootpath)
+            TAG_VAR="TARGET_ROOTPATH"
+            TAG_TYPE="string"
+            ;;
+        target.abspath)
+            TAG_VAR="TARGET_ABSPATH"
+            TAG_TYPE="string"
+            ;;
+        archive.rootpath)
+            TAG_VAR="ARCHIVE_ROOTPATH"
+            TAG_TYPE="string"
+            ;;
+        archive.abspath)
+            TAG_VAR="ARCHIVE_ABSPATH"
+            TAG_TYPE="string"
+            ;;
+        target.sitemap)
+            TAG_VAR="TARGET_SITEMAP"
+            TAG_TYPE="string"
+            ;;
+        template.assets.fonts)
+            TAG_VAR="TEMPLATE_TAG_ASSETS_FONTS"
+            TAG_TYPE="shell-array"
+            ;;
+        template.assets.styles)
+            TAG_VAR="TEMPLATE_TAG_ASSETS_STYLES"
+            TAG_TYPE="shell-array"
+            ;;
+        template.assets.scripts)
+            TAG_VAR="TEMPLATE_TAG_ASSETS_SCRIPTS"
+            TAG_TYPE="shell-array"
+            ;;
+        template.assets.images)
+            TAG_VAR="TEMPLATE_TAG_ASSETS_IMAGES"
+            TAG_TYPE="shell-array"
+            ;;
+        template.assets.audio)
+            TAG_VAR="TEMPLATE_TAG_ASSETS_AUDIO"
+            TAG_TYPE="shell-array"
+            ;;
+        template.assets.video)
+            TAG_VAR="TEMPLATE_TAG_ASSETS_VIDEO"
+            TAG_TYPE="shell-array"
+            ;;
+        template.assets.documents)
+            TAG_VAR="TEMPLATE_TAG_ASSETS_DOCUMENTS"
+            TAG_TYPE="shell-array"
+            ;;
+        template.assets.binaries)
+            TAG_VAR="TEMPLATE_TAG_ASSETS_BINARIES"
+            TAG_TYPE="shell-array"
+            ;;
+        template.assets.other)
+            TAG_VAR="TEMPLATE_TAG_ASSETS_OTHER"
+            TAG_TYPE="shell-array"
+            ;;
+        document.href)
+            TAG_VAR="${PREFIX}HREF"
+            TAG_TYPE="string"
+            ;;
+        document.uri)
+            TAG_VAR="${PREFIX}URI"
+            TAG_TYPE="string"
+            ;;
+        document.content)
+            TAG_VAR="${PREFIX}CONTENT"
+            TAG_TYPE="file"
+            ;;
+        document.authors)
+            TAG_VAR="${PREFIX}Authors_"
+            TAG_TYPE="array"
+            ;;
+        document.copyright)
+            TAG_VAR="${PREFIX}Copyright"
+            TAG_TYPE="string"
+            ;;
+        document.credits-url)
+            TAG_VAR="${PREFIX}Credits_URL"
+            TAG_TYPE="string"
+            ;;
+        document.date)
+            TAG_VAR="${PREFIX}Date"
+            TAG_TYPE="string"
+            ;;
+        document.language)
+            TAG_VAR="${PREFIX}Language"
+            TAG_TYPE="string"
+            ;;
+        document.language-code)
+            TAG_VAR="${PREFIX}Language_Code"
+            TAG_TYPE="string"
+            ;;
+        document.license)
+            TAG_VAR="${PREFIX}License"
+            TAG_TYPE="string"
+            ;;
+        document.license-abbr)
+            TAG_VAR="${PREFIX}License_Abbr"
+            TAG_TYPE="string"
+            ;;
+        document.license-url)
+            TAG_VAR="${PREFIX}License_URL"
+            TAG_TYPE="string"
+            ;;
+        document.project)
+            TAG_VAR="${PREFIX}Project"
+            TAG_TYPE="string"
+            ;;
+        document.project-version)
+            TAG_VAR="${PREFIX}Project_Version"
+            TAG_TYPE="string"
+            ;;
+        document.project-url)
+            TAG_VAR="${PREFIX}Project_URL"
+            TAG_TYPE="string"
+            ;;
+        document.redirect-url)
+            TAG_VAR="${PREFIX}Redirect_URL"
+            TAG_TYPE="string"
+            ;;
+        document.state)
+            TAG_VAR="${PREFIX}State_"
+            TAG_TYPE="array"
+            ;;
+        document.title)
+            TAG_VAR="${PREFIX}Title"
+            TAG_TYPE="string"
+            ;;
+        document.type)
+            TAG_VAR="${PREFIX}Type"
+            TAG_TYPE="string"
+            ;;
+        util.json-separator)
+            TAG_VAR="UTIL_JSON_SEPARATOR"
+            TAG_TYPE="string"
+            ;;
+        *)
+            ;;
+    esac
+
+    # handle all other metadata tags, only string values are supported
+    # tag names begin with 'document.' and a list of metadata variables must be provided to match against
+    # normalization follows the output pattern of converting to lowercase and replacing underscores with dashes
+    if [[ "${TAG_VAR}" == "" ]] && [[ "${TAG_TYPE}" == "" ]]; then
+        [[ "${TAG_NAME#document.}" != "${TAG_NAME}" ]] || return 1
+        [[ "${METADATA_VARS}" != "" ]] || return 1
+        NORMALIZED_TAG="${TAG_NAME#document.}"
+        NORMALIZED_TAG=$(printf '%s' "${NORMALIZED_TAG}" | awk '{ print tolower($0) }')
+        MATCH_VAR=""
+        MATCH_COUNT=0
+        OIFS="${IFS}"
+        IFS=$'\n'
+        for META_VAR in ${METADATA_VARS}; do
+            [[ "${META_VAR}" == "${PREFIX}"* ]] || continue
+            NORMALIZED_META="${META_VAR#${PREFIX}}"
+            NORMALIZED_META=$(printf '%s' "${NORMALIZED_META}" | awk '{ print tolower($0) }')
+            NORMALIZED_META="${NORMALIZED_META//_/-}"
+            [[ "${NORMALIZED_META}" == "${NORMALIZED_TAG}" ]] || continue
+            MATCH_VAR="${META_VAR}"
+            MATCH_COUNT=$((MATCH_COUNT + 1))
+        done
+        IFS="${OIFS}"
+        [[ "${MATCH_COUNT}" -eq 1 ]] || return 1
+        TAG_VAR="${MATCH_VAR}"
+        TAG_TYPE="string"
+    fi
+
+    printf 'TAG_VAR=%q\n' "${TAG_VAR}"
+    printf 'TAG_TYPE=%q\n' "${TAG_TYPE}"
+    return 0
+}
+
+# resolves a template asset output path relative to the target root and rejects traversal beyond the site root
+function marsh_resolve_template_asset_output_path {  # marsh_resolve_template_asset_output_path target_output_rel asset_path [template_assets_path]
+    local TARGET_OUTPUT_REL ASSET_PATH TEMPLATE_ASSETS_PATH COMBINED_PATH ASSET_OUTPUT_REL
+
+    TARGET_OUTPUT_REL="${1:-}"
+    ASSET_PATH="${2:-}"
+    TEMPLATE_ASSETS_PATH="${3:-}"
+    [[ "${TARGET_OUTPUT_REL}" == "" ]] && return 1
+    [[ "${ASSET_PATH}" == "" ]] && return 1
+    [[ "${ASSET_PATH}" != /* ]] || return 1
+    [[ "${TEMPLATE_ASSETS_PATH}" != /* ]] || return 1
+
+    TARGET_OUTPUT_REL=$(marsh_normalize_internal_path "${TARGET_OUTPUT_REL}" "directory") || return 1
+    COMBINED_PATH="${ASSET_PATH}"
+    if [[ "${TEMPLATE_ASSETS_PATH}" != "" ]]; then
+        COMBINED_PATH="${TEMPLATE_ASSETS_PATH%/}/${ASSET_PATH}"
+    fi
+    ASSET_OUTPUT_REL=$(marsh_resolve_relative_path "${TARGET_OUTPUT_REL}" "${COMBINED_PATH}") || return 1
+    case "${ASSET_OUTPUT_REL}" in
+        ..|../*)
+            return 1
+            ;;
+    esac
+
+    printf '%s\n' "${ASSET_OUTPUT_REL}"
+}
+
+# processes markdown from stdin using explicit runtime configuration
+function marsh_process_markdown {  # marsh_process_markdown markdown_command markdown_options_csv [args...]
+    local MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV OIFS I
+    local -a MARKDOWN_OPTIONS MARKDOWN_OPTIONS_CLIARGS
+
+    MARKDOWN_COMMAND="${1:-}"
+    MARKDOWN_OPTIONS_CSV="${2:-}"
+    [[ "${MARKDOWN_COMMAND}" == "" ]] && return 1
+    shift 2
+
+    MARKDOWN_OPTIONS=()
+    MARKDOWN_OPTIONS_CLIARGS=()
+    if [[ "${MARKDOWN_OPTIONS_CSV}" != "" ]]; then
+        OIFS="${IFS}"
+        IFS=$'\n'
+        MARKDOWN_OPTIONS=(${MARKDOWN_OPTIONS_CSV//,/$IFS})
+        IFS="${OIFS}"
+        for I in "${!MARKDOWN_OPTIONS[@]}"; do
+            MARKDOWN_OPTIONS_CLIARGS+=("-f${MARKDOWN_OPTIONS[$I]}")
+        done
+    fi
+
+    # normalize known output quirks of discount markdown
+    # remove invalid re[lv]="footnote" attributes
+    # fix rendering of backslash-escaped literal angle brackets
+    {
+        if [[ "${#MARKDOWN_OPTIONS_CLIARGS[@]}" -gt 0 ]]; then
+            "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CLIARGS[@]}" "$@"
+        else
+            "${MARKDOWN_COMMAND}" "$@"
+        fi
+    } | sed -E \
+        -e '/<a href="#[a-z]+:[^"]+" re[lv]="footnote">/s/ re[lv]="footnote"//g' \
+        -e 's/\\&lt;/\&lt;/g' \
+        -e 's/\\&gt;/\&gt;/g' \
+        -e 's/\\</\&lt;/g' \
+        -e 's/\\>/\&gt;/g' \
+        -e 's/(&lt;[^<>]+)>/\1\&gt;/g'
+}
+
+# returns success when file begins with yaml frontmatter
+function marsh_has_frontmatter {  # marsh_has_frontmatter source
+    local SOURCE FIRST_LINE
+
+    SOURCE="${1:-}"
+    [[ "${SOURCE}" == "" ]] && return 1
+    IFS= read -r FIRST_LINE < "${SOURCE}" || return 1
+    [[ "${FIRST_LINE}" =~ ^---\ *(#.*)?$ ]]
+}
+
+# extracts yaml frontmatter and document content
+function marsh_extract_frontmatter {  # marsh_extract_frontmatter source meta_dest content_dest
+    local SOURCE META_DEST CONTENT_DEST
+
+    # init
+    SOURCE="${1:-}"
+    META_DEST="${2:-}"
+    CONTENT_DEST="${3:-}"
+    [[ "${SOURCE}" == "" ]] && return 1
+    [[ "${META_DEST}" == "" ]] && return 1
+    [[ "${CONTENT_DEST}" == "" ]] && return 1
+
+    # prepare output files
+    rm -f "${META_DEST}" "${CONTENT_DEST}"
+    : > "${META_DEST}" || return 1
+    : > "${CONTENT_DEST}" || {
+        rm -f "${META_DEST}"
+        return 1
+    }
+
+    # extract frontmatter and content
+    awk -v meta_out="${META_DEST}" -v content_out="${CONTENT_DEST}" '
+    NR == 1 {
+        if ($0 ~ /^---[ ]*(#.*)?$/) {
+            have_yaml = 1
+            in_yaml = 1
+            if (meta_out != "") {
+                print "---" > meta_out
+            }
+            next
+        }
+    }
+    have_yaml && in_yaml {
+        if ($0 ~ /^(---|\.\.\.)[ ]*(#.*)?$/) {
+            in_yaml = 0
+            next
+        }
+        if (meta_out != "") {
+            print >> meta_out
+        }
+        next
+    }
+    {
+        print >> content_out
+    }
+    END {
+        if (!have_yaml) {
+            exit 1
+        }
+        if (meta_out != "") {
+            print "..." >> meta_out
+        }
+    }' "${SOURCE}"
+
+    # clean up on failure
+    if [[ "$?" -ne 0 ]] || [[ ! -f "${META_DEST}" ]] || [[ ! -f "${CONTENT_DEST}" ]]; then
+        rm -f "${META_DEST}" "${CONTENT_DEST}" 2>/dev/null
+        return 1
+    fi
+
+    return 0
+}
+
+# loads cached document metadata assignments where available, creating the cache from yaml when needed
+function marsh_get_document_metadata {  # marsh_get_document_metadata meta_file [prefix]
+    local META_FILE PREFIX CACHE_FILE CACHE_TEMP META_ASSIGNMENTS META_ASSIGNMENT
+    local META_NAME META_VALUE
+
+    META_FILE="${1:-}"
+    PREFIX="${2:-}"
+    [[ "${META_FILE}" == "" ]] && return 1
+
+    CACHE_FILE="${META_FILE%.yaml}"
+    if [[ ! -f "${CACHE_FILE}" ]] || [[ ! -r "${CACHE_FILE}" ]]; then
+        [[ -f "${META_FILE}" ]] && [[ -r "${META_FILE}" ]] || return 1
+        META_ASSIGNMENTS=$(marsh_parse_yaml "${META_FILE}" "")
+        [[ $? -ne 0 ]] && return 1
+        CACHE_TEMP=$(mktemp "${CACHE_FILE}.XXXXXX") || {
+            echo "Unable to create document metadata cache file: ${CACHE_FILE}.XXXXXX" >&2
+            return 1
+        }
+        while IFS= read -r META_ASSIGNMENT; do
+            [[ "${META_ASSIGNMENT}" == "" ]] && continue
+            META_NAME="${META_ASSIGNMENT%%=*}"
+            META_VALUE="${META_ASSIGNMENT#*=}"
+            printf '%s=%s\n' "${META_NAME#_}" "${META_VALUE}" >> "${CACHE_TEMP}" || {
+                rm -f "${CACHE_TEMP}"
+                return 1
+            }
+        done <<< "${META_ASSIGNMENTS}"
+        mv "${CACHE_TEMP}" "${CACHE_FILE}" 2>/dev/null || {
+            rm -f "${CACHE_TEMP}"
+            return 1
+        }
+    fi
+
+    if [[ "${PREFIX}" == "" ]]; then
+        cat "${CACHE_FILE}"
+        return 0
+    fi
+
+    while IFS= read -r META_ASSIGNMENT; do
+        [[ "${META_ASSIGNMENT}" == "" ]] && continue
+        META_NAME="${META_ASSIGNMENT%%=*}"
+        META_VALUE="${META_ASSIGNMENT#*=}"
+        printf '%s%s=%s\n' "${PREFIX}" "${META_NAME}" "${META_VALUE}"
+    done < "${CACHE_FILE}"
+
+    return 0
+}
+
+# loads cached archive metadata for a document
+function marsh_get_archive_metadata {  # marsh_get_archive_metadata target_output_root document
+    local TARGET_OUTPUT_ROOT DOCUMENT
+    local INDEX META DOCUMENT_SITE_REL META_PREFIX META_ASSIGNMENTS META_VARS TARGET_OUTPUT_REL
+    local TYPE_VAR TYPE URI ABSPATH VALUE_ESC
+    local -a STATE
+
+    # init
+    TARGET_OUTPUT_ROOT="${1:-}"
+    DOCUMENT="${2:-}"
+    [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
+    [[ "${DOCUMENT}" == "" ]] && return 1
+    TARGET_OUTPUT_ROOT=$(marsh_get_target_directory_path "${TARGET_OUTPUT_ROOT}") || return 1
+    DOCUMENT_SITE_REL=$(marsh_normalize_internal_path "${DOCUMENT}" 2>/dev/null) || return 1
+    [[ "${DOCUMENT_SITE_REL}" == "." ]] && return 1
+
+    # use cache where available
+    INDEX=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "${DOCUMENT_SITE_REL}" "archive-meta" 2>/dev/null) || INDEX=""
+    if [[ -f "${INDEX}" ]] && [[ -r "${INDEX}" ]]; then
+        cat "${INDEX}"
+        return 0
+    fi
+
+    # get archive metadata from the document metadata
+    META=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "${DOCUMENT_SITE_REL}" "meta-yaml" 2>/dev/null) || META=""
+    [[ -f "${META}" ]] && [[ -r "${META}" ]] || return 1
+
+    # parse
+    META_PREFIX=$(echo "marsh_archive_${META}_" | sed -E -e 's/[^A-Za-z0-9_]/_/g')
+    META_PREFIX=$(echo "${META_PREFIX}" | sed -E -e 's/_{2,}/_/g')
+    META_ASSIGNMENTS=$(marsh_get_document_metadata "${META}" "${META_PREFIX}")
+    [[ $? -ne 0 ]] && return 1
+    META_VARS=$(echo "${META_ASSIGNMENTS}" | marsh_get_variables)
+    eval "$(printf '%s\n' "${META_VARS}" | marsh_get_local_declarations)"
+    eval "${META_ASSIGNMENTS}"
+
+    # keep only the metadata that archive generation actually needs
+    # reconstruct public paths here so archive generation does not need to repeat it
+    TYPE_VAR="${META_PREFIX}Type"
+    TYPE="${!TYPE_VAR:-}"
+    TARGET_OUTPUT_REL=$(marsh_get_target_output_path "${TARGET_OUTPUT_ROOT}") || return 1
+    if [[ "${TARGET_OUTPUT_REL}" == "." ]]; then
+        URI="${DOCUMENT_SITE_REL}"
+    else
+        URI="${TARGET_OUTPUT_REL}/${DOCUMENT_SITE_REL}"
+    fi
+    URI="${URI%.markdown}.html"
+    URI=$(marsh_get_absolute_output_path "${URI}" "document") || return 1
+    ABSPATH=""
+    [[ "${URI}" =~ / ]] && ABSPATH="${URI%/*}"
+
+    # reconstruct state array
+    STATE=()
+    eval $(marsh_flat_to_array "STATE" "${META_PREFIX}State_")
+
+    # output shell variable assignments
+    printf 'TYPE=%q\n' "${TYPE}"
+    printf 'URI=%q\n' "${URI}"
+    printf 'ABSPATH=%q\n' "${ABSPATH}"
+    echo "STATE=()"
+    for VALUE_ESC in "${STATE[@]}"; do
+        printf 'STATE+=(%q)\n' "${VALUE_ESC}"
+    done
+
+    return 0
+}
+
+# finds the generated sitemap file for a target
+function marsh_get_sitemap_lookup_path {  # marsh_get_sitemap_lookup_path target_output_root document sitemap_file sitemap_search
+    local TARGET_OUTPUT_ROOT DOCUMENT SITEMAP_FILE SITEMAP_SEARCH
+    local CURRENT_DIR CURRENT_BASE CANDIDATE SITEMAP_RENDER_FILE
+    local LOOKUP_BASE_DIR LOOKUP_CACHE_DIR LOOKUP_CACHE_KEY LOOKUP_CACHE_FILE LOOKUP_CACHE_TEMP CACHED_LOOKUP_PATH
+
+    TARGET_OUTPUT_ROOT="${1:-}"
+    DOCUMENT="${2:-}"
+    SITEMAP_FILE="${3:-}"
+    SITEMAP_SEARCH="${4:-false}"
+    [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
+    [[ "${DOCUMENT}" == "" ]] && return 1
+    [[ "${SITEMAP_FILE}" == "" ]] && return 1
+    TARGET_OUTPUT_ROOT=$(marsh_get_target_directory_path "${TARGET_OUTPUT_ROOT}") || return 1
+
+    if [[ "${SITEMAP_SEARCH}" != true ]]; then
+        SITEMAP_RENDER_FILE=$(marsh_get_sitemap_render_path "${TARGET_OUTPUT_ROOT}" "${SITEMAP_FILE}") || return 1
+        [[ -f "${SITEMAP_RENDER_FILE}" ]] && [[ -r "${SITEMAP_RENDER_FILE}" ]] || return 1
+        printf '%s\n' "${SITEMAP_FILE}"
+        return 0
+    fi
+
+    CURRENT_DIR=$(marsh_get_internal_parent_directory "${DOCUMENT}") || return 1
+    LOOKUP_BASE_DIR=$(marsh_normalize_internal_path "${CURRENT_DIR}" "directory") || return 1
+    LOOKUP_CACHE_DIR="$(marsh_get_target_temp_root "${TARGET_OUTPUT_ROOT}")/sitemaps/lookup"
+    LOOKUP_CACHE_KEY=$(marsh_escape_cache_component "${SITEMAP_FILE}") || return 1
+    LOOKUP_CACHE_KEY+="--$(marsh_escape_cache_component "${LOOKUP_BASE_DIR}")" || return 1
+    LOOKUP_CACHE_FILE="${LOOKUP_CACHE_DIR}/${LOOKUP_CACHE_KEY}.lookup"
+
+    if [[ -f "${LOOKUP_CACHE_FILE}" ]] && [[ -r "${LOOKUP_CACHE_FILE}" ]]; then
+        CACHED_LOOKUP_PATH=$(<"${LOOKUP_CACHE_FILE}")
+        if [[ "${CACHED_LOOKUP_PATH}" != "" ]]; then
+            SITEMAP_RENDER_FILE=$(marsh_get_sitemap_render_path "${TARGET_OUTPUT_ROOT}" "${CACHED_LOOKUP_PATH}") || return 1
+            if [[ -f "${SITEMAP_RENDER_FILE}" ]] && [[ -r "${SITEMAP_RENDER_FILE}" ]]; then
+                printf '%s\n' "${CACHED_LOOKUP_PATH}"
+                return 0
+            fi
+        fi
+    fi
+
+    while true; do
+        CURRENT_BASE=$(marsh_normalize_internal_path "${CURRENT_DIR}" "directory") || return 1
+        CANDIDATE=$(marsh_resolve_relative_path "${CURRENT_BASE}" "${SITEMAP_FILE}") || return 1
+        SITEMAP_RENDER_FILE=$(marsh_get_sitemap_render_path "${TARGET_OUTPUT_ROOT}" "${CANDIDATE}") || return 1
+        if [[ -f "${SITEMAP_RENDER_FILE}" ]] && [[ -r "${SITEMAP_RENDER_FILE}" ]]; then
+            mkdir -p "${LOOKUP_CACHE_DIR}" >/dev/null 2>&1 || {
+                echo "Unable to create sitemap lookup cache directory: ${LOOKUP_CACHE_DIR}" >&2
+                return 1
+            }
+            LOOKUP_CACHE_TEMP=$(mktemp "${LOOKUP_CACHE_DIR}/lookup-XXXXXX") || {
+                echo "Unable to create sitemap lookup cache file: ${LOOKUP_CACHE_DIR}/lookup-XXXXXX" >&2
+                return 1
+            }
+            printf '%s\n' "${CANDIDATE}" > "${LOOKUP_CACHE_TEMP}" && mv "${LOOKUP_CACHE_TEMP}" "${LOOKUP_CACHE_FILE}" 2>/dev/null || {
+                if [[ ! -f "${LOOKUP_CACHE_FILE}" ]]; then
+                    rm -f "${LOOKUP_CACHE_TEMP}"
+                    return 1
+                fi
+                rm -f "${LOOKUP_CACHE_TEMP}"
+            }
+            printf '%s\n' "${CANDIDATE}"
+            return 0
+        fi
+        if [[ "${CURRENT_DIR}" == "." ]]; then
+            break
+        fi
+        if [[ "${CURRENT_DIR}" == */* ]]; then
+            CURRENT_DIR="${CURRENT_DIR%/*}"
+        else
+            CURRENT_DIR='.'
+        fi
+    done
+    return 1
+}
+
+# returns the intermediate render path for a target sitemap
+function marsh_get_sitemap_render_path {  # marsh_get_sitemap_render_path target_output_root sitemap_path
+    local TARGET_OUTPUT_ROOT SITEMAP_PATH TARGET_BUILD_TEMP_ROOT SITEMAP_RENDER_CACHE_DIR SITEMAP_RENDER_KEY SITEMAP_RENDER_FILE
+
+    TARGET_OUTPUT_ROOT="${1:-}"
+    SITEMAP_PATH="${2:-}"
+    [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
+    [[ "${SITEMAP_PATH}" == "" ]] && return 1
+    TARGET_OUTPUT_ROOT=$(marsh_get_target_directory_path "${TARGET_OUTPUT_ROOT}") || return 1
+    TARGET_BUILD_TEMP_ROOT=$(marsh_get_target_temp_root "${TARGET_OUTPUT_ROOT}") || return 1
+
+    SITEMAP_RENDER_CACHE_DIR="${TARGET_BUILD_TEMP_ROOT}/sitemaps/render"
+    mkdir -p "${SITEMAP_RENDER_CACHE_DIR}" >/dev/null 2>&1 || {
+        echo "Unable to create sitemap render cache directory: ${SITEMAP_RENDER_CACHE_DIR}" >&2
+        return 1
+    }
+    SITEMAP_RENDER_KEY=$(marsh_escape_cache_component "${SITEMAP_PATH}") || return 1
+    SITEMAP_RENDER_FILE="${SITEMAP_RENDER_CACHE_DIR}/${SITEMAP_RENDER_KEY}.sitemap.html"
+    printf '%s\n' "${SITEMAP_RENDER_FILE}"
+}
+
+# resolves a sitemap temp artifact path under the target temp work tree
+function marsh_get_sitemap_temp_path {  # marsh_get_sitemap_temp_path target_output_root sitemap_path artifact
+    local TARGET_OUTPUT_ROOT SITEMAP_PATH ARTIFACT SITEMAP_RENDER_FILE SITEMAP_RENDER_DIR SITEMAP_KEY SITEMAP_TEMP_ROOT
+
+    TARGET_OUTPUT_ROOT="${1:-}"
+    SITEMAP_PATH="${2:-}"
+    ARTIFACT="${3:-}"
+    [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
+    [[ "${SITEMAP_PATH}" == "" ]] && return 1
+    [[ "${ARTIFACT}" == "" ]] && return 1
+
+    SITEMAP_RENDER_FILE=$(marsh_get_sitemap_render_path "${TARGET_OUTPUT_ROOT}" "${SITEMAP_PATH}") || return 1
+    SITEMAP_RENDER_DIR="${SITEMAP_RENDER_FILE%/*}"
+    SITEMAP_KEY="${SITEMAP_RENDER_FILE##*/}"
+    SITEMAP_KEY="${SITEMAP_KEY%.sitemap.html}"
+    SITEMAP_TEMP_ROOT="${SITEMAP_RENDER_DIR%/render}/work/${SITEMAP_KEY}"
+
+    case "${ARTIFACT}" in
+        root)
+            printf '%s\n' "${SITEMAP_TEMP_ROOT}"
+            ;;
+        content)
+            printf '%s\n' "${SITEMAP_TEMP_ROOT}/content"
+            ;;
+        meta-yaml)
+            printf '%s\n' "${SITEMAP_TEMP_ROOT}/meta.yaml"
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+# resolves a target sitemap source path against the target source root and validates it stays inside the site source tree
+function marsh_resolve_sitemap_source_path {  # marsh_resolve_sitemap_source_path site_source_root source_root sitemap_path
+    local SITE_SOURCE_ROOT SOURCE_ROOT SITEMAP_PATH RESOLVED_PATH RESOLVED_DIR RESOLVED_NAME
+
+    SITE_SOURCE_ROOT="${1:-}"
+    SOURCE_ROOT="${2:-}"
+    SITEMAP_PATH="${3:-}"
+    [[ "${SITE_SOURCE_ROOT}" == "" ]] && return 1
+    [[ "${SOURCE_ROOT}" == "" ]] && return 1
+    [[ "${SITEMAP_PATH}" == "" ]] && return 1
+    [[ -d "${SITE_SOURCE_ROOT}" ]] || {
+        echo "Site source root not found for sitemap: ${SITE_SOURCE_ROOT}" >&2
+        return 1
+    }
+    [[ -d "${SOURCE_ROOT}" ]] || {
+        echo "Target source root not found for sitemap: ${SOURCE_ROOT}" >&2
+        return 1
+    }
+    SITE_SOURCE_ROOT=$(cd "${SITE_SOURCE_ROOT}" && (pwd -P . 2>/dev/null || command pwd)) || {
+        echo "Unable to resolve site source root for sitemap: ${SITE_SOURCE_ROOT}" >&2
+        return 1
+    }
+    SOURCE_ROOT=$(cd "${SOURCE_ROOT}" && (pwd -P . 2>/dev/null || command pwd)) || {
+        echo "Unable to resolve target source root for sitemap: ${SOURCE_ROOT}" >&2
+        return 1
+    }
+
+    if [[ "${SITEMAP_PATH}" =~ ^/ ]]; then
+        RESOLVED_PATH="${SITEMAP_PATH}"
+    else
+        RESOLVED_PATH="${SOURCE_ROOT}/${SITEMAP_PATH}"
+    fi
+    RESOLVED_DIR="${RESOLVED_PATH%/*}"
+    RESOLVED_NAME="${RESOLVED_PATH##*/}"
+    RESOLVED_DIR="${RESOLVED_DIR:-.}"
+    [[ -d "${RESOLVED_DIR}" ]] || {
+        echo "Sitemap source directory not found: ${RESOLVED_DIR}" >&2
+        return 1
+    }
+    RESOLVED_DIR=$(cd "${RESOLVED_DIR}" && (pwd -P . 2>/dev/null || command pwd)) || {
+        echo "Unable to resolve sitemap source directory: ${RESOLVED_DIR}" >&2
+        return 1
+    }
+    RESOLVED_PATH="${RESOLVED_DIR}/${RESOLVED_NAME}"
+    [[ -f "${RESOLVED_PATH}" ]] && [[ -r "${RESOLVED_PATH}" ]] || {
+        echo "Sitemap source file not found or unreadable: ${RESOLVED_PATH}" >&2
+        return 1
+    }
+    case "${RESOLVED_PATH}" in
+        "${SITE_SOURCE_ROOT}"|"${SITE_SOURCE_ROOT}"/*)
+            ;;
+        *)
+            echo "Sitemap source path resolves outside site source root: ${RESOLVED_PATH}" >&2
+            return 1
+            ;;
+    esac
+    printf '%s\n' "${RESOLVED_PATH}"
+}
+
+# returns the aggregate archive-queue root under the target plan root
+function marsh_get_target_archive_queue_root {  # marsh_get_target_archive_queue_root target_plan_root
+    local TARGET_PLAN_ROOT
+
+    TARGET_PLAN_ROOT="${1:-}"
+    [[ "${TARGET_PLAN_ROOT}" == "" ]] && return 1
+    printf '%s\n' "${TARGET_PLAN_ROOT}/archive-queue"
+}
+
+# returns the aggregate archive-queue records path under the target plan root
+function marsh_get_target_archive_queue_records_path {  # marsh_get_target_archive_queue_records_path target_plan_root
+    local TARGET_PLAN_ROOT TARGET_ARCHIVE_QUEUE_ROOT
+
+    TARGET_PLAN_ROOT="${1:-}"
+    [[ "${TARGET_PLAN_ROOT}" == "" ]] && return 1
+    TARGET_ARCHIVE_QUEUE_ROOT=$(marsh_get_target_archive_queue_root "${TARGET_PLAN_ROOT}") || return 1
+    printf '%s\n' "${TARGET_ARCHIVE_QUEUE_ROOT}/records"
+}
+
+# builds one aggregate archive-queue record from a document record and archive plan root
+function marsh_build_target_archive_queue_record {  # marsh_build_target_archive_queue_record archive_plan_root document_record
+    local ARCHIVE_PLAN_ROOT DOCUMENT_RECORD
+    local DOCUMENT_ID SOURCE_RELPATH TARGET_OUTPUT_REL SOURCE_ROOT
+    local DOCUMENT_ID_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC
+
+    ARCHIVE_PLAN_ROOT="${1:-}"
+    DOCUMENT_RECORD="${2:-}"
+    [[ "${ARCHIVE_PLAN_ROOT}" == "" ]] && return 1
+    [[ "${DOCUMENT_RECORD}" == "" ]] && return 1
+
+    IFS=$'\t' read -r DOCUMENT_ID_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC <<< "${DOCUMENT_RECORD}"
+    [[ "${DOCUMENT_ID_ESC}" == "" ]] && return 1
+
+    # keep document identity and archive-plan context explicit in the queue record
+    printf '%q\t%q\t%q\t%q\t%q\n' \
+        "${DOCUMENT_ID_ESC}" \
+        "${SOURCE_RELPATH_ESC}" \
+        "${TARGET_OUTPUT_REL_ESC}" \
+        "${SOURCE_ROOT_ESC}" \
+        "${ARCHIVE_PLAN_ROOT}"
+}
+
+# parses one aggregate archive-queue record into shell assignments
+function marsh_parse_target_archive_queue_record {  # marsh_parse_target_archive_queue_record archive_queue_record
+    local ARCHIVE_QUEUE_RECORD
+    local DOCUMENT_ID_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC ARCHIVE_PLAN_ROOT_ESC
+    local DOCUMENT_ID SOURCE_RELPATH TARGET_OUTPUT_REL SOURCE_ROOT ARCHIVE_PLAN_ROOT
+
+    ARCHIVE_QUEUE_RECORD="${1:-}"
+    [[ "${ARCHIVE_QUEUE_RECORD}" == "" ]] && return 1
+
+    IFS=$'\t' read -r DOCUMENT_ID_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC ARCHIVE_PLAN_ROOT_ESC <<< "${ARCHIVE_QUEUE_RECORD}"
+    [[ "${DOCUMENT_ID_ESC}" == "" ]] && return 1
+    [[ "${ARCHIVE_PLAN_ROOT_ESC}" == "" ]] && return 1
+
+    printf 'DOCUMENT_ID=%q\n' "${DOCUMENT_ID_ESC}"
+    printf 'SOURCE_RELPATH=%q\n' "${SOURCE_RELPATH_ESC}"
+    printf 'TARGET_OUTPUT_REL=%q\n' "${TARGET_OUTPUT_REL_ESC}"
+    printf 'SOURCE_ROOT=%q\n' "${SOURCE_ROOT_ESC}"
+    printf 'ARCHIVE_PLAN_ROOT=%q\n' "${ARCHIVE_PLAN_ROOT_ESC}"
+}
+
+# writes aggregate archive-queue records under the target plan root
+function marsh_write_target_archive_queue_records {  # marsh_write_target_archive_queue_records target_plan_root records[@]
+    local TARGET_PLAN_ROOT TARGET_ARCHIVE_QUEUE_ROOT TARGET_ARCHIVE_QUEUE_RECORDS_FILE TARGET_ARCHIVE_QUEUE_RECORDS_TEMP RECORD
+
+    TARGET_PLAN_ROOT="${1:-}"
+    shift 1
+    [[ "${TARGET_PLAN_ROOT}" == "" ]] && return 1
+
+    TARGET_ARCHIVE_QUEUE_ROOT=$(marsh_get_target_archive_queue_root "${TARGET_PLAN_ROOT}") || return 1
+    TARGET_ARCHIVE_QUEUE_RECORDS_FILE=$(marsh_get_target_archive_queue_records_path "${TARGET_PLAN_ROOT}") || return 1
+    mkdir -p "${TARGET_ARCHIVE_QUEUE_ROOT}" >/dev/null 2>&1 || {
+        echo "Unable to create target archive queue path: ${TARGET_ARCHIVE_QUEUE_ROOT}" >&2
+        return 1
+    }
+    TARGET_ARCHIVE_QUEUE_RECORDS_TEMP=$(mktemp "${TARGET_ARCHIVE_QUEUE_ROOT}/records-XXXXXX" 2>/dev/null) || {
+        echo "Unable to write target archive queue temporary file: ${TARGET_ARCHIVE_QUEUE_ROOT}/records-XXXXXX" >&2
+        return 1
+    }
+
+    while [[ "${#@}" -gt 0 ]]; do
+        RECORD="${1:-}"
+        shift 1
+        [[ "${RECORD}" == "" ]] && continue
+        printf '%s\n' "${RECORD}"
+    done > "${TARGET_ARCHIVE_QUEUE_RECORDS_TEMP}" || {
+        echo "Unable to write target archive queue temporary file: ${TARGET_ARCHIVE_QUEUE_RECORDS_TEMP}" >&2
+        rm -f "${TARGET_ARCHIVE_QUEUE_RECORDS_TEMP}"
+        return 1
+    }
+    mv "${TARGET_ARCHIVE_QUEUE_RECORDS_TEMP}" "${TARGET_ARCHIVE_QUEUE_RECORDS_FILE}" 2>/dev/null || {
+        echo "Unable to write target archive queue file: ${TARGET_ARCHIVE_QUEUE_RECORDS_FILE}" >&2
+        rm -f "${TARGET_ARCHIVE_QUEUE_RECORDS_TEMP}"
+        return 1
+    }
+}
+
+# writes one aggregate archive queue from the provided archive plan roots
+function marsh_write_target_archive_queue_from_archive_plans {  # marsh_write_target_archive_queue_from_archive_plans target_plan_root archive_plan_roots[@]
+    local TARGET_PLAN_ROOT ARCHIVE_PLAN_ROOT ARCHIVE_PLAN_DOCUMENTS_FILE DOCUMENT_RECORD QUEUE_RECORD
+    local -a QUEUE_RECORDS
+
+    TARGET_PLAN_ROOT="${1:-}"
+    shift 1
+    [[ "${TARGET_PLAN_ROOT}" == "" ]] && return 1
+
+    QUEUE_RECORDS=()
+    while [[ "${#@}" -gt 0 ]]; do
+        ARCHIVE_PLAN_ROOT="${1:-}"
+        shift 1
+        [[ "${ARCHIVE_PLAN_ROOT}" == "" ]] && continue
+        ARCHIVE_PLAN_DOCUMENTS_FILE="${ARCHIVE_PLAN_ROOT}/documents"
+        [[ -f "${ARCHIVE_PLAN_DOCUMENTS_FILE}" ]] && [[ -r "${ARCHIVE_PLAN_DOCUMENTS_FILE}" ]] || {
+            echo "Archive plan documents file not found: ${ARCHIVE_PLAN_DOCUMENTS_FILE}" >&2
+            return 1
+        }
+
+        # keep the queue order aligned with archive plan order and persisted document order
+        while IFS= read -r DOCUMENT_RECORD; do
+            [[ "${DOCUMENT_RECORD}" == "" ]] && continue
+            QUEUE_RECORD=$(marsh_build_target_archive_queue_record "${ARCHIVE_PLAN_ROOT}" "${DOCUMENT_RECORD}") || return 1
+            QUEUE_RECORDS+=("${QUEUE_RECORD}")
+        done < "${ARCHIVE_PLAN_DOCUMENTS_FILE}"
+    done
+
+    marsh_write_target_archive_queue_records "${TARGET_PLAN_ROOT}" "${QUEUE_RECORDS[@]}"
+}
+
+# reads aggregate archive-queue records from the target plan root
+function marsh_read_target_archive_queue_records {  # marsh_read_target_archive_queue_records target_plan_root
+    local TARGET_PLAN_ROOT TARGET_ARCHIVE_QUEUE_RECORDS_FILE
+
+    TARGET_PLAN_ROOT="${1:-}"
+    [[ "${TARGET_PLAN_ROOT}" == "" ]] && return 1
+
+    TARGET_ARCHIVE_QUEUE_RECORDS_FILE=$(marsh_get_target_archive_queue_records_path "${TARGET_PLAN_ROOT}") || return 1
+    [[ -f "${TARGET_ARCHIVE_QUEUE_RECORDS_FILE}" ]] && [[ -r "${TARGET_ARCHIVE_QUEUE_RECORDS_FILE}" ]] || return 1
+    cat "${TARGET_ARCHIVE_QUEUE_RECORDS_FILE}"
+}
+
+# resolves a document temp artifact path under the target temp work tree
+function marsh_get_document_temp_path {  # marsh_get_document_temp_path target_output_root document artifact
+    local TARGET_OUTPUT_ROOT DOCUMENT ARTIFACT TARGET_BUILD_TEMP_ROOT DOCUMENT_KEY DOCUMENT_ROOT
+
+    TARGET_OUTPUT_ROOT="${1:-}"
+    DOCUMENT="${2:-}"
+    ARTIFACT="${3:-}"
+    [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
+    [[ "${DOCUMENT}" == "" ]] && return 1
+    [[ "${ARTIFACT}" == "" ]] && return 1
+    [[ "${DOCUMENT}" != /* ]] || return 1
+
+    TARGET_BUILD_TEMP_ROOT=$(marsh_get_target_temp_root "${TARGET_OUTPUT_ROOT}") || return 1
+    # Document temp artifacts are keyed by site-relative document path so nested target builds share them.
+    DOCUMENT_KEY=$(marsh_normalize_internal_path "${DOCUMENT}") || return 1
+    [[ "${DOCUMENT_KEY}" == "." ]] && return 1
+    DOCUMENT_ROOT="${TARGET_BUILD_TEMP_ROOT}/documents/${DOCUMENT_KEY}"
+
+    case "${ARTIFACT}" in
+        root)
+            printf '%s\n' "${DOCUMENT_ROOT}"
+            ;;
+        content)
+            printf '%s\n' "${DOCUMENT_ROOT}/content"
+            ;;
+        meta-yaml)
+            printf '%s\n' "${DOCUMENT_ROOT}/meta.yaml"
+            ;;
+        meta)
+            printf '%s\n' "${DOCUMENT_ROOT}/meta"
+            ;;
+        archive-meta)
+            printf '%s\n' "${DOCUMENT_ROOT}/archive-meta"
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+# resolves an archive temp artifact path under the target temp work tree
+function marsh_get_archive_temp_path {  # marsh_get_archive_temp_path target_output_root archive_source artifact
+    local TARGET_OUTPUT_ROOT ARCHIVE_SOURCE ARTIFACT TARGET_BUILD_TEMP_ROOT ARCHIVE_KEY ARCHIVE_ROOT
+
+    TARGET_OUTPUT_ROOT="${1:-}"
+    ARCHIVE_SOURCE="${2:-}"
+    ARTIFACT="${3:-}"
+    [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
+    [[ "${ARCHIVE_SOURCE}" == "" ]] && return 1
+    [[ "${ARTIFACT}" == "" ]] && return 1
+    [[ "${ARCHIVE_SOURCE}" != /* ]] || return 1
+
+    TARGET_BUILD_TEMP_ROOT=$(marsh_get_target_temp_root "${TARGET_OUTPUT_ROOT}") || return 1
+    ARCHIVE_KEY=$(marsh_normalize_internal_path "${ARCHIVE_SOURCE}") || return 1
+    [[ "${ARCHIVE_KEY}" == "." ]] && return 1
+    ARCHIVE_ROOT="${TARGET_BUILD_TEMP_ROOT}/archives/${ARCHIVE_KEY}"
+
+    case "${ARTIFACT}" in
+        root)
+            printf '%s\n' "${ARCHIVE_ROOT}"
+            ;;
+        source)
+            printf '%s\n' "${ARCHIVE_ROOT}/source"
+            ;;
+        subdocuments)
+            printf '%s\n' "${ARCHIVE_ROOT}/subdocuments"
+            ;;
+        subdocuments-manifest)
+            printf '%s\n' "${ARCHIVE_ROOT}/subdocuments.manifest"
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+# resolves the temp render path for a processed output file under the target temp work tree
+function marsh_get_render_temp_path {  # marsh_get_render_temp_path target_output_root output_path
+    local TARGET_OUTPUT_ROOT OUTPUT_PATH TARGET_BUILD_TEMP_ROOT OUTPUT_KEY
+
+    TARGET_OUTPUT_ROOT="${1:-}"
+    OUTPUT_PATH="${2:-}"
+    [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
+    [[ "${OUTPUT_PATH}" == "" ]] && return 1
+    [[ "${OUTPUT_PATH}" != /* ]] || return 1
+
+    TARGET_BUILD_TEMP_ROOT=$(marsh_get_target_temp_root "${TARGET_OUTPUT_ROOT}") || return 1
+    OUTPUT_KEY=$(marsh_normalize_internal_path "${OUTPUT_PATH}") || return 1
+    [[ "${OUTPUT_KEY}" == "." ]] && return 1
+
+    printf '%s\n' "${TARGET_BUILD_TEMP_ROOT}/render/${OUTPUT_KEY}"
+}
+
+# publishes a completed processed output file to its final destination
+function marsh_publish_processed_output {  # marsh_publish_processed_output source_file dest_file
+    local SOURCE_FILE DEST_FILE DEST_DIR
+
+    SOURCE_FILE="${1:-}"
+    DEST_FILE="${2:-}"
+    [[ "${SOURCE_FILE}" == "" ]] && return 1
+    [[ "${DEST_FILE}" == "" ]] && return 1
+    [[ -f "${SOURCE_FILE}" ]] && [[ -r "${SOURCE_FILE}" ]] || return 1
+
+    DEST_DIR="${DEST_FILE%/*}"
+    [[ "${DEST_DIR}" == "${DEST_FILE}" ]] && DEST_DIR='.'
+    mkdir -p "${DEST_DIR}" >/dev/null 2>&1 || {
+        echo "Unable to create published output path: ${DEST_DIR}" >&2
+        return 1
+    }
+    rm -f "${DEST_FILE}" >/dev/null 2>&1 || {
+        echo "Unable to replace published output path: ${DEST_FILE}" >&2
+        return 1
+    }
+    cp "${SOURCE_FILE}" "${DEST_FILE}" >/dev/null 2>&1 || {
+        echo "Unable to publish processed output: ${SOURCE_FILE} -> ${DEST_FILE}" >&2
+        return 1
+    }
+}
+
+# rewrites relative href values in a rendered sitemap for the destination document
+function marsh_rewrite_sitemap_links {  # marsh_rewrite_sitemap_links sitemap_file sitemap_dir document_base_path
+    local SITEMAP_FILE SITEMAP_DIR DOCUMENT_BASE_PATH
+    local HREF HREF_TARGET HREF_SUFFIX RESOLVED_HREF REWRITTEN_HREF
+    local SEARCH_ESC REPLACEMENT_ESC REPLACEMENTS SCRATCH_FILE
+    local -a HREFS
+
+    SITEMAP_FILE="${1:-}"
+    SITEMAP_DIR="${2:-}"
+    DOCUMENT_BASE_PATH="${3:-}"
+    [[ "${SITEMAP_FILE}" == "" ]] && return 1
+    [[ "${SITEMAP_DIR}" == "" ]] && return 1
+    [[ "${DOCUMENT_BASE_PATH}" == "" ]] && return 1
+
+    HREFS=()
+    while IFS= read -r HREF; do
+        [[ "${HREF}" == "" ]] && continue
+        HREFS+=("${HREF}")
+    done < <(grep -Eo 'href="[^"]+"' "${SITEMAP_FILE}" | sed -E 's/^href="([^"]+)"$/\1/' | sort -u)
+    [[ "${#HREFS[@]}" -eq 0 ]] && return 0
+
+    REPLACEMENTS=$(mktemp "${MARSH_TEMP}/sitemap-links-XXXXXX") || {
+        echo "Unable to create sitemap link replacement file: ${MARSH_TEMP}/sitemap-links-XXXXXX" >&2
+        return 1
+    }
+    for HREF in "${HREFS[@]}"; do
+        case "${HREF}" in
+            \#*|/*|*://*|mailto:*|tel:*|javascript:*|data:*|//* )
+                continue
+                ;;
+        esac
+        HREF_TARGET="${HREF%%\#*}"
+        HREF_TARGET="${HREF_TARGET%%\?*}"
+        HREF_SUFFIX="${HREF#${HREF_TARGET}}"
+        RESOLVED_HREF=$(marsh_resolve_relative_path "${SITEMAP_DIR}" "${HREF_TARGET}") || {
+            rm -f "${REPLACEMENTS}"
+            return 1
+        }
+        REWRITTEN_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "${RESOLVED_HREF}") || {
+            rm -f "${REPLACEMENTS}"
+            return 1
+        }
+        REWRITTEN_HREF="${REWRITTEN_HREF}${HREF_SUFFIX}"
+        SEARCH_ESC=$(printf '%s' "href=\"${HREF}\"" | sed -e 's/[\\]/\\\\/g' -e 's/[][/.|$(){}?+*^]/\\&/g')
+        REPLACEMENT_ESC=$(printf '%s' "href=\"${REWRITTEN_HREF}\"" | marsh_escape_substitution)
+        printf 's/%s/%s/g\n' "${SEARCH_ESC}" "${REPLACEMENT_ESC}" >> "${REPLACEMENTS}" || {
+            echo "Unable to write sitemap link replacement file: ${REPLACEMENTS}" >&2
+            rm -f "${REPLACEMENTS}"
+            return 1
+        }
+    done
+
+    if [[ -s "${REPLACEMENTS}" ]]; then
+        SCRATCH_FILE="${REPLACEMENTS}.scratch"
+        <"${SITEMAP_FILE}" sed -E -f "${REPLACEMENTS}" > "${SCRATCH_FILE}" || {
+            echo "Unable to write rewritten sitemap scratch file: ${SCRATCH_FILE}" >&2
+            rm -f "${REPLACEMENTS}" "${SCRATCH_FILE}"
+            return 1
+        }
+        mv "${SCRATCH_FILE}" "${SITEMAP_FILE}" 2>/dev/null || {
+            echo "Unable to publish rewritten sitemap file: ${SITEMAP_FILE}" >&2
+            rm -f "${REPLACEMENTS}" "${SCRATCH_FILE}"
+            return 1
+        }
+    fi
+    rm -f "${REPLACEMENTS}"
+    return 0
+}
+
+# returns a cached processed sitemap for a document base path, building it on miss
+function marsh_get_processed_sitemap {  # marsh_get_processed_sitemap sitemap_render_path sitemap_dir document_base_path
+    local SITEMAP_RENDER_PATH SITEMAP_DIR DOCUMENT_BASE_PATH
+    local CACHE_DIR CACHE_KEY CACHE_FILE CACHE_TEMP RENDER_DIR RENDER_KEY
+
+    SITEMAP_RENDER_PATH="${1:-}"
+    SITEMAP_DIR="${2:-}"
+    DOCUMENT_BASE_PATH="${3:-}"
+    [[ "${SITEMAP_RENDER_PATH}" == "" ]] && return 1
+    [[ "${SITEMAP_DIR}" == "" ]] && return 1
+    [[ "${DOCUMENT_BASE_PATH}" == "" ]] && return 1
+    [[ -f "${SITEMAP_RENDER_PATH}" ]] && [[ -r "${SITEMAP_RENDER_PATH}" ]] || return 1
+
+    RENDER_DIR="${SITEMAP_RENDER_PATH%/*}"
+    if [[ "${RENDER_DIR}" == */sitemaps/render ]]; then
+        CACHE_DIR="${RENDER_DIR%/render}/processed"
+    else
+        CACHE_DIR="${MARSH_TEMP}/processed-sitemap-cache"
+    fi
+    mkdir -p "${CACHE_DIR}" >/dev/null 2>&1 || {
+        echo "Unable to create processed sitemap cache directory: ${CACHE_DIR}" >&2
+        return 1
+    }
+    RENDER_KEY="${SITEMAP_RENDER_PATH##*/}"
+    CACHE_KEY=$(marsh_escape_cache_component "${SITEMAP_DIR}") || return 1
+    CACHE_KEY+="--$(marsh_escape_cache_component "${DOCUMENT_BASE_PATH}")" || return 1
+    CACHE_FILE="${CACHE_DIR}/${CACHE_KEY}--${RENDER_KEY}"
+    if [[ -f "${CACHE_FILE}" ]] && [[ -r "${CACHE_FILE}" ]]; then
+        printf '%s\n' "${CACHE_FILE}"
+        return 0
+    fi
+
+    CACHE_TEMP=$(mktemp "${CACHE_DIR}/processed-XXXXXX") || {
+        echo "Unable to create processed sitemap cache file: ${CACHE_DIR}/processed-XXXXXX" >&2
+        return 1
+    }
+    cp "${SITEMAP_RENDER_PATH}" "${CACHE_TEMP}" || {
+        echo "Unable to copy rendered sitemap for processing: ${SITEMAP_RENDER_PATH}" >&2
+        rm -f "${CACHE_TEMP}"
+        return 1
+    }
+    marsh_rewrite_sitemap_links "${CACHE_TEMP}" "${SITEMAP_DIR}" "${DOCUMENT_BASE_PATH}" || {
+        echo "Unable to rewrite processed sitemap links: ${SITEMAP_RENDER_PATH}" >&2
+        rm -f "${CACHE_TEMP}"
+        return 1
+    }
+    mv "${CACHE_TEMP}" "${CACHE_FILE}" 2>/dev/null || {
+        if [[ ! -f "${CACHE_FILE}" ]]; then
+            echo "Unable to publish processed sitemap cache file: ${CACHE_FILE}" >&2
+            rm -f "${CACHE_TEMP}"
+            return 1
+        fi
+        rm -f "${CACHE_TEMP}"
+    }
+
+    printf '%s\n' "${CACHE_FILE}"
+    return 0
+}
+
+# returns paginated archive root for an archive source path
+function marsh_get_archive_page_root {  # marsh_get_archive_page_root archive_source
+    local ARCHIVE_SOURCE ARCHIVE_DIR ARCHIVE_NAME PAGE_ROOT
+
+    ARCHIVE_SOURCE="${1:-}"
+    [[ "${ARCHIVE_SOURCE}" == "" ]] && return 1
+    ARCHIVE_DIR=$(marsh_get_internal_parent_directory "${ARCHIVE_SOURCE}") || return 1
+    ARCHIVE_NAME="${ARCHIVE_SOURCE##*/}"
+    if [[ "${ARCHIVE_NAME%.*}" == "index" ]]; then
+        PAGE_ROOT="${ARCHIVE_DIR}/page"
+    else
+        PAGE_ROOT="${ARCHIVE_SOURCE%.*}/page"
+    fi
+    printf '%s\n' "${PAGE_ROOT#./}"
+}
+
+# returns the common archive root directory for a related set of archive outputs
+function marsh_get_archive_root_path {  # marsh_get_archive_root_path archive_path[@]
+    local ARCHIVE_PATH CURRENT_DIR COMMON_DIR NEXT_DIR
+    local COMMON_COUNT INDEX
+    local -a COMMON_PARTS NEXT_PARTS
+
+    ARCHIVE_PATH="${1:-}"
+    [[ "${ARCHIVE_PATH}" == "" ]] && return 1
+    shift 1
+
+    COMMON_DIR=$(marsh_get_internal_parent_directory "${ARCHIVE_PATH}") || return 1
+
+    for ARCHIVE_PATH in "$@"; do
+        [[ "${ARCHIVE_PATH}" == "" ]] && continue
+        NEXT_DIR=$(marsh_get_internal_parent_directory "${ARCHIVE_PATH}") || return 1
+
+        COMMON_PARTS=()
+        NEXT_PARTS=()
+        if [[ "${COMMON_DIR}" != "." ]]; then
+            IFS='/' read -r -a COMMON_PARTS <<< "${COMMON_DIR}"
+        fi
+        if [[ "${NEXT_DIR}" != "." ]]; then
+            IFS='/' read -r -a NEXT_PARTS <<< "${NEXT_DIR}"
+        fi
+
+        COMMON_COUNT=0
+        while [[ "${COMMON_COUNT}" -lt "${#COMMON_PARTS[@]}" ]] && [[ "${COMMON_COUNT}" -lt "${#NEXT_PARTS[@]}" ]] && [[ "${COMMON_PARTS[$COMMON_COUNT]}" == "${NEXT_PARTS[$COMMON_COUNT]}" ]]; do
+            COMMON_COUNT=$((COMMON_COUNT + 1))
+        done
+
+        if [[ "${COMMON_COUNT}" -eq 0 ]]; then
+            COMMON_DIR='.'
+        else
+            COMMON_DIR="${COMMON_PARTS[0]}"
+            for ((INDEX=1; INDEX<COMMON_COUNT; INDEX++)); do
+                COMMON_DIR+="/${COMMON_PARTS[$INDEX]}"
+            done
+        fi
+    done
+
+    marsh_normalize_path "${COMMON_DIR}" "directory"
+}
+
+# returns numbered paginated archive source path for a page
+function marsh_get_archive_page_source {  # marsh_get_archive_page_source archive_source page_num
+    local ARCHIVE_SOURCE PAGE_NUM PAGE_ROOT ARCHIVE_EXT
+
+    ARCHIVE_SOURCE="${1:-}"
+    PAGE_NUM="${2:-}"
+    [[ "${ARCHIVE_SOURCE}" == "" ]] && return 1
+    [[ "${PAGE_NUM}" == "" ]] && return 1
+    PAGE_ROOT=$(marsh_get_archive_page_root "${ARCHIVE_SOURCE}") || return 1
+    ARCHIVE_EXT="${ARCHIVE_SOURCE##*.}"
+    printf '%s\n' "${PAGE_ROOT}/${PAGE_NUM}/index.${ARCHIVE_EXT}"
+}
+
+# returns output uri for an archive source path
+function marsh_get_archive_page_uri {  # marsh_get_archive_page_uri target_output_root archive_source_rel
+    local TARGET_OUTPUT_ROOT ARCHIVE_SOURCE_REL TARGET_OUTPUT_REL URI
+
+    TARGET_OUTPUT_ROOT="${1:-}"
+    ARCHIVE_SOURCE_REL="${2:-}"
+    [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
+    [[ "${ARCHIVE_SOURCE_REL}" == "" ]] && return 1
+
+    TARGET_OUTPUT_REL=$(marsh_get_target_output_path "${TARGET_OUTPUT_ROOT}") || return 1
+    if [[ "${TARGET_OUTPUT_REL}" == "." ]]; then
+        URI="${ARCHIVE_SOURCE_REL}"
+    else
+        URI="${TARGET_OUTPUT_REL}/${ARCHIVE_SOURCE_REL}"
+    fi
+    URI="${URI%.*}.html"
+    marsh_get_absolute_output_path "${URI}" "document"
+}
+
+# writes a single archive source page and its page-local subdocuments
+function marsh_write_archive_page {  # marsh_write_archive_page encoding target_output_root archive_source archive_title language langcode paginated page page_total page_size page_subdocuments_total archive_subdocuments_total current_uri canonical_uri first_uri prev_uri next_uri last_uri current_href canonical_href first_href prev_href next_href last_href archive_root_path archive_root_href #documents[@] documents[@] document_uris[@] document_abspaths[@]
+    local ENCODING TARGET_OUTPUT_ROOT ARCHIVE_SOURCE ARCHIVE_OUTPUT_SOURCE_PATH ARCHIVE_TEMP_SOURCE_FILE ARCHIVE_TITLE LANGUAGE LANGCODE PAGINATED
+    local PAGE PAGE_TOTAL PAGE_SIZE PAGE_SUBDOCUMENTS_TOTAL ARCHIVE_SUBDOCUMENTS_TOTAL
+    local PAGE_URI PAGE_CANONICAL_URI PAGE_FIRST_URI PAGE_PREV_URI PAGE_NEXT_URI PAGE_LAST_URI
+    local PAGE_HREF PAGE_CANONICAL_HREF PAGE_FIRST_HREF PAGE_PREV_HREF PAGE_NEXT_HREF PAGE_LAST_HREF
+    local ARCHIVE_ROOT_PATH ARCHIVE_ROOT_HREF
+    local NUM_DOCUMENTS DOCUMENT INDEX URI ABSPATH MANIFEST_FILE
+    local PAGE_IS_FIRST PAGE_IS_LAST PAGE_HAS_PREV PAGE_HAS_NEXT PAGE_HAS_SUBDOCUMENTS
+    local -a DOCUMENTS DOCUMENT_URIS DOCUMENT_ABSPATHS
+
+    ENCODING="${1:-}"
+    TARGET_OUTPUT_ROOT="${2:-}"
+    ARCHIVE_SOURCE="${3:-}"
+    [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
+    [[ "${ARCHIVE_SOURCE}" == "" ]] && return 1
+    shift 3
+    ARCHIVE_TITLE="${1:-}"
+    LANGUAGE="${2:-}"
+    LANGCODE="${3:-}"
+    PAGINATED="${4:-false}"
+    PAGE="${5:-1}"
+    PAGE_TOTAL="${6:-1}"
+    PAGE_SIZE="${7:-}"
+    PAGE_SUBDOCUMENTS_TOTAL="${8:-0}"
+    ARCHIVE_SUBDOCUMENTS_TOTAL="${9:-0}"
+    PAGE_URI="${10:-}"
+    PAGE_CANONICAL_URI="${11:-}"
+    PAGE_FIRST_URI="${12:-}"
+    PAGE_PREV_URI="${13:-}"
+    PAGE_NEXT_URI="${14:-}"
+    PAGE_LAST_URI="${15:-}"
+    PAGE_HREF="${16:-}"
+    PAGE_CANONICAL_HREF="${17:-}"
+    PAGE_FIRST_HREF="${18:-}"
+    PAGE_PREV_HREF="${19:-}"
+    PAGE_NEXT_HREF="${20:-}"
+    PAGE_LAST_HREF="${21:-}"
+    ARCHIVE_ROOT_PATH="${22:-}"
+    ARCHIVE_ROOT_HREF="${23:-}"
+    shift 23
+    NUM_DOCUMENTS="${1:-0}"
+    shift 1
+    DOCUMENTS=()
+    while [[ "${NUM_DOCUMENTS}" -gt 0 ]] && [[ "${#@}" -gt 0 ]]; do
+        DOCUMENTS+=("${1}")
+        NUM_DOCUMENTS=$((NUM_DOCUMENTS - 1))
+        shift 1
+    done
+    DOCUMENT_URIS=()
+    INDEX=0
+    while [[ "${INDEX}" -lt "${#DOCUMENTS[@]}" ]] && [[ "${#@}" -gt 0 ]]; do
+        DOCUMENT_URIS+=("${1}")
+        INDEX=$((INDEX + 1))
+        shift 1
+    done
+    DOCUMENT_ABSPATHS=()
+    INDEX=0
+    while [[ "${INDEX}" -lt "${#DOCUMENTS[@]}" ]] && [[ "${#@}" -gt 0 ]]; do
+        DOCUMENT_ABSPATHS+=("${1}")
+        INDEX=$((INDEX + 1))
+        shift 1
+    done
+
+    # page metadata
+    ARCHIVE_OUTPUT_SOURCE_PATH="${TARGET_OUTPUT_ROOT}/${ARCHIVE_SOURCE}"
+    ARCHIVE_TEMP_SOURCE_FILE=$(marsh_get_archive_temp_path "${TARGET_OUTPUT_ROOT}" "${ARCHIVE_SOURCE}" "source") || return 1
+    PAGE_IS_FIRST=false
+    PAGE_IS_LAST=false
+    PAGE_HAS_PREV=false
+    PAGE_HAS_NEXT=false
+    PAGE_HAS_SUBDOCUMENTS=false
+    [[ "${PAGE}" -eq 1 ]] && PAGE_IS_FIRST=true
+    [[ "${PAGE}" -eq "${PAGE_TOTAL}" ]] && PAGE_IS_LAST=true
+    [[ "${PAGE_PREV_URI}" != "" ]] && PAGE_HAS_PREV=true
+    [[ "${PAGE_NEXT_URI}" != "" ]] && PAGE_HAS_NEXT=true
+    [[ "${PAGE_SUBDOCUMENTS_TOTAL}" -gt 0 ]] && PAGE_HAS_SUBDOCUMENTS=true
+
+    # Keep final output directories present for later archive page publication.
+    mkdir -p "${ARCHIVE_OUTPUT_SOURCE_PATH%/*}" >/dev/null 2>&1 || {
+        echo "Unable to create archive output directory: ${ARCHIVE_OUTPUT_SOURCE_PATH%/*}" >&2
+        return 1
+    }
+
+    mkdir -p "${ARCHIVE_TEMP_SOURCE_FILE%/*}" >/dev/null 2>&1 || {
+        echo "Unable to create archive temp directory: ${ARCHIVE_TEMP_SOURCE_FILE%/*}" >&2
+        return 1
+    }
+    rm -f "${ARCHIVE_OUTPUT_SOURCE_PATH}" >/dev/null 2>&1 || {
+        echo "Unable to remove stale archive file: ${ARCHIVE_OUTPUT_SOURCE_PATH}" >&2
+        return 1
+    }
+
+    # write the generated archive source with page metadata
+    echo "---" > "${ARCHIVE_TEMP_SOURCE_FILE}" 2>/dev/null || {
+        echo "Unable to write archive file: ${ARCHIVE_TEMP_SOURCE_FILE}" >&2
+        return 1
+    }
+    if [[ "${ENCODING}" == "html" ]]; then
+        echo "Type: archive" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+    else
+        echo "Type: archive-${ENCODING}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+    fi
+    echo "Date: $(date -u '+%Y-%m-%d %H:%M:%S')" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+    echo "Title: ${ARCHIVE_TITLE}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+    echo "Language: ${LANGUAGE}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+    echo "Language_Code: ${LANGCODE}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+    echo "Archive_Root_Path: ${ARCHIVE_ROOT_PATH}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+    echo "Archive_Root_Href: ${ARCHIVE_ROOT_HREF}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+    if [[ "${ENCODING}" == "html" ]]; then
+        echo "Paginated: ${PAGINATED}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+        echo "Page: ${PAGE}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+        echo "Page_Total: ${PAGE_TOTAL}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+        echo "Page_Size: ${PAGE_SIZE}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+        echo "Page_Subdocuments_Total: ${PAGE_SUBDOCUMENTS_TOTAL}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+        echo "Archive_Subdocuments_Total: ${ARCHIVE_SUBDOCUMENTS_TOTAL}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+        echo "Page_Is_First: ${PAGE_IS_FIRST}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+        echo "Page_Is_Last: ${PAGE_IS_LAST}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+        echo "Page_Has_Prev: ${PAGE_HAS_PREV}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+        echo "Page_Has_Next: ${PAGE_HAS_NEXT}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+        echo "Page_Has_Subdocuments: ${PAGE_HAS_SUBDOCUMENTS}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+        echo "Page_URI: ${PAGE_URI}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+        echo "Page_Canonical_URI: ${PAGE_CANONICAL_URI}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+        echo "Page_First_URI: ${PAGE_FIRST_URI}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+        echo "Page_Prev_URI: ${PAGE_PREV_URI}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+        echo "Page_Next_URI: ${PAGE_NEXT_URI}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+        echo "Page_Last_URI: ${PAGE_LAST_URI}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+        echo "Page_Href: ${PAGE_HREF}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+        echo "Page_Canonical_Href: ${PAGE_CANONICAL_HREF}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+        echo "Page_First_Href: ${PAGE_FIRST_HREF}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+        echo "Page_Prev_Href: ${PAGE_PREV_HREF}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+        echo "Page_Next_Href: ${PAGE_NEXT_HREF}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+        echo "Page_Last_Href: ${PAGE_LAST_HREF}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+    fi
+    echo "---" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
+
+    # create manifest of the subdocuments for this page
+    if [[ "${#DOCUMENTS[@]}" -gt 0 ]]; then
+        MANIFEST_FILE=$(marsh_get_archive_temp_path "${TARGET_OUTPUT_ROOT}" "${ARCHIVE_SOURCE}" "subdocuments-manifest") || return 1
+        mkdir -p "${MANIFEST_FILE%/*}" >/dev/null 2>&1 || {
+            echo "Unable to create archive manifest temp directory: ${MANIFEST_FILE%/*}" >&2
+            return 1
+        }
+        {
+            INDEX=0
+            for DOCUMENT in "${DOCUMENTS[@]}"; do
+                URI="${DOCUMENT_URIS[$INDEX]:-}"
+                ABSPATH="${DOCUMENT_ABSPATHS[$INDEX]:-}"
+                printf '%q\t%q\t%q\n' "${DOCUMENT}" "${URI}" "${ABSPATH}" || {
+                    echo "Unable to write archive subdocument manifest: ${MANIFEST_FILE}" >&2
+                    return 1
+                }
+                INDEX=$((INDEX + 1))
+            done
+        } > "${MANIFEST_FILE}" || {
+            echo "Unable to create archive subdocument manifest: ${MANIFEST_FILE}" >&2
+            return 1
+        }
+    fi
+
+    return 0
+}
+
+# builds an archive of directory contents from a prepared manifest, sorted by descending date
+function marsh_build_archive {  # marsh_build_archive encoding target_output_root archive_source archive_title language langcode count page_size #types[@] types[@] #excluded_states[@] excluded_states[@] archive_manifest archive_root_path
+    local ENCODING TARGET_OUTPUT_ROOT ARCHIVE_SOURCE_REL ARCHIVE_TITLE LANGUAGE LANGCODE
+    local COUNT PAGE_SIZE NUM_TYPES NUM_EXCLUDED_STATES
+    local VALID DOCUMENT TYPE STATE_JOINED OIFS E
+    local ARCHIVE_MANIFEST MANIFEST_DOCUMENT_ESC MANIFEST_TYPE_ESC MANIFEST_URI_ESC MANIFEST_ABSPATH_ESC MANIFEST_STATE_ESC
+    local URI ABSPATH
+    local PAGINATED PAGE_TOTAL PAGE PAGE_START PAGE_END PAGE_INDEX PAGE_SUBDOCUMENTS_TOTAL
+    local ARCHIVE_SUBDOCUMENTS_TOTAL
+    local PAGE_ARCHIVE_SOURCE_REL PAGE_ALIAS_ARCHIVE_SOURCE_REL PAGE_ROOT
+    local PAGE_URI PAGE_CANONICAL_URI PAGE_FIRST_URI PAGE_PREV_URI PAGE_NEXT_URI PAGE_LAST_URI
+    local PAGE_HREF PAGE_CANONICAL_HREF PAGE_FIRST_HREF PAGE_PREV_HREF PAGE_NEXT_HREF PAGE_LAST_HREF
+    local PAGE_PREV_ARCHIVE_SOURCE_REL PAGE_NEXT_ARCHIVE_SOURCE_REL PAGE_LAST_ARCHIVE_SOURCE_REL
+    local PAGE_OUTPUT_PATH PAGE_CANONICAL_OUTPUT_PATH PAGE_FIRST_OUTPUT_PATH PAGE_PREV_OUTPUT_PATH PAGE_NEXT_OUTPUT_PATH PAGE_LAST_OUTPUT_PATH PAGE_BASE_PATH
+    local ARCHIVE_ROOT_PATH PAGE_ARCHIVE_ROOT_HREF
+    local -a TYPES EXCLUDED_STATES STATE VALID_DOCUMENTS VALID_DOCUMENT_URIS VALID_DOCUMENT_ABSPATHS
+    local -a ARCHIVE_PAGES PAGE_DOCUMENTS PAGE_DOCUMENT_URIS PAGE_DOCUMENT_ABSPATHS
+
+    # init
+    ENCODING="${1:-html}"
+    TARGET_OUTPUT_ROOT="${2:-}"
+    ARCHIVE_SOURCE_REL="${3:-}"
+    [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
+    [[ "${ARCHIVE_SOURCE_REL}" == "" ]] && return 1
+    shift 3
+    ARCHIVE_TITLE="${1:-}"
+    LANGUAGE="${2:-}"
+    LANGCODE="${3:-}"
+    shift 3
+    COUNT="${1:-}"
+    PAGE_SIZE="${2:-}"
+    shift 2
+    NUM_TYPES="${1:-0}"
+    shift 1
+    TYPES=()
+    while [[ "${NUM_TYPES}" -gt 0 ]] && [[ "${#@}" -gt 0 ]]; do
+        TYPES+=("${1}")
+        NUM_TYPES=$((NUM_TYPES - 1 ))
+        shift
+    done
+    NUM_EXCLUDED_STATES="${1:-0}"
+    shift 1
+    EXCLUDED_STATES=()
+    while [[ "${NUM_EXCLUDED_STATES}" -gt 0 ]] && [[ "${#@}" -gt 0 ]]; do
+        EXCLUDED_STATES+=("${1}")
+        NUM_EXCLUDED_STATES=$((NUM_EXCLUDED_STATES - 1 ))
+        shift
+    done
+    ARCHIVE_MANIFEST="${1:-}"
+    ARCHIVE_ROOT_PATH="${2:-}"
+    [[ "${ARCHIVE_MANIFEST}" == "" ]] && return 1
+
+    if [[ "${ARCHIVE_ROOT_PATH}" == "" ]]; then
+        ARCHIVE_ROOT_PATH=$(marsh_get_archive_root_path "${ARCHIVE_SOURCE_REL}") || return 1
+    else
+        ARCHIVE_ROOT_PATH=$(marsh_normalize_path "${ARCHIVE_ROOT_PATH}" "directory") || return 1
+    fi
+
+    # sanity check archive count
+    if [[ "${COUNT}" != "" ]] && [[ ! "${COUNT}" =~ ^[0-9]+$ ]]; then
+        echo "Invalid archive count: ${COUNT}" >&2
+        return 1
+    fi
+
+    # sanity check; only html archives may be paginated
+    PAGINATED=false
+    if [[ "${ENCODING}" == "html" ]] && [[ "${PAGE_SIZE}" =~ ^[0-9]+$ ]] && [[ "${PAGE_SIZE}" -gt 0 ]]; then
+        PAGINATED=true
+        PAGE_ROOT=$(marsh_get_archive_page_root "${ARCHIVE_SOURCE_REL}") || return 1
+        rm -rf "${TARGET_OUTPUT_ROOT}/${PAGE_ROOT}" >/dev/null 2>&1 || {
+            echo "Unable to clean paginated archive path: ${TARGET_OUTPUT_ROOT}/${PAGE_ROOT}" >&2
+            return 1
+        }
+    else
+        PAGE_SIZE=""
+    fi
+
+    # sanity check manifest
+    [[ -f "${ARCHIVE_MANIFEST}" ]] && [[ -r "${ARCHIVE_MANIFEST}" ]] || {
+        echo "Archive manifest not found: ${ARCHIVE_MANIFEST}" >&2
+        return 1
+    }
+
+    # complete document set before pagination
+    VALID=0
+    VALID_DOCUMENTS=()
+    VALID_DOCUMENT_URIS=()
+    VALID_DOCUMENT_ABSPATHS=()
+    while IFS=$'\t' read -r MANIFEST_DOCUMENT_ESC MANIFEST_TYPE_ESC MANIFEST_URI_ESC MANIFEST_ABSPATH_ESC MANIFEST_STATE_ESC; do
+        [[ "${MANIFEST_DOCUMENT_ESC}" == "" ]] && continue
+        DOCUMENT=""
+        TYPE=""
+        URI=""
+        ABSPATH=""
+        STATE_JOINED=""
+        STATE=()
+        eval "DOCUMENT=${MANIFEST_DOCUMENT_ESC}"
+        eval "TYPE=${MANIFEST_TYPE_ESC}"
+        eval "URI=${MANIFEST_URI_ESC}"
+        eval "ABSPATH=${MANIFEST_ABSPATH_ESC}"
+        eval "STATE_JOINED=${MANIFEST_STATE_ESC}"
+        if [[ "${STATE_JOINED}" != "" ]]; then
+            OIFS="${IFS}"
+            IFS=$(printf '\034')
+            STATE=(${STATE_JOINED})
+            IFS="${OIFS}"
+        fi
+        if [[ "${COUNT}" != "" ]] && [[ "${VALID}" -ge "${COUNT}" ]]; then
+            break
+        fi
+        if [[ "${TYPE%%-*}" == "archive" ]]; then
+            continue
+        fi
+        if [[ "${#TYPES[@]}" -gt 0 ]] && ! marsh_in_array "${TYPE}" "${TYPES[@]}"; then
+            continue
+        fi
+        if [[ "${#EXCLUDED_STATES[@]}" -gt 0 ]]; then
+            for E in "${EXCLUDED_STATES[@]}"; do
+                if marsh_in_array "${E}" "${STATE[@]}"; then
+                    continue 2
+                fi
+            done
+        fi
+        VALID=$((VALID + 1))
+        VALID_DOCUMENTS+=("${DOCUMENT}")
+        VALID_DOCUMENT_URIS+=("${URI:-}")
+        VALID_DOCUMENT_ABSPATHS+=("${ABSPATH:-}")
+    done < "${ARCHIVE_MANIFEST}"
+
+    # create page set for paginated html archives
+    # create at least one page even where there are no subdocuments
+    ARCHIVE_PAGES=()
+    ARCHIVE_SUBDOCUMENTS_TOTAL="${#VALID_DOCUMENTS[@]}"
+    PAGE_TOTAL=1
+    if [[ "${PAGINATED}" == true ]]; then
+        PAGE_TOTAL=$(( (ARCHIVE_SUBDOCUMENTS_TOTAL + PAGE_SIZE - 1) / PAGE_SIZE ))
+        [[ "${PAGE_TOTAL}" -lt 1 ]] && PAGE_TOTAL=1
+    fi
+    PAGE_CANONICAL_URI=$(marsh_get_archive_page_uri "${TARGET_OUTPUT_ROOT}" "${ARCHIVE_SOURCE_REL}") || return 1
+    PAGE_FIRST_URI="${PAGE_CANONICAL_URI}"
+    PAGE_CANONICAL_OUTPUT_PATH="${ARCHIVE_SOURCE_REL%.*}.html"
+    PAGE_FIRST_OUTPUT_PATH="${PAGE_CANONICAL_OUTPUT_PATH}"
+    if [[ "${PAGINATED}" == true ]] && [[ "${PAGE_TOTAL}" -gt 1 ]]; then
+        PAGE_LAST_ARCHIVE_SOURCE_REL=$(marsh_get_archive_page_source "${ARCHIVE_SOURCE_REL}" "${PAGE_TOTAL}") || return 1
+        PAGE_LAST_URI=$(marsh_get_archive_page_uri "${TARGET_OUTPUT_ROOT}" "${PAGE_LAST_ARCHIVE_SOURCE_REL}") || return 1
+        PAGE_LAST_OUTPUT_PATH="${PAGE_LAST_ARCHIVE_SOURCE_REL%.*}.html"
+    else
+        PAGE_LAST_URI="${PAGE_CANONICAL_URI}"
+        PAGE_LAST_OUTPUT_PATH="${PAGE_CANONICAL_OUTPUT_PATH}"
+    fi
+    for ((PAGE=1; PAGE<=PAGE_TOTAL; PAGE++)); do
+        PAGE_DOCUMENTS=()
+        PAGE_DOCUMENT_URIS=()
+        PAGE_DOCUMENT_ABSPATHS=()
+        if [[ "${PAGINATED}" == true ]]; then
+            PAGE_START=$(( (PAGE - 1) * PAGE_SIZE ))
+            PAGE_END=$(( PAGE_START + PAGE_SIZE - 1 ))
+        else
+            PAGE_START=0
+            PAGE_END=$(( ARCHIVE_SUBDOCUMENTS_TOTAL - 1 ))
+        fi
+        for ((PAGE_INDEX=PAGE_START; PAGE_INDEX<=PAGE_END; PAGE_INDEX++)); do
+            if [[ "${PAGE_INDEX}" -lt 0 ]] || [[ "${PAGE_INDEX}" -ge "${ARCHIVE_SUBDOCUMENTS_TOTAL}" ]]; then
+                continue
+            fi
+            PAGE_DOCUMENTS+=("${VALID_DOCUMENTS[$PAGE_INDEX]}")
+            PAGE_DOCUMENT_URIS+=("${VALID_DOCUMENT_URIS[$PAGE_INDEX]}")
+            PAGE_DOCUMENT_ABSPATHS+=("${VALID_DOCUMENT_ABSPATHS[$PAGE_INDEX]}")
+        done
+        PAGE_SUBDOCUMENTS_TOTAL="${#PAGE_DOCUMENTS[@]}"
+
+        if [[ "${PAGINATED}" == true ]] && [[ "${PAGE}" -gt 1 ]]; then
+            PAGE_ARCHIVE_SOURCE_REL=$(marsh_get_archive_page_source "${ARCHIVE_SOURCE_REL}" "${PAGE}") || return 1
+        else
+            PAGE_ARCHIVE_SOURCE_REL="${ARCHIVE_SOURCE_REL}"
+        fi
+        PAGE_URI=$(marsh_get_archive_page_uri "${TARGET_OUTPUT_ROOT}" "${PAGE_ARCHIVE_SOURCE_REL}") || return 1
+        PAGE_OUTPUT_PATH="${PAGE_ARCHIVE_SOURCE_REL%.*}.html"
+        PAGE_BASE_PATH="./${PAGE_OUTPUT_PATH}"
+        PAGE_BASE_PATH="${PAGE_BASE_PATH%/*}"
+        PAGE_BASE_PATH="${PAGE_BASE_PATH#./}"
+        PAGE_BASE_PATH="${PAGE_BASE_PATH:-.}"
+        PAGE_BASE_PATH=$(marsh_normalize_path "${PAGE_BASE_PATH}" "directory") || return 1
+        PAGE_PREV_URI=""
+        PAGE_NEXT_URI=""
+        PAGE_PREV_OUTPUT_PATH=""
+        PAGE_NEXT_OUTPUT_PATH=""
+        if [[ "${PAGE}" -gt 1 ]]; then
+            if [[ "${PAGE}" -eq 2 ]]; then
+                PAGE_PREV_ARCHIVE_SOURCE_REL="${ARCHIVE_SOURCE_REL}"
+            else
+                PAGE_PREV_ARCHIVE_SOURCE_REL=$(marsh_get_archive_page_source "${ARCHIVE_SOURCE_REL}" "$((PAGE - 1))") || return 1
+            fi
+            PAGE_PREV_URI=$(marsh_get_archive_page_uri "${TARGET_OUTPUT_ROOT}" "${PAGE_PREV_ARCHIVE_SOURCE_REL}") || return 1
+            PAGE_PREV_OUTPUT_PATH="${PAGE_PREV_ARCHIVE_SOURCE_REL%.*}.html"
+        fi
+        if [[ "${PAGE}" -lt "${PAGE_TOTAL}" ]]; then
+            PAGE_NEXT_ARCHIVE_SOURCE_REL=$(marsh_get_archive_page_source "${ARCHIVE_SOURCE_REL}" "$((PAGE + 1))") || return 1
+            PAGE_NEXT_URI=$(marsh_get_archive_page_uri "${TARGET_OUTPUT_ROOT}" "${PAGE_NEXT_ARCHIVE_SOURCE_REL}") || return 1
+            PAGE_NEXT_OUTPUT_PATH="${PAGE_NEXT_ARCHIVE_SOURCE_REL%.*}.html"
+        fi
+        PAGE_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${PAGE_OUTPUT_PATH}") || return 1
+        PAGE_CANONICAL_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${PAGE_CANONICAL_OUTPUT_PATH}") || return 1
+        PAGE_FIRST_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${PAGE_FIRST_OUTPUT_PATH}") || return 1
+        PAGE_PREV_HREF=""
+        [[ "${PAGE_PREV_OUTPUT_PATH}" != "" ]] && PAGE_PREV_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${PAGE_PREV_OUTPUT_PATH}") || true
+        PAGE_NEXT_HREF=""
+        [[ "${PAGE_NEXT_OUTPUT_PATH}" != "" ]] && PAGE_NEXT_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${PAGE_NEXT_OUTPUT_PATH}") || true
+        PAGE_LAST_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${PAGE_LAST_OUTPUT_PATH}") || return 1
+        PAGE_ARCHIVE_ROOT_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${ARCHIVE_ROOT_PATH}") || return 1
+
+        marsh_write_archive_page \
+            "${ENCODING}" \
+            "${TARGET_OUTPUT_ROOT}" \
+            "${PAGE_ARCHIVE_SOURCE_REL}" \
+            "${ARCHIVE_TITLE}" \
+            "${LANGUAGE}" \
+            "${LANGCODE}" \
+            "${PAGINATED}" \
+            "${PAGE}" \
+            "${PAGE_TOTAL}" \
+            "${PAGE_SIZE}" \
+            "${PAGE_SUBDOCUMENTS_TOTAL}" \
+            "${ARCHIVE_SUBDOCUMENTS_TOTAL}" \
+            "${PAGE_URI}" \
+            "${PAGE_CANONICAL_URI}" \
+            "${PAGE_FIRST_URI}" \
+            "${PAGE_PREV_URI}" \
+            "${PAGE_NEXT_URI}" \
+            "${PAGE_LAST_URI}" \
+            "${PAGE_HREF}" \
+            "${PAGE_CANONICAL_HREF}" \
+            "${PAGE_FIRST_HREF}" \
+            "${PAGE_PREV_HREF}" \
+            "${PAGE_NEXT_HREF}" \
+            "${PAGE_LAST_HREF}" \
+            "${ARCHIVE_ROOT_PATH}" \
+            "${PAGE_ARCHIVE_ROOT_HREF}" \
+            "${#PAGE_DOCUMENTS[@]}" \
+            "${PAGE_DOCUMENTS[@]}" \
+            "${PAGE_DOCUMENT_URIS[@]}" \
+            "${PAGE_DOCUMENT_ABSPATHS[@]}" || return 1
+        ARCHIVE_PAGES+=("${PAGE_ARCHIVE_SOURCE_REL}")
+
+        if [[ "${PAGINATED}" == true ]] && [[ "${PAGE}" -eq 1 ]]; then
+            PAGE_ALIAS_ARCHIVE_SOURCE_REL=$(marsh_get_archive_page_source "${ARCHIVE_SOURCE_REL}" '1') || return 1
+            PAGE_URI=$(marsh_get_archive_page_uri "${TARGET_OUTPUT_ROOT}" "${PAGE_ALIAS_ARCHIVE_SOURCE_REL}") || return 1
+            PAGE_OUTPUT_PATH="${PAGE_ALIAS_ARCHIVE_SOURCE_REL%.*}.html"
+            PAGE_BASE_PATH="./${PAGE_OUTPUT_PATH}"
+            PAGE_BASE_PATH="${PAGE_BASE_PATH%/*}"
+            PAGE_BASE_PATH="${PAGE_BASE_PATH#./}"
+            PAGE_BASE_PATH="${PAGE_BASE_PATH:-.}"
+            PAGE_BASE_PATH=$(marsh_normalize_path "${PAGE_BASE_PATH}" "directory") || return 1
+            PAGE_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${PAGE_OUTPUT_PATH}") || return 1
+            PAGE_CANONICAL_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${PAGE_CANONICAL_OUTPUT_PATH}") || return 1
+            PAGE_FIRST_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${PAGE_FIRST_OUTPUT_PATH}") || return 1
+            PAGE_NEXT_HREF=""
+            [[ "${PAGE_NEXT_OUTPUT_PATH}" != "" ]] && PAGE_NEXT_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${PAGE_NEXT_OUTPUT_PATH}") || true
+            PAGE_LAST_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${PAGE_LAST_OUTPUT_PATH}") || return 1
+            PAGE_ARCHIVE_ROOT_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${ARCHIVE_ROOT_PATH}") || return 1
+            marsh_write_archive_page \
+                "${ENCODING}" \
+                "${TARGET_OUTPUT_ROOT}" \
+                "${PAGE_ALIAS_ARCHIVE_SOURCE_REL}" \
+                "${ARCHIVE_TITLE}" \
+                "${LANGUAGE}" \
+                "${LANGCODE}" \
+                "${PAGINATED}" \
+                '1' \
+                "${PAGE_TOTAL}" \
+                "${PAGE_SIZE}" \
+                "${PAGE_SUBDOCUMENTS_TOTAL}" \
+                "${ARCHIVE_SUBDOCUMENTS_TOTAL}" \
+                "${PAGE_URI}" \
+                "${PAGE_CANONICAL_URI}" \
+                "${PAGE_FIRST_URI}" \
+                '' \
+                "${PAGE_NEXT_URI}" \
+                "${PAGE_LAST_URI}" \
+                "${PAGE_HREF}" \
+                "${PAGE_CANONICAL_HREF}" \
+                "${PAGE_FIRST_HREF}" \
+                '' \
+                "${PAGE_NEXT_HREF}" \
+                "${PAGE_LAST_HREF}" \
+                "${ARCHIVE_ROOT_PATH}" \
+                "${PAGE_ARCHIVE_ROOT_HREF}" \
+                "${#PAGE_DOCUMENTS[@]}" \
+                "${PAGE_DOCUMENTS[@]}" \
+                "${PAGE_DOCUMENT_URIS[@]}" \
+                "${PAGE_DOCUMENT_ABSPATHS[@]}" || return 1
+            ARCHIVE_PAGES+=("${PAGE_ALIAS_ARCHIVE_SOURCE_REL}")
+        fi
+    done
+
+    printf '%s\n' "${ARCHIVE_PAGES[@]}"
+    return 0
+}
+
+# builds a sitemap
+function marsh_build_sitemap {  # marsh_build_sitemap target_output_root sitemap_file sitemap_source markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links
+    local TARGET_OUTPUT_ROOT SITEMAP_FILE SITEMAP_SOURCE MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_REWRITE_LINKS
+    local SITEMAP_RENDER_FILE TEXT_TRANSFORM SITEMAP_CONTENT_FILE SITEMAP_META_FILE
+
+    # init
+    TARGET_OUTPUT_ROOT="${1:-}"
+    SITEMAP_FILE="${2:-}"
+    SITEMAP_SOURCE="${3:-}"
+    MARKDOWN_COMMAND="${4:-}"
+    MARKDOWN_OPTIONS_CSV="${5:-}"
+    MARKDOWN_FILEEXT_CSV="${6:-}"
+    MARKDOWN_REWRITE_LINKS="${7:-}"
+    [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
+    [[ "${SITEMAP_FILE}" == "" ]]   && return 1
+    [[ "${SITEMAP_SOURCE}" == "" ]] && return 1
+    [[ "${MARKDOWN_COMMAND}" == "" ]] && return 1
+    [[ "${MARKDOWN_FILEEXT_CSV}" == "" ]] && return 1
+    [[ "${MARKDOWN_REWRITE_LINKS}" == "" ]] && return 1
+
+    SITEMAP_RENDER_FILE=$(marsh_get_sitemap_render_path "${TARGET_OUTPUT_ROOT}" "${SITEMAP_FILE}") || return 1
+    mkdir -p "${SITEMAP_RENDER_FILE%/*}" >/dev/null 2>&1 || {
+        echo "Unable to create sitemap render path: ${SITEMAP_RENDER_FILE%/*}" >&2
+        return 1
+    }
+    SITEMAP_CONTENT_FILE="${SITEMAP_SOURCE}"
+    SITEMAP_META_FILE=""
+    if marsh_has_frontmatter "${SITEMAP_SOURCE}"; then
+        SITEMAP_CONTENT_FILE=$(marsh_get_sitemap_temp_path "${TARGET_OUTPUT_ROOT}" "${SITEMAP_FILE}" "content") || return 1
+        SITEMAP_META_FILE=$(marsh_get_sitemap_temp_path "${TARGET_OUTPUT_ROOT}" "${SITEMAP_FILE}" "meta-yaml") || return 1
+        mkdir -p "${SITEMAP_CONTENT_FILE%/*}" >/dev/null 2>&1 || {
+            echo "Unable to create sitemap temp path: ${SITEMAP_CONTENT_FILE%/*}" >&2
+            return 1
+        }
+        marsh_extract_frontmatter "${SITEMAP_SOURCE}" "${SITEMAP_META_FILE}" "${SITEMAP_CONTENT_FILE}" || {
+            rm -f "${SITEMAP_META_FILE}" "${SITEMAP_CONTENT_FILE}"
+            echo "Unable to extract sitemap frontmatter: ${SITEMAP_SOURCE}" >&2
+            return 1
+        }
+    fi
+    TEXT_TRANSFORM=
+    if [[ "${MARKDOWN_REWRITE_LINKS}" == true ]]; then
+        TEXT_TRANSFORM="links:replace-ext:${MARKDOWN_FILEEXT_CSV}:html"
+    fi
+    <"${SITEMAP_CONTENT_FILE}" marsh_text_transform ${TEXT_TRANSFORM} | marsh_process_markdown "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" > "${SITEMAP_RENDER_FILE}" || {
+        rm -f "${SITEMAP_META_FILE}" "${SITEMAP_CONTENT_FILE}"
+        echo "Unable to render sitemap markdown: ${SITEMAP_SOURCE}" >&2
+        return 1
+    }
+    rm -f "${SITEMAP_META_FILE}" "${SITEMAP_CONTENT_FILE}"
+}
+
 # returns the document artifact paths for one target build context
 function marsh_get_document_artifacts {  # marsh_get_document_artifacts target_output_root document
     local TARGET_OUTPUT_ROOT DOCUMENT DOCUMENT_ARTIFACT_ROOT DOCUMENT_ARTIFACT_CONTENT DOCUMENT_ARTIFACT_META_YAML DOCUMENT_ARTIFACT_META DOCUMENT_ARTIFACT_ARCHIVE_META
@@ -7109,31 +7138,6 @@ function marsh_build_document_and_template {  # marsh_build_document_and_templat
     fi
 
     return 0
-}
-
-# returns the cached template path, creating it when needed
-function marsh_get_template_cache_path {  # marsh_get_template_cache_path templates_dir template template_source
-    local TEMPLATES_DIR TEMPLATE TEMPLATE_SOURCE TEMPLATE_CACHE_PATH
-
-    TEMPLATES_DIR="${1:-}"
-    TEMPLATE="${2:-}"
-    TEMPLATE_SOURCE="${3:-}"
-    [[ "${TEMPLATES_DIR}" == "" ]] && return 1
-    [[ "${TEMPLATE}" == "" ]] && return 1
-    [[ "${TEMPLATE_SOURCE}" == "" ]] && return 1
-    TEMPLATE_CACHE_PATH="${TEMPLATES_DIR}/${TEMPLATE}"
-
-    if [[ ! -e "${TEMPLATE_CACHE_PATH}" ]]; then
-        marsh_copy_files "${TEMPLATE_SOURCE}/*" \
-                "${TEMPLATE_CACHE_PATH}" \
-                false || return 1
-    fi
-
-    [[ -e "${TEMPLATE_CACHE_PATH}" ]] || {
-        echo "Template cache path not found after copy: ${TEMPLATE_CACHE_PATH}" >&2
-        return 1
-    }
-    printf '%s\n' "${TEMPLATE_CACHE_PATH}"
 }
 
 # plans target documents to build

@@ -8136,6 +8136,10 @@ function marsh_write_target_archive_queue_records {  # marsh_write_target_archiv
     }
 }
 
+#
+# Command line interface dispatch
+#
+
 # run only when executed, not when sourced
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     marsh_cli "$@"

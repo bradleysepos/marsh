@@ -1212,6 +1212,46 @@ function marsh_print_verbose_output_path {  # marsh_print_verbose_output_path ou
     echo "  - ${OUTPUT_PATH}"
 }
 
+# processes markdown from stdin using explicit runtime configuration
+function marsh_process_markdown {  # marsh_process_markdown markdown_command markdown_options_csv [args...]
+    local MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV OIFS I
+    local -a MARKDOWN_OPTIONS MARKDOWN_OPTIONS_CLIARGS
+
+    MARKDOWN_COMMAND="${1:-}"
+    MARKDOWN_OPTIONS_CSV="${2:-}"
+    [[ "${MARKDOWN_COMMAND}" == "" ]] && return 1
+    shift 2
+
+    MARKDOWN_OPTIONS=()
+    MARKDOWN_OPTIONS_CLIARGS=()
+    if [[ "${MARKDOWN_OPTIONS_CSV}" != "" ]]; then
+        OIFS="${IFS}"
+        IFS=$'\n'
+        MARKDOWN_OPTIONS=(${MARKDOWN_OPTIONS_CSV//,/$IFS})
+        IFS="${OIFS}"
+        for I in "${!MARKDOWN_OPTIONS[@]}"; do
+            MARKDOWN_OPTIONS_CLIARGS+=("-f${MARKDOWN_OPTIONS[$I]}")
+        done
+    fi
+
+    # normalize known output quirks of discount markdown
+    # remove invalid re[lv]="footnote" attributes
+    # fix rendering of backslash-escaped literal angle brackets
+    {
+        if [[ "${#MARKDOWN_OPTIONS_CLIARGS[@]}" -gt 0 ]]; then
+            "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CLIARGS[@]}" "$@"
+        else
+            "${MARKDOWN_COMMAND}" "$@"
+        fi
+    } | sed -E \
+        -e '/<a href="#[a-z]+:[^"]+" re[lv]="footnote">/s/ re[lv]="footnote"//g' \
+        -e 's/\\&lt;/\&lt;/g' \
+        -e 's/\\&gt;/\&gt;/g' \
+        -e 's/\\</\&lt;/g' \
+        -e 's/\\>/\&gt;/g' \
+        -e 's/(&lt;[^<>]+)>/\1\&gt;/g'
+}
+
 # returns success when the requested log level is included by the active log level
 function marsh_should_log {  # marsh_should_log requested_log_level active_log_level all_log_levels_csv
     local REQUESTED_LOG_LEVEL ACTIVE_LOG_LEVEL ALL_LOG_LEVELS_CSV
@@ -6537,46 +6577,6 @@ function marsh_plan_target_documents_from_inventory {  # marsh_plan_target_docum
         [[ "${DOCUMENT_ID}" =~ \.(${MARKDOWN_FILEEXT_REGEX})$ ]] || continue
         printf '%q\t%q\t%q\t%q\n' "${DOCUMENT_ID}" "${DOCUMENT_ID}" "${TARGET_OUTPUT_REL}" "${TARGET_SOURCE_ROOT}"
     done
-}
-
-# processes markdown from stdin using explicit runtime configuration
-function marsh_process_markdown {  # marsh_process_markdown markdown_command markdown_options_csv [args...]
-    local MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV OIFS I
-    local -a MARKDOWN_OPTIONS MARKDOWN_OPTIONS_CLIARGS
-
-    MARKDOWN_COMMAND="${1:-}"
-    MARKDOWN_OPTIONS_CSV="${2:-}"
-    [[ "${MARKDOWN_COMMAND}" == "" ]] && return 1
-    shift 2
-
-    MARKDOWN_OPTIONS=()
-    MARKDOWN_OPTIONS_CLIARGS=()
-    if [[ "${MARKDOWN_OPTIONS_CSV}" != "" ]]; then
-        OIFS="${IFS}"
-        IFS=$'\n'
-        MARKDOWN_OPTIONS=(${MARKDOWN_OPTIONS_CSV//,/$IFS})
-        IFS="${OIFS}"
-        for I in "${!MARKDOWN_OPTIONS[@]}"; do
-            MARKDOWN_OPTIONS_CLIARGS+=("-f${MARKDOWN_OPTIONS[$I]}")
-        done
-    fi
-
-    # normalize known output quirks of discount markdown
-    # remove invalid re[lv]="footnote" attributes
-    # fix rendering of backslash-escaped literal angle brackets
-    {
-        if [[ "${#MARKDOWN_OPTIONS_CLIARGS[@]}" -gt 0 ]]; then
-            "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CLIARGS[@]}" "$@"
-        else
-            "${MARKDOWN_COMMAND}" "$@"
-        fi
-    } | sed -E \
-        -e '/<a href="#[a-z]+:[^"]+" re[lv]="footnote">/s/ re[lv]="footnote"//g' \
-        -e 's/\\&lt;/\&lt;/g' \
-        -e 's/\\&gt;/\&gt;/g' \
-        -e 's/\\</\&lt;/g' \
-        -e 's/\\>/\&gt;/g' \
-        -e 's/(&lt;[^<>]+)>/\1\&gt;/g'
 }
 
 # publishes a completed processed output file to its final destination

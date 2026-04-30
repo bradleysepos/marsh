@@ -476,7 +476,7 @@ function marsh_cli {
         MARKDOWN_COMMAND="$(pwd -P)/${MARKDOWN_COMMAND}"
     fi
     MARKDOWN_COMMAND="${MARKDOWN_COMMAND:-markdown}"
-    DEPS=("${MARKDOWN_COMMAND}")
+    DEPS=("${MARKDOWN_COMMAND}" "md5|md5sum")
     marsh_check_dependencies "${DEPS[@]}" || return 1
 
     # markdown file extensions
@@ -887,7 +887,7 @@ function marsh_format_elapsed_time {  # marsh_format_elapsed_time elapsed_second
 
 # builds a cache file path from one or more stable key parts, chunking long components into nested directories
 function marsh_get_cache_path {  # marsh_get_cache_path cache_root suffix key_part [key_part...]
-    local CACHE_ROOT SUFFIX KEY_PART KEY_ESC CACHE_PATH CHUNK_SIZE
+    local CACHE_ROOT SUFFIX KEY
 
     # init
     CACHE_ROOT="${1:-}"
@@ -896,25 +896,8 @@ function marsh_get_cache_path {  # marsh_get_cache_path cache_root suffix key_pa
     shift 2
     [[ "${#@}" -gt 0 ]] || return 1
 
-    # chunk size should be small enough to avoid filesystem limits on filename length
-    # and large enough to avoid excessive nesting for source paths
-    CHUNK_SIZE=120
-
-    CACHE_PATH="${CACHE_ROOT}"
-    while [[ "${#@}" -gt 0 ]]; do
-        KEY_PART="${1}"
-        shift 1
-        KEY_ESC=$(marsh_escape_cache_component "${KEY_PART}") || return 1
-
-        # split oversized keys into nested segments to avoid long filenames
-        while [[ "${#KEY_ESC}" -gt "${CHUNK_SIZE}" ]]; do
-            CACHE_PATH="${CACHE_PATH}/${KEY_ESC:0:${CHUNK_SIZE}}"
-            KEY_ESC="${KEY_ESC:${CHUNK_SIZE}}"
-        done
-        CACHE_PATH="${CACHE_PATH}/${KEY_ESC}"
-    done
-
-    printf '%s\n' "${CACHE_PATH}${SUFFIX}"
+    KEY=$(printf "%s\n" "${@}" | marsh_text_transform hash:md5) || return 1
+    printf '%s\n' "${CACHE_ROOT}/${KEY}${SUFFIX}"
 }
 
 # prints local declarations for the given list of variable names, one per line
@@ -1665,6 +1648,11 @@ function marsh_text_transform {  # marsh_text_transform transform [transform...]
                 }
             }
             '
+            ;;
+        hash:md5)
+            {
+                md5sum 2>/dev/null || md5 -r 2>/dev/null
+            } | awk '{ print $1 }'
             ;;
         headings:push)
             marsh_text_transform_headings push

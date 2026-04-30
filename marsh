@@ -3836,7 +3836,7 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
             TAG_VAR=""
             TAG_TYPE=""
             CONDITIONAL_VALUE=""
-            eval "$(marsh_resolve_tag_metadata "${TAG}" "${PREFIX}" "${METADATA_VARS}" 2>/dev/null)" || true
+            eval "$(marsh_resolve_template_tag_metadata "${TAG}" "${PREFIX}" "${METADATA_VARS}" 2>/dev/null)" || true
             if [[ "${TAG_TYPE}" == "array" ]]; then
                 CONDITIONAL_VALUES=()
                 eval $(marsh_flat_to_array "CONDITIONAL_VALUES" "${TAG_VAR}")
@@ -3880,7 +3880,7 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
             [[ "${TAG}" == "" ]] && continue
             TAG_VAR=""
             TAG_TYPE=""
-            eval "$(marsh_resolve_tag_metadata "${TAG}" "${PREFIX}" "${METADATA_VARS}" 2>/dev/null)" || true
+            eval "$(marsh_resolve_template_tag_metadata "${TAG}" "${PREFIX}" "${METADATA_VARS}" 2>/dev/null)" || true
             if [[ "${TAG_TYPE}" == "array" ]]; then
                 CONDITIONAL_VALUES=()
                 eval $(marsh_flat_to_array "CONDITIONAL_VALUES" "${TAG_VAR}")
@@ -4016,7 +4016,7 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
             eval "${TAG_PARSE}"
             TAG_VAR=""
             TAG_TYPE=""
-            eval "$(marsh_resolve_tag_metadata "${TAG_NAME}" "${PREFIX}" "${METADATA_VARS}" 2>/dev/null)" || true
+            eval "$(marsh_resolve_template_tag_metadata "${TAG_NAME}" "${PREFIX}" "${METADATA_VARS}" 2>/dev/null)" || true
             if [[ "${TAG_VAR}" != "" ]] && [[ "${TAG_TYPE}" != "" ]]; then
                 if [[ "${TAG_TYPE}" == "array" ]]; then
                     eval "$(marsh_flat_to_array "TAG_VALUES" "${TAG_VAR}")"
@@ -5215,8 +5215,35 @@ function marsh_parse_template_metadata {  # marsh_parse_template_metadata prefix
     done
 }
 
+# resolves a template asset output path relative to the target root and rejects traversal beyond the site root
+function marsh_resolve_template_asset_output_path {  # marsh_resolve_template_asset_output_path target_output_rel asset_path [template_assets_path]
+    local TARGET_OUTPUT_REL ASSET_PATH TEMPLATE_ASSETS_PATH COMBINED_PATH ASSET_OUTPUT_REL
+
+    TARGET_OUTPUT_REL="${1:-}"
+    ASSET_PATH="${2:-}"
+    TEMPLATE_ASSETS_PATH="${3:-}"
+    [[ "${TARGET_OUTPUT_REL}" == "" ]] && return 1
+    [[ "${ASSET_PATH}" == "" ]] && return 1
+    [[ "${ASSET_PATH}" != /* ]] || return 1
+    [[ "${TEMPLATE_ASSETS_PATH}" != /* ]] || return 1
+
+    TARGET_OUTPUT_REL=$(marsh_normalize_internal_path "${TARGET_OUTPUT_REL}" "directory") || return 1
+    COMBINED_PATH="${ASSET_PATH}"
+    if [[ "${TEMPLATE_ASSETS_PATH}" != "" ]]; then
+        COMBINED_PATH="${TEMPLATE_ASSETS_PATH%/}/${ASSET_PATH}"
+    fi
+    ASSET_OUTPUT_REL=$(marsh_resolve_relative_path "${TARGET_OUTPUT_REL}" "${COMBINED_PATH}") || return 1
+    case "${ASSET_OUTPUT_REL}" in
+        ..|../*)
+            return 1
+            ;;
+    esac
+
+    printf '%s\n' "${ASSET_OUTPUT_REL}"
+}
+
 # resolves a template tag to shell variable assignments
-function marsh_resolve_tag_metadata {  # marsh_resolve_tag_metadata tag_name prefix metadata_vars[@]
+function marsh_resolve_template_tag_metadata {  # marsh_resolve_template_tag_metadata tag_name prefix metadata_vars[@]
     local TAG_NAME PREFIX METADATA_VARS TAG_VAR TAG_TYPE
     local OIFS META_VAR NORMALIZED_TAG NORMALIZED_META MATCH_VAR MATCH_COUNT
 
@@ -5408,33 +5435,6 @@ function marsh_resolve_tag_metadata {  # marsh_resolve_tag_metadata tag_name pre
     printf 'TAG_VAR=%q\n' "${TAG_VAR}"
     printf 'TAG_TYPE=%q\n' "${TAG_TYPE}"
     return 0
-}
-
-# resolves a template asset output path relative to the target root and rejects traversal beyond the site root
-function marsh_resolve_template_asset_output_path {  # marsh_resolve_template_asset_output_path target_output_rel asset_path [template_assets_path]
-    local TARGET_OUTPUT_REL ASSET_PATH TEMPLATE_ASSETS_PATH COMBINED_PATH ASSET_OUTPUT_REL
-
-    TARGET_OUTPUT_REL="${1:-}"
-    ASSET_PATH="${2:-}"
-    TEMPLATE_ASSETS_PATH="${3:-}"
-    [[ "${TARGET_OUTPUT_REL}" == "" ]] && return 1
-    [[ "${ASSET_PATH}" == "" ]] && return 1
-    [[ "${ASSET_PATH}" != /* ]] || return 1
-    [[ "${TEMPLATE_ASSETS_PATH}" != /* ]] || return 1
-
-    TARGET_OUTPUT_REL=$(marsh_normalize_internal_path "${TARGET_OUTPUT_REL}" "directory") || return 1
-    COMBINED_PATH="${ASSET_PATH}"
-    if [[ "${TEMPLATE_ASSETS_PATH}" != "" ]]; then
-        COMBINED_PATH="${TEMPLATE_ASSETS_PATH%/}/${ASSET_PATH}"
-    fi
-    ASSET_OUTPUT_REL=$(marsh_resolve_relative_path "${TARGET_OUTPUT_REL}" "${COMBINED_PATH}") || return 1
-    case "${ASSET_OUTPUT_REL}" in
-        ..|../*)
-            return 1
-            ;;
-    esac
-
-    printf '%s\n' "${ASSET_OUTPUT_REL}"
 }
 
 #

@@ -3857,33 +3857,6 @@ function marsh_test {
             fi
             rm -rf "${TARGET_OUTPUT_ROOT}"
             ;;
-        marsh_escape_cache_component:0)
-            TEST_NAME+=":escapes_reserved_chars"
-            ACTUAL=$(marsh_escape_cache_component $'a%b/c\\d:e f\tg\nh\r\034\035')
-            EXPECTED='a%25b%2Fc%5Cd%3Ae%20f%09g%0Ah%0D%1C%1D'
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                RES="[PASS]"
-            fi
-            ;;
-        marsh_escape_cache_component:1)
-            TEST_NAME+=":empty_string"
-            ACTUAL=$(marsh_escape_cache_component "")
-            EXPECTED='__empty__'
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                RES="[PASS]"
-            fi
-            ;;
-        marsh_escape_cache_component:2)
-            TEST_NAME+=":dot_segments"
-            ACTUAL="$(marsh_escape_cache_component ".")"$'\001'"$(marsh_escape_cache_component "..")"
-            EXPECTED='%2E'$'\001''%2E%2E'
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                RES="[PASS]"
-            fi
-            ;;
         marsh_escape_substitution:0)
             TEST_NAME+=":plain"
             ACTUAL=$(printf 'foo' | marsh_escape_substitution)
@@ -8848,7 +8821,6 @@ KNOWN_FUNCTIONS=(
     marsh_copy_source_objects
     marsh_copy_template_assets
     marsh_create_target_source_root
-    marsh_escape_cache_component
     marsh_escape_substitution
     marsh_extract_frontmatter
     marsh_flat_to_array

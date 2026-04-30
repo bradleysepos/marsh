@@ -802,42 +802,6 @@ function marsh_copy_files {  # marsh_copy_files source dest force
     return 0
 }
 
-# escapes arbitrary text into a stable cache-safe path component
-function marsh_escape_cache_component {  # marsh_escape_cache_component value
-    local VALUE
-
-    # init
-    [[ "${1+isset}" == "isset" ]] || return 1
-    VALUE="${1}"
-
-    # escape separators and path syntax that would change cache addressing
-    VALUE="${VALUE//%/%25}"
-    VALUE="${VALUE//$'\034'/%1C}"
-    VALUE="${VALUE//$'\035'/%1D}"
-    VALUE="${VALUE//\//%2F}"
-    VALUE="${VALUE//\\/%5C}"
-    VALUE="${VALUE//:/%3A}"
-    VALUE="${VALUE//$'\n'/%0A}"
-    VALUE="${VALUE//$'\r'/%0D}"
-    VALUE="${VALUE//$'\t'/%09}"
-    VALUE="${VALUE// /%20}"
-
-    # keep empty and dot-only values from collapsing into special path segments
-    case "${VALUE}" in
-        "")
-            VALUE="__empty__"
-            ;;
-        .)
-            VALUE="%2E"
-            ;;
-        ..)
-            VALUE="%2E%2E"
-            ;;
-    esac
-
-    printf '%s\n' "${VALUE}"
-}
-
 # escapes text for safe sed replacement, trimming trailing newlines to match shell command substitution behavior
 function marsh_escape_substitution {  # marsh_escape_substitution
     sed -e ':a' -e '$!{N' -e 'ba' -e '}' -e 's/\n*$//' -e 's/[&/\]/\\&/g' -e 's/\n/\\&/g'

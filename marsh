@@ -2069,7 +2069,7 @@ function marsh_text_transform {  # marsh_text_transform transform [transform...]
     esac
 }
 
-# transforms headings without relying on GNU sed multiline behavior
+# transforms markdown and html headings to increase/decrease levels or remove entirely
 function marsh_text_transform_headings {  # marsh_text_transform_headings action
     local ACTION="${1:-}"
     awk -v ACTION="${ACTION}" '
@@ -2616,7 +2616,7 @@ function marsh_copy_source_objects {  # marsh_copy_source_objects source_dir tar
     done
 }
 
-# creates the cached source-root record for a target under MARSH_TEMP
+# creates the cached source-root record for a target under the temporary directory
 function marsh_create_target_source_root {  # marsh_create_target_source_root target_output_root source_root
     local TARGET_OUTPUT_ROOT SOURCE_ROOT TARGET_BUILD_TEMP_ROOT TARGET_SOURCE_ROOT_CACHE_FILE
 
@@ -2760,6 +2760,7 @@ function marsh_get_target_source_inventory {  # marsh_get_target_source_inventor
     }
 }
 
+# creates a plan for direct copy of source assets for a target based on the target source inventory
 function marsh_plan_target_source_assets {  # marsh_plan_target_source_assets source site_output_root target_output_rel markdown_fileext_csv
     local SOURCE SITE_OUTPUT_ROOT TARGET_OUTPUT_REL MARKDOWN_FILEEXT_CSV
     local SOURCE_ROOT TARGET_OUTPUT_ROOT TARGET_SOURCE_INVENTORY_LINE
@@ -2785,7 +2786,7 @@ function marsh_plan_target_source_assets {  # marsh_plan_target_source_assets so
     marsh_plan_target_source_assets_from_inventory "${SOURCE}" "${TARGET_OUTPUT_REL}" "${SOURCE_ROOT}" "${MARKDOWN_FILEEXT_CSV}" "${TARGET_SOURCE_INVENTORY_RECORDS[@]}"
 }
 
-# creates a plan for direct copy of source assets for a target
+# creates a plan for direct copy of source assets for a target based on provided inventory records
 function marsh_plan_target_source_assets_from_inventory {  # marsh_plan_target_source_assets_from_inventory source target_output_rel source_root markdown_fileext_csv inventory_records[@]
     local SOURCE TARGET_OUTPUT_REL SOURCE_ROOT MARKDOWN_FILEEXT_CSV
     local SOURCE_PATH_PATTERN REL_PATH MATCH_REL_PATH
@@ -2826,7 +2827,7 @@ function marsh_plan_target_source_assets_from_inventory {  # marsh_plan_target_s
 # Target build context and planning
 #
 
-# removes the temporary working directory for a target under MARSH_TEMP
+# removes the temporary working directory for a target under the temporary directory
 function marsh_clean_target_temp {  # marsh_clean_target_temp target_output_root
     local TARGET_OUTPUT_ROOT TARGET_BUILD_TEMP_ROOT
 
@@ -3067,7 +3068,7 @@ function marsh_get_target_document_paths {  # marsh_get_target_document_paths do
     printf 'DOCUMENT_BASE_REL=%q\n' "${DOCUMENT_BASE_REL}"
 }
 
-# loads target metadata into convenience variables
+# loads target metadata into shell variables
 function marsh_get_target_metadata {  # marsh_get_target_metadata source_prefix prefix
     local SOURCE_PREFIX PREFIX
     local TARGET_PATH TARGET_NAME TARGET_SOURCE TARGET_FORCE TARGET_SITEMAP TARGET_SITEMAP_SOURCE TARGET_SITEMAP_SEARCH
@@ -3208,7 +3209,7 @@ function marsh_get_target_plan_root {  # marsh_get_target_plan_root target_outpu
     printf '%s\n' "${TARGET_BUILD_TEMP_ROOT}/plan"
 }
 
-# returns the temp work root for a target under MARSH_TEMP
+# returns the temp work root for a target under the temporary directory
 function marsh_get_target_temp_root {  # marsh_get_target_temp_root target_output_root
     local TARGET_OUTPUT_ROOT TARGET_OUTPUT_REL TARGET_KEY
 
@@ -6218,7 +6219,7 @@ function marsh_build_document_and_template {  # marsh_build_document_and_templat
     return 0
 }
 
-# builds planned documents for a target, in parallel if possible
+# builds planned documents for a target from a provided list of document records
 function marsh_build_planned_target_documents {  # marsh_build_planned_target_documents site_output_root log_level log_levels_csv jobs sitemap sitemap_search templates_dir template markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links #template_overrides[@] template_overrides[@] template_assets_path document_records[@]
     local SITE_OUTPUT_ROOT LOG_LEVEL LOG_LEVELS_CSV JOBS SITEMAP SITEMAP_SEARCH TEMPLATES_DIR TEMPLATE
     local MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_REWRITE_LINKS
@@ -6378,7 +6379,7 @@ function marsh_get_document_artifacts {  # marsh_get_document_artifacts target_o
     printf 'DOCUMENT_ARTIFACT_ARCHIVE_META=%q\n' "${DOCUMENT_ARTIFACT_ARCHIVE_META}"
 }
 
-# loads cached document metadata assignments where available, creating the cache from yaml when needed
+# loads cached document metadata assignments where available, creating the cache from the source metadata when needed
 function marsh_get_document_metadata {  # marsh_get_document_metadata meta_file [prefix]
     local META_FILE PREFIX CACHE_FILE CACHE_TEMP META_ASSIGNMENTS META_ASSIGNMENT
     local META_NAME META_VALUE
@@ -6493,6 +6494,7 @@ function marsh_has_frontmatter {  # marsh_has_frontmatter source
     [[ "${FIRST_LINE}" =~ ^---\ *(#.*)?$ ]]
 }
 
+# plans target documents to build from the target source inventory
 function marsh_plan_target_documents {  # marsh_plan_target_documents site_output_root target target_output_rel target_source_root markdown_fileext_csv
     local SITE_OUTPUT_ROOT TARGET TARGET_OUTPUT_REL TARGET_SOURCE_ROOT MARKDOWN_FILEEXT_CSV
     local TARGET_OUTPUT_ROOT TARGET_SOURCE_INVENTORY_LINE
@@ -6519,7 +6521,7 @@ function marsh_plan_target_documents {  # marsh_plan_target_documents site_outpu
     marsh_plan_target_documents_from_inventory "${SITE_OUTPUT_ROOT}" "${TARGET}" "${TARGET_OUTPUT_REL}" "${TARGET_SOURCE_ROOT}" "${MARKDOWN_FILEEXT_CSV}" "${TARGET_SOURCE_INVENTORY_RECORDS[@]}"
 }
 
-# plans target documents to build
+# plans target documents to build from a provided list of source inventory records
 function marsh_plan_target_documents_from_inventory {  # marsh_plan_target_documents_from_inventory site_output_root target target_output_rel target_source_root markdown_fileext_csv inventory_records[@]
     local SITE_OUTPUT_ROOT TARGET TARGET_OUTPUT_REL TARGET_SOURCE_ROOT MARKDOWN_FILEEXT_CSV MARKDOWN_FILEEXT_REGEX
     local DOCUMENT_ID REQUESTED_TARGET_REL TARGET_IS_DIRECTORY_SCOPE SOURCE_MATCHES_TARGET
@@ -7197,7 +7199,7 @@ function marsh_get_archive_temp_path {  # marsh_get_archive_temp_path target_out
     esac
 }
 
-# plans target archives
+# plans target archive page generation
 function marsh_plan_archive_pages {  # marsh_plan_archive_pages target_output_root encoding archive_source archive_title language langcode count page_size #types[@] types[@] #excluded_states[@] excluded_states[@] archive_manifest archive_root_path templates_dir template sitemap sitemap_search #template_overrides[@] template_overrides[@] template_assets_path build_context_target_output_rel build_context_source_root
     local TARGET_OUTPUT_ROOT ENCODING ARCHIVE_SOURCE ARCHIVE_TITLE LANGUAGE LANGCODE COUNT PAGE_SIZE
     local NUM_TYPES NUM_EXCLUDED_STATES ARCHIVE_MANIFEST ARCHIVE_ROOT_PATH

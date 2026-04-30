@@ -105,6 +105,10 @@ fi
 # temp dir
 TEMP_DIR="${TMPDIR:-/tmp}"
 TEMP_DIR="${TEMP_DIR%/}"
+TEMP_DIR=$(cd "${TEMP_DIR}" && (pwd -P . 2>/dev/null || command pwd)) || {
+    echo "Unable to resolve temporary directory: ${TEMP_DIR}" >&2
+    exit 1
+}
 MARSH_TEST_TEMP=$(mktemp -d "${TEMP_DIR}/marsh-test-XXXXXX" 2>/dev/null)
 if [[ ! -d "${MARSH_TEST_TEMP}" ]]; then
     echo "Error: unable to create test temporary directory" >&2

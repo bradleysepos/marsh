@@ -2730,8 +2730,7 @@ function marsh_get_target_source_inventory {  # marsh_get_target_source_inventor
 
     # share one source inventory cache across targets within the same build
     INVENTORY_CACHE_DIR="${MARSH_TEMP}/source-inventory"
-    INVENTORY_KEY=$(marsh_escape_cache_component "${SOURCE_ROOT}") || return 1
-    INVENTORY_KEY+="--$(marsh_escape_cache_component "${SKIP_LINKS}")" || return 1
+    INVENTORY_KEY=$(printf '%s\n' "${SOURCE_ROOT}" "${SKIP_LINKS}" | marsh_text_transform hash:md5) || return 1
     INVENTORY_FILE="${INVENTORY_CACHE_DIR}/${INVENTORY_KEY}.inventory"
 
     if [[ ! -f "${INVENTORY_FILE}" ]]; then
@@ -4949,11 +4948,11 @@ function marsh_get_template_cache_name {  # marsh_get_template_cache_name templa
     [[ "${TEMPLATE_SOURCE}" == "" ]] && return 1
     TEMPLATE_SOURCE="${TEMPLATE_SOURCE%/}"
 
-    # combine the readable basename with the full escaped source path for uniqueness
+    # combine the readable basename with the full source path for uniqueness
     TEMPLATE_NAME="${TEMPLATE_SOURCE##*/}"
     [[ "${TEMPLATE_NAME}" != "" ]] || TEMPLATE_NAME='template'
-    TEMPLATE_KEY=$(marsh_escape_cache_component "${TEMPLATE_SOURCE}") || return 1
-    printf '%s\n' "${TEMPLATE_NAME}-${TEMPLATE_KEY}"
+    TEMPLATE_KEY=$(printf '%s\n' "${TEMPLATE_NAME}" "${TEMPLATE_SOURCE}" | marsh_text_transform hash:md5) || return 1
+    printf '%s\n' "${TEMPLATE_KEY}"
 }
 
 # returns the cached template path, creating it when needed
@@ -5543,7 +5542,7 @@ function marsh_build_planned_target_sitemaps {  # marsh_build_planned_target_sit
 # returns a cached processed sitemap for a document base path, building it on miss
 function marsh_get_processed_sitemap {  # marsh_get_processed_sitemap sitemap_render_path sitemap_dir document_base_path
     local SITEMAP_RENDER_PATH SITEMAP_DIR DOCUMENT_BASE_PATH
-    local CACHE_DIR CACHE_KEY CACHE_FILE CACHE_TEMP RENDER_DIR RENDER_KEY
+    local CACHE_DIR CACHE_KEY CACHE_FILE CACHE_TEMP RENDER_DIR
 
     SITEMAP_RENDER_PATH="${1:-}"
     SITEMAP_DIR="${2:-}"
@@ -5563,10 +5562,8 @@ function marsh_get_processed_sitemap {  # marsh_get_processed_sitemap sitemap_re
         echo "Unable to create processed sitemap cache directory: ${CACHE_DIR}" >&2
         return 1
     }
-    RENDER_KEY="${SITEMAP_RENDER_PATH##*/}"
-    CACHE_KEY=$(marsh_escape_cache_component "${SITEMAP_DIR}") || return 1
-    CACHE_KEY+="--$(marsh_escape_cache_component "${DOCUMENT_BASE_PATH}")" || return 1
-    CACHE_FILE="${CACHE_DIR}/${CACHE_KEY}--${RENDER_KEY}"
+    CACHE_KEY=$(printf '%s\n' "${SITEMAP_DIR}" "${DOCUMENT_BASE_PATH}" "${SITEMAP_RENDER_PATH##*/}" | marsh_text_transform hash:md5) || return 1
+    CACHE_FILE="${CACHE_DIR}/${CACHE_KEY}.sitemap.html"
     if [[ -f "${CACHE_FILE}" ]] && [[ -r "${CACHE_FILE}" ]]; then
         printf '%s\n' "${CACHE_FILE}"
         return 0
@@ -5624,8 +5621,7 @@ function marsh_get_sitemap_lookup_path {  # marsh_get_sitemap_lookup_path target
     CURRENT_DIR=$(marsh_get_internal_parent_directory "${DOCUMENT}") || return 1
     LOOKUP_BASE_DIR=$(marsh_normalize_internal_path "${CURRENT_DIR}" "directory") || return 1
     LOOKUP_CACHE_DIR="$(marsh_get_target_temp_root "${TARGET_OUTPUT_ROOT}")/sitemaps/lookup"
-    LOOKUP_CACHE_KEY=$(marsh_escape_cache_component "${SITEMAP_FILE}") || return 1
-    LOOKUP_CACHE_KEY+="--$(marsh_escape_cache_component "${LOOKUP_BASE_DIR}")" || return 1
+    LOOKUP_CACHE_KEY=$(printf '%s\n' "${SITEMAP_FILE}" "${LOOKUP_BASE_DIR}" | marsh_text_transform hash:md5) || return 1
     LOOKUP_CACHE_FILE="${LOOKUP_CACHE_DIR}/${LOOKUP_CACHE_KEY}.lookup"
 
     if [[ -f "${LOOKUP_CACHE_FILE}" ]] && [[ -r "${LOOKUP_CACHE_FILE}" ]]; then
@@ -5690,7 +5686,7 @@ function marsh_get_sitemap_render_path {  # marsh_get_sitemap_render_path target
         echo "Unable to create sitemap render cache directory: ${SITEMAP_RENDER_CACHE_DIR}" >&2
         return 1
     }
-    SITEMAP_RENDER_KEY=$(marsh_escape_cache_component "${SITEMAP_PATH}") || return 1
+    SITEMAP_RENDER_KEY=$(printf '%s\n' "${SITEMAP_PATH}" | marsh_text_transform hash:md5) || return 1
     SITEMAP_RENDER_FILE="${SITEMAP_RENDER_CACHE_DIR}/${SITEMAP_RENDER_KEY}.sitemap.html"
     printf '%s\n' "${SITEMAP_RENDER_FILE}"
 }

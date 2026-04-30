@@ -4436,7 +4436,7 @@ function marsh_test {
             SITEMAP_RENDER_FILE=$(marsh_get_sitemap_render_path "${TARGET_OUTPUT_ROOT}" "site-map/index.markdown")
             printf '%s\n' '<h1><a href="./">Site Map</a></h1>' '<p><a href="../news/">News</a></p>' > "${SITEMAP_RENDER_FILE}"
             ACTUAL=$(marsh_get_processed_sitemap "${SITEMAP_RENDER_FILE}" "site-map" "docs/")
-            EXPECTED="$(marsh_get_target_temp_root "${TARGET_OUTPUT_ROOT}")/sitemaps/processed/site-map--docs%2F--site-map%2Findex.markdown.sitemap.html"
+            EXPECTED="$(marsh_get_target_temp_root "${TARGET_OUTPUT_ROOT}")/sitemaps/processed/a327074b16f48ff842209328c43bee1b.sitemap.html"
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 ACTUAL=$(<"${EXPECTED}")
@@ -4454,7 +4454,7 @@ function marsh_test {
             mkdir -p "${TARGET_OUTPUT_ROOT}"
             SITEMAP_RENDER_FILE=$(marsh_get_sitemap_render_path "${TARGET_OUTPUT_ROOT}" "site-map/index.markdown")
             printf '%s\n' '<p><a href="../news/">News</a></p>' > "${SITEMAP_RENDER_FILE}"
-            CACHE_FILE="$(marsh_get_target_temp_root "${TARGET_OUTPUT_ROOT}")/sitemaps/processed/site-map--docs%2F--site-map%2Findex.markdown.sitemap.html"
+            CACHE_FILE="$(marsh_get_target_temp_root "${TARGET_OUTPUT_ROOT}")/sitemaps/processed/a327074b16f48ff842209328c43bee1b.sitemap.html"
             mkdir -p "${CACHE_FILE%/*}"
             printf '%s\n' 'sentinel' > "${CACHE_FILE}"
             ACTUAL=$(marsh_get_processed_sitemap "${SITEMAP_RENDER_FILE}" "site-map" "docs/")
@@ -4534,7 +4534,7 @@ function marsh_test {
             mkdir -p "${TARGET_OUTPUT_ROOT}"
             SITEMAP_RENDER_FILE=$(marsh_get_sitemap_render_path "${TARGET_OUTPUT_ROOT}" "site-map/index.markdown")
             printf '%s\n' '<p><a href="../news/">News</a></p>' > "${SITEMAP_RENDER_FILE}"
-            CACHE_FILE="$(marsh_get_target_temp_root "${TARGET_OUTPUT_ROOT}")/sitemaps/processed/site-map--docs%2F--site-map%2Findex.markdown.sitemap.html"
+            CACHE_FILE="$(marsh_get_target_temp_root "${TARGET_OUTPUT_ROOT}")/sitemaps/processed/a327074b16f48ff842209328c43bee1b.sitemap.html"
             ACTUAL=$({
                 function mv {
                     if [[ "${2:-}" == "${CACHE_FILE}" ]]; then
@@ -4741,7 +4741,7 @@ function marsh_test {
             TEST_NAME+=":root_target"
             MARSH_CONFIG_PATH="/site/public"
             ACTUAL=$(marsh_get_sitemap_render_path "/site/public" "site-map/index.markdown")
-            EXPECTED="${MARSH_TEST_TEMP}/build/targets/root/sitemaps/render/site-map%2Findex.markdown.sitemap.html"
+            EXPECTED="${MARSH_TEST_TEMP}/build/targets/root/sitemaps/render/77110551700024d6b43ad7158e18e599.sitemap.html"
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -4751,7 +4751,7 @@ function marsh_test {
             TEST_NAME+=":nested_target"
             MARSH_CONFIG_PATH="/site/public"
             ACTUAL=$(marsh_get_sitemap_render_path "/site/public/blog" "news/sitemap.markdown")
-            EXPECTED="${MARSH_TEST_TEMP}/build/targets/blog/sitemaps/render/news%2Fsitemap.markdown.sitemap.html"
+            EXPECTED="${MARSH_TEST_TEMP}/build/targets/blog/sitemaps/render/3579f345f811f25bfddbbb1c277441d1.sitemap.html"
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -4978,7 +4978,7 @@ function marsh_test {
                 'TARGET_TEMPLATE_OVERRIDES=()' \
                 'TARGET_TEMPLATE_OVERRIDES+=("foo=foo")' \
                 'TARGET_TEMPLATE_OVERRIDES+=("bar=bar")' \
-                'TARGET_TEMPLATE="default-templates%2Fdefault"' \
+                'TARGET_TEMPLATE="d1af1f096150eef65e4232d10be08968"' \
                 'TARGET_ARCHIVES=()' \
                 'TARGET_ARCHIVES_ENCODING=()' \
                 'TARGET_ARCHIVES_NAME=()' \
@@ -5008,7 +5008,7 @@ function marsh_test {
                 'TARGET_ARCHIVES_TEMPLATE_SOURCE+=("templates/archive-atom")' \
                 'TARGET_ARCHIVES_TEMPLATE_ASSETS_PATH+=("assets/feed")' \
                 "TARGET_ARCHIVES_TEMPLATE_OVERRIDES+=(\"templates/archive-atom-compact${SEP}templates/archive-atom-custom2\")" \
-                'TARGET_ARCHIVES_TEMPLATE+=("archive-atom-templates%2Farchive-atom")')
+                'TARGET_ARCHIVES_TEMPLATE+=("bce5c43cd682995e8cf5d528da8b770e")')
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -5174,7 +5174,7 @@ function marsh_test {
         marsh_get_template_cache_name:0)
             TEST_NAME+=":path_with_basename"
             ACTUAL=$(marsh_get_template_cache_name "templates/default")
-            EXPECTED='default-templates%2Fdefault'
+            EXPECTED='d1af1f096150eef65e4232d10be08968'
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -5183,7 +5183,7 @@ function marsh_test {
         marsh_get_template_cache_name:1)
             TEST_NAME+=":trims_trailing_slash"
             ACTUAL=$(marsh_get_template_cache_name "templates/example/")
-            EXPECTED='example-templates%2Fexample'
+            EXPECTED='a8a3bdfb78eeed5387c7b6e406f46faa'
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -5192,7 +5192,7 @@ function marsh_test {
         marsh_get_template_cache_name:2)
             TEST_NAME+=":empty_basename_falls_back"
             ACTUAL=$(marsh_get_template_cache_name "/")
-            EXPECTED='template-__empty__'
+            EXPECTED='aabae0fb36569ca02a54223a697ffdae'
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"

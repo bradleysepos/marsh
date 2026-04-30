@@ -7566,47 +7566,50 @@ function marsh_write_archive_page {  # marsh_write_archive_page encoding target_
     }
 
     # write the generated archive source with page metadata
-    echo "---" > "${ARCHIVE_TEMP_SOURCE_FILE}" 2>/dev/null || {
+    {
+        echo "---" > "${ARCHIVE_TEMP_SOURCE_FILE}" 2>/dev/null
+        if [[ "${ENCODING}" == "html" ]]; then
+            echo "Type: archive" >> "${ARCHIVE_TEMP_SOURCE_FILE}" 2>/dev/null
+        else
+            echo "Type: archive-${ENCODING}" >> "${ARCHIVE_TEMP_SOURCE_FILE}" 2>/dev/null
+        fi
+        echo "Date: $(date -u '+%Y-%m-%d %H:%M:%S')" >> "${ARCHIVE_TEMP_SOURCE_FILE}" 2>/dev/null
+        echo "Title: ${ARCHIVE_TITLE}" >> "${ARCHIVE_TEMP_SOURCE_FILE}" 2>/dev/null
+        echo "Language: ${LANGUAGE}" >> "${ARCHIVE_TEMP_SOURCE_FILE}" 2>/dev/null
+        echo "Language_Code: ${LANGCODE}" >> "${ARCHIVE_TEMP_SOURCE_FILE}" 2>/dev/null
+        echo "Archive_Root_Path: ${ARCHIVE_ROOT_PATH}" >> "${ARCHIVE_TEMP_SOURCE_FILE}" 2>/dev/null
+        echo "Archive_Root_Href: ${ARCHIVE_ROOT_HREF}" >> "${ARCHIVE_TEMP_SOURCE_FILE}" 2>/dev/null
+        if [[ "${ENCODING}" == "html" ]]; then
+            echo "Paginated: ${PAGINATED}" >> "${ARCHIVE_TEMP_SOURCE_FILE}" 2>/dev/null
+            echo "Page: ${PAGE}" >> "${ARCHIVE_TEMP_SOURCE_FILE}" 2>/dev/null
+            echo "Page_Total: ${PAGE_TOTAL}" >> "${ARCHIVE_TEMP_SOURCE_FILE}" 2>/dev/null
+            echo "Page_Size: ${PAGE_SIZE}" >> "${ARCHIVE_TEMP_SOURCE_FILE}" 2>/dev/null
+            echo "Page_Subdocuments_Total: ${PAGE_SUBDOCUMENTS_TOTAL}" >> "${ARCHIVE_TEMP_SOURCE_FILE}" 2>/dev/null
+            echo "Archive_Subdocuments_Total: ${ARCHIVE_SUBDOCUMENTS_TOTAL}" >> "${ARCHIVE_TEMP_SOURCE_FILE}" 2>/dev/null
+            echo "Page_Is_First: ${PAGE_IS_FIRST}" >> "${ARCHIVE_TEMP_SOURCE_FILE}" 2>/dev/null
+            echo "Page_Is_Last: ${PAGE_IS_LAST}" >> "${ARCHIVE_TEMP_SOURCE_FILE}" 2>/dev/null
+            echo "Page_Has_Prev: ${PAGE_HAS_PREV}" >> "${ARCHIVE_TEMP_SOURCE_FILE}" 2>/dev/null
+            echo "Page_Has_Next: ${PAGE_HAS_NEXT}" >> "${ARCHIVE_TEMP_SOURCE_FILE}" 2>/dev/null
+            echo "Page_Has_Subdocuments: ${PAGE_HAS_SUBDOCUMENTS}" >> "${ARCHIVE_TEMP_SOURCE_FILE}" 2>/dev/null
+            echo "Page_URI: ${PAGE_URI}" >> "${ARCHIVE_TEMP_SOURCE_FILE}" 2>/dev/null
+            echo "Page_Canonical_URI: ${PAGE_CANONICAL_URI}" >> "${ARCHIVE_TEMP_SOURCE_FILE}" 2>/dev/null
+            echo "Page_First_URI: ${PAGE_FIRST_URI}" >> "${ARCHIVE_TEMP_SOURCE_FILE}" 2>/dev/null
+            echo "Page_Prev_URI: ${PAGE_PREV_URI}" >> "${ARCHIVE_TEMP_SOURCE_FILE}" 2>/dev/null
+            echo "Page_Next_URI: ${PAGE_NEXT_URI}" >> "${ARCHIVE_TEMP_SOURCE_FILE}" 2>/dev/null
+            echo "Page_Last_URI: ${PAGE_LAST_URI}" >> "${ARCHIVE_TEMP_SOURCE_FILE}" 2>/dev/null
+            echo "Page_Href: ${PAGE_HREF}" >> "${ARCHIVE_TEMP_SOURCE_FILE}" 2>/dev/null
+            echo "Page_Canonical_Href: ${PAGE_CANONICAL_HREF}" >> "${ARCHIVE_TEMP_SOURCE_FILE}" 2>/dev/null
+            echo "Page_First_Href: ${PAGE_FIRST_HREF}" >> "${ARCHIVE_TEMP_SOURCE_FILE}" 2>/dev/null
+            echo "Page_Prev_Href: ${PAGE_PREV_HREF}" >> "${ARCHIVE_TEMP_SOURCE_FILE}" 2>/dev/null
+            echo "Page_Next_Href: ${PAGE_NEXT_HREF}" >> "${ARCHIVE_TEMP_SOURCE_FILE}" 2>/dev/null
+            echo "Page_Last_Href: ${PAGE_LAST_HREF}" >> "${ARCHIVE_TEMP_SOURCE_FILE}" 2>/dev/null
+        fi
+        echo "---" >> "${ARCHIVE_TEMP_SOURCE_FILE}" 2>/dev/null
+    } || {
         echo "Unable to write archive file: ${ARCHIVE_TEMP_SOURCE_FILE}" >&2
+        rm -f "${ARCHIVE_TEMP_SOURCE_FILE}"
         return 1
     }
-    if [[ "${ENCODING}" == "html" ]]; then
-        echo "Type: archive" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-    else
-        echo "Type: archive-${ENCODING}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-    fi
-    echo "Date: $(date -u '+%Y-%m-%d %H:%M:%S')" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-    echo "Title: ${ARCHIVE_TITLE}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-    echo "Language: ${LANGUAGE}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-    echo "Language_Code: ${LANGCODE}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-    echo "Archive_Root_Path: ${ARCHIVE_ROOT_PATH}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-    echo "Archive_Root_Href: ${ARCHIVE_ROOT_HREF}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-    if [[ "${ENCODING}" == "html" ]]; then
-        echo "Paginated: ${PAGINATED}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-        echo "Page: ${PAGE}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-        echo "Page_Total: ${PAGE_TOTAL}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-        echo "Page_Size: ${PAGE_SIZE}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-        echo "Page_Subdocuments_Total: ${PAGE_SUBDOCUMENTS_TOTAL}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-        echo "Archive_Subdocuments_Total: ${ARCHIVE_SUBDOCUMENTS_TOTAL}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-        echo "Page_Is_First: ${PAGE_IS_FIRST}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-        echo "Page_Is_Last: ${PAGE_IS_LAST}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-        echo "Page_Has_Prev: ${PAGE_HAS_PREV}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-        echo "Page_Has_Next: ${PAGE_HAS_NEXT}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-        echo "Page_Has_Subdocuments: ${PAGE_HAS_SUBDOCUMENTS}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-        echo "Page_URI: ${PAGE_URI}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-        echo "Page_Canonical_URI: ${PAGE_CANONICAL_URI}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-        echo "Page_First_URI: ${PAGE_FIRST_URI}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-        echo "Page_Prev_URI: ${PAGE_PREV_URI}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-        echo "Page_Next_URI: ${PAGE_NEXT_URI}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-        echo "Page_Last_URI: ${PAGE_LAST_URI}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-        echo "Page_Href: ${PAGE_HREF}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-        echo "Page_Canonical_Href: ${PAGE_CANONICAL_HREF}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-        echo "Page_First_Href: ${PAGE_FIRST_HREF}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-        echo "Page_Prev_Href: ${PAGE_PREV_HREF}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-        echo "Page_Next_Href: ${PAGE_NEXT_HREF}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-        echo "Page_Last_Href: ${PAGE_LAST_HREF}" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
-    fi
-    echo "---" >> "${ARCHIVE_TEMP_SOURCE_FILE}"
 
     # create manifest of the subdocuments for this page
     if [[ "${#DOCUMENTS[@]}" -gt 0 ]]; then
@@ -7628,6 +7631,7 @@ function marsh_write_archive_page {  # marsh_write_archive_page encoding target_
             done
         } > "${MANIFEST_FILE}" || {
             echo "Unable to create archive subdocument manifest: ${MANIFEST_FILE}" >&2
+            rm -f "${MANIFEST_FILE}"
             return 1
         }
     fi

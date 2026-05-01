@@ -5401,6 +5401,91 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
+        marsh_lock_acquire:0)
+            TEST_NAME+=":creates_lock_directory"
+            FILE_PATH="${TEST_TEMP_PREFIX}.cache"
+            LOCK_DIR="${FILE_PATH}.marsh-lock"
+            marsh_lock_acquire "${FILE_PATH}"
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" -eq "${EXPECTED}" ]]; then
+                [[ -d "${LOCK_DIR}" ]]
+                ACTUAL=$?
+                EXPECTED=0
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" -eq "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${LOCK_DIR}"
+            ;;
+        marsh_lock_acquire:1)
+            TEST_NAME+=":fails_when_already_locked"
+            FILE_PATH="${TEST_TEMP_PREFIX}.cache"
+            LOCK_DIR="${FILE_PATH}.marsh-lock"
+            mkdir -p "${LOCK_DIR}"
+            marsh_lock_acquire "${FILE_PATH}" 2>/dev/null
+            ACTUAL=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" -eq "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            rm -rf "${LOCK_DIR}"
+            ;;
+        marsh_lock_get_directory:0)
+            TEST_NAME+=":derives_suffix_path"
+            ACTUAL=$(marsh_lock_get_directory "${TEST_TEMP_PREFIX}.cache")
+            EXPECTED="${TEST_TEMP_PREFIX}.cache.marsh-lock"
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_lock_release:0)
+            TEST_NAME+=":removes_lock_directory"
+            FILE_PATH="${TEST_TEMP_PREFIX}.cache"
+            LOCK_DIR="${FILE_PATH}.marsh-lock"
+            mkdir -p "${LOCK_DIR}"
+            marsh_lock_release "${FILE_PATH}"
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" -eq "${EXPECTED}" ]]; then
+                [[ ! -e "${LOCK_DIR}" ]]
+                ACTUAL=$?
+                EXPECTED=0
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" -eq "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            ;;
+        marsh_lock_wait:0)
+            TEST_NAME+=":succeeds_when_unlocked"
+            marsh_lock_wait "${TEST_TEMP_PREFIX}.cache" 1 0
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" -eq "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_lock_wait:1)
+            TEST_NAME+=":times_out_when_locked"
+            FILE_PATH="${TEST_TEMP_PREFIX}.cache"
+            LOCK_DIR="${FILE_PATH}.marsh-lock"
+            mkdir -p "${LOCK_DIR}"
+            marsh_lock_wait "${FILE_PATH}" 1 0 2>/dev/null
+            ACTUAL=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" -eq "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            rm -rf "${LOCK_DIR}"
+            ;;
         marsh_load_archive_plan_build_context:0)
             TEST_NAME+=":loads_valid_context"
             ARCHIVE_PLAN_ROOT="${TEST_TEMP_PREFIX}.archive-plan"
@@ -8861,6 +8946,10 @@ KNOWN_FUNCTIONS=(
     marsh_in_array
     marsh_inflect
     marsh_is_markdown_extension
+    marsh_lock_acquire
+    marsh_lock_get_directory
+    marsh_lock_release
+    marsh_lock_wait
     marsh_load_archive_plan_build_context
     marsh_normalize_internal_path
     marsh_normalize_path

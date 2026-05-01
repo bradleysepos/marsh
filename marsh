@@ -2334,6 +2334,64 @@ function marsh_get_relative_path {  # marsh_get_relative_path base_dir target_pa
     printf '%s\n' "${RESULT}"
 }
 
+# returns the path for a lock directory associated with a file
+function marsh_lock_get_directory {  # marsh_lock_get_directory file
+    local FILE LOCK_DIR
+
+    FILE="${1:-}"
+    [[ "${FILE}" == "" ]] && return 1
+    LOCK_DIR="${FILE}.marsh-lock"
+
+    printf '%s\n' "${LOCK_DIR}"
+}
+
+# creates a lock directory for a file
+function marsh_lock_acquire {  # marsh_lock_acquire file
+    local FILE LOCK_DIR
+
+    FILE="${1:-}"
+    [[ "${FILE}" == "" ]] && return 1
+    LOCK_DIR=$(marsh_lock_get_directory "${FILE}") || return 1
+
+    if mkdir "${LOCK_DIR}" 2>/dev/null; then
+        return 0
+    fi
+    return 1
+}
+
+# removes a lock directory
+function marsh_lock_release {  # marsh_lock_release file
+    local FILE LOCK_DIR
+
+    FILE="${1:-}"
+    [[ "${FILE}" == "" ]] && return 1
+    LOCK_DIR=$(marsh_lock_get_directory "${FILE}") || return 1
+
+    rmdir "${LOCK_DIR}" 2>/dev/null || return 1
+}
+
+# awaits lock release by checking for the existence of the lock directory in a loop with bounded retries
+function marsh_lock_wait {  # marsh_lock_wait file max_retries sleep_interval
+    local FILE MAX_RETRIES SLEEP_INTERVAL LOCK_DIR ATTEMPT
+
+    FILE="${1:-}"
+    MAX_RETRIES="${2:-100}"
+    SLEEP_INTERVAL="${3:-0.3}"
+    [[ "${FILE}" == "" ]] && return 1
+
+    LOCK_DIR=$(marsh_lock_get_directory "${FILE}") || return 1
+
+    ATTEMPT=0
+    while [[ "${ATTEMPT}" -lt "${MAX_RETRIES}" ]]; do
+        if [[ ! -e "${LOCK_DIR}" ]]; then
+            return 0
+        fi
+        ATTEMPT=$((ATTEMPT + 1))
+        sleep "${SLEEP_INTERVAL}"
+    done
+    return 1
+}
+
 # normalizes a marsh-internal relative path value for reuse in path helpers
 function marsh_normalize_internal_path {  # marsh_normalize_internal_path path [path_kind]
     local PATH_VALUE PATH_KIND

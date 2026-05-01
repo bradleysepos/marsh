@@ -4459,6 +4459,7 @@ function marsh_test {
             mkdir -p "${TARGET_OUTPUT_ROOT}"
             SITEMAP_RENDER_FILE=$(marsh_get_sitemap_render_path "${TARGET_OUTPUT_ROOT}" "site-map/index.markdown")
             printf '%s\n' '<p><a href="../news/">News</a></p>' > "${SITEMAP_RENDER_FILE}"
+            CACHE_FILE="$(marsh_get_target_temp_root "${TARGET_OUTPUT_ROOT}")/sitemaps/processed/a327074b16f48ff842209328c43bee1b.sitemap.html"
             ACTUAL=$({
                 function cp {
                     return 1
@@ -4469,7 +4470,7 @@ function marsh_test {
             EXPECTED=1
             ASSERTION="equals"
             if [[ "${STATUS}" == "${EXPECTED}" ]]; then
-                EXPECTED="Unable to copy rendered sitemap for processing: ${SITEMAP_RENDER_FILE}"
+                EXPECTED="Unable to create processed sitemap cache temporary file: ${CACHE_FILE}.marsh-lock/tempfile"
                 ASSERTION="equals"
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                     RES="[PASS]"
@@ -4521,7 +4522,7 @@ function marsh_test {
             EXPECTED=1
             ASSERTION="equals"
             if [[ "${STATUS}" == "${EXPECTED}" ]]; then
-                EXPECTED="Unable to publish processed sitemap cache file: ${CACHE_FILE}"
+                EXPECTED="Unable to write processed sitemap cache file: ${CACHE_FILE}"
                 ASSERTION="equals"
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                     RES="[PASS]"

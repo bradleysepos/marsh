@@ -3507,9 +3507,9 @@ function marsh_write_target_plan_records {  # marsh_write_target_plan_records ta
 function marsh_copy_template_assets {  # marsh_copy_template_assets site_output_root target_output_rel log_level log_levels_csv templates_dir template #template_overrides[@] template_overrides[@] template_assets_path
     local SITE_OUTPUT_ROOT TARGET_OUTPUT_REL LOG_LEVEL LOG_LEVELS_CSV TEMPLATES_DIR TEMPLATE NUM_TEMPLATE_OVERRIDES TEMPLATE_ASSETS_PATH TEMPLATE_ASSETS
     local ASSET ASSET_PATH ASSET_OUTPUT_REL ASSET_SOURCE ASSET_DEST_PATH
-    local ASSET_COPY_CACHE_DIR ASSET_COPY_CACHE_KEY ASSET_COPY_CACHE_FILE ASSET_COPY_CACHE_TEMP
+    local CACHE_DIR CACHE_FILE
     local TEMPLATE_ASSET_RECORD ASSET_SOURCE_ESC ASSET_DEST_PATH_ESC ASSET_OUTPUT_REL_ESC
-    local EXPECTED_MANIFEST MANIFEST_VALID
+    local EXPECTED_MANIFEST CACHE_VALID
     local -a TEMPLATE_OVERRIDES TEMPLATE_ASSET_RECORDS
 
     # init
@@ -3542,12 +3542,14 @@ function marsh_copy_template_assets {  # marsh_copy_template_assets site_output_
 
     TEMPLATE_ASSETS=$(marsh_get_template_assets "${TEMPLATES_DIR}" "${TEMPLATE}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}") || return 1
 
-    ASSET_COPY_CACHE_DIR="${MARSH_TEMP}/asset-copy-cache"
-    mkdir -p "${ASSET_COPY_CACHE_DIR}" >/dev/null 2>&1 || {
-        echo "Unable to create asset copy cache directory: ${ASSET_COPY_CACHE_DIR}" >&2
+    # create temporary directory
+    CACHE_DIR="${MARSH_TEMP}/asset-copy-cache"
+    mkdir -p "${CACHE_DIR}" >/dev/null 2>&1 || {
+        echo "Unable to create asset copy cache directory: ${CACHE_DIR}" >&2
         return 1
     }
 
+    # resolve asset output paths, skipping empty entries
     TEMPLATE_ASSET_RECORDS=()
     while IFS= read -r ASSET; do
         [[ "${ASSET}" == "" ]] && continue
@@ -3560,32 +3562,36 @@ function marsh_copy_template_assets {  # marsh_copy_template_assets site_output_
         ASSET_DEST_PATH="${SITE_OUTPUT_ROOT}/${ASSET_OUTPUT_REL}"
         TEMPLATE_ASSET_RECORDS+=("$(printf '%q\t%q\t%q\n' "${ASSET_SOURCE}" "${ASSET_DEST_PATH}" "${ASSET_OUTPUT_REL}")")
     done <<< "${TEMPLATE_ASSETS}"
-
     [[ "${#TEMPLATE_ASSET_RECORDS[@]}" -gt 0 ]] || return 0
-    ASSET_COPY_CACHE_FILE=$(marsh_get_cache_path "${ASSET_COPY_CACHE_DIR}" ".manifest" "$({
+
+    # generate cache file path
+    CACHE_FILE=$(marsh_get_cache_path "${CACHE_DIR}" ".manifest" "$({
         printf '%s\034%s\034%s\034%s\034%s\n' "${SITE_OUTPUT_ROOT}" "${TARGET_OUTPUT_REL}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${TEMPLATE_ASSETS_PATH}"
         printf '%s\n' "${TEMPLATE_OVERRIDES[@]}"
     })") || return 1
 
-    if [[ -f "${ASSET_COPY_CACHE_FILE}" ]] && [[ -r "${ASSET_COPY_CACHE_FILE}" ]]; then
+    # validate existing cache and skip asset copying if all assets
+    # are present at their expected output paths
+    if [[ -f "${CACHE_FILE}" ]] && [[ -r "${CACHE_FILE}" ]]; then
         EXPECTED_MANIFEST=$(printf '%s\n' "${TEMPLATE_ASSET_RECORDS[@]}")
-        if [[ "$(<"${ASSET_COPY_CACHE_FILE}")" == "${EXPECTED_MANIFEST}" ]]; then
-            MANIFEST_VALID=true
+        if [[ "$(<"${CACHE_FILE}")" == "${EXPECTED_MANIFEST}" ]]; then
+            CACHE_VALID=true
             while IFS= read -r TEMPLATE_ASSET_RECORD; do
                 [[ "${TEMPLATE_ASSET_RECORD}" == "" ]] && continue
                 IFS=$'\t' read -r ASSET_SOURCE_ESC ASSET_DEST_PATH_ESC ASSET_OUTPUT_REL_ESC <<< "${TEMPLATE_ASSET_RECORD}"
                 eval "ASSET_DEST_PATH=${ASSET_DEST_PATH_ESC}"
                 if [[ ! -e "${ASSET_DEST_PATH}" ]]; then
-                    MANIFEST_VALID=false
+                    CACHE_VALID=false
                     break
                 fi
-            done < "${ASSET_COPY_CACHE_FILE}"
-            if [[ "${MANIFEST_VALID}" == true ]]; then
-                return 0
-            fi
+            done < "${CACHE_FILE}"
         fi
     fi
+    if [[ "${CACHE_VALID}" == true ]]; then
+        return 0
+    fi
 
+    # cache is invalid or missing, copy assets and generate a new cache file
     for TEMPLATE_ASSET_RECORD in "${TEMPLATE_ASSET_RECORDS[@]}"; do
         [[ "${TEMPLATE_ASSET_RECORD}" == "" ]] && continue
         IFS=$'\t' read -r ASSET_SOURCE_ESC ASSET_DEST_PATH_ESC ASSET_OUTPUT_REL_ESC <<< "${TEMPLATE_ASSET_RECORD}"
@@ -3611,22 +3617,17 @@ function marsh_copy_template_assets {  # marsh_copy_template_assets site_output_
         fi
     done
 
-    mkdir -p "${ASSET_COPY_CACHE_FILE%/*}" >/dev/null 2>&1 || {
-        echo "Unable to create asset cache path: ${ASSET_COPY_CACHE_FILE%/*}" >&2
+    # write the generated asset copy cache file
+    mkdir -p "${CACHE_FILE%/*}" >/dev/null 2>&1 || {
+        echo "Unable to create asset copy cache directory: ${CACHE_FILE%/*}" >&2
         return 1
     }
-    ASSET_COPY_CACHE_TEMP=$(mktemp "${ASSET_COPY_CACHE_FILE%/*}/manifest-XXXXXX") || {
-        echo "Unable to create asset cache manifest: ${ASSET_COPY_CACHE_FILE%/*}/manifest-XXXXXX" >&2
+    printf '%s\n' "${TEMPLATE_ASSET_RECORDS[@]}" > "${CACHE_FILE}" 2>/dev/null || {
+        echo "Unable to write asset copy cache file: ${CACHE_FILE}" >&2
+        rm -f "${CACHE_FILE}"
         return 1
     }
-    printf '%s\n' "${TEMPLATE_ASSET_RECORDS[@]}" > "${ASSET_COPY_CACHE_TEMP}" && mv "${ASSET_COPY_CACHE_TEMP}" "${ASSET_COPY_CACHE_FILE}" 2>/dev/null || {
-        if [[ ! -f "${ASSET_COPY_CACHE_FILE}" ]]; then
-            rm -f "${ASSET_COPY_CACHE_TEMP}"
-            echo "Unable to write asset cache manifest: ${ASSET_COPY_CACHE_FILE}" >&2
-            return 1
-        fi
-        rm -f "${ASSET_COPY_CACHE_TEMP}"
-    }
+    return 0
 }
 
 # builds a template and applies it to a document

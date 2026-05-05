@@ -468,6 +468,8 @@ function marsh_test {
     local TARGET_SITEMAP_RECORD SOURCE_ASSET_RECORD DOCUMENT_RECORD
     local DOCUMENT_ID_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC ASSET_RELPATH_ESC
     local RENDER_FILE RENDER_CONTENT FINAL_CONTENT
+    local HEADING_INPUT HEADING_PUSH_EXPECTED HEADING_SHIFT_EXPECTED HEADING_REMOVE_EXPECTED
+    local HEADING_PUSH_ACTUAL HEADING_SHIFT_ACTUAL HEADING_REMOVE_ACTUAL
     local -a TARGET_TEMPLATE_OVERRIDES TARGET_ARCHIVES TARGET_ARCHIVES_ENCODING TARGET_ARCHIVES_NAME
     local -a TARGET_ARCHIVES_LANGUAGE TARGET_ARCHIVES_LANGUAGE_CODE TARGET_ARCHIVES_ROOT_PATH TARGET_ARCHIVES_COUNT TARGET_ARCHIVES_PAGE_SIZE
     local -a TARGET_ARCHIVES_TYPES TARGET_ARCHIVES_EXCLUDED_STATES
@@ -8376,6 +8378,147 @@ function marsh_test {
                 '' \
                 'Paragraph' | marsh_text_transform_headings shift)
             EXPECTED=$'\n''## Heading 3'$'\n\n''Paragraph'
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_text_transform_headings:5)
+            TEST_NAME+=":comprehensive"
+            HEADING_INPUT=$(printf '%s\n' \
+                'Intro paragraph line 1  ' \
+                'Intro paragraph line 2' \
+                '' \
+                'Heading Level 1' \
+                '===============' \
+                '' \
+                'Paragraph after heading one.' \
+                '' \
+                'Heading Level 2' \
+                '---------------' \
+                '' \
+                'Paragraph after heading two.' \
+                '' \
+                '# Heading Level 1' \
+                '' \
+                'Text after heading level 1.' \
+                '' \
+                '## Heading Level 2' \
+                '' \
+                '### Heading Level 3' \
+                '' \
+                '#### Heading Level 4' \
+                '' \
+                '##### Heading Level 5' \
+                '' \
+                '###### Heading Level 6' \
+                '' \
+                '<h1 class="h1">Heading Level 1</h1><h2 class="h2">Heading Level 2</h2>' \
+                '' \
+                '<div>Between html headings</div>' \
+                '' \
+                '<h3 class="h3">Heading Level 3</h3><h4 class="h4">Heading Level 4</h4>' \
+                '' \
+                '<h5 class="h5">Heading Level 5</h5><h6 class="h6">Heading Level 6</h6>' \
+                '' \
+                '<p>Closing paragraph</p>')
+            HEADING_PUSH_EXPECTED=$(printf '%s\n' \
+                'Intro paragraph line 1  ' \
+                'Intro paragraph line 2' \
+                '' \
+                '## Heading Level 1' \
+                '' \
+                'Paragraph after heading one.' \
+                '' \
+                '### Heading Level 2' \
+                '' \
+                'Paragraph after heading two.' \
+                '' \
+                '## Heading Level 1' \
+                '' \
+                'Text after heading level 1.' \
+                '' \
+                '### Heading Level 2' \
+                '' \
+                '#### Heading Level 3' \
+                '' \
+                '##### Heading Level 4' \
+                '' \
+                '###### Heading Level 5' \
+                '' \
+                '**Heading Level 6**' \
+                '' \
+                '<h2 class="h1">Heading Level 1</h2><h3 class="h2">Heading Level 2</h3>' \
+                '' \
+                '<div>Between html headings</div>' \
+                '' \
+                '<h4 class="h3">Heading Level 3</h4><h5 class="h4">Heading Level 4</h5>' \
+                '' \
+                '<h6 class="h5">Heading Level 5</h6><strong class="h6">Heading Level 6</strong>' \
+                '' \
+                '<p>Closing paragraph</p>')
+            HEADING_SHIFT_EXPECTED=$(printf '%s\n' \
+                'Intro paragraph line 1  ' \
+                'Intro paragraph line 2' \
+                '' \
+                '' \
+                'Paragraph after heading one.' \
+                '' \
+                '# Heading Level 2' \
+                '' \
+                'Paragraph after heading two.' \
+                '' \
+                '' \
+                'Text after heading level 1.' \
+                '' \
+                '# Heading Level 2' \
+                '' \
+                '## Heading Level 3' \
+                '' \
+                '### Heading Level 4' \
+                '' \
+                '#### Heading Level 5' \
+                '' \
+                '##### Heading Level 6' \
+                '' \
+                '<h1 class="h2">Heading Level 2</h1>' \
+                '' \
+                '<div>Between html headings</div>' \
+                '' \
+                '<h2 class="h3">Heading Level 3</h2><h3 class="h4">Heading Level 4</h3>' \
+                '' \
+                '<h4 class="h5">Heading Level 5</h4><h5 class="h6">Heading Level 6</h5>' \
+                '' \
+                '<p>Closing paragraph</p>')
+            HEADING_REMOVE_EXPECTED=$(printf '%s\n' \
+                'Intro paragraph line 1  ' \
+                'Intro paragraph line 2' \
+                '' \
+                '' \
+                'Paragraph after heading one.' \
+                '' \
+                '' \
+                'Paragraph after heading two.' \
+                '' \
+                '' \
+                'Text after heading level 1.' \
+                '' \
+                '' \
+                '' \
+                '' \
+                '' \
+                '' \
+                '' \
+                '<div>Between html headings</div>' \
+                '' \
+                '' \
+                '' \
+                '<p>Closing paragraph</p>')
+            EXPECTED=$(printf '%s\034%s\034%s' "${HEADING_PUSH_EXPECTED}" "${HEADING_SHIFT_EXPECTED}" "${HEADING_REMOVE_EXPECTED}")
+            HEADING_PUSH_ACTUAL=$(printf '%s' "${HEADING_INPUT}" | marsh_text_transform_headings push)
+            HEADING_SHIFT_ACTUAL=$(printf '%s' "${HEADING_INPUT}" | marsh_text_transform_headings shift)
+            HEADING_REMOVE_ACTUAL=$(printf '%s' "${HEADING_INPUT}" | marsh_text_transform_headings remove)
+            ACTUAL=$(printf '%s\034%s\034%s' "${HEADING_PUSH_ACTUAL}" "${HEADING_SHIFT_ACTUAL}" "${HEADING_REMOVE_ACTUAL}")
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"

@@ -4,14 +4,14 @@
       "date_published": "{{ document.date | date-type:rfc3339 }}",
       "date_modified": "{{ document.date | date-type:rfc3339 }}",
       "_rights": {
-        "copyright": "Copyright {{ document.copyright | decode:entities }}"
+        "copyright": "Copyright {{ document.copyright | decode:entities | escape:json }}"
       },
       "language": "{{ document.language-code }}",
-      "title": "{{ document.title | decode:entities }}",
+      "title": "{{ document.title | decode:entities | escape:json }}",
       "author": {
-        "name": "{{ document.authors | email:remove-angle-addr | decode:entities | items:join-type:oxford }}"
+        "name": "{{ document.authors | email:remove-angle-addr | decode:entities | escape:json | items:join-type:oxford }}"
       },
-      "authors": [ {{ document.authors | email:remove-angle-addr | decode:entities | items:json-array:name }} ],
-      "summary": "{{ document.content | excerpt:100:1 | decode:entities | escape:json-val }}",
-      "content_html": "{{ document.content | headings:shift | escape:json-val }}"
+      "authors": [ {{ document.authors | email:remove-angle-addr | decode:entities | escape:json | items:json-array:name }} ],
+      "summary": "{{ document.content | excerpt:100:1 | decode:entities | escape:json }}",
+      "content_html": "{{ document.content | headings:shift | escape:json }}"
     }{{ util.json-separator }}

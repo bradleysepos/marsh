@@ -7535,9 +7535,10 @@ function marsh_test {
             fi
             ;;
         marsh_text_transform:18)
-            TEST_NAME+=":escape_json_val"
-            ACTUAL=$(printf '%s' "{ \"key\": \"value\" }" | marsh_text_transform escape:json-val)
-            EXPECTED="{ \\\"key\\\": \\\"value\\\" }"
+            TEST_NAME+=":escape_json"
+            ACTUAL=$(printf '%s' 'This "string" should be'$'\t''escaped'$'\r\n\r\n''probably'$'\n\n''maybe' | marsh_text_transform escape:json; printf '\001')
+            ACTUAL="${ACTUAL%$'\001'}"
+            EXPECTED='This \"string\" should be\tescaped\r\n\r\nprobably\n\nmaybe'
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"

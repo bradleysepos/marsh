@@ -1394,8 +1394,21 @@ function marsh_text_transform {  # marsh_text_transform transform [transform...]
         escape:html)
             marsh_text_transform escape:xml
             ;;
-        escape:json-val)
-            sed -e 's/"/\\"/g' | awk '(NR==1) { printf "%s", $0 } (NR>1) { printf "\\n%s", $0 }'
+        escape:json)
+            awk 'BEGIN {
+                first_record = 1
+            }
+            {
+                gsub(/\\/,"\\\\")
+                gsub(/"/,"\\\"")
+                gsub(/\r/,"\\r")
+                gsub(/\t/,"\\t")
+                if (!first_record) {
+                    printf "\\n"
+                }
+                printf "%s", $0
+                first_record = 0
+            }'
             ;;
         escape:xml)
             marsh_text_transform decode:entities | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' -e 's/"/\&quot;/g' -e 's/'"'"'/\&apos;/g'

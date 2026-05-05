@@ -3,5 +3,5 @@
 <link rel="alternate" href="{{ archive.abspath }}" type="text/html" />
 <icon>{{ site.abspath }}icon.png</icon>
 <updated>{{ document.date | date-type:rfc3339 }}</updated>
-<title>{{ document.title | decode:entities }}</title>
+<title>{{ document.title | decode:entities | escape:xml }}</title>
 {{ subdocuments }}

@@ -2038,58 +2038,93 @@ function marsh_text_transform_headings {  # marsh_text_transform_headings action
         prefix[6] = "###### "
     }
 
-    function remove_html_level(line, level, open_pattern, close_tag, open_start, open_len, rest, close_pos) {
-        open_pattern = "<h" level "[^>]*>"
-        close_tag = "</h" level ">"
-        while (match(line, open_pattern)) {
-            open_start = RSTART
-            open_len = RLENGTH
-            rest = substr(line, open_start + open_len)
-            close_pos = index(rest, close_tag)
+    function remove_html_tags(line, result, rest, prefix_text, open_tag, level, rest_after_tag, close_tag, close_pos) {
+        result = ""
+        rest = line
+
+        # remove matched heading elements in source order
+        while (match(rest, /<h[1-6][^>]*>/)) {
+            prefix_text = substr(rest, 1, RSTART - 1)
+            open_tag = substr(rest, RSTART, RLENGTH)
+            level = substr(open_tag, 3, 1) + 0
+            rest_after_tag = substr(rest, RSTART + RLENGTH)
+            close_tag = "</h" level ">"
+            close_pos = index(rest_after_tag, close_tag)
             if (close_pos == 0) {
-                break
+                result = result prefix_text open_tag
+                rest = rest_after_tag
+                continue
             }
-            line = substr(line, 1, open_start - 1) substr(rest, close_pos + length(close_tag))
+            result = result prefix_text
+            rest = substr(rest_after_tag, close_pos + length(close_tag))
         }
-        return line
+        return result rest
     }
 
-    function remove_all_html_headings(line, level) {
-        for (level = 1; level <= 6; level++) {
-            line = remove_html_level(line, level)
-        }
-        return line
-    }
+    function rewrite_html_tags(line, result, rest, prefix_text, tag, is_close, level, attrs, replacement, rest_after_tag, close_tag, close_pos) {
+        result = ""
+        rest = line
 
-    function rewrite_html_open_tags(line, from, to, tag, open_tag, attrs) {
-        tag = "<h" from "[^>]*>"
-        while (match(line, tag)) {
-            open_tag = substr(line, RSTART, RLENGTH)
-            attrs = substr(open_tag, 4, length(open_tag) - 4)
-            line = substr(line, 1, RSTART - 1) "<h" to attrs ">" substr(line, RSTART + RLENGTH)
-        }
-        return line
-    }
+        while (match(rest, /<\/?h[1-6][^>]*>/)) {
+            prefix_text = substr(rest, 1, RSTART - 1)
+            tag = substr(rest, RSTART, RLENGTH)
+            rest_after_tag = substr(rest, RSTART + RLENGTH)
+            result = result prefix_text
+            is_close = (substr(tag, 2, 1) == "/")
+            if (is_close) {
+                level = substr(tag, 4, 1) + 0
+                if (ACTION == "push") {
+                    if (level == 6) {
+                        replacement = "</strong>"
+                    } else {
+                        replacement = "</h" (level + 1) ">"
+                    }
+                } else if (ACTION == "shift") {
+                    if (level == 1) {
+                        replacement = tag
+                    } else {
+                        replacement = "</h" (level - 1) ">"
+                    }
+                } else {
+                    replacement = tag
+                }
+                result = result replacement
+                rest = rest_after_tag
+                continue
+            }
 
-    function rewrite_html_close_tags(line, from, to, tag) {
-        tag = "</h" from ">"
-        while (match(line, tag)) {
-            line = substr(line, 1, RSTART - 1) "</h" to ">" substr(line, RSTART + RLENGTH)
-        }
-        return line
-    }
+            level = substr(tag, 3, 1) + 0
+            attrs = substr(tag, 4, length(tag) - 4)
+            if (ACTION == "push") {
+                if (level == 6) {
+                    replacement = "<strong" attrs ">"
+                } else {
+                    replacement = "<h" (level + 1) attrs ">"
+                }
+                result = result replacement
+                rest = rest_after_tag
+                continue
+            }
 
-    function rewrite_html_strong_tags(line, level, open_tag, attrs) {
-        level = 6
-        while (match(line, "<h" level "[^>]*>")) {
-            open_tag = substr(line, RSTART, RLENGTH)
-            attrs = substr(open_tag, 4, length(open_tag) - 4)
-            line = substr(line, 1, RSTART - 1) "<strong" attrs ">" substr(line, RSTART + RLENGTH)
+            if (ACTION == "shift") {
+                if (level == 1) {
+                    close_tag = "</h1>"
+                    close_pos = index(rest_after_tag, close_tag)
+                    if (close_pos == 0) {
+                        return result tag rest_after_tag
+                    }
+                    rest = substr(rest_after_tag, close_pos + length(close_tag))
+                    continue
+                }
+                result = result "<h" (level - 1) attrs ">"
+                rest = rest_after_tag
+                continue
+            }
+
+            result = result tag
+            rest = rest_after_tag
         }
-        while (match(line, "</h" level ">")) {
-            line = substr(line, 1, RSTART - 1) "</strong>" substr(line, RSTART + RLENGTH)
-        }
-        return line
+        return result rest
     }
 
     function transform_markdown(line, hashes, text, level, split_pos) {
@@ -2125,36 +2160,11 @@ function marsh_text_transform_headings {  # marsh_text_transform_headings action
         if (index(line, "<h") == 0) {
             return line
         }
-        if (ACTION == "push") {
-            line = rewrite_html_strong_tags(line)
-            line = rewrite_html_open_tags(line, 5, 6)
-            line = rewrite_html_close_tags(line, 5, 6)
-            line = rewrite_html_open_tags(line, 4, 5)
-            line = rewrite_html_close_tags(line, 4, 5)
-            line = rewrite_html_open_tags(line, 3, 4)
-            line = rewrite_html_close_tags(line, 3, 4)
-            line = rewrite_html_open_tags(line, 2, 3)
-            line = rewrite_html_close_tags(line, 2, 3)
-            line = rewrite_html_open_tags(line, 1, 2)
-            line = rewrite_html_close_tags(line, 1, 2)
-            return line
-        }
-        if (ACTION == "shift") {
-            line = remove_html_level(line, 1)
-            line = rewrite_html_open_tags(line, 2, 1)
-            line = rewrite_html_close_tags(line, 2, 1)
-            line = rewrite_html_open_tags(line, 3, 2)
-            line = rewrite_html_close_tags(line, 3, 2)
-            line = rewrite_html_open_tags(line, 4, 3)
-            line = rewrite_html_close_tags(line, 4, 3)
-            line = rewrite_html_open_tags(line, 5, 4)
-            line = rewrite_html_close_tags(line, 5, 4)
-            line = rewrite_html_open_tags(line, 6, 5)
-            line = rewrite_html_close_tags(line, 6, 5)
-            return line
+        if (ACTION == "push" || ACTION == "shift") {
+            return rewrite_html_tags(line)
         }
         if (ACTION == "remove") {
-            return remove_all_html_headings(line)
+            return remove_html_tags(line)
         }
         return line
     }

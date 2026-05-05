@@ -470,6 +470,7 @@ function marsh_test {
     local RENDER_FILE RENDER_CONTENT FINAL_CONTENT
     local HEADING_INPUT HEADING_PUSH_EXPECTED HEADING_SHIFT_EXPECTED HEADING_REMOVE_EXPECTED
     local HEADING_PUSH_ACTUAL HEADING_SHIFT_ACTUAL HEADING_REMOVE_ACTUAL
+    local ENTITY_INPUT
     local -a TARGET_TEMPLATE_OVERRIDES TARGET_ARCHIVES TARGET_ARCHIVES_ENCODING TARGET_ARCHIVES_NAME
     local -a TARGET_ARCHIVES_LANGUAGE TARGET_ARCHIVES_LANGUAGE_CODE TARGET_ARCHIVES_ROOT_PATH TARGET_ARCHIVES_COUNT TARGET_ARCHIVES_PAGE_SIZE
     local -a TARGET_ARCHIVES_TYPES TARGET_ARCHIVES_EXCLUDED_STATES
@@ -7430,8 +7431,67 @@ function marsh_test {
             ;;
         marsh_text_transform:14)
             TEST_NAME+=":decode_entities"
-            ACTUAL=$(printf '%s' "Some entities to decode: &lt; &gt; &amp; &#34; &#165; &#9829;" | marsh_text_transform decode:entities)
-            EXPECTED="Some entities to decode: < > & \" ¥ ♥"
+            ENTITY_INPUT=$(printf '%s\n' \
+                'Line without entities & stays literal' \
+                'AT&T and R&D should stay as-is' \
+                'Basic named: [&amp;][&lt;][&gt;][&quot;][&apos;]' \
+                'Basic numeric: [&#38;][&#60;][&#62;][&#34;][&#39;]' \
+                'Named extended: [A&nbsp;B][&iexcl;][&euro;][&hearts;][&rarr;][&OElig;]' \
+                'Numeric extended: [A&#160;B][&#161;][&#8364;][&#9829;][&#8594;][&#338;]' \
+                'Unknown: [&madeup;]' \
+                'Malformed: [&amp][&bogus][&#999999]' \
+                'Mixed line: Fish &amp; chips &madeup; &lt;tag&gt; hearts &#9829;' \
+                'Plain document text with no entities to decode' \
+                'Lorem ipsum dolor sit amet, consectetur adipiscing elit.' \
+                'Donec volutpat neque finibus turpis vestibulum pellentesque.' \
+                'Phasellus quis risus facilisis est viverra fringilla.' \
+                'In dictum nunc in orci vulputate suscipit.' \
+                'Etiam ut quam lobortis, rhoncus mi vitae, efficitur odio.' \
+                'Mauris ultrices dui in dignissim posuere.' \
+                'Praesent fringilla nibh a feugiat accumsan.' \
+                'Sed tempor neque sit amet ante condimentum mattis vitae eu nisl.' \
+                'Maecenas eu diam id tortor hendrerit ultricies a ut nisi.' \
+                'Aliquam a risus ac velit feugiat tincidunt.' \
+                'Pellentesque a nisl nec felis blandit tincidunt.' \
+                'Cras vel ligula in eros convallis bibendum ac vel nibh.' \
+                'In ac erat ullamcorper, consectetur mauris vitae, aliquam quam.' \
+                'Pellentesque laoreet tortor egestas egestas malesuada.' \
+                'Nunc et magna quis erat sagittis ultricies id ut metus.' \
+                'Maecenas laoreet felis nec sagittis accumsan.' \
+                'Nullam ullamcorper elit sed est sodales, ac cursus urna maximus.' \
+                'Nam ut orci pretium, feugiat turpis eu, elementum orci.' \
+                'Proin a risus et risus lacinia porttitor.')
+            EXPECTED=$(printf '%s\n' \
+                'Line without entities & stays literal' \
+                'AT&T and R&D should stay as-is' \
+                'Basic named: [&][<][>]["]['"'"']' \
+                'Basic numeric: [&][<][>]["]['"'"']' \
+                'Named extended: [A B][¡][€][♥][→][Œ]' \
+                'Numeric extended: [A B][¡][€][♥][→][Œ]' \
+                'Unknown: [&madeup;]' \
+                'Malformed: [&amp][&bogus][&#999999]' \
+                'Mixed line: Fish & chips &madeup; <tag> hearts ♥' \
+                'Plain document text with no entities to decode' \
+                'Lorem ipsum dolor sit amet, consectetur adipiscing elit.' \
+                'Donec volutpat neque finibus turpis vestibulum pellentesque.' \
+                'Phasellus quis risus facilisis est viverra fringilla.' \
+                'In dictum nunc in orci vulputate suscipit.' \
+                'Etiam ut quam lobortis, rhoncus mi vitae, efficitur odio.' \
+                'Mauris ultrices dui in dignissim posuere.' \
+                'Praesent fringilla nibh a feugiat accumsan.' \
+                'Sed tempor neque sit amet ante condimentum mattis vitae eu nisl.' \
+                'Maecenas eu diam id tortor hendrerit ultricies a ut nisi.' \
+                'Aliquam a risus ac velit feugiat tincidunt.' \
+                'Pellentesque a nisl nec felis blandit tincidunt.' \
+                'Cras vel ligula in eros convallis bibendum ac vel nibh.' \
+                'In ac erat ullamcorper, consectetur mauris vitae, aliquam quam.' \
+                'Pellentesque laoreet tortor egestas egestas malesuada.' \
+                'Nunc et magna quis erat sagittis ultricies id ut metus.' \
+                'Maecenas laoreet felis nec sagittis accumsan.' \
+                'Nullam ullamcorper elit sed est sodales, ac cursus urna maximus.' \
+                'Nam ut orci pretium, feugiat turpis eu, elementum orci.' \
+                'Proin a risus et risus lacinia porttitor.')
+            ACTUAL=$(printf '%s' "${ENTITY_INPUT}" | marsh_text_transform decode:entities)
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"

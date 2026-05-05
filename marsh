@@ -115,8 +115,10 @@ function marsh_cli {
     LOG_LEVEL="${LOG_LEVEL_DEFAULT}"
     FORCE=false
     JOBS=1
-    if [[ "${SYS_NAME}" == "darwin" ]]; then
+    if [[ "${SYS_NAME}" =~ bsd ]]; then
         JOBS=$(sysctl -n hw.ncpu)
+    elif [[ "${SYS_NAME}" == "darwin" ]]; then
+        JOBS=$(sysctl -n hw.logicalcpu)
     elif [[ "${SYS_NAME}" == "linux" ]]; then
         JOBS=$(nproc)
     fi

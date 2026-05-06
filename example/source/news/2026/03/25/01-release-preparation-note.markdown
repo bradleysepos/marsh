@@ -15,6 +15,12 @@ Release Preparation Note
 
 This note records some ordinary release preparation work and keeps the example archive near the end of the quarter well populated.
 
+Short list of some characters that need escaping for JSON and XML archive files:
+
+- "Quotes" are pretty cool
+- Angle> brackets too
+- How about some entities like &amp; and &#9829;
+
 <!-- .ipsum -->
 
 Lorem ipsum dolor sit amet, consectetur adipiscing elit. Fusce at magna neque. In non risus odio. Phasellus nec congue dui, a blandit ipsum. Vestibulum aliquam magna at dolor pharetra, in rutrum sapien tempus. Mauris ultrices erat ac tellus consectetur, et vulputate ante convallis.

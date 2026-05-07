@@ -4048,70 +4048,6 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
         fi
     }
 
-    function parse_template_tag {  # parse_template_tag tag_string
-        local TAG_STRING TAG_BODY TAG_CHAR TAG_CURRENT TAG_QUOTE TAG_ESCAPE TAG_INDEX TAG_PART TAG_NAME_VALUE
-        local -a TAG_PARTS
-
-        TAG_STRING="${1:-}"
-        [[ "${TAG_STRING}" == "" ]] && return 1
-        TAG_BODY=$(echo "${TAG_STRING}" | sed -E -e 's/^\{\{[ ]*//' -e 's/[ ]*\}\}$//')
-        TAG_PARTS=()
-        TAG_CURRENT=""
-        TAG_QUOTE=""
-        TAG_ESCAPE=false
-
-        for (( TAG_INDEX=0; TAG_INDEX<${#TAG_BODY}; TAG_INDEX++ )); do
-            TAG_CHAR="${TAG_BODY:${TAG_INDEX}:1}"
-            if [[ "${TAG_ESCAPE}" == true ]]; then
-                case "${TAG_CHAR}" in
-                    '\'|'|'|'"'|"'")
-                        TAG_CURRENT+="${TAG_CHAR}"
-                        ;;
-                    *)
-                        TAG_CURRENT+='\'
-                        TAG_CURRENT+="${TAG_CHAR}"
-                        ;;
-                esac
-                TAG_ESCAPE=false
-            elif [[ "${TAG_CHAR}" == '\' ]]; then
-                TAG_ESCAPE=true
-            elif [[ "${TAG_CHAR}" == '|' ]] && [[ "${TAG_QUOTE}" == "" ]]; then
-                TAG_PARTS+=("$(echo "${TAG_CURRENT}" | sed -E -e 's/^[ ]+//' -e 's/[ ]+$//')")
-                TAG_CURRENT=""
-            elif [[ "${TAG_CHAR}" == "'" ]] && [[ "${TAG_QUOTE}" != '"' ]]; then
-                if [[ "${TAG_QUOTE}" == "'" ]]; then
-                    TAG_QUOTE=""
-                else
-                    TAG_QUOTE="'"
-                fi
-            elif [[ "${TAG_CHAR}" == '"' ]] && [[ "${TAG_QUOTE}" != "'" ]]; then
-                if [[ "${TAG_QUOTE}" == '"' ]]; then
-                    TAG_QUOTE=""
-                else
-                    TAG_QUOTE='"'
-                fi
-            else
-                TAG_CURRENT+="${TAG_CHAR}"
-            fi
-        done
-
-        [[ "${TAG_ESCAPE}" == true ]] && return 1
-        [[ "${TAG_QUOTE}" != "" ]] && return 1
-        TAG_PARTS+=("$(echo "${TAG_CURRENT}" | sed -E -e 's/^[ ]+//' -e 's/[ ]+$//')")
-        TAG_NAME_VALUE="${TAG_PARTS[0]:-}"
-        [[ "${TAG_NAME_VALUE}" == "" ]] && return 1
-
-        printf 'TAG_NAME=%q\n' "${TAG_NAME_VALUE}"
-        echo "TAG_FILTERS=()"
-        for TAG_INDEX in "${!TAG_PARTS[@]}"; do
-            [[ "${TAG_INDEX}" -eq 0 ]] && continue
-            TAG_PART="${TAG_PARTS[$TAG_INDEX]}"
-            [[ "${TAG_PART}" == "" ]] && continue
-            printf 'TAG_FILTERS+=(%q)\n' "${TAG_PART}"
-        done
-        return 0
-    }
-
     function replace_tags {  # replace_tags document prefix metadata_vars[@]
         local DOCUMENT PREFIX METADATA_VARS
         local TAG_FRAGMENT_UNQUOTED TAG_FRAGMENT_DOUBLE TAG_FRAGMENT_SINGLE TAG_FRAGMENT TAG_REGEX
@@ -5461,6 +5397,70 @@ function marsh_parse_template_metadata {  # marsh_parse_template_metadata prefix
             [[ "${ASSET:-}" != "" ]] && echo "${PREFIX}ASSETS_${ASSET_TYPE_UPPER}+=(\"${ASSET//\"/\\\"}\")"
         done
     done
+}
+
+function marsh_parse_template_tag {  # marsh_parse_template_tag tag_string
+    local TAG_STRING TAG_BODY TAG_CHAR TAG_CURRENT TAG_QUOTE TAG_ESCAPE TAG_INDEX TAG_PART TAG_NAME_VALUE
+    local -a TAG_PARTS
+
+    TAG_STRING="${1:-}"
+    [[ "${TAG_STRING}" == "" ]] && return 1
+    TAG_BODY=$(echo "${TAG_STRING}" | sed -E -e 's/^\{\{[ ]*//' -e 's/[ ]*\}\}$//')
+    TAG_PARTS=()
+    TAG_CURRENT=""
+    TAG_QUOTE=""
+    TAG_ESCAPE=false
+
+    for (( TAG_INDEX=0; TAG_INDEX<${#TAG_BODY}; TAG_INDEX++ )); do
+        TAG_CHAR="${TAG_BODY:${TAG_INDEX}:1}"
+        if [[ "${TAG_ESCAPE}" == true ]]; then
+            case "${TAG_CHAR}" in
+                '\'|'|'|'"'|"'")
+                    TAG_CURRENT+="${TAG_CHAR}"
+                    ;;
+                *)
+                    TAG_CURRENT+='\'
+                    TAG_CURRENT+="${TAG_CHAR}"
+                    ;;
+            esac
+            TAG_ESCAPE=false
+        elif [[ "${TAG_CHAR}" == '\' ]]; then
+            TAG_ESCAPE=true
+        elif [[ "${TAG_CHAR}" == '|' ]] && [[ "${TAG_QUOTE}" == "" ]]; then
+            TAG_PARTS+=("$(echo "${TAG_CURRENT}" | sed -E -e 's/^[ ]+//' -e 's/[ ]+$//')")
+            TAG_CURRENT=""
+        elif [[ "${TAG_CHAR}" == "'" ]] && [[ "${TAG_QUOTE}" != '"' ]]; then
+            if [[ "${TAG_QUOTE}" == "'" ]]; then
+                TAG_QUOTE=""
+            else
+                TAG_QUOTE="'"
+            fi
+        elif [[ "${TAG_CHAR}" == '"' ]] && [[ "${TAG_QUOTE}" != "'" ]]; then
+            if [[ "${TAG_QUOTE}" == '"' ]]; then
+                TAG_QUOTE=""
+            else
+                TAG_QUOTE='"'
+            fi
+        else
+            TAG_CURRENT+="${TAG_CHAR}"
+        fi
+    done
+
+    [[ "${TAG_ESCAPE}" == true ]] && return 1
+    [[ "${TAG_QUOTE}" != "" ]] && return 1
+    TAG_PARTS+=("$(echo "${TAG_CURRENT}" | sed -E -e 's/^[ ]+//' -e 's/[ ]+$//')")
+    TAG_NAME_VALUE="${TAG_PARTS[0]:-}"
+    [[ "${TAG_NAME_VALUE}" == "" ]] && return 1
+
+    printf 'TAG_NAME=%q\n' "${TAG_NAME_VALUE}"
+    echo "TAG_FILTERS=()"
+    for TAG_INDEX in "${!TAG_PARTS[@]}"; do
+        [[ "${TAG_INDEX}" -eq 0 ]] && continue
+        TAG_PART="${TAG_PARTS[$TAG_INDEX]}"
+        [[ "${TAG_PART}" == "" ]] && continue
+        printf 'TAG_FILTERS+=(%q)\n' "${TAG_PART}"
+    done
+    return 0
 }
 
 # resolves a template asset output path relative to the target root and rejects traversal beyond the site root

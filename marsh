@@ -4051,9 +4051,9 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
     function replace_tags {  # replace_tags document prefix metadata_vars[@]
         local DOCUMENT PREFIX METADATA_VARS
         local TAG_FRAGMENT_UNQUOTED TAG_FRAGMENT_DOUBLE TAG_FRAGMENT_SINGLE TAG_FRAGMENT TAG_REGEX
-        local REPLACEMENTS TAG_ESC TAG_NAME TAG_VAR TAG_TYPE TAG_VALUE TAG_FILTER TAG_FILTERS_TEXT
+        local REPLACEMENTS TAG_ESC TAG_NAME TAG_VAR TAG_TYPE TAG_VALUE TAG_TRANSFORM TAG_TRANSFORMS_TEXT
         local I SCRATCH_FILE
-        local -a TAGS UNIQUE_TAGS TAG_FILTERS TAG_VALUES
+        local -a TAGS UNIQUE_TAGS TAG_TRANSFORMS TAG_VALUES
 
         # init
         DOCUMENT="${1:-}"
@@ -4083,17 +4083,17 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
             UNIQUE_TAGS+=("${TAGS[$I]}")
             TAG_ESC=$(printf '%s' "${TAGS[$I]}" | sed -e 's/[\\]/\\\\/g' -e 's/[][/.|$(){}?+*^]/\\&/g')
             TAG_NAME=""
-            TAG_FILTERS_TEXT=""
-            marsh_parse_template_tag "${TAGS[$I]}" "TAG_NAME" "TAG_FILTERS_TEXT" || {
+            TAG_TRANSFORMS_TEXT=""
+            marsh_parse_template_tag "${TAGS[$I]}" "TAG_NAME" "TAG_TRANSFORMS_TEXT" || {
                 rm -f "${REPLACEMENTS}"
                 return 1
             }
-            # rebuild the filters array from parser output
-            TAG_FILTERS=()
-            while IFS= read -r TAG_FILTER; do
-                [[ "${TAG_FILTER}" == "" ]] && continue
-                TAG_FILTERS+=("${TAG_FILTER}")
-            done <<< "${TAG_FILTERS_TEXT}"
+            # rebuild the transforms array from parser output
+            TAG_TRANSFORMS=()
+            while IFS= read -r TAG_TRANSFORM; do
+                [[ "${TAG_TRANSFORM}" == "" ]] && continue
+                TAG_TRANSFORMS+=("${TAG_TRANSFORM}")
+            done <<< "${TAG_TRANSFORMS_TEXT}"
             TAG_VAR=""
             TAG_TYPE=""
             marsh_resolve_template_tag_metadata "${TAG_NAME}" "${PREFIX}" "${METADATA_VARS}" "TAG_VAR" "TAG_TYPE" 2>/dev/null || true
@@ -4117,7 +4117,7 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
                     rm -f "${REPLACEMENTS}"
                     return 1
                 fi
-                TAG_VALUE=$(printf '%s' "${TAG_VALUE}" | marsh_text_transform "${TAG_FILTERS[@]}" | marsh_escape_substitution)
+                TAG_VALUE=$(printf '%s' "${TAG_VALUE}" | marsh_text_transform "${TAG_TRANSFORMS[@]}" | marsh_escape_substitution)
                 printf '/%s/s//%s/g\n' "${TAG_ESC}" "${TAG_VALUE:-}" >> "${REPLACEMENTS}" || {
                     rm -f "${REPLACEMENTS}"
                     return 1
@@ -5407,16 +5407,16 @@ function marsh_parse_template_metadata {  # marsh_parse_template_metadata prefix
 }
 
 # parses a template tag into caller-owned outputs
-function marsh_parse_template_tag {  # marsh_parse_template_tag tag_string tag_name_var tag_filters_var
-    local TAG_STRING TAG_NAME_VAR TAG_FILTERS_VAR TAG_BODY TAG_CHAR TAG_CURRENT TAG_QUOTE TAG_ESCAPE TAG_INDEX TAG_PART TAG_NAME_VALUE PARSED_FILTERS_TEXT
+function marsh_parse_template_tag {  # marsh_parse_template_tag tag_string tag_name_var tag_transforms_var
+    local TAG_STRING TAG_NAME_VAR TAG_TRANSFORMS_VAR TAG_BODY TAG_CHAR TAG_CURRENT TAG_QUOTE TAG_ESCAPE TAG_INDEX TAG_PART TAG_NAME_VALUE PARSED_TRANSFORMS_TEXT
     local -a TAG_PARTS
 
     TAG_STRING="${1:-}"
     TAG_NAME_VAR="${2:-}"
-    TAG_FILTERS_VAR="${3:-}"
+    TAG_TRANSFORMS_VAR="${3:-}"
     [[ "${TAG_STRING}" == "" ]] && return 1
     [[ "${TAG_NAME_VAR}" == "" ]] && return 1
-    [[ "${TAG_FILTERS_VAR}" == "" ]] && return 1
+    [[ "${TAG_TRANSFORMS_VAR}" == "" ]] && return 1
     TAG_BODY=$(echo "${TAG_STRING}" | sed -E -e 's/^\{\{[ ]*//' -e 's/[ ]*\}\}$//')
     TAG_PARTS=()
     TAG_CURRENT=""
@@ -5464,20 +5464,20 @@ function marsh_parse_template_tag {  # marsh_parse_template_tag tag_string tag_n
     TAG_NAME_VALUE="${TAG_PARTS[0]:-}"
     [[ "${TAG_NAME_VALUE}" == "" ]] && return 1
 
-    # collect filters as newline-delimited text for caller-owned arrays
-    # keep parsed filter text separate from the caller output variable name
-    PARSED_FILTERS_TEXT=""
+    # collect transforms as newline-delimited text for caller-owned arrays
+    # keep parsed transform text separate from the caller output variable name
+    PARSED_TRANSFORMS_TEXT=""
     for TAG_INDEX in "${!TAG_PARTS[@]}"; do
         [[ "${TAG_INDEX}" -eq 0 ]] && continue
         TAG_PART="${TAG_PARTS[$TAG_INDEX]}"
         [[ "${TAG_PART}" == "" ]] && continue
-        if [[ "${PARSED_FILTERS_TEXT}" != "" ]]; then
-            PARSED_FILTERS_TEXT+=$'\n'
+        if [[ "${PARSED_TRANSFORMS_TEXT}" != "" ]]; then
+            PARSED_TRANSFORMS_TEXT+=$'\n'
         fi
-        PARSED_FILTERS_TEXT+="${TAG_PART}"
+        PARSED_TRANSFORMS_TEXT+="${TAG_PART}"
     done
     printf -v "${TAG_NAME_VAR}" '%s' "${TAG_NAME_VALUE}"
-    printf -v "${TAG_FILTERS_VAR}" '%s' "${PARSED_FILTERS_TEXT}"
+    printf -v "${TAG_TRANSFORMS_VAR}" '%s' "${PARSED_TRANSFORMS_TEXT}"
     return 0
 }
 

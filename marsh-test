@@ -5904,9 +5904,9 @@ function marsh_test {
         marsh_parse_template_tag:0)
             TEST_NAME+=":name_only"
             TAG_NAME=""
-            TAG_FILTERS_LINES=""
-            if marsh_parse_template_tag '{{ document.title }}' "TAG_NAME" "TAG_FILTERS_LINES"; then
-                ACTUAL=$(printf '%s\n%s' "${TAG_NAME}" "${TAG_FILTERS_LINES}")
+            TAG_TRANSFORMS_LINES=""
+            if marsh_parse_template_tag '{{ document.title }}' "TAG_NAME" "TAG_TRANSFORMS_LINES"; then
+                ACTUAL=$(printf '%s\n%s' "${TAG_NAME}" "${TAG_TRANSFORMS_LINES}")
                 EXPECTED='document.title'
                 ASSERTION="equals"
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -5919,11 +5919,11 @@ function marsh_test {
             fi
             ;;
         marsh_parse_template_tag:1)
-            TEST_NAME+=":quoted_and_escaped_filters"
+            TEST_NAME+=":quoted_and_escaped_transforms"
             TAG_NAME=""
-            TAG_FILTERS_LINES=""
-            if marsh_parse_template_tag '{{ document.title | text:prefix:"A|B" | text:suffix:one\|two }}' "TAG_NAME" "TAG_FILTERS_LINES"; then
-                ACTUAL=$(printf '%s\n%s' "${TAG_NAME}" "${TAG_FILTERS_LINES}")
+            TAG_TRANSFORMS_LINES=""
+            if marsh_parse_template_tag '{{ document.title | text:prefix:"A|B" | text:suffix:one\|two }}' "TAG_NAME" "TAG_TRANSFORMS_LINES"; then
+                ACTUAL=$(printf '%s\n%s' "${TAG_NAME}" "${TAG_TRANSFORMS_LINES}")
                 EXPECTED=$(printf '%s\n' 'document.title' 'text:prefix:A|B' 'text:suffix:one|two')
                 ASSERTION="equals"
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -5938,8 +5938,8 @@ function marsh_test {
         marsh_parse_template_tag:2)
             TEST_NAME+=":unterminated_quote"
             TAG_NAME=""
-            TAG_FILTERS_LINES=""
-            marsh_parse_template_tag '{{ document.title | text:prefix:"A|B }}' "TAG_NAME" "TAG_FILTERS_LINES" >/dev/null 2>&1
+            TAG_TRANSFORMS_LINES=""
+            marsh_parse_template_tag '{{ document.title | text:prefix:"A|B }}' "TAG_NAME" "TAG_TRANSFORMS_LINES" >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=1
             ASSERTION="equals"

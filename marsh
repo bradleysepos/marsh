@@ -3932,7 +3932,7 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
             TAG_VAR=""
             TAG_TYPE=""
             CONDITIONAL_VALUE=""
-            eval "$(marsh_resolve_template_tag_metadata "${TAG}" "${PREFIX}" "${METADATA_VARS}" 2>/dev/null)" || true
+            marsh_resolve_template_tag_metadata "${TAG}" "${PREFIX}" "${METADATA_VARS}" "TAG_VAR" "TAG_TYPE" 2>/dev/null || true
             if [[ "${TAG_TYPE}" == "array" ]]; then
                 CONDITIONAL_VALUES=()
                 eval $(marsh_flat_to_array "CONDITIONAL_VALUES" "${TAG_VAR}")
@@ -4002,7 +4002,7 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
                 [[ "${TAG}" == "" ]] && continue
                 TAG_VAR=""
                 TAG_TYPE=""
-                eval "$(marsh_resolve_template_tag_metadata "${TAG}" "${PREFIX}" "${METADATA_VARS}" 2>/dev/null)" || true
+                marsh_resolve_template_tag_metadata "${TAG}" "${PREFIX}" "${METADATA_VARS}" "TAG_VAR" "TAG_TYPE" 2>/dev/null || true
                 if [[ "${TAG_TYPE}" == "array" ]]; then
                     CONDITIONAL_VALUES=()
                     eval $(marsh_flat_to_array "CONDITIONAL_VALUES" "${TAG_VAR}")
@@ -4051,7 +4051,7 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
     function replace_tags {  # replace_tags document prefix metadata_vars[@]
         local DOCUMENT PREFIX METADATA_VARS
         local TAG_FRAGMENT_UNQUOTED TAG_FRAGMENT_DOUBLE TAG_FRAGMENT_SINGLE TAG_FRAGMENT TAG_REGEX
-        local REPLACEMENTS TAG_ESC TAG_NAME TAG_VAR TAG_TYPE TAG_VALUE TAG_PARSE
+        local REPLACEMENTS TAG_ESC TAG_NAME TAG_VAR TAG_TYPE TAG_VALUE TAG_FILTER TAG_FILTERS_TEXT
         local I SCRATCH_FILE
         local -a TAGS UNIQUE_TAGS TAG_FILTERS TAG_VALUES
 
@@ -4082,14 +4082,21 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
             fi
             UNIQUE_TAGS+=("${TAGS[$I]}")
             TAG_ESC=$(printf '%s' "${TAGS[$I]}" | sed -e 's/[\\]/\\\\/g' -e 's/[][/.|$(){}?+*^]/\\&/g')
-            TAG_PARSE=$(parse_template_tag "${TAGS[$I]}") || {
+            TAG_NAME=""
+            TAG_FILTERS_TEXT=""
+            marsh_parse_template_tag "${TAGS[$I]}" "TAG_NAME" "TAG_FILTERS_TEXT" || {
                 rm -f "${REPLACEMENTS}"
                 return 1
             }
-            eval "${TAG_PARSE}"
+            # rebuild the filters array from parser output
+            TAG_FILTERS=()
+            while IFS= read -r TAG_FILTER; do
+                [[ "${TAG_FILTER}" == "" ]] && continue
+                TAG_FILTERS+=("${TAG_FILTER}")
+            done <<< "${TAG_FILTERS_TEXT}"
             TAG_VAR=""
             TAG_TYPE=""
-            eval "$(marsh_resolve_template_tag_metadata "${TAG_NAME}" "${PREFIX}" "${METADATA_VARS}" 2>/dev/null)" || true
+            marsh_resolve_template_tag_metadata "${TAG_NAME}" "${PREFIX}" "${METADATA_VARS}" "TAG_VAR" "TAG_TYPE" 2>/dev/null || true
             if [[ "${TAG_VAR}" != "" ]] && [[ "${TAG_TYPE}" != "" ]]; then
                 if [[ "${TAG_TYPE}" == "array" ]]; then
                     eval "$(marsh_flat_to_array "TAG_VALUES" "${TAG_VAR}")"
@@ -5399,12 +5406,17 @@ function marsh_parse_template_metadata {  # marsh_parse_template_metadata prefix
     done
 }
 
-function marsh_parse_template_tag {  # marsh_parse_template_tag tag_string
-    local TAG_STRING TAG_BODY TAG_CHAR TAG_CURRENT TAG_QUOTE TAG_ESCAPE TAG_INDEX TAG_PART TAG_NAME_VALUE
+# parses a template tag into caller-owned outputs
+function marsh_parse_template_tag {  # marsh_parse_template_tag tag_string tag_name_var tag_filters_var
+    local TAG_STRING TAG_NAME_VAR TAG_FILTERS_VAR TAG_BODY TAG_CHAR TAG_CURRENT TAG_QUOTE TAG_ESCAPE TAG_INDEX TAG_PART TAG_NAME_VALUE PARSED_FILTERS_TEXT
     local -a TAG_PARTS
 
     TAG_STRING="${1:-}"
+    TAG_NAME_VAR="${2:-}"
+    TAG_FILTERS_VAR="${3:-}"
     [[ "${TAG_STRING}" == "" ]] && return 1
+    [[ "${TAG_NAME_VAR}" == "" ]] && return 1
+    [[ "${TAG_FILTERS_VAR}" == "" ]] && return 1
     TAG_BODY=$(echo "${TAG_STRING}" | sed -E -e 's/^\{\{[ ]*//' -e 's/[ ]*\}\}$//')
     TAG_PARTS=()
     TAG_CURRENT=""
@@ -5452,14 +5464,20 @@ function marsh_parse_template_tag {  # marsh_parse_template_tag tag_string
     TAG_NAME_VALUE="${TAG_PARTS[0]:-}"
     [[ "${TAG_NAME_VALUE}" == "" ]] && return 1
 
-    printf 'TAG_NAME=%q\n' "${TAG_NAME_VALUE}"
-    echo "TAG_FILTERS=()"
+    # collect filters as newline-delimited text for caller-owned arrays
+    # keep parsed filter text separate from the caller output variable name
+    PARSED_FILTERS_TEXT=""
     for TAG_INDEX in "${!TAG_PARTS[@]}"; do
         [[ "${TAG_INDEX}" -eq 0 ]] && continue
         TAG_PART="${TAG_PARTS[$TAG_INDEX]}"
         [[ "${TAG_PART}" == "" ]] && continue
-        printf 'TAG_FILTERS+=(%q)\n' "${TAG_PART}"
+        if [[ "${PARSED_FILTERS_TEXT}" != "" ]]; then
+            PARSED_FILTERS_TEXT+=$'\n'
+        fi
+        PARSED_FILTERS_TEXT+="${TAG_PART}"
     done
+    printf -v "${TAG_NAME_VAR}" '%s' "${TAG_NAME_VALUE}"
+    printf -v "${TAG_FILTERS_VAR}" '%s' "${PARSED_FILTERS_TEXT}"
     return 0
 }
 
@@ -5490,164 +5508,172 @@ function marsh_resolve_template_asset_output_path {  # marsh_resolve_template_as
     printf '%s\n' "${ASSET_OUTPUT_REL}"
 }
 
-# resolves a template tag to shell variable assignments
-function marsh_resolve_template_tag_metadata {  # marsh_resolve_template_tag_metadata tag_name prefix metadata_vars[@]
-    local TAG_NAME PREFIX METADATA_VARS TAG_VAR TAG_TYPE
+# resolves a template tag into caller-owned outputs
+function marsh_resolve_template_tag_metadata {  # marsh_resolve_template_tag_metadata tag_name prefix metadata_vars tag_var_out tag_type_out
+    local TAG_NAME PREFIX METADATA_VARS TAG_VAR_OUTPUT TAG_TYPE_OUTPUT RESOLVED_TAG_VAR RESOLVED_TAG_TYPE
     local OIFS META_VAR NORMALIZED_TAG NORMALIZED_META MATCH_VAR MATCH_COUNT
 
     # init
     TAG_NAME="${1:-}"
-    [[ "${TAG_NAME}" == "" ]] && return 1
     PREFIX="${2:-}"
     METADATA_VARS="${3:-}"
+    [[ "${TAG_NAME}" == "" ]] && return 1
+    shift 3
+    TAG_VAR_OUTPUT="${1:-}"
+    TAG_TYPE_OUTPUT="${2:-}"
+    [[ "${TAG_VAR_OUTPUT}" != "" ]] && printf -v "${TAG_VAR_OUTPUT}" '%s' ''
+    [[ "${TAG_TYPE_OUTPUT}" != "" ]] && printf -v "${TAG_TYPE_OUTPUT}" '%s' ''
+    [[ "${TAG_VAR_OUTPUT}" == "" ]] && return 1
+    [[ "${TAG_TYPE_OUTPUT}" == "" ]] && return 1
 
     # handle known metadata tags
-    TAG_VAR=""
-    TAG_TYPE=""
+    # keep resolved names separate from output variable names
+    RESOLVED_TAG_VAR=""
+    RESOLVED_TAG_TYPE=""
     case "${TAG_NAME}" in
         site.rootpath)
-            TAG_VAR="SITE_ROOTPATH"
-            TAG_TYPE="string"
+            RESOLVED_TAG_VAR="SITE_ROOTPATH"
+            RESOLVED_TAG_TYPE="string"
             ;;
         site.abspath)
-            TAG_VAR="SITE_ABSPATH"
-            TAG_TYPE="string"
+            RESOLVED_TAG_VAR="SITE_ABSPATH"
+            RESOLVED_TAG_TYPE="string"
             ;;
         target.rootpath)
-            TAG_VAR="TARGET_ROOTPATH"
-            TAG_TYPE="string"
+            RESOLVED_TAG_VAR="TARGET_ROOTPATH"
+            RESOLVED_TAG_TYPE="string"
             ;;
         target.abspath)
-            TAG_VAR="TARGET_ABSPATH"
-            TAG_TYPE="string"
+            RESOLVED_TAG_VAR="TARGET_ABSPATH"
+            RESOLVED_TAG_TYPE="string"
             ;;
         archive.rootpath)
-            TAG_VAR="ARCHIVE_ROOTPATH"
-            TAG_TYPE="string"
+            RESOLVED_TAG_VAR="ARCHIVE_ROOTPATH"
+            RESOLVED_TAG_TYPE="string"
             ;;
         archive.abspath)
-            TAG_VAR="ARCHIVE_ABSPATH"
-            TAG_TYPE="string"
+            RESOLVED_TAG_VAR="ARCHIVE_ABSPATH"
+            RESOLVED_TAG_TYPE="string"
             ;;
         target.sitemap)
-            TAG_VAR="TARGET_SITEMAP"
-            TAG_TYPE="string"
+            RESOLVED_TAG_VAR="TARGET_SITEMAP"
+            RESOLVED_TAG_TYPE="string"
             ;;
         template.assets.fonts)
-            TAG_VAR="TEMPLATE_TAG_ASSETS_FONTS"
-            TAG_TYPE="shell-array"
+            RESOLVED_TAG_VAR="TEMPLATE_TAG_ASSETS_FONTS"
+            RESOLVED_TAG_TYPE="shell-array"
             ;;
         template.assets.styles)
-            TAG_VAR="TEMPLATE_TAG_ASSETS_STYLES"
-            TAG_TYPE="shell-array"
+            RESOLVED_TAG_VAR="TEMPLATE_TAG_ASSETS_STYLES"
+            RESOLVED_TAG_TYPE="shell-array"
             ;;
         template.assets.scripts)
-            TAG_VAR="TEMPLATE_TAG_ASSETS_SCRIPTS"
-            TAG_TYPE="shell-array"
+            RESOLVED_TAG_VAR="TEMPLATE_TAG_ASSETS_SCRIPTS"
+            RESOLVED_TAG_TYPE="shell-array"
             ;;
         template.assets.images)
-            TAG_VAR="TEMPLATE_TAG_ASSETS_IMAGES"
-            TAG_TYPE="shell-array"
+            RESOLVED_TAG_VAR="TEMPLATE_TAG_ASSETS_IMAGES"
+            RESOLVED_TAG_TYPE="shell-array"
             ;;
         template.assets.audio)
-            TAG_VAR="TEMPLATE_TAG_ASSETS_AUDIO"
-            TAG_TYPE="shell-array"
+            RESOLVED_TAG_VAR="TEMPLATE_TAG_ASSETS_AUDIO"
+            RESOLVED_TAG_TYPE="shell-array"
             ;;
         template.assets.video)
-            TAG_VAR="TEMPLATE_TAG_ASSETS_VIDEO"
-            TAG_TYPE="shell-array"
+            RESOLVED_TAG_VAR="TEMPLATE_TAG_ASSETS_VIDEO"
+            RESOLVED_TAG_TYPE="shell-array"
             ;;
         template.assets.documents)
-            TAG_VAR="TEMPLATE_TAG_ASSETS_DOCUMENTS"
-            TAG_TYPE="shell-array"
+            RESOLVED_TAG_VAR="TEMPLATE_TAG_ASSETS_DOCUMENTS"
+            RESOLVED_TAG_TYPE="shell-array"
             ;;
         template.assets.binaries)
-            TAG_VAR="TEMPLATE_TAG_ASSETS_BINARIES"
-            TAG_TYPE="shell-array"
+            RESOLVED_TAG_VAR="TEMPLATE_TAG_ASSETS_BINARIES"
+            RESOLVED_TAG_TYPE="shell-array"
             ;;
         template.assets.other)
-            TAG_VAR="TEMPLATE_TAG_ASSETS_OTHER"
-            TAG_TYPE="shell-array"
+            RESOLVED_TAG_VAR="TEMPLATE_TAG_ASSETS_OTHER"
+            RESOLVED_TAG_TYPE="shell-array"
             ;;
         document.href)
-            TAG_VAR="${PREFIX}HREF"
-            TAG_TYPE="string"
+            RESOLVED_TAG_VAR="${PREFIX}HREF"
+            RESOLVED_TAG_TYPE="string"
             ;;
         document.uri)
-            TAG_VAR="${PREFIX}URI"
-            TAG_TYPE="string"
+            RESOLVED_TAG_VAR="${PREFIX}URI"
+            RESOLVED_TAG_TYPE="string"
             ;;
         document.content)
-            TAG_VAR="${PREFIX}CONTENT"
-            TAG_TYPE="file"
+            RESOLVED_TAG_VAR="${PREFIX}CONTENT"
+            RESOLVED_TAG_TYPE="file"
             ;;
         document.authors)
-            TAG_VAR="${PREFIX}Authors_"
-            TAG_TYPE="array"
+            RESOLVED_TAG_VAR="${PREFIX}Authors_"
+            RESOLVED_TAG_TYPE="array"
             ;;
         document.copyright)
-            TAG_VAR="${PREFIX}Copyright"
-            TAG_TYPE="string"
+            RESOLVED_TAG_VAR="${PREFIX}Copyright"
+            RESOLVED_TAG_TYPE="string"
             ;;
         document.credits-url)
-            TAG_VAR="${PREFIX}Credits_URL"
-            TAG_TYPE="string"
+            RESOLVED_TAG_VAR="${PREFIX}Credits_URL"
+            RESOLVED_TAG_TYPE="string"
             ;;
         document.date)
-            TAG_VAR="${PREFIX}Date"
-            TAG_TYPE="string"
+            RESOLVED_TAG_VAR="${PREFIX}Date"
+            RESOLVED_TAG_TYPE="string"
             ;;
         document.language)
-            TAG_VAR="${PREFIX}Language"
-            TAG_TYPE="string"
+            RESOLVED_TAG_VAR="${PREFIX}Language"
+            RESOLVED_TAG_TYPE="string"
             ;;
         document.language-code)
-            TAG_VAR="${PREFIX}Language_Code"
-            TAG_TYPE="string"
+            RESOLVED_TAG_VAR="${PREFIX}Language_Code"
+            RESOLVED_TAG_TYPE="string"
             ;;
         document.license)
-            TAG_VAR="${PREFIX}License"
-            TAG_TYPE="string"
+            RESOLVED_TAG_VAR="${PREFIX}License"
+            RESOLVED_TAG_TYPE="string"
             ;;
         document.license-abbr)
-            TAG_VAR="${PREFIX}License_Abbr"
-            TAG_TYPE="string"
+            RESOLVED_TAG_VAR="${PREFIX}License_Abbr"
+            RESOLVED_TAG_TYPE="string"
             ;;
         document.license-url)
-            TAG_VAR="${PREFIX}License_URL"
-            TAG_TYPE="string"
+            RESOLVED_TAG_VAR="${PREFIX}License_URL"
+            RESOLVED_TAG_TYPE="string"
             ;;
         document.project)
-            TAG_VAR="${PREFIX}Project"
-            TAG_TYPE="string"
+            RESOLVED_TAG_VAR="${PREFIX}Project"
+            RESOLVED_TAG_TYPE="string"
             ;;
         document.project-version)
-            TAG_VAR="${PREFIX}Project_Version"
-            TAG_TYPE="string"
+            RESOLVED_TAG_VAR="${PREFIX}Project_Version"
+            RESOLVED_TAG_TYPE="string"
             ;;
         document.project-url)
-            TAG_VAR="${PREFIX}Project_URL"
-            TAG_TYPE="string"
+            RESOLVED_TAG_VAR="${PREFIX}Project_URL"
+            RESOLVED_TAG_TYPE="string"
             ;;
         document.redirect-url)
-            TAG_VAR="${PREFIX}Redirect_URL"
-            TAG_TYPE="string"
+            RESOLVED_TAG_VAR="${PREFIX}Redirect_URL"
+            RESOLVED_TAG_TYPE="string"
             ;;
         document.state)
-            TAG_VAR="${PREFIX}State_"
-            TAG_TYPE="array"
+            RESOLVED_TAG_VAR="${PREFIX}State_"
+            RESOLVED_TAG_TYPE="array"
             ;;
         document.title)
-            TAG_VAR="${PREFIX}Title"
-            TAG_TYPE="string"
+            RESOLVED_TAG_VAR="${PREFIX}Title"
+            RESOLVED_TAG_TYPE="string"
             ;;
         document.type)
-            TAG_VAR="${PREFIX}Type"
-            TAG_TYPE="string"
+            RESOLVED_TAG_VAR="${PREFIX}Type"
+            RESOLVED_TAG_TYPE="string"
             ;;
         util.json-separator)
-            TAG_VAR="UTIL_JSON_SEPARATOR"
-            TAG_TYPE="string"
+            RESOLVED_TAG_VAR="UTIL_JSON_SEPARATOR"
+            RESOLVED_TAG_TYPE="string"
             ;;
         *)
             ;;
@@ -5656,7 +5682,7 @@ function marsh_resolve_template_tag_metadata {  # marsh_resolve_template_tag_met
     # handle all other metadata tags, only string values are supported
     # tag names begin with 'document.' and a list of metadata variables must be provided to match against
     # normalization follows the output pattern of converting to lowercase and replacing underscores with dashes
-    if [[ "${TAG_VAR}" == "" ]] && [[ "${TAG_TYPE}" == "" ]]; then
+    if [[ "${RESOLVED_TAG_VAR}" == "" ]] && [[ "${RESOLVED_TAG_TYPE}" == "" ]]; then
         [[ "${TAG_NAME#document.}" != "${TAG_NAME}" ]] || return 1
         [[ "${METADATA_VARS}" != "" ]] || return 1
         NORMALIZED_TAG="${TAG_NAME#document.}"
@@ -5676,12 +5702,12 @@ function marsh_resolve_template_tag_metadata {  # marsh_resolve_template_tag_met
         done
         IFS="${OIFS}"
         [[ "${MATCH_COUNT}" -eq 1 ]] || return 1
-        TAG_VAR="${MATCH_VAR}"
-        TAG_TYPE="string"
+        RESOLVED_TAG_VAR="${MATCH_VAR}"
+        RESOLVED_TAG_TYPE="string"
     fi
 
-    printf 'TAG_VAR=%q\n' "${TAG_VAR}"
-    printf 'TAG_TYPE=%q\n' "${TAG_TYPE}"
+    printf -v "${TAG_VAR_OUTPUT}" '%s' "${RESOLVED_TAG_VAR}"
+    printf -v "${TAG_TYPE_OUTPUT}" '%s' "${RESOLVED_TAG_TYPE}"
     return 0
 }
 

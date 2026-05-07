@@ -156,6 +156,18 @@ function marsh_test_get_physical_path {
     printf '%s\n' "${TARGET_DIR}/${TARGET_NAME}"
 }
 
+function marsh_test_capture_template_tag_metadata {
+    local TAG_NAME PREFIX METADATA_VARS TAG_VAR TAG_TYPE
+
+    TAG_NAME="${1:-}"
+    PREFIX="${2:-}"
+    METADATA_VARS="${3:-}"
+    TAG_VAR=""
+    TAG_TYPE=""
+    marsh_resolve_template_tag_metadata "${TAG_NAME}" "${PREFIX}" "${METADATA_VARS}" "TAG_VAR" "TAG_TYPE" || return $?
+    printf 'TAG_VAR=%s\nTAG_TYPE=%s' "${TAG_VAR}" "${TAG_TYPE}"
+}
+
 function marsh_test_create_archive_document {
     local TARGET_OUTPUT_ROOT DOCUMENT TYPE TITLE DATE_VALUE STATE_VALUE
 
@@ -5889,6 +5901,52 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
+        marsh_parse_template_tag:0)
+            TEST_NAME+=":name_only"
+            TAG_NAME=""
+            TAG_FILTERS_LINES=""
+            if marsh_parse_template_tag '{{ document.title }}' "TAG_NAME" "TAG_FILTERS_LINES"; then
+                ACTUAL=$(printf '%s\n%s' "${TAG_NAME}" "${TAG_FILTERS_LINES}")
+                EXPECTED='document.title'
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            else
+                ACTUAL=$?
+                EXPECTED=0
+                ASSERTION="equals"
+            fi
+            ;;
+        marsh_parse_template_tag:1)
+            TEST_NAME+=":quoted_and_escaped_filters"
+            TAG_NAME=""
+            TAG_FILTERS_LINES=""
+            if marsh_parse_template_tag '{{ document.title | text:prefix:"A|B" | text:suffix:one\|two }}' "TAG_NAME" "TAG_FILTERS_LINES"; then
+                ACTUAL=$(printf '%s\n%s' "${TAG_NAME}" "${TAG_FILTERS_LINES}")
+                EXPECTED=$(printf '%s\n' 'document.title' 'text:prefix:A|B' 'text:suffix:one|two')
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            else
+                ACTUAL=$?
+                EXPECTED=0
+                ASSERTION="equals"
+            fi
+            ;;
+        marsh_parse_template_tag:2)
+            TEST_NAME+=":unterminated_quote"
+            TAG_NAME=""
+            TAG_FILTERS_LINES=""
+            marsh_parse_template_tag '{{ document.title | text:prefix:"A|B }}' "TAG_NAME" "TAG_FILTERS_LINES" >/dev/null 2>&1
+            ACTUAL=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" -eq "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
         marsh_plan_archive_pages:0)
             TEST_NAME+=":writes_archive_plan"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
@@ -6955,7 +7013,7 @@ function marsh_test {
             ;;
         marsh_resolve_template_tag_metadata:0)
             TEST_NAME+=":generated"
-            ACTUAL=$(marsh_resolve_template_tag_metadata "site.rootpath" "DOCUMENT_")
+            ACTUAL=$(marsh_test_capture_template_tag_metadata "site.rootpath" "DOCUMENT_")
             EXPECTED='TAG_VAR=SITE_ROOTPATH'$'\n''TAG_TYPE=string'
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -6964,7 +7022,7 @@ function marsh_test {
             ;;
         marsh_resolve_template_tag_metadata:1)
             TEST_NAME+=":generated"
-            ACTUAL=$(marsh_resolve_template_tag_metadata "site.abspath" "DOCUMENT_")
+            ACTUAL=$(marsh_test_capture_template_tag_metadata "site.abspath" "DOCUMENT_")
             EXPECTED='TAG_VAR=SITE_ABSPATH'$'\n''TAG_TYPE=string'
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -6973,7 +7031,7 @@ function marsh_test {
             ;;
         marsh_resolve_template_tag_metadata:2)
             TEST_NAME+=":generated"
-            ACTUAL=$(marsh_resolve_template_tag_metadata "target.rootpath" "DOCUMENT_")
+            ACTUAL=$(marsh_test_capture_template_tag_metadata "target.rootpath" "DOCUMENT_")
             EXPECTED='TAG_VAR=TARGET_ROOTPATH'$'\n''TAG_TYPE=string'
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -6982,7 +7040,7 @@ function marsh_test {
             ;;
         marsh_resolve_template_tag_metadata:3)
             TEST_NAME+=":generated"
-            ACTUAL=$(marsh_resolve_template_tag_metadata "target.abspath" "DOCUMENT_")
+            ACTUAL=$(marsh_test_capture_template_tag_metadata "target.abspath" "DOCUMENT_")
             EXPECTED='TAG_VAR=TARGET_ABSPATH'$'\n''TAG_TYPE=string'
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -6991,7 +7049,7 @@ function marsh_test {
             ;;
         marsh_resolve_template_tag_metadata:4)
             TEST_NAME+=":generated"
-            ACTUAL=$(marsh_resolve_template_tag_metadata "target.sitemap" "DOCUMENT_")
+            ACTUAL=$(marsh_test_capture_template_tag_metadata "target.sitemap" "DOCUMENT_")
             EXPECTED='TAG_VAR=TARGET_SITEMAP'$'\n''TAG_TYPE=string'
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -7000,7 +7058,7 @@ function marsh_test {
             ;;
         marsh_resolve_template_tag_metadata:5)
             TEST_NAME+=":generated"
-            ACTUAL=$(marsh_resolve_template_tag_metadata "archive.rootpath" "DOCUMENT_")
+            ACTUAL=$(marsh_test_capture_template_tag_metadata "archive.rootpath" "DOCUMENT_")
             EXPECTED='TAG_VAR=ARCHIVE_ROOTPATH'$'\n''TAG_TYPE=string'
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -7009,7 +7067,7 @@ function marsh_test {
             ;;
         marsh_resolve_template_tag_metadata:6)
             TEST_NAME+=":generated"
-            ACTUAL=$(marsh_resolve_template_tag_metadata "archive.abspath" "DOCUMENT_")
+            ACTUAL=$(marsh_test_capture_template_tag_metadata "archive.abspath" "DOCUMENT_")
             EXPECTED='TAG_VAR=ARCHIVE_ABSPATH'$'\n''TAG_TYPE=string'
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -7018,7 +7076,7 @@ function marsh_test {
             ;;
         marsh_resolve_template_tag_metadata:7)
             TEST_NAME+=":generated"
-            ACTUAL=$(marsh_resolve_template_tag_metadata "document.href" "DOCUMENT_")
+            ACTUAL=$(marsh_test_capture_template_tag_metadata "document.href" "DOCUMENT_")
             EXPECTED='TAG_VAR=DOCUMENT_HREF'$'\n''TAG_TYPE=string'
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -7027,7 +7085,7 @@ function marsh_test {
             ;;
         marsh_resolve_template_tag_metadata:8)
             TEST_NAME+=":generated"
-            ACTUAL=$(marsh_resolve_template_tag_metadata "document.uri" "DOCUMENT_")
+            ACTUAL=$(marsh_test_capture_template_tag_metadata "document.uri" "DOCUMENT_")
             EXPECTED='TAG_VAR=DOCUMENT_URI'$'\n''TAG_TYPE=string'
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -7036,7 +7094,7 @@ function marsh_test {
             ;;
         marsh_resolve_template_tag_metadata:9)
             TEST_NAME+=":generated"
-            ACTUAL=$(marsh_resolve_template_tag_metadata "document.content" "DOCUMENT_")
+            ACTUAL=$(marsh_test_capture_template_tag_metadata "document.content" "DOCUMENT_")
             EXPECTED='TAG_VAR=DOCUMENT_CONTENT'$'\n''TAG_TYPE=file'
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -7045,7 +7103,7 @@ function marsh_test {
             ;;
         marsh_resolve_template_tag_metadata:10)
             TEST_NAME+=":generated"
-            ACTUAL=$(marsh_resolve_template_tag_metadata "document.page-next-href" "DOCUMENT_" "DOCUMENT_Page_Next_Href")
+            ACTUAL=$(marsh_test_capture_template_tag_metadata "document.page-next-href" "DOCUMENT_" "DOCUMENT_Page_Next_Href")
             EXPECTED='TAG_VAR=DOCUMENT_Page_Next_Href'$'\n''TAG_TYPE=string'
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -7054,7 +7112,7 @@ function marsh_test {
             ;;
         marsh_resolve_template_tag_metadata:11)
             TEST_NAME+=":known"
-            ACTUAL=$(marsh_resolve_template_tag_metadata "document.title" "DOCUMENT_")
+            ACTUAL=$(marsh_test_capture_template_tag_metadata "document.title" "DOCUMENT_")
             EXPECTED='TAG_VAR=DOCUMENT_Title'$'\n''TAG_TYPE=string'
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -7063,7 +7121,7 @@ function marsh_test {
             ;;
         marsh_resolve_template_tag_metadata:12)
             TEST_NAME+=":known"
-            ACTUAL=$(marsh_resolve_template_tag_metadata "document.project-version" "DOCUMENT_" "DOCUMENT_Title"$'\n'"DOCUMENT_Project_Version")
+            ACTUAL=$(marsh_test_capture_template_tag_metadata "document.project-version" "DOCUMENT_" "DOCUMENT_Title"$'\n'"DOCUMENT_Project_Version")
             EXPECTED='TAG_VAR=DOCUMENT_Project_Version'$'\n''TAG_TYPE=string'
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -7072,7 +7130,7 @@ function marsh_test {
             ;;
         marsh_resolve_template_tag_metadata:13)
             TEST_NAME+=":known"
-            ACTUAL=$(marsh_resolve_template_tag_metadata "document.authors" "SUBDOCUMENT_")
+            ACTUAL=$(marsh_test_capture_template_tag_metadata "document.authors" "SUBDOCUMENT_")
             EXPECTED='TAG_VAR=SUBDOCUMENT_Authors_'$'\n''TAG_TYPE=array'
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -7081,7 +7139,7 @@ function marsh_test {
             ;;
         marsh_resolve_template_tag_metadata:14)
             TEST_NAME+=":custom"
-            ACTUAL=$(marsh_resolve_template_tag_metadata "document.custom-thing" "DOCUMENT_" "DOCUMENT_Custom_Thing")
+            ACTUAL=$(marsh_test_capture_template_tag_metadata "document.custom-thing" "DOCUMENT_" "DOCUMENT_Custom_Thing")
             EXPECTED='TAG_VAR=DOCUMENT_Custom_Thing'$'\n''TAG_TYPE=string'
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -7090,7 +7148,7 @@ function marsh_test {
             ;;
         marsh_resolve_template_tag_metadata:15)
             TEST_NAME+=":nonexistent"
-            marsh_resolve_template_tag_metadata "document.foo" "DOCUMENT_" 2>/dev/null
+            marsh_test_capture_template_tag_metadata "document.foo" "DOCUMENT_" >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=1
             ASSERTION="equals"
@@ -7100,7 +7158,7 @@ function marsh_test {
             ;;
         marsh_resolve_template_tag_metadata:16)
             TEST_NAME+=":ambiguous"
-            marsh_resolve_template_tag_metadata "document.foo-bar" "DOCUMENT_" "DOCUMENT_Foo_Bar"$'\n'"DOCUMENT_FOO_BAR" 2>/dev/null
+            marsh_test_capture_template_tag_metadata "document.foo-bar" "DOCUMENT_" "DOCUMENT_Foo_Bar"$'\n'"DOCUMENT_FOO_BAR" >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=1
             ASSERTION="equals"
@@ -9229,6 +9287,7 @@ KNOWN_FUNCTIONS=(
     marsh_normalize_path
     marsh_parse_target_archive_queue_record
     marsh_parse_template_metadata
+    marsh_parse_template_tag
     marsh_parse_yaml
     marsh_plan_archive_pages
     marsh_plan_target

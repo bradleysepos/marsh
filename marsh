@@ -880,9 +880,41 @@ function marsh_get_shell_timestamp {  # marsh_get_shell_timestamp
     printf '%s.000\n' "${NOW}"
 }
 
-# prints a list of variables given their assignment commands, one per line, e.g. FOO="bar" prints FOO
-function marsh_get_variables {  # marsh_get_variables assignments_string
-    sed -E -e 's/^([^=]+[^+])[+]?=.*/\1/' | sort -u
+# prints a unique list of variables given assignment commands, defaulting to last-occurrence order
+function marsh_get_variables {  # marsh_get_variables [occurrence_order]
+    local OCCURRENCE_ORDER VARIABLE_NAMES_REGEX
+
+    OCCURRENCE_ORDER="${1:-last}"
+    [[ "${OCCURRENCE_ORDER}" != "first" ]] && [[ "${OCCURRENCE_ORDER}" != "last" ]] && return 1
+
+    # captures variable name from simple assignments, e.g., VAR=value becomes VAR
+    VARIABLE_NAMES_CAPTURE_REGEX='s/^([^=]+[^+])[+]?=.*/\1/'
+    # normalize root-level names emitted as _NAME where no prefix was provided to the yaml parser
+    VARIABLE_NAMES_NORMALIZE_REGEX='s/^_([^_].*)$/\1/'
+
+    # deduplicate variable names, keeping either first or last occurrence
+    if [[ "${OCCURRENCE_ORDER}" == "first" ]]; then
+        sed -E -e "${VARIABLE_NAMES_CAPTURE_REGEX}" -e "${VARIABLE_NAMES_NORMALIZE_REGEX}" | awk '!seen[$0]++'
+        return 0
+    fi
+    sed -E -e "${VARIABLE_NAMES_CAPTURE_REGEX}" -e "${VARIABLE_NAMES_NORMALIZE_REGEX}" | awk '
+    {
+        if (!($0 in first_index)) {
+            ordered_names[++ordered_count] = $0
+        }
+        last_index[$0] = NR
+    }
+    END {
+        for (i = 1; i <= ordered_count; i++) {
+            name = ordered_names[i]
+            names_by_position[last_index[name]] = name
+        }
+        for (i = 1; i <= NR; i++) {
+            if (names_by_position[i] != "") {
+                print names_by_position[i]
+            }
+        }
+    }'
 }
 
 # formats a count plus a simple singular or plural label derived from the input

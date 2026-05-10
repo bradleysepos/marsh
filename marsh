@@ -809,28 +809,6 @@ function marsh_escape_substitution {  # marsh_escape_substitution
     sed -e ':a' -e '$!{N' -e 'ba' -e '}' -e 's/\n*$//' -e 's/[&/\]/\\&/g' -e 's/\n/\\&/g'
 }
 
-# creates an array from the contents of flat variables
-# TEST_0="foo"; TEST_1="bar"; TEST_2="baz"
-# eval $(marsh_flat_to_array "TEST" "TEST_")  # loops over TEST_{0..2}
-# echo "${TEST[*]}"                           # foo bar baz
-function marsh_flat_to_array {  # marsh_flat_to_array array_name variable_prefix
-    local ARRAY_NAME PREFIX INDEX ITEM_NAME ITEM_VALUE
-    ARRAY_NAME="${1:-}"
-    [[ "${ARRAY_NAME}" == "" ]] && return 1
-    PREFIX="${2:-}"
-    [[ "${PREFIX}" == "" ]] && return 1
-    echo "${ARRAY_NAME}=()"
-    INDEX=0
-    ITEM_NAME="${PREFIX}${INDEX}"
-    while [[ -n "${!ITEM_NAME+isset}" ]]; do
-        ITEM_VALUE="${!ITEM_NAME}"
-        echo "${ARRAY_NAME}+=(\"${ITEM_VALUE//\"/\\\"}\")"
-        INDEX=$((INDEX + 1))
-        ITEM_NAME="${PREFIX}${INDEX}"
-    done
-    return 0
-}
-
 # formats elapsed seconds as XmY.ZZZs
 function marsh_format_elapsed_time {  # marsh_format_elapsed_time elapsed_seconds
     local ELAPSED_SECONDS
@@ -864,6 +842,24 @@ function marsh_get_cache_path {  # marsh_get_cache_path cache_root suffix key_pa
 
     KEY=$(printf "%s\n" "${@}" | marsh_text_transform hash:md5) || return 1
     printf '%s\n' "${CACHE_ROOT}/${KEY}${SUFFIX}"
+}
+
+# emits values from flat indexed variables one per line
+# TEST_0="foo"; TEST_1="bar"; TEST_2="baz"
+# marsh_get_flatarray_values "TEST_"  # loops over TEST_{0..2} and prints foo\nbar\nbaz
+function marsh_get_flatarray_values {  # marsh_get_flatarray_values variable_prefix
+    local PREFIX INDEX ITEM_NAME ITEM_VALUE
+    PREFIX="${1:-}"
+    [[ "${PREFIX}" == "" ]] && return 1
+    INDEX=0
+    ITEM_NAME="${PREFIX}${INDEX}"
+    while [[ -n "${!ITEM_NAME+isset}" ]]; do
+        ITEM_VALUE="${!ITEM_NAME}"
+        printf '%s\n' "${ITEM_VALUE}"
+        INDEX=$((INDEX + 1))
+        ITEM_NAME="${PREFIX}${INDEX}"
+    done
+    return 0
 }
 
 # prints local declarations for the given list of variable names, one per line
@@ -3151,7 +3147,11 @@ function marsh_get_target_metadata {  # marsh_get_target_metadata source_prefix 
     # template
     TEMPLATE_SOURCE="${SOURCE_PREFIX}Template_Source"
     TEMPLATE_ASSETS_PATH="${SOURCE_PREFIX}Template_Assets_Path"
-    eval $(marsh_flat_to_array "TEMPLATE_OVERRIDES" "${SOURCE_PREFIX}Template_Overrides_")
+    # collect template overrides from flat variables
+    TEMPLATE_OVERRIDES=()
+    while IFS= read -r TEMPLATE_OVERRIDE; do
+        TEMPLATE_OVERRIDES+=("${TEMPLATE_OVERRIDE}")
+    done < <(marsh_get_flatarray_values "${SOURCE_PREFIX}Template_Overrides_")
     [[ "${!TEMPLATE_SOURCE:-}" != "" ]] && echo "${PREFIX}TEMPLATE_SOURCE=\"${!TEMPLATE_SOURCE//\"/\\\"}\""
     echo "${PREFIX}TEMPLATE_ASSETS_PATH=\"${!TEMPLATE_ASSETS_PATH//\"/\\\"}\""
     echo "${PREFIX}TEMPLATE_OVERRIDES=()"
@@ -3200,13 +3200,25 @@ function marsh_get_target_metadata {  # marsh_get_target_metadata source_prefix 
         echo "${PREFIX}ARCHIVES_COUNT+=(\"${!ARCHIVE_COUNT//\"/\\\"}\")"
         echo "${PREFIX}ARCHIVES_PAGE_SIZE+=(\"${!ARCHIVE_PAGE_SIZE//\"/\\\"}\")"
         echo "${PREFIX}ARCHIVES_CONTENT+=(\"${!ARCHIVE_CONTENT//\"/\\\"}\")"
-        eval $(marsh_flat_to_array "ARCHIVE_TYPES" "${SOURCE_PREFIX}Archives_${II}_Types_")
+        # collect archive type values from flat variables
+        ARCHIVE_TYPES=()
+        while IFS= read -r ARCHIVE_TYPE; do
+            ARCHIVE_TYPES+=("${ARCHIVE_TYPE}")
+        done < <(marsh_get_flatarray_values "${SOURCE_PREFIX}Archives_${II}_Types_")
         OIFS="${IFS}"; IFS=$(echo @|tr @ '\034'); echo "${PREFIX}ARCHIVES_TYPES+=(\"${ARCHIVE_TYPES[*]//\"/\\\"}\")"; IFS="${OIFS}"
-        eval $(marsh_flat_to_array "ARCHIVE_EXCLUDED_STATES" "${SOURCE_PREFIX}Archives_${II}_Exclude_States_")
+        # collect archive excluded states from flat variables
+        ARCHIVE_EXCLUDED_STATES=()
+        while IFS= read -r ARCHIVE_EXCLUDED_STATE; do
+            ARCHIVE_EXCLUDED_STATES+=("${ARCHIVE_EXCLUDED_STATE}")
+        done < <(marsh_get_flatarray_values "${SOURCE_PREFIX}Archives_${II}_Exclude_States_")
         OIFS="${IFS}"; IFS=$(echo @|tr @ '\034'); echo "${PREFIX}ARCHIVES_EXCLUDED_STATES+=(\"${ARCHIVE_EXCLUDED_STATES[*]//\"/\\\"}\")"; IFS="${OIFS}"
         echo "${PREFIX}ARCHIVES_TEMPLATE_SOURCE+=(\"${!ARCHIVE_TEMPLATE_SOURCE//\"/\\\"}\")"
         echo "${PREFIX}ARCHIVES_TEMPLATE_ASSETS_PATH+=(\"${!ARCHIVE_TEMPLATE_ASSETS_PATH//\"/\\\"}\")"
-        eval $(marsh_flat_to_array "ARCHIVE_TEMPLATE_OVERRIDES" "${SOURCE_PREFIX}Archives_${II}_Template_Overrides_")
+        # collect archive template overrides from flat variables
+        ARCHIVE_TEMPLATE_OVERRIDES=()
+        while IFS= read -r ARCHIVE_TEMPLATE_OVERRIDE; do
+            ARCHIVE_TEMPLATE_OVERRIDES+=("${ARCHIVE_TEMPLATE_OVERRIDE}")
+        done < <(marsh_get_flatarray_values "${SOURCE_PREFIX}Archives_${II}_Template_Overrides_")
         OIFS="${IFS}"; IFS=$(echo @|tr @ '\034'); echo "${PREFIX}ARCHIVES_TEMPLATE_OVERRIDES+=(\"${ARCHIVE_TEMPLATE_OVERRIDES[*]//\"/\\\"}\")"; IFS="${OIFS}"
         if [[ "${!ARCHIVE_TEMPLATE_SOURCE:-}" != "" ]]; then
             echo "${PREFIX}ARCHIVES_TEMPLATE+=(\"$(marsh_get_template_cache_name "${!ARCHIVE_TEMPLATE_SOURCE}")\")"
@@ -3935,7 +3947,9 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
             marsh_resolve_template_tag_metadata "${TAG}" "${PREFIX}" "${METADATA_VARS}" "TAG_VAR" "TAG_TYPE" 2>/dev/null || true
             if [[ "${TAG_TYPE}" == "array" ]]; then
                 CONDITIONAL_VALUES=()
-                eval $(marsh_flat_to_array "CONDITIONAL_VALUES" "${TAG_VAR}")
+                while IFS= read -r CONDITIONAL_ITEM; do
+                    CONDITIONAL_VALUES+=("${CONDITIONAL_ITEM}")
+                done < <(marsh_get_flatarray_values "${TAG_VAR}")
                 OIFS="${IFS}"
                 IFS=$(printf '\034')
                 CONDITIONAL_VALUE="${CONDITIONAL_VALUES[*]}"
@@ -4005,7 +4019,9 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
                 marsh_resolve_template_tag_metadata "${TAG}" "${PREFIX}" "${METADATA_VARS}" "TAG_VAR" "TAG_TYPE" 2>/dev/null || true
                 if [[ "${TAG_TYPE}" == "array" ]]; then
                     CONDITIONAL_VALUES=()
-                    eval $(marsh_flat_to_array "CONDITIONAL_VALUES" "${TAG_VAR}")
+                    while IFS= read -r CONDITIONAL_ITEM; do
+                        CONDITIONAL_VALUES+=("${CONDITIONAL_ITEM}")
+                    done < <(marsh_get_flatarray_values "${TAG_VAR}")
                     process_conditionals "${CACHE_TEMP}" "${TAG}" "${CONDITIONAL_VALUES[@]}" || {
                         echo "Unable to process conditional tag in partial: ${TAG} ${FILE}" >&2
                         rm -f "${CACHE_TEMP}"
@@ -4099,7 +4115,10 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
             marsh_resolve_template_tag_metadata "${TAG_NAME}" "${PREFIX}" "${METADATA_VARS}" "TAG_VAR" "TAG_TYPE" 2>/dev/null || true
             if [[ "${TAG_VAR}" != "" ]] && [[ "${TAG_TYPE}" != "" ]]; then
                 if [[ "${TAG_TYPE}" == "array" ]]; then
-                    eval "$(marsh_flat_to_array "TAG_VALUES" "${TAG_VAR}")"
+                    TAG_VALUES=()
+                    while IFS= read -r TAG_ARRAY_VALUE; do
+                        TAG_VALUES+=("${TAG_ARRAY_VALUE}")
+                    done < <(marsh_get_flatarray_values "${TAG_VAR}")
                     TAG_VALUE=$(printf '%s\n' "${TAG_VALUES[@]}")
                 elif [[ "${TAG_TYPE}" == "shell-array" ]]; then
                     eval "TAG_VALUES=(\"\${${TAG_VAR}[@]}\")"
@@ -4323,7 +4342,11 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
     fi
 
     # state
-    eval $(marsh_flat_to_array "DOCUMENT_State" "DOCUMENT_State_")
+    # collect document state values from flat metadata
+    DOCUMENT_State=()
+    while IFS= read -r DOCUMENT_STATE_VALUE; do
+        DOCUMENT_State+=("${DOCUMENT_STATE_VALUE}")
+    done < <(marsh_get_flatarray_values "DOCUMENT_State_")
 
     # render outputs to temp first, then publish at the final destination
     DEST_RENDER_PATH="${DEST_FINAL#${BUILD_CONTEXT_OUTPUT_ROOT%/}/}"
@@ -4707,7 +4730,11 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
                 SUBDOCUMENT_URI=$(marsh_normalize_path "${SUBDOCUMENT_URI}" "document") || return 1
                 SUBDOCUMENT_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_REL}" "${SUBDOCUMENT_OUTPUT_PATH}") || return 1
                 # state
-                eval $(marsh_flat_to_array "SUBDOCUMENT_State" "SUBDOCUMENT_State_")
+                # collect subdocument state values from flat metadata
+                SUBDOCUMENT_State=()
+                while IFS= read -r SUBDOCUMENT_STATE_VALUE; do
+                    SUBDOCUMENT_State+=("${SUBDOCUMENT_STATE_VALUE}")
+                done < <(marsh_get_flatarray_values "SUBDOCUMENT_State_")
                 SUBDOCUMENT_TEMPLATE=$(<"${SUBDOCUMENT_CONTENT_FILE}")
                 if [[ "${DOCUMENT_Type}" == "archive" ]]; then
                     # convert subdocument markdown to html only where necessary
@@ -7481,7 +7508,9 @@ function marsh_get_archive_metadata {  # marsh_get_archive_metadata target_outpu
 
     # reconstruct state array
     STATE=()
-    eval $(marsh_flat_to_array "STATE" "${META_PREFIX}State_")
+    while IFS= read -r STATE_VALUE; do
+        STATE+=("${STATE_VALUE}")
+    done < <(marsh_get_flatarray_values "${META_PREFIX}State_")
 
     # output shell variable assignments
     printf 'TYPE=%q\n' "${TYPE}"
@@ -8136,7 +8165,10 @@ function marsh_write_target_archive_manifest {  # marsh_write_target_archive_man
             eval "${META_ASSIGNMENTS}"
             TYPE_VAR="${META_PREFIX}Type"
             TYPE="${!TYPE_VAR:-}"
-            eval "$(marsh_flat_to_array "STATE" "${META_PREFIX}State_")"
+            STATE=()
+            while IFS= read -r STATE_VALUE; do
+                STATE+=("${STATE_VALUE}")
+            done < <(marsh_get_flatarray_values "${META_PREFIX}State_")
         else
             echo "Unable to plan archive metadata: ${DOCUMENT_SOURCE_FILE}" >&2
             rm -f "${MANIFEST_TEMP}"

@@ -3986,18 +3986,6 @@ function marsh_test {
             fi
             rm -f "${SOURCE_FILE}" "${META_FILE}" "${CONTENT_FILE}"
             ;;
-        marsh_flat_to_array:0)
-            TEST_NAME+=":nested"
-            ACTUAL=$(FOOBAR_0="foo" FOOBAR_1="bar" FOOBAR_X="x" marsh_flat_to_array "ARRAY" "FOOBAR_")
-            EXPECTED=$(printf '%s\n' \
-                'ARRAY=()' \
-                'ARRAY+=("foo")' \
-                'ARRAY+=("bar")')
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                RES="[PASS]"
-            fi
-            ;;
         marsh_format_elapsed_time:0)
             TEST_NAME+=":subsecond"
             ACTUAL=$(marsh_format_elapsed_time "0.312")
@@ -4358,6 +4346,17 @@ function marsh_test {
             MARSH_CONFIG_PATH="/site/public"
             ACTUAL=$(marsh_get_document_temp_path "/site/public/blog" "guides/index.markdown" "meta-yaml")
             EXPECTED="${MARSH_TEST_TEMP}/build/targets/blog/documents/guides/index.markdown/meta.yaml"
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_get_flatarray_values:0)
+            TEST_NAME+=":nested"
+            ACTUAL=$(FOOBAR_0="foo" FOOBAR_1="bar" FOOBAR_X="x" marsh_get_flatarray_values "FOOBAR_")
+            EXPECTED=$(printf '%s\n' \
+                'foo' \
+                'bar')
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -9239,7 +9238,6 @@ KNOWN_FUNCTIONS=(
     marsh_create_target_source_root
     marsh_escape_substitution
     marsh_extract_frontmatter
-    marsh_flat_to_array
     marsh_format_elapsed_time
     marsh_get_absolute_output_path
     marsh_get_archive_metadata
@@ -9251,6 +9249,7 @@ KNOWN_FUNCTIONS=(
     marsh_get_document_artifacts
     marsh_get_document_metadata
     marsh_get_document_temp_path
+    marsh_get_flatarray_values
     marsh_get_internal_parent_directory
     marsh_get_local_declarations
     marsh_get_processed_sitemap

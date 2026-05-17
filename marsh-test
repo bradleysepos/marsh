@@ -212,6 +212,69 @@ function marsh_test_capture_archive_plan_build_context {
     done
 }
 
+function marsh_test_capture_target_plan_build_context {
+    local TARGET_PLAN_ROOT TARGET_OUTPUT_REL TARGET_FORCE TARGET_SKIP_TEMPLATE_ASSETS TARGET_SITEMAP TARGET_SITEMAP_SEARCH TEMPLATES_DIR TEMPLATE TEMPLATE_ASSETS_PATH
+    local BUILD_CONTEXT_TARGET_OUTPUT_REL BUILD_CONTEXT_SOURCE_ROOT CONFIG_FILE_DIR TARGET_NAME TARGET_TEMPLATE_SOURCE TEMPLATE_OVERRIDE TEMPLATE_OVERRIDES_TEXT
+    local -a TEMPLATE_OVERRIDES
+
+    TARGET_PLAN_ROOT="${1:-}"
+    [[ "${TARGET_PLAN_ROOT}" == "" ]] && return 1
+    TARGET_OUTPUT_REL=""
+    TARGET_FORCE=""
+    TARGET_SKIP_TEMPLATE_ASSETS=""
+    TARGET_SITEMAP=""
+    TARGET_SITEMAP_SEARCH=""
+    TEMPLATES_DIR=""
+    TEMPLATE=""
+    TEMPLATE_ASSETS_PATH=""
+    BUILD_CONTEXT_TARGET_OUTPUT_REL=""
+    BUILD_CONTEXT_SOURCE_ROOT=""
+    CONFIG_FILE_DIR=""
+    TARGET_NAME=""
+    TARGET_TEMPLATE_SOURCE=""
+    TEMPLATE_OVERRIDES_TEXT=""
+    TEMPLATE_OVERRIDES=()
+    marsh_load_target_plan_build_context \
+        "${TARGET_PLAN_ROOT}" \
+        "TARGET_OUTPUT_REL" \
+        "TARGET_FORCE" \
+        "TARGET_SKIP_TEMPLATE_ASSETS" \
+        "TARGET_SITEMAP" \
+        "TARGET_SITEMAP_SEARCH" \
+        "TEMPLATES_DIR" \
+        "TEMPLATE" \
+        "TEMPLATE_ASSETS_PATH" \
+        "BUILD_CONTEXT_TARGET_OUTPUT_REL" \
+        "BUILD_CONTEXT_SOURCE_ROOT" \
+        "CONFIG_FILE_DIR" \
+        "TARGET_NAME" \
+        "TARGET_TEMPLATE_SOURCE" \
+        "TEMPLATE_OVERRIDES_TEXT" || return $?
+    if [[ "${TEMPLATE_OVERRIDES_TEXT}" != "" ]]; then
+        while IFS= read -r TEMPLATE_OVERRIDE; do
+            TEMPLATE_OVERRIDES+=("${TEMPLATE_OVERRIDE}")
+        done <<< "${TEMPLATE_OVERRIDES_TEXT}"
+    fi
+
+    printf '%s\n' \
+        "TARGET_OUTPUT_REL=${TARGET_OUTPUT_REL}" \
+        "TARGET_FORCE=${TARGET_FORCE}" \
+        "TARGET_SKIP_TEMPLATE_ASSETS=${TARGET_SKIP_TEMPLATE_ASSETS}" \
+        "TARGET_SITEMAP=${TARGET_SITEMAP}" \
+        "TARGET_SITEMAP_SEARCH=${TARGET_SITEMAP_SEARCH}" \
+        "TEMPLATES_DIR=${TEMPLATES_DIR}" \
+        "TEMPLATE=${TEMPLATE}" \
+        "TEMPLATE_ASSETS_PATH=${TEMPLATE_ASSETS_PATH}" \
+        "BUILD_CONTEXT_TARGET_OUTPUT_REL=${BUILD_CONTEXT_TARGET_OUTPUT_REL}" \
+        "BUILD_CONTEXT_SOURCE_ROOT=${BUILD_CONTEXT_SOURCE_ROOT}" \
+        "CONFIG_FILE_DIR=${CONFIG_FILE_DIR}" \
+        "TARGET_NAME=${TARGET_NAME}" \
+        "TARGET_TEMPLATE_SOURCE=${TARGET_TEMPLATE_SOURCE}"
+    for TEMPLATE_OVERRIDE in "${TEMPLATE_OVERRIDES[@]}"; do
+        printf 'TEMPLATE_OVERRIDE=%s\n' "${TEMPLATE_OVERRIDE}"
+    done
+}
+
 function marsh_test_create_archive_document {
     local TARGET_OUTPUT_ROOT DOCUMENT TYPE TITLE DATE_VALUE STATE_VALUE
 
@@ -1359,6 +1422,38 @@ function marsh_test {
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}" "${SOURCE_ROOT}"
             ;;
         marsh_build_planned_target:3)
+            TEST_NAME+=":template_override"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
+            TARGET_PLAN_ROOT=""
+            TEMPLATE_OVERRIDE_FILE="${TEST_TEMP_PREFIX}.override.yaml"
+            mkdir -p "${TARGET_OUTPUT_ROOT}" "${SOURCE_ROOT}"
+            marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
+            printf '%s\n' '{{ document.content }}<p>override body</p>' > "${TEMPLATE_DIR}/sample/partials/override-body.html"
+            printf '%s\n' \
+                '---' \
+                'Template:' \
+                '  Partials:' \
+                '    Body: partials/override-body.html' \
+                '...' > "${TEMPLATE_OVERRIDE_FILE}"
+            printf '%s\n' '---'$'\n''Title: Example'$'\n''...'$'\n'''$'\n''# Example' > "${SOURCE_ROOT}/index.markdown"
+            TARGET_PLAN_ROOT=$(marsh_plan_target "${SOURCE_ROOT}" "${TARGET_OUTPUT_ROOT}" "." false "" "" false "${TEMPLATE_DIR}" "sample" 1 "${TEMPLATE_OVERRIDE_FILE}" "" "${SOURCE_ROOT}" "markdown,md")
+            marsh_build_planned_target "${TARGET_OUTPUT_ROOT}" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "1" "marsh_test_markdown_command" "" "markdown,md" true "${TARGET_PLAN_ROOT}" >/dev/null 2>&1
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                ACTUAL=$(<"${TARGET_OUTPUT_ROOT}/index.html")
+                EXPECTED='<p>override body</p>'
+                ASSERTION="contains"
+                if printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}" "${SOURCE_ROOT}" "${TEMPLATE_OVERRIDE_FILE}"
+            ;;
+        marsh_build_planned_target:4)
             TEST_NAME+=":missing_source_root_fails_clearly"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
@@ -1385,7 +1480,7 @@ function marsh_test {
             fi
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}"
             ;;
-        marsh_build_planned_target:4)
+        marsh_build_planned_target:5)
             TEST_NAME+=":executes_target_plan"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
@@ -1419,7 +1514,7 @@ function marsh_test {
             fi
             rm -rf "${TARGET_OUTPUT_ROOT}" "${SOURCE_ROOT}" "${TEMPLATE_DIR}"
             ;;
-        marsh_build_planned_target:5)
+        marsh_build_planned_target:6)
             TEST_NAME+=":fails_when_target_plan_context_missing"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             TARGET_PLAN_ROOT="${TEST_TEMP_PREFIX}.plan"
@@ -1437,7 +1532,7 @@ function marsh_test {
             fi
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TARGET_PLAN_ROOT}"
             ;;
-        marsh_build_planned_target:6)
+        marsh_build_planned_target:7)
             TEST_NAME+=":fails_when_target_plan_context_invalid"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             TARGET_PLAN_ROOT="${TEST_TEMP_PREFIX}.plan"
@@ -1448,7 +1543,7 @@ function marsh_test {
             EXPECTED=1
             ASSERTION="equals"
             if [[ "${STATUS}" == "${EXPECTED}" ]]; then
-                EXPECTED="Unable to prepare target plan context variables: ${TARGET_PLAN_ROOT}/context"
+                EXPECTED="Malformed target plan context line: ${TARGET_PLAN_ROOT}/context"
                 ASSERTION="equals"
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                     RES="[PASS]"
@@ -1456,7 +1551,7 @@ function marsh_test {
             fi
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TARGET_PLAN_ROOT}"
             ;;
-        marsh_build_planned_target:7)
+        marsh_build_planned_target:8)
             TEST_NAME+=":fails_when_archive_queue_missing"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             TARGET_PLAN_ROOT="${TEST_TEMP_PREFIX}.plan"
@@ -5699,6 +5794,50 @@ function marsh_test {
             fi
             rm -rf "${ARCHIVE_PLAN_ROOT}"
             ;;
+        marsh_load_target_plan_build_context:0)
+            TEST_NAME+=":loads_valid_context"
+            TARGET_PLAN_ROOT="${TEST_TEMP_PREFIX}.target-plan"
+            mkdir -p "${TARGET_PLAN_ROOT}"
+            {
+                printf 'TARGET_OUTPUT_REL\t%s\n' 'about'
+                printf 'TARGET_FORCE\t%s\n' false
+                printf 'TARGET_SKIP_TEMPLATE_ASSETS\t%s\n' true
+                printf 'TARGET_SITEMAP\t%s\n' 'site-map/index.markdown'
+                printf 'TARGET_SITEMAP_SEARCH\t%s\n' false
+                printf 'TEMPLATES_DIR\t%s\n' '/site/templates'
+                printf 'TEMPLATE\t%s\n' 'sample'
+                printf 'TEMPLATE_ASSETS_PATH\t%s\n' 'assets/site'
+                printf 'BUILD_CONTEXT_TARGET_OUTPUT_REL\t%s\n' 'about'
+                printf 'BUILD_CONTEXT_SOURCE_ROOT\t%s\n' '/site/source/about'
+                printf 'CONFIG_FILE_DIR\t%s\n' '/site'
+                printf 'TARGET_NAME\t%s\n' 'About'
+                printf 'TARGET_TEMPLATE_SOURCE\t%s\n' '/site/templates/sample'
+                printf 'TEMPLATE_OVERRIDE\t%s\n' '/site/override.yaml'
+                echo 'TARGET_CONTEXT_ARCHIVE_ARRAYS_BEGIN'
+                echo 'TARGET_ARCHIVES=()'
+            } > "${TARGET_PLAN_ROOT}/context"
+            ACTUAL=$(marsh_test_capture_target_plan_build_context "${TARGET_PLAN_ROOT}")
+            EXPECTED=$(printf '%s\n' \
+                'TARGET_OUTPUT_REL=about' \
+                'TARGET_FORCE=false' \
+                'TARGET_SKIP_TEMPLATE_ASSETS=true' \
+                'TARGET_SITEMAP=site-map/index.markdown' \
+                'TARGET_SITEMAP_SEARCH=false' \
+                'TEMPLATES_DIR=/site/templates' \
+                'TEMPLATE=sample' \
+                'TEMPLATE_ASSETS_PATH=assets/site' \
+                'BUILD_CONTEXT_TARGET_OUTPUT_REL=about' \
+                'BUILD_CONTEXT_SOURCE_ROOT=/site/source/about' \
+                'CONFIG_FILE_DIR=/site' \
+                'TARGET_NAME=About' \
+                'TARGET_TEMPLATE_SOURCE=/site/templates/sample' \
+                'TEMPLATE_OVERRIDE=/site/override.yaml')
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            rm -rf "${TARGET_PLAN_ROOT}"
+            ;;
         marsh_normalize_internal_path:0)
             TEST_NAME+=":path_cleanup"
             ACTUAL=$(marsh_normalize_internal_path "./news/.")
@@ -6135,7 +6274,7 @@ function marsh_test {
                         EXPECTED=$(printf '%s\t%s\n' 'site-map.markdown' "$(marsh_test_get_physical_path "${SOURCE_ROOT}/site-map.markdown")")
                         ASSERTION="equals"
                         if [[ "${SITEMAPS_ACTUAL}" == "${EXPECTED}" ]]; then
-                            <"${TARGET_PLAN_ROOT}/context" grep -F 'BUILD_CONTEXT_SOURCE_ROOT=' >/dev/null 2>&1
+                            <"${TARGET_PLAN_ROOT}/context" grep -F 'BUILD_CONTEXT_SOURCE_ROOT'$'\t' >/dev/null 2>&1
                             ACTUAL=$?
                             EXPECTED=0
                             ASSERTION="equals"
@@ -9304,6 +9443,37 @@ function marsh_test {
                 fi
             fi
             ;;
+        marsh_write_target_plan_context:1)
+            TEST_NAME+=":writes_fixed_shape_context"
+            TARGET_PLAN_ROOT="${TEST_TEMP_PREFIX}.target-plan"
+            mkdir -p "${TARGET_PLAN_ROOT}"
+            TARGET_ARCHIVES=('news/index.markdown')
+            marsh_write_target_plan_context "${TARGET_PLAN_ROOT}" '.' false true 'site-map/index.markdown' false '/site/templates' 'sample' 1 '/site/override.yaml' 'assets/site' '.' '/site/source' '/site' 'Home' '/site/templates/sample' >/dev/null 2>&1
+            ACTUAL=$(grep -E '^(TARGET_OUTPUT_REL|TARGET_FORCE|TARGET_SKIP_TEMPLATE_ASSETS|TARGET_SITEMAP|TARGET_SITEMAP_SEARCH|TEMPLATES_DIR|TEMPLATE|TEMPLATE_ASSETS_PATH|BUILD_CONTEXT_TARGET_OUTPUT_REL|BUILD_CONTEXT_SOURCE_ROOT|CONFIG_FILE_DIR|TARGET_NAME|TARGET_TEMPLATE_SOURCE|TEMPLATE_OVERRIDE)' "${TARGET_PLAN_ROOT}/context")
+            ACTUAL+=$'\n'"$(grep -E '^TARGET_CONTEXT_ARCHIVE_ARRAYS_BEGIN$' "${TARGET_PLAN_ROOT}/context")"
+            EXPECTED=$(printf '%s\n' \
+                'TARGET_OUTPUT_REL'$'\t''.' \
+                'TARGET_FORCE'$'\t''false' \
+                'TARGET_SKIP_TEMPLATE_ASSETS'$'\t''true' \
+                'TARGET_SITEMAP'$'\t''site-map/index.markdown' \
+                'TARGET_SITEMAP_SEARCH'$'\t''false' \
+                'TEMPLATES_DIR'$'\t''/site/templates' \
+                'TEMPLATE'$'\t''sample' \
+                'TEMPLATE_ASSETS_PATH'$'\t''assets/site' \
+                'BUILD_CONTEXT_TARGET_OUTPUT_REL'$'\t''.' \
+                'BUILD_CONTEXT_SOURCE_ROOT'$'\t''/site/source' \
+                'CONFIG_FILE_DIR'$'\t''/site' \
+                'TARGET_NAME'$'\t''Home' \
+                'TARGET_TEMPLATE_SOURCE'$'\t''/site/templates/sample' \
+                'TEMPLATE_OVERRIDE'$'\t''/site/override.yaml' \
+                'TARGET_CONTEXT_ARCHIVE_ARRAYS_BEGIN')
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            TARGET_ARCHIVES=()
+            rm -rf "${TARGET_PLAN_ROOT}"
+            ;;
         marsh_write_target_plan_records:0)
             TEST_NAME+=":missing_plan_root_reports"
             TARGET_PLAN_ROOT="${TEST_TEMP_PREFIX}.missing"
@@ -9426,6 +9596,7 @@ KNOWN_FUNCTIONS=(
     marsh_lock_release
     marsh_lock_wait
     marsh_load_archive_plan_build_context
+    marsh_load_target_plan_build_context
     marsh_normalize_internal_path
     marsh_normalize_path
     marsh_parse_target_archive_queue_record

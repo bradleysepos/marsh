@@ -5813,8 +5813,6 @@ function marsh_test {
                 printf 'TARGET_NAME\t%s\n' 'About'
                 printf 'TARGET_TEMPLATE_SOURCE\t%s\n' '/site/templates/sample'
                 printf 'TEMPLATE_OVERRIDE\t%s\n' '/site/override.yaml'
-                echo 'TARGET_CONTEXT_ARCHIVE_ARRAYS_BEGIN'
-                echo 'TARGET_ARCHIVES=()'
             } > "${TARGET_PLAN_ROOT}/context"
             ACTUAL=$(marsh_test_capture_target_plan_build_context "${TARGET_PLAN_ROOT}")
             EXPECTED=$(printf '%s\n' \
@@ -9447,10 +9445,8 @@ function marsh_test {
             TEST_NAME+=":writes_fixed_shape_context"
             TARGET_PLAN_ROOT="${TEST_TEMP_PREFIX}.target-plan"
             mkdir -p "${TARGET_PLAN_ROOT}"
-            TARGET_ARCHIVES=('news/index.markdown')
             marsh_write_target_plan_context "${TARGET_PLAN_ROOT}" '.' false true 'site-map/index.markdown' false '/site/templates' 'sample' 1 '/site/override.yaml' 'assets/site' '.' '/site/source' '/site' 'Home' '/site/templates/sample' >/dev/null 2>&1
             ACTUAL=$(grep -E '^(TARGET_OUTPUT_REL|TARGET_FORCE|TARGET_SKIP_TEMPLATE_ASSETS|TARGET_SITEMAP|TARGET_SITEMAP_SEARCH|TEMPLATES_DIR|TEMPLATE|TEMPLATE_ASSETS_PATH|BUILD_CONTEXT_TARGET_OUTPUT_REL|BUILD_CONTEXT_SOURCE_ROOT|CONFIG_FILE_DIR|TARGET_NAME|TARGET_TEMPLATE_SOURCE|TEMPLATE_OVERRIDE)' "${TARGET_PLAN_ROOT}/context")
-            ACTUAL+=$'\n'"$(grep -E '^TARGET_CONTEXT_ARCHIVE_ARRAYS_BEGIN$' "${TARGET_PLAN_ROOT}/context")"
             EXPECTED=$(printf '%s\n' \
                 'TARGET_OUTPUT_REL'$'\t''.' \
                 'TARGET_FORCE'$'\t''false' \
@@ -9465,13 +9461,11 @@ function marsh_test {
                 'CONFIG_FILE_DIR'$'\t''/site' \
                 'TARGET_NAME'$'\t''Home' \
                 'TARGET_TEMPLATE_SOURCE'$'\t''/site/templates/sample' \
-                'TEMPLATE_OVERRIDE'$'\t''/site/override.yaml' \
-                'TARGET_CONTEXT_ARCHIVE_ARRAYS_BEGIN')
+                'TEMPLATE_OVERRIDE'$'\t''/site/override.yaml')
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
-            TARGET_ARCHIVES=()
             rm -rf "${TARGET_PLAN_ROOT}"
             ;;
         marsh_write_target_plan_records:0)

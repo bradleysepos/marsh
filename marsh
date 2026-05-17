@@ -3478,7 +3478,7 @@ function marsh_write_target_plan_context {  # marsh_write_target_plan_context ta
     local TARGET_PLAN_ROOT TARGET_OUTPUT_REL FORCE SKIP_TEMPLATE_ASSETS SITEMAP SITEMAP_SEARCH TEMPLATES_DIR TEMPLATE
     local NUM_TEMPLATE_OVERRIDES TEMPLATE_ASSETS_PATH BUILD_CONTEXT_TARGET_OUTPUT_REL BUILD_CONTEXT_SOURCE_ROOT
     local CONFIG_FILE_DIR TARGET_NAME TARGET_TEMPLATE_SOURCE
-    local CONTEXT_FILE CONTEXT_TEMP TEMPLATE_OVERRIDE ARCHIVE_ARRAY
+    local CONTEXT_FILE CONTEXT_TEMP TEMPLATE_OVERRIDE
     local -a TEMPLATE_OVERRIDES
 
     TARGET_PLAN_ROOT="${1:-}"
@@ -3530,28 +3530,6 @@ function marsh_write_target_plan_context {  # marsh_write_target_plan_context ta
         printf 'TARGET_TEMPLATE_SOURCE\t%s\n' "${TARGET_TEMPLATE_SOURCE}"
         for TEMPLATE_OVERRIDE in "${TEMPLATE_OVERRIDES[@]}"; do
             printf 'TEMPLATE_OVERRIDE\t%s\n' "${TEMPLATE_OVERRIDE}"
-        done
-        # keep the archive-selection payload intact for the next slice
-        echo 'TARGET_CONTEXT_ARCHIVE_ARRAYS_BEGIN'
-        for ARCHIVE_ARRAY in \
-            TARGET_TEMPLATE_OVERRIDES \
-            TARGET_ARCHIVES \
-            TARGET_ARCHIVES_ENCODING \
-            TARGET_ARCHIVES_NAME \
-            TARGET_ARCHIVES_LANGUAGE \
-            TARGET_ARCHIVES_LANGUAGE_CODE \
-            TARGET_ARCHIVES_ROOT_PATH \
-            TARGET_ARCHIVES_COUNT \
-            TARGET_ARCHIVES_PAGE_SIZE \
-            TARGET_ARCHIVES_CONTENT \
-            TARGET_ARCHIVES_TYPES \
-            TARGET_ARCHIVES_EXCLUDED_STATES \
-            TARGET_ARCHIVES_TEMPLATE_SOURCE \
-            TARGET_ARCHIVES_TEMPLATE_ASSETS_PATH \
-            TARGET_ARCHIVES_TEMPLATE_OVERRIDES \
-            TARGET_ARCHIVES_TEMPLATE; do
-            echo "${ARCHIVE_ARRAY}=()"
-            eval "for TEMPLATE_OVERRIDE in \"\${${ARCHIVE_ARRAY}[@]}\"; do printf '${ARCHIVE_ARRAY}+=(%q)\\n' \"\${TEMPLATE_OVERRIDE}\"; done"
         done
     } > "${CONTEXT_TEMP}" || {
         echo "Unable to write target plan context temporary file: ${CONTEXT_TEMP}" >&2
@@ -3627,10 +3605,9 @@ function marsh_load_target_plan_build_context {  # marsh_load_target_plan_build_
     HAS_TARGET_OUTPUT_REL=false
     TEMPLATE_OVERRIDE_VALUES=()
 
-    # read the fixed-shape context section once and stop before the legacy archive arrays
+    # read the fixed-shape context once and rebuild only the values planned-target execution uses
     while IFS= read -r CONTEXT_LINE || [[ "${CONTEXT_LINE}" != "" ]]; do
         [[ "${CONTEXT_LINE}" == "" ]] && continue
-        [[ "${CONTEXT_LINE}" == 'TARGET_CONTEXT_ARCHIVE_ARRAYS_BEGIN' ]] && break
         case "${CONTEXT_LINE}" in
             *$'\t'*)
                 CONTEXT_KEY="${CONTEXT_LINE%%$'\t'*}"

@@ -3101,43 +3101,57 @@ function marsh_get_target_directory_path {  # marsh_get_target_directory_path ta
 }
 
 # derives normalized target/document path values shared by document and template builds
-function marsh_get_target_document_paths {  # marsh_get_target_document_paths document site_output_root target_output_rel markdown_fileext_csv
+function marsh_get_target_document_paths {  # marsh_get_target_document_paths document site_output_root target_output_rel markdown_fileext_csv target_output_root_var document_dir_var document_ext_var document_output_rel_var document_site_rel_var document_base_rel_var
     local DOCUMENT SITE_OUTPUT_ROOT TARGET_OUTPUT_REL MARKDOWN_FILEEXT_CSV
-    local DOCUMENT_EXT DOCUMENT_DIR TARGET_OUTPUT_ROOT DOCUMENT_OUTPUT_REL DOCUMENT_SITE_REL DOCUMENT_BASE_REL
+    local TARGET_OUTPUT_ROOT_VAR DOCUMENT_DIR_VAR DOCUMENT_EXT_VAR DOCUMENT_OUTPUT_REL_VAR DOCUMENT_SITE_REL_VAR DOCUMENT_BASE_REL_VAR
+    local DOCUMENT_EXT_VALUE DOCUMENT_DIR_VALUE TARGET_OUTPUT_ROOT_VALUE DOCUMENT_OUTPUT_REL_VALUE DOCUMENT_SITE_REL_VALUE DOCUMENT_BASE_REL_VALUE
 
     DOCUMENT="${1:-}"
     SITE_OUTPUT_ROOT="${2:-.}"
     TARGET_OUTPUT_REL="${3:-.}"
     MARKDOWN_FILEEXT_CSV="${4:-}"
+    TARGET_OUTPUT_ROOT_VAR="${5:-}"
+    DOCUMENT_DIR_VAR="${6:-}"
+    DOCUMENT_EXT_VAR="${7:-}"
+    DOCUMENT_OUTPUT_REL_VAR="${8:-}"
+    DOCUMENT_SITE_REL_VAR="${9:-}"
+    DOCUMENT_BASE_REL_VAR="${10:-}"
     [[ "${DOCUMENT}" == "" ]] && return 1
     [[ "${MARKDOWN_FILEEXT_CSV}" == "" ]] && return 1
+    [[ "${TARGET_OUTPUT_ROOT_VAR}" == "" ]] && return 1
+    [[ "${DOCUMENT_DIR_VAR}" == "" ]] && return 1
+    [[ "${DOCUMENT_EXT_VAR}" == "" ]] && return 1
+    [[ "${DOCUMENT_OUTPUT_REL_VAR}" == "" ]] && return 1
+    [[ "${DOCUMENT_SITE_REL_VAR}" == "" ]] && return 1
+    [[ "${DOCUMENT_BASE_REL_VAR}" == "" ]] && return 1
 
     SITE_OUTPUT_ROOT="${SITE_OUTPUT_ROOT%/}"
     TARGET_OUTPUT_REL="${TARGET_OUTPUT_REL%/}"
-    TARGET_OUTPUT_ROOT="${SITE_OUTPUT_ROOT}/${TARGET_OUTPUT_REL}"
-    TARGET_OUTPUT_ROOT="${TARGET_OUTPUT_ROOT%/.}"
+    TARGET_OUTPUT_ROOT_VALUE="${SITE_OUTPUT_ROOT}/${TARGET_OUTPUT_REL}"
+    TARGET_OUTPUT_ROOT_VALUE="${TARGET_OUTPUT_ROOT_VALUE%/.}"
 
-    DOCUMENT_EXT="${DOCUMENT##*.}"
-    DOCUMENT_DIR=$(marsh_get_internal_parent_directory "${DOCUMENT}") || return 1
+    DOCUMENT_EXT_VALUE="${DOCUMENT##*.}"
+    DOCUMENT_DIR_VALUE=$(marsh_get_internal_parent_directory "${DOCUMENT}") || return 1
 
-    DOCUMENT_OUTPUT_REL="${DOCUMENT}"
-    if marsh_is_markdown_extension "${DOCUMENT_EXT}" "${MARKDOWN_FILEEXT_CSV}"; then
-        DOCUMENT_OUTPUT_REL="${DOCUMENT_OUTPUT_REL%.*}.html"
+    DOCUMENT_OUTPUT_REL_VALUE="${DOCUMENT}"
+    if marsh_is_markdown_extension "${DOCUMENT_EXT_VALUE}" "${MARKDOWN_FILEEXT_CSV}"; then
+        DOCUMENT_OUTPUT_REL_VALUE="${DOCUMENT_OUTPUT_REL_VALUE%.*}.html"
     fi
     if [[ "${TARGET_OUTPUT_REL}" != "." ]]; then
-        DOCUMENT_OUTPUT_REL="${TARGET_OUTPUT_REL}/${DOCUMENT_OUTPUT_REL}"
+        DOCUMENT_OUTPUT_REL_VALUE="${TARGET_OUTPUT_REL}/${DOCUMENT_OUTPUT_REL_VALUE}"
     fi
-    DOCUMENT_OUTPUT_REL="${DOCUMENT_OUTPUT_REL#./}"
+    DOCUMENT_OUTPUT_REL_VALUE="${DOCUMENT_OUTPUT_REL_VALUE#./}"
 
-    DOCUMENT_SITE_REL=$(marsh_normalize_internal_path "${TARGET_OUTPUT_REL}/${DOCUMENT}") || return 1
-    DOCUMENT_BASE_REL=$(marsh_normalize_internal_path "${TARGET_OUTPUT_REL}/${DOCUMENT_DIR}" "directory") || return 1
+    DOCUMENT_SITE_REL_VALUE=$(marsh_normalize_internal_path "${TARGET_OUTPUT_REL}/${DOCUMENT}") || return 1
+    DOCUMENT_BASE_REL_VALUE=$(marsh_normalize_internal_path "${TARGET_OUTPUT_REL}/${DOCUMENT_DIR_VALUE}" "directory") || return 1
 
-    printf 'TARGET_OUTPUT_ROOT=%q\n' "${TARGET_OUTPUT_ROOT}"
-    printf 'DOCUMENT_DIR=%q\n' "${DOCUMENT_DIR}"
-    printf 'DOCUMENT_EXT=%q\n' "${DOCUMENT_EXT}"
-    printf 'DOCUMENT_OUTPUT_REL=%q\n' "${DOCUMENT_OUTPUT_REL}"
-    printf 'DOCUMENT_SITE_REL=%q\n' "${DOCUMENT_SITE_REL}"
-    printf 'DOCUMENT_BASE_REL=%q\n' "${DOCUMENT_BASE_REL}"
+    # write derived document paths into caller-owned locals
+    printf -v "${TARGET_OUTPUT_ROOT_VAR}" '%s' "${TARGET_OUTPUT_ROOT_VALUE}"
+    printf -v "${DOCUMENT_DIR_VAR}" '%s' "${DOCUMENT_DIR_VALUE}"
+    printf -v "${DOCUMENT_EXT_VAR}" '%s' "${DOCUMENT_EXT_VALUE}"
+    printf -v "${DOCUMENT_OUTPUT_REL_VAR}" '%s' "${DOCUMENT_OUTPUT_REL_VALUE}"
+    printf -v "${DOCUMENT_SITE_REL_VAR}" '%s' "${DOCUMENT_SITE_REL_VALUE}"
+    printf -v "${DOCUMENT_BASE_REL_VAR}" '%s' "${DOCUMENT_BASE_REL_VALUE}"
 }
 
 # loads target metadata into shell variables
@@ -4274,7 +4288,7 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
     TARGET_OUTPUT_REL="${TARGET_OUTPUT_REL:-.}"
     BUILD_CONTEXT_TARGET_OUTPUT_REL="${BUILD_CONTEXT_TARGET_OUTPUT_REL%/}"
     BUILD_CONTEXT_TARGET_OUTPUT_REL="${BUILD_CONTEXT_TARGET_OUTPUT_REL:-.}"
-    eval "$(marsh_get_target_document_paths "${DOCUMENT}" "${SITE_OUTPUT_ROOT}" "${TARGET_OUTPUT_REL}" "${MARKDOWN_FILEEXT_CSV}")" || return 1
+    marsh_get_target_document_paths "${DOCUMENT}" "${SITE_OUTPUT_ROOT}" "${TARGET_OUTPUT_REL}" "${MARKDOWN_FILEEXT_CSV}" "TARGET_OUTPUT_ROOT" "DOCUMENT_DIR" "DOCUMENT_EXT" "DOCUMENT_OUTPUT_REL" "DOCUMENT_SITE_REL" "DOCUMENT_BASE_REL" || return 1
     BUILD_CONTEXT_OUTPUT_ROOT=$(marsh_get_target_directory_path "${SITE_OUTPUT_ROOT}/${BUILD_CONTEXT_TARGET_OUTPUT_REL}") || return 1
 
     # document destination
@@ -6418,7 +6432,7 @@ function marsh_build_document {  # marsh_build_document site_output_root target_
     local SITE_OUTPUT_ROOT TARGET_OUTPUT_REL DOCUMENT DOCUMENT_EXT DOCUMENT_DIR TEXT_TRANSFORM
     local MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_REWRITE_LINKS
     local TARGET_OUTPUT_ROOT DOCUMENT_SOURCE_FILE DOCUMENT_SOURCE_DIR TARGET_SOURCE_ROOT ARCHIVE_SOURCE_FILE DOCUMENT_SITE_REL DOCUMENT_TEMP_ROOT DOCUMENT_META DOCUMENT_META_CACHE DOCUMENT_CONTENT ARCHIVE_META ARCHIVE_META_TEMP DOCUMENT_OUTPUT_REL DOCUMENT_BASE_REL
-    local DOCUMENT_ARTIFACT_PATHS DOCUMENT_ARTIFACT_ROOT DOCUMENT_ARTIFACT_CONTENT DOCUMENT_ARTIFACT_META_YAML DOCUMENT_ARTIFACT_META DOCUMENT_ARTIFACT_ARCHIVE_META
+    local DOCUMENT_ARTIFACT_ROOT DOCUMENT_ARTIFACT_CONTENT DOCUMENT_ARTIFACT_META_YAML DOCUMENT_ARTIFACT_META DOCUMENT_ARTIFACT_ARCHIVE_META
     local DOCUMENT_CONTENT_READY DOCUMENT_ARCHIVE_META_READY
     local BUILD_CONTEXT_TARGET_OUTPUT_REL BUILD_CONTEXT_SOURCE_ROOT BUILD_CONTEXT_OUTPUT_ROOT
 
@@ -6440,7 +6454,7 @@ function marsh_build_document {  # marsh_build_document site_output_root target_
     [[ "${MARKDOWN_REWRITE_LINKS}" == "" ]] && return 1
     BUILD_CONTEXT_TARGET_OUTPUT_REL="${BUILD_CONTEXT_TARGET_OUTPUT_REL%/}"
     BUILD_CONTEXT_TARGET_OUTPUT_REL="${BUILD_CONTEXT_TARGET_OUTPUT_REL:-.}"
-    eval "$(marsh_get_target_document_paths "${DOCUMENT}" "${SITE_OUTPUT_ROOT}" "${TARGET_OUTPUT_REL}" "${MARKDOWN_FILEEXT_CSV}")" || return 1
+    marsh_get_target_document_paths "${DOCUMENT}" "${SITE_OUTPUT_ROOT}" "${TARGET_OUTPUT_REL}" "${MARKDOWN_FILEEXT_CSV}" "TARGET_OUTPUT_ROOT" "DOCUMENT_DIR" "DOCUMENT_EXT" "DOCUMENT_OUTPUT_REL" "DOCUMENT_SITE_REL" "DOCUMENT_BASE_REL" || return 1
     BUILD_CONTEXT_OUTPUT_ROOT=$(marsh_get_target_directory_path "${SITE_OUTPUT_ROOT}/${BUILD_CONTEXT_TARGET_OUTPUT_REL}") || return 1
     DOCUMENT_SOURCE_FILE=""
     TARGET_SOURCE_ROOT="${BUILD_CONTEXT_SOURCE_ROOT}"
@@ -6457,8 +6471,7 @@ function marsh_build_document {  # marsh_build_document site_output_root target_
         echo "Document source root not found for target: ${BUILD_CONTEXT_OUTPUT_ROOT}" >&2
         return 1
     fi
-    DOCUMENT_ARTIFACT_PATHS=$(marsh_get_document_artifacts "${BUILD_CONTEXT_OUTPUT_ROOT}" "${DOCUMENT}") || return 1
-    eval "${DOCUMENT_ARTIFACT_PATHS}"
+    marsh_get_document_artifacts "${BUILD_CONTEXT_OUTPUT_ROOT}" "${DOCUMENT}" "DOCUMENT_ARTIFACT_ROOT" "DOCUMENT_ARTIFACT_CONTENT" "DOCUMENT_ARTIFACT_META_YAML" "DOCUMENT_ARTIFACT_META" "DOCUMENT_ARTIFACT_ARCHIVE_META" || return 1
     DOCUMENT_TEMP_ROOT="${DOCUMENT_ARTIFACT_ROOT}"
     DOCUMENT_META="${DOCUMENT_ARTIFACT_META_YAML}"
     DOCUMENT_META_CACHE="${DOCUMENT_ARTIFACT_META}"
@@ -6770,25 +6783,38 @@ function marsh_build_target_documents {  # marsh_build_target_documents site_out
 }
 
 # returns the document artifact paths for one target build context
-function marsh_get_document_artifacts {  # marsh_get_document_artifacts target_output_root document
-    local TARGET_OUTPUT_ROOT DOCUMENT DOCUMENT_ARTIFACT_ROOT DOCUMENT_ARTIFACT_CONTENT DOCUMENT_ARTIFACT_META_YAML DOCUMENT_ARTIFACT_META DOCUMENT_ARTIFACT_ARCHIVE_META
+function marsh_get_document_artifacts {  # marsh_get_document_artifacts target_output_root document document_artifact_root_var document_artifact_content_var document_artifact_meta_yaml_var document_artifact_meta_var document_artifact_archive_meta_var
+    local TARGET_OUTPUT_ROOT DOCUMENT
+    local DOCUMENT_ARTIFACT_ROOT_VAR DOCUMENT_ARTIFACT_CONTENT_VAR DOCUMENT_ARTIFACT_META_YAML_VAR DOCUMENT_ARTIFACT_META_VAR DOCUMENT_ARTIFACT_ARCHIVE_META_VAR
+    local DOCUMENT_ARTIFACT_ROOT_VALUE DOCUMENT_ARTIFACT_CONTENT_VALUE DOCUMENT_ARTIFACT_META_YAML_VALUE DOCUMENT_ARTIFACT_META_VALUE DOCUMENT_ARTIFACT_ARCHIVE_META_VALUE
 
     TARGET_OUTPUT_ROOT="${1:-}"
     DOCUMENT="${2:-}"
+    DOCUMENT_ARTIFACT_ROOT_VAR="${3:-}"
+    DOCUMENT_ARTIFACT_CONTENT_VAR="${4:-}"
+    DOCUMENT_ARTIFACT_META_YAML_VAR="${5:-}"
+    DOCUMENT_ARTIFACT_META_VAR="${6:-}"
+    DOCUMENT_ARTIFACT_ARCHIVE_META_VAR="${7:-}"
     [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
     [[ "${DOCUMENT}" == "" ]] && return 1
+    [[ "${DOCUMENT_ARTIFACT_ROOT_VAR}" == "" ]] && return 1
+    [[ "${DOCUMENT_ARTIFACT_CONTENT_VAR}" == "" ]] && return 1
+    [[ "${DOCUMENT_ARTIFACT_META_YAML_VAR}" == "" ]] && return 1
+    [[ "${DOCUMENT_ARTIFACT_META_VAR}" == "" ]] && return 1
+    [[ "${DOCUMENT_ARTIFACT_ARCHIVE_META_VAR}" == "" ]] && return 1
 
-    DOCUMENT_ARTIFACT_ROOT=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "${DOCUMENT}" "root") || return 1
-    DOCUMENT_ARTIFACT_CONTENT=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "${DOCUMENT}" "content") || return 1
-    DOCUMENT_ARTIFACT_META_YAML=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "${DOCUMENT}" "meta-yaml") || return 1
-    DOCUMENT_ARTIFACT_META=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "${DOCUMENT}" "meta") || return 1
-    DOCUMENT_ARTIFACT_ARCHIVE_META=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "${DOCUMENT}" "archive-meta") || return 1
+    DOCUMENT_ARTIFACT_ROOT_VALUE=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "${DOCUMENT}" "root") || return 1
+    DOCUMENT_ARTIFACT_CONTENT_VALUE=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "${DOCUMENT}" "content") || return 1
+    DOCUMENT_ARTIFACT_META_YAML_VALUE=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "${DOCUMENT}" "meta-yaml") || return 1
+    DOCUMENT_ARTIFACT_META_VALUE=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "${DOCUMENT}" "meta") || return 1
+    DOCUMENT_ARTIFACT_ARCHIVE_META_VALUE=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "${DOCUMENT}" "archive-meta") || return 1
 
-    printf 'DOCUMENT_ARTIFACT_ROOT=%q\n' "${DOCUMENT_ARTIFACT_ROOT}"
-    printf 'DOCUMENT_ARTIFACT_CONTENT=%q\n' "${DOCUMENT_ARTIFACT_CONTENT}"
-    printf 'DOCUMENT_ARTIFACT_META_YAML=%q\n' "${DOCUMENT_ARTIFACT_META_YAML}"
-    printf 'DOCUMENT_ARTIFACT_META=%q\n' "${DOCUMENT_ARTIFACT_META}"
-    printf 'DOCUMENT_ARTIFACT_ARCHIVE_META=%q\n' "${DOCUMENT_ARTIFACT_ARCHIVE_META}"
+    # write artifact paths into caller-owned locals
+    printf -v "${DOCUMENT_ARTIFACT_ROOT_VAR}" '%s' "${DOCUMENT_ARTIFACT_ROOT_VALUE}"
+    printf -v "${DOCUMENT_ARTIFACT_CONTENT_VAR}" '%s' "${DOCUMENT_ARTIFACT_CONTENT_VALUE}"
+    printf -v "${DOCUMENT_ARTIFACT_META_YAML_VAR}" '%s' "${DOCUMENT_ARTIFACT_META_YAML_VALUE}"
+    printf -v "${DOCUMENT_ARTIFACT_META_VAR}" '%s' "${DOCUMENT_ARTIFACT_META_VALUE}"
+    printf -v "${DOCUMENT_ARTIFACT_ARCHIVE_META_VAR}" '%s' "${DOCUMENT_ARTIFACT_ARCHIVE_META_VALUE}"
 }
 
 # loads cached document metadata assignments where available, creating the cache from the source metadata when needed
@@ -7092,7 +7118,6 @@ function marsh_publish_processed_output {  # marsh_publish_processed_output sour
 # writes the document content and metadata artifacts for one target build context
 function marsh_write_document_artifacts {  # marsh_write_document_artifacts target_output_root document source_file
     local TARGET_OUTPUT_ROOT DOCUMENT SOURCE_FILE
-    local DOCUMENT_ARTIFACT_PATHS
     local DOCUMENT_ARTIFACT_ROOT DOCUMENT_ARTIFACT_CONTENT DOCUMENT_ARTIFACT_META_YAML DOCUMENT_ARTIFACT_META DOCUMENT_ARTIFACT_ARCHIVE_META
     local SOURCE_HAS_FRONTMATTER
 
@@ -7104,8 +7129,7 @@ function marsh_write_document_artifacts {  # marsh_write_document_artifacts targ
     [[ "${SOURCE_FILE}" == "" ]] && return 1
     [[ -f "${SOURCE_FILE}" ]] && [[ -r "${SOURCE_FILE}" ]] || return 1
 
-    DOCUMENT_ARTIFACT_PATHS=$(marsh_get_document_artifacts "${TARGET_OUTPUT_ROOT}" "${DOCUMENT}") || return 1
-    eval "${DOCUMENT_ARTIFACT_PATHS}"
+    marsh_get_document_artifacts "${TARGET_OUTPUT_ROOT}" "${DOCUMENT}" "DOCUMENT_ARTIFACT_ROOT" "DOCUMENT_ARTIFACT_CONTENT" "DOCUMENT_ARTIFACT_META_YAML" "DOCUMENT_ARTIFACT_META" "DOCUMENT_ARTIFACT_ARCHIVE_META" || return 1
 
     mkdir -p "${DOCUMENT_ARTIFACT_ROOT}" >/dev/null 2>&1 || return 1
 
@@ -7146,7 +7170,7 @@ function marsh_write_document_artifacts {  # marsh_write_document_artifacts targ
 # writes only the document metadata artifacts for one target build context
 function marsh_write_document_metadata_artifacts {  # marsh_write_document_metadata_artifacts target_output_root document source_file
     local TARGET_OUTPUT_ROOT DOCUMENT SOURCE_FILE
-    local DOCUMENT_ARTIFACT_PATHS DOCUMENT_ARTIFACT_ROOT DOCUMENT_ARTIFACT_CONTENT DOCUMENT_ARTIFACT_META_YAML DOCUMENT_ARTIFACT_META DOCUMENT_ARTIFACT_ARCHIVE_META
+    local DOCUMENT_ARTIFACT_ROOT DOCUMENT_ARTIFACT_CONTENT DOCUMENT_ARTIFACT_META_YAML DOCUMENT_ARTIFACT_META DOCUMENT_ARTIFACT_ARCHIVE_META
     local DOCUMENT_META_TEMP_CONTENT
 
     TARGET_OUTPUT_ROOT="${1:-}"
@@ -7158,8 +7182,7 @@ function marsh_write_document_metadata_artifacts {  # marsh_write_document_metad
     [[ -f "${SOURCE_FILE}" ]] && [[ -r "${SOURCE_FILE}" ]] || return 1
     marsh_has_frontmatter "${SOURCE_FILE}" || return 1
 
-    DOCUMENT_ARTIFACT_PATHS=$(marsh_get_document_artifacts "${TARGET_OUTPUT_ROOT}" "${DOCUMENT}") || return 1
-    eval "${DOCUMENT_ARTIFACT_PATHS}"
+    marsh_get_document_artifacts "${TARGET_OUTPUT_ROOT}" "${DOCUMENT}" "DOCUMENT_ARTIFACT_ROOT" "DOCUMENT_ARTIFACT_CONTENT" "DOCUMENT_ARTIFACT_META_YAML" "DOCUMENT_ARTIFACT_META" "DOCUMENT_ARTIFACT_ARCHIVE_META" || return 1
 
     mkdir -p "${DOCUMENT_ARTIFACT_ROOT}" >/dev/null 2>&1 || return 1
 
@@ -8128,7 +8151,7 @@ function marsh_write_target_archive_manifest {  # marsh_write_target_archive_man
     local SITE_OUTPUT_ROOT MARKDOWN_FILEEXT_CSV TARGET_PLAN_ROOT MANIFEST_FILE MANIFEST_TEMP DOCUMENT_RECORD
     local DOCUMENT_ID_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC
     local DOCUMENT_ID SOURCE_RELPATH TARGET_OUTPUT_REL SOURCE_ROOT DOCUMENT_SOURCE_FILE BUILD_CONTEXT_OUTPUT_ROOT
-    local DOCUMENT_ARTIFACT_PATHS DOCUMENT_ARTIFACT_ROOT DOCUMENT_ARTIFACT_CONTENT DOCUMENT_ARTIFACT_META_YAML DOCUMENT_ARTIFACT_META DOCUMENT_ARTIFACT_ARCHIVE_META META_ASSIGNMENTS META_VARS META_PREFIX TYPE_VAR
+    local DOCUMENT_ARTIFACT_ROOT DOCUMENT_ARTIFACT_CONTENT DOCUMENT_ARTIFACT_META_YAML DOCUMENT_ARTIFACT_META DOCUMENT_ARTIFACT_ARCHIVE_META META_ASSIGNMENTS META_VARS META_PREFIX TYPE_VAR
     local TYPE URI ABSPATH STATE_JOINED OIFS DOCUMENT_OUTPUT_REL
     local -a DOCUMENT_RECORDS_IN STATE
 
@@ -8180,11 +8203,10 @@ function marsh_write_target_archive_manifest {  # marsh_write_target_archive_man
                 rm -f "${MANIFEST_TEMP}"
                 return 1
             fi
-            DOCUMENT_ARTIFACT_PATHS=$(marsh_get_document_artifacts "${BUILD_CONTEXT_OUTPUT_ROOT}" "${DOCUMENT_ID}") || {
+            marsh_get_document_artifacts "${BUILD_CONTEXT_OUTPUT_ROOT}" "${DOCUMENT_ID}" "DOCUMENT_ARTIFACT_ROOT" "DOCUMENT_ARTIFACT_CONTENT" "DOCUMENT_ARTIFACT_META_YAML" "DOCUMENT_ARTIFACT_META" "DOCUMENT_ARTIFACT_ARCHIVE_META" || {
                 rm -f "${MANIFEST_TEMP}"
                 return 1
             }
-            eval "${DOCUMENT_ARTIFACT_PATHS}"
             META_PREFIX=$(echo "planned_archive_${DOCUMENT_ARTIFACT_META_YAML}_" | sed -E -e 's/[^A-Za-z0-9_]/_/g')
             META_PREFIX=$(echo "${META_PREFIX}" | sed -E -e 's/_{2,}/_/g')
             META_ASSIGNMENTS=$(marsh_get_document_metadata "${DOCUMENT_ARTIFACT_META_YAML}" "${META_PREFIX}") || {
@@ -8207,7 +8229,7 @@ function marsh_write_target_archive_manifest {  # marsh_write_target_archive_man
             return 1
         fi
 
-        eval "$(marsh_get_target_document_paths "${DOCUMENT_ID}" "${SITE_OUTPUT_ROOT}" "${TARGET_OUTPUT_REL}" "${MARKDOWN_FILEEXT_CSV}")" || return 1
+        marsh_get_target_document_paths "${DOCUMENT_ID}" "${SITE_OUTPUT_ROOT}" "${TARGET_OUTPUT_REL}" "${MARKDOWN_FILEEXT_CSV}" "TARGET_OUTPUT_ROOT" "DOCUMENT_DIR" "DOCUMENT_EXT" "DOCUMENT_OUTPUT_REL" "DOCUMENT_SITE_REL" "DOCUMENT_BASE_REL" || return 1
         URI=$(marsh_get_absolute_output_path "${DOCUMENT_OUTPUT_REL}" "document") || return 1
         ABSPATH=""
         [[ "${URI}" =~ / ]] && ABSPATH="${URI%/*}"

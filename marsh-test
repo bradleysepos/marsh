@@ -4253,7 +4253,18 @@ function marsh_test {
         marsh_get_document_artifacts:0)
             TEST_NAME+=":nested_target"
             MARSH_CONFIG_PATH="/site/public"
-            ACTUAL=$(marsh_get_document_artifacts "/site/public/blog" "guides/index.markdown")
+            DOCUMENT_ARTIFACT_ROOT=""
+            DOCUMENT_ARTIFACT_CONTENT=""
+            DOCUMENT_ARTIFACT_META_YAML=""
+            DOCUMENT_ARTIFACT_META=""
+            DOCUMENT_ARTIFACT_ARCHIVE_META=""
+            marsh_get_document_artifacts "/site/public/blog" "guides/index.markdown" "DOCUMENT_ARTIFACT_ROOT" "DOCUMENT_ARTIFACT_CONTENT" "DOCUMENT_ARTIFACT_META_YAML" "DOCUMENT_ARTIFACT_META" "DOCUMENT_ARTIFACT_ARCHIVE_META"
+            ACTUAL=$(printf '%s\n' \
+                "DOCUMENT_ARTIFACT_ROOT=${DOCUMENT_ARTIFACT_ROOT}" \
+                "DOCUMENT_ARTIFACT_CONTENT=${DOCUMENT_ARTIFACT_CONTENT}" \
+                "DOCUMENT_ARTIFACT_META_YAML=${DOCUMENT_ARTIFACT_META_YAML}" \
+                "DOCUMENT_ARTIFACT_META=${DOCUMENT_ARTIFACT_META}" \
+                "DOCUMENT_ARTIFACT_ARCHIVE_META=${DOCUMENT_ARTIFACT_ARCHIVE_META}")
             EXPECTED=$(printf '%s\n' \
                 "DOCUMENT_ARTIFACT_ROOT=${MARSH_TEST_TEMP}/build/targets/blog/documents/guides/index.markdown" \
                 "DOCUMENT_ARTIFACT_CONTENT=${MARSH_TEST_TEMP}/build/targets/blog/documents/guides/index.markdown/content" \
@@ -4867,7 +4878,20 @@ function marsh_test {
             ;;
         marsh_get_target_document_paths:0)
             TEST_NAME+=":nested_markdown"
-            ACTUAL=$(marsh_get_target_document_paths "guides/index.markdown" "/site/public" "docs" "markdown,md")
+            TARGET_OUTPUT_ROOT=""
+            DOCUMENT_DIR=""
+            DOCUMENT_EXT=""
+            DOCUMENT_OUTPUT_REL=""
+            DOCUMENT_SITE_REL=""
+            DOCUMENT_BASE_REL=""
+            marsh_get_target_document_paths "guides/index.markdown" "/site/public" "docs" "markdown,md" "TARGET_OUTPUT_ROOT" "DOCUMENT_DIR" "DOCUMENT_EXT" "DOCUMENT_OUTPUT_REL" "DOCUMENT_SITE_REL" "DOCUMENT_BASE_REL"
+            ACTUAL=$(printf '%s\n' \
+                "TARGET_OUTPUT_ROOT=${TARGET_OUTPUT_ROOT}" \
+                "DOCUMENT_DIR=${DOCUMENT_DIR}" \
+                "DOCUMENT_EXT=${DOCUMENT_EXT}" \
+                "DOCUMENT_OUTPUT_REL=${DOCUMENT_OUTPUT_REL}" \
+                "DOCUMENT_SITE_REL=${DOCUMENT_SITE_REL}" \
+                "DOCUMENT_BASE_REL=${DOCUMENT_BASE_REL}")
             EXPECTED=$(printf '%s\n' \
                 'TARGET_OUTPUT_ROOT=/site/public/docs' \
                 'DOCUMENT_DIR=guides' \
@@ -4882,7 +4906,20 @@ function marsh_test {
             ;;
         marsh_get_target_document_paths:1)
             TEST_NAME+=":root_markdown"
-            ACTUAL=$(marsh_get_target_document_paths "index.markdown" "/site/public" "." "markdown,md")
+            TARGET_OUTPUT_ROOT=""
+            DOCUMENT_DIR=""
+            DOCUMENT_EXT=""
+            DOCUMENT_OUTPUT_REL=""
+            DOCUMENT_SITE_REL=""
+            DOCUMENT_BASE_REL=""
+            marsh_get_target_document_paths "index.markdown" "/site/public" "." "markdown,md" "TARGET_OUTPUT_ROOT" "DOCUMENT_DIR" "DOCUMENT_EXT" "DOCUMENT_OUTPUT_REL" "DOCUMENT_SITE_REL" "DOCUMENT_BASE_REL"
+            ACTUAL=$(printf '%s\n' \
+                "TARGET_OUTPUT_ROOT=${TARGET_OUTPUT_ROOT}" \
+                "DOCUMENT_DIR=${DOCUMENT_DIR}" \
+                "DOCUMENT_EXT=${DOCUMENT_EXT}" \
+                "DOCUMENT_OUTPUT_REL=${DOCUMENT_OUTPUT_REL}" \
+                "DOCUMENT_SITE_REL=${DOCUMENT_SITE_REL}" \
+                "DOCUMENT_BASE_REL=${DOCUMENT_BASE_REL}")
             EXPECTED=$(printf '%s\n' \
                 'TARGET_OUTPUT_ROOT=/site/public' \
                 'DOCUMENT_DIR=.' \

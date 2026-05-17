@@ -8267,8 +8267,8 @@ function marsh_build_target_archive_queue {  # marsh_build_target_archive_queue 
     local SITE_OUTPUT_ROOT LOG_LEVEL LOG_LEVELS_CSV JOBS MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_REWRITE_LINKS TARGET_PLAN_ROOT
     local TARGET_ARCHIVE_QUEUE_RECORDS_FILE QUEUE_RECORD DOCUMENT_RECORD
     local QUEUE_DOCUMENT_ID_ESC QUEUE_ARCHIVE_PLAN_ROOT_ESC QUEUE_DOCUMENT_ID QUEUE_ARCHIVE_PLAN_ROOT
-    local CURRENT_ARCHIVE_PLAN_ROOT CONTEXT_FILE ARCHIVE_PLAN_CONTEXT ARCHIVE_PLAN_CONTEXT_VARS TARGET_OUTPUT_REL TARGET_SITEMAP TARGET_SITEMAP_SEARCH TEMPLATES_DIR TEMPLATE TEMPLATE_ASSETS_PATH
-    local BUILD_CONTEXT_TARGET_OUTPUT_REL BUILD_CONTEXT_SOURCE_ROOT DOCUMENTS_FILE CURRENT_DOCUMENT_ID_ESC CURRENT_DOCUMENT_ID CURRENT_DOCUMENT_INDEX
+    local CURRENT_ARCHIVE_PLAN_ROOT TARGET_OUTPUT_REL TARGET_SITEMAP TARGET_SITEMAP_SEARCH TEMPLATES_DIR TEMPLATE TEMPLATE_ASSETS_PATH
+    local BUILD_CONTEXT_TARGET_OUTPUT_REL BUILD_CONTEXT_SOURCE_ROOT DOCUMENTS_FILE CURRENT_DOCUMENT_ID_ESC CURRENT_DOCUMENT_ID CURRENT_DOCUMENT_INDEX TEMPLATE_OVERRIDE TEMPLATE_OVERRIDES_TEXT
     local PARALLEL PARALLEL_MARKDOWN
     local -a TEMPLATE_OVERRIDES QUEUE_RECORDS CURRENT_DOCUMENT_RECORDS
 
@@ -8313,7 +8313,22 @@ function marsh_build_target_archive_queue {  # marsh_build_target_archive_queue 
                 continue
             fi
             CURRENT_ARCHIVE_PLAN_ROOT="${QUEUE_ARCHIVE_PLAN_ROOT}"
-            eval "$(marsh_load_archive_plan_build_context "${CURRENT_ARCHIVE_PLAN_ROOT}")" || return 1
+            TEMPLATE_OVERRIDES=()
+            marsh_load_archive_plan_build_context \
+                "${CURRENT_ARCHIVE_PLAN_ROOT}" \
+                "BUILD_CONTEXT_TARGET_OUTPUT_REL" \
+                "BUILD_CONTEXT_SOURCE_ROOT" \
+                "TARGET_SITEMAP" \
+                "TARGET_SITEMAP_SEARCH" \
+                "TEMPLATES_DIR" \
+                "TEMPLATE" \
+                "TEMPLATE_ASSETS_PATH" \
+                "TEMPLATE_OVERRIDES_TEXT" || return 1
+            if [[ "${TEMPLATE_OVERRIDES_TEXT}" != "" ]]; then
+                while IFS= read -r TEMPLATE_OVERRIDE; do
+                    TEMPLATE_OVERRIDES+=("${TEMPLATE_OVERRIDE}")
+                done <<< "${TEMPLATE_OVERRIDES_TEXT}"
+            fi
             TARGET_OUTPUT_REL="${BUILD_CONTEXT_TARGET_OUTPUT_REL}"
 
             # pre-copy template assets once per archive plan before parallel workers start
@@ -8343,7 +8358,22 @@ function marsh_build_target_archive_queue {  # marsh_build_target_archive_queue 
             CURRENT_DOCUMENT_INDEX=0
             CURRENT_DOCUMENT_RECORDS=()
 
-            eval "$(marsh_load_archive_plan_build_context "${CURRENT_ARCHIVE_PLAN_ROOT}")" || return 1
+            TEMPLATE_OVERRIDES=()
+            marsh_load_archive_plan_build_context \
+                "${CURRENT_ARCHIVE_PLAN_ROOT}" \
+                "BUILD_CONTEXT_TARGET_OUTPUT_REL" \
+                "BUILD_CONTEXT_SOURCE_ROOT" \
+                "TARGET_SITEMAP" \
+                "TARGET_SITEMAP_SEARCH" \
+                "TEMPLATES_DIR" \
+                "TEMPLATE" \
+                "TEMPLATE_ASSETS_PATH" \
+                "TEMPLATE_OVERRIDES_TEXT" || return 1
+            if [[ "${TEMPLATE_OVERRIDES_TEXT}" != "" ]]; then
+                while IFS= read -r TEMPLATE_OVERRIDE; do
+                    TEMPLATE_OVERRIDES+=("${TEMPLATE_OVERRIDE}")
+                done <<< "${TEMPLATE_OVERRIDES_TEXT}"
+            fi
             TARGET_OUTPUT_REL="${BUILD_CONTEXT_TARGET_OUTPUT_REL}"
 
             DOCUMENTS_FILE="${CURRENT_ARCHIVE_PLAN_ROOT}/documents"
@@ -8409,8 +8439,8 @@ function marsh_build_target_archive_queue_record_document {  # marsh_build_targe
     local SITE_OUTPUT_ROOT LOG_LEVEL LOG_LEVELS_CSV MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_REWRITE_LINKS ARCHIVE_QUEUE_RECORD
     local DOCUMENT_ID_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC ARCHIVE_PLAN_ROOT_ESC
     local DOCUMENT_ID SOURCE_RELPATH TARGET_OUTPUT_REL SOURCE_ROOT ARCHIVE_PLAN_ROOT
-    local CONTEXT_FILE ARCHIVE_PLAN_CONTEXT ARCHIVE_PLAN_CONTEXT_VARS TARGET_SITEMAP TARGET_SITEMAP_SEARCH TEMPLATES_DIR TEMPLATE TEMPLATE_ASSETS_PATH
-    local BUILD_CONTEXT_TARGET_OUTPUT_REL BUILD_CONTEXT_SOURCE_ROOT
+    local TARGET_SITEMAP TARGET_SITEMAP_SEARCH TEMPLATES_DIR TEMPLATE TEMPLATE_ASSETS_PATH
+    local BUILD_CONTEXT_TARGET_OUTPUT_REL BUILD_CONTEXT_SOURCE_ROOT TEMPLATE_OVERRIDE TEMPLATE_OVERRIDES_TEXT
     local -a TEMPLATE_OVERRIDES
 
     SITE_OUTPUT_ROOT="${1:-}"
@@ -8436,7 +8466,22 @@ function marsh_build_target_archive_queue_record_document {  # marsh_build_targe
     eval "SOURCE_ROOT=${SOURCE_ROOT_ESC}"
     eval "ARCHIVE_PLAN_ROOT=${ARCHIVE_PLAN_ROOT_ESC}"
 
-    eval "$(marsh_load_archive_plan_build_context "${ARCHIVE_PLAN_ROOT}")" || return 1
+    TEMPLATE_OVERRIDES=()
+    marsh_load_archive_plan_build_context \
+        "${ARCHIVE_PLAN_ROOT}" \
+        "BUILD_CONTEXT_TARGET_OUTPUT_REL" \
+        "BUILD_CONTEXT_SOURCE_ROOT" \
+        "TARGET_SITEMAP" \
+        "TARGET_SITEMAP_SEARCH" \
+        "TEMPLATES_DIR" \
+        "TEMPLATE" \
+        "TEMPLATE_ASSETS_PATH" \
+        "TEMPLATE_OVERRIDES_TEXT" || return 1
+    if [[ "${TEMPLATE_OVERRIDES_TEXT}" != "" ]]; then
+        while IFS= read -r TEMPLATE_OVERRIDE; do
+            TEMPLATE_OVERRIDES+=("${TEMPLATE_OVERRIDE}")
+        done <<< "${TEMPLATE_OVERRIDES_TEXT}"
+    fi
     [[ "${TARGET_OUTPUT_REL}" == "${BUILD_CONTEXT_TARGET_OUTPUT_REL}" ]] || return 1
     [[ "${SOURCE_ROOT}" == "${BUILD_CONTEXT_SOURCE_ROOT}" ]] || return 1
 
@@ -8463,42 +8508,127 @@ function marsh_get_target_archive_queue_root {  # marsh_get_target_archive_queue
 }
 
 # loads and validates persisted archive-plan context for queue and plan executors
-function marsh_load_archive_plan_build_context {  # marsh_load_archive_plan_build_context archive_plan_root
-    local ARCHIVE_PLAN_ROOT CONTEXT_FILE ARCHIVE_PLAN_CONTEXT ARCHIVE_PLAN_CONTEXT_VARS
+function marsh_load_archive_plan_build_context {  # marsh_load_archive_plan_build_context archive_plan_root build_context_target_output_rel_var build_context_source_root_var target_sitemap_var target_sitemap_search_var templates_dir_var template_var template_assets_path_var template_overrides_text_var
+    local ARCHIVE_PLAN_ROOT BUILD_CONTEXT_TARGET_OUTPUT_REL_VAR BUILD_CONTEXT_SOURCE_ROOT_VAR TARGET_SITEMAP_VAR TARGET_SITEMAP_SEARCH_VAR TEMPLATES_DIR_VAR TEMPLATE_VAR TEMPLATE_ASSETS_PATH_VAR TEMPLATE_OVERRIDES_TEXT_VAR
+    local CONTEXT_FILE CONTEXT_LINE CONTEXT_KEY CONTEXT_VALUE
+    local BUILD_CONTEXT_TARGET_OUTPUT_REL_VALUE BUILD_CONTEXT_SOURCE_ROOT_VALUE TARGET_SITEMAP_VALUE TARGET_SITEMAP_SEARCH_VALUE TEMPLATES_DIR_VALUE TEMPLATE_VALUE TEMPLATE_ASSETS_PATH_VALUE
+    local HAS_BUILD_CONTEXT_TARGET_OUTPUT_REL HAS_BUILD_CONTEXT_SOURCE_ROOT TEMPLATE_OVERRIDES_JOINED OIFS
+    local -a TEMPLATE_OVERRIDE_VALUES
 
     ARCHIVE_PLAN_ROOT="${1:-}"
+    BUILD_CONTEXT_TARGET_OUTPUT_REL_VAR="${2:-}"
+    BUILD_CONTEXT_SOURCE_ROOT_VAR="${3:-}"
+    TARGET_SITEMAP_VAR="${4:-}"
+    TARGET_SITEMAP_SEARCH_VAR="${5:-}"
+    TEMPLATES_DIR_VAR="${6:-}"
+    TEMPLATE_VAR="${7:-}"
+    TEMPLATE_ASSETS_PATH_VAR="${8:-}"
+    TEMPLATE_OVERRIDES_TEXT_VAR="${9:-}"
     [[ "${ARCHIVE_PLAN_ROOT}" == "" ]] && return 1
+    [[ "${BUILD_CONTEXT_TARGET_OUTPUT_REL_VAR}" == "" ]] && return 1
+    [[ "${BUILD_CONTEXT_SOURCE_ROOT_VAR}" == "" ]] && return 1
+    [[ "${TARGET_SITEMAP_VAR}" == "" ]] && return 1
+    [[ "${TARGET_SITEMAP_SEARCH_VAR}" == "" ]] && return 1
+    [[ "${TEMPLATES_DIR_VAR}" == "" ]] && return 1
+    [[ "${TEMPLATE_VAR}" == "" ]] && return 1
+    [[ "${TEMPLATE_ASSETS_PATH_VAR}" == "" ]] && return 1
+    [[ "${TEMPLATE_OVERRIDES_TEXT_VAR}" == "" ]] && return 1
 
     CONTEXT_FILE="${ARCHIVE_PLAN_ROOT}/context"
     [[ -f "${CONTEXT_FILE}" ]] && [[ -r "${CONTEXT_FILE}" ]] || {
         echo "Archive plan context file not found: ${CONTEXT_FILE}" >&2
         return 1
     }
-    ARCHIVE_PLAN_CONTEXT=$(<"${CONTEXT_FILE}") || {
+
+    BUILD_CONTEXT_TARGET_OUTPUT_REL_VALUE=""
+    BUILD_CONTEXT_SOURCE_ROOT_VALUE=""
+    TARGET_SITEMAP_VALUE=""
+    TARGET_SITEMAP_SEARCH_VALUE="false"
+    TEMPLATES_DIR_VALUE=""
+    TEMPLATE_VALUE=""
+    TEMPLATE_ASSETS_PATH_VALUE=""
+    HAS_BUILD_CONTEXT_TARGET_OUTPUT_REL=false
+    HAS_BUILD_CONTEXT_SOURCE_ROOT=false
+    TEMPLATE_OVERRIDE_VALUES=()
+
+    # read the fixed-shape context once and rebuild only the fields archive execution uses
+    while IFS= read -r CONTEXT_LINE || [[ "${CONTEXT_LINE}" != "" ]]; do
+        [[ "${CONTEXT_LINE}" == "" ]] && continue
+        case "${CONTEXT_LINE}" in
+            *$'\t'*)
+                CONTEXT_KEY="${CONTEXT_LINE%%$'\t'*}"
+                CONTEXT_VALUE="${CONTEXT_LINE#*$'\t'}"
+                ;;
+            *)
+                echo "Malformed archive plan context line: ${CONTEXT_FILE}" >&2
+                return 1
+                ;;
+        esac
+        case "${CONTEXT_KEY}" in
+            BUILD_CONTEXT_TARGET_OUTPUT_REL)
+                BUILD_CONTEXT_TARGET_OUTPUT_REL_VALUE="${CONTEXT_VALUE}"
+                HAS_BUILD_CONTEXT_TARGET_OUTPUT_REL=true
+                ;;
+            BUILD_CONTEXT_SOURCE_ROOT)
+                BUILD_CONTEXT_SOURCE_ROOT_VALUE="${CONTEXT_VALUE}"
+                HAS_BUILD_CONTEXT_SOURCE_ROOT=true
+                ;;
+            TARGET_SITEMAP)
+                TARGET_SITEMAP_VALUE="${CONTEXT_VALUE}"
+                ;;
+            TARGET_SITEMAP_SEARCH)
+                [[ "${CONTEXT_VALUE}" == true ]] || [[ "${CONTEXT_VALUE}" == false ]] || {
+                    echo "Archive plan context has invalid TARGET_SITEMAP_SEARCH: ${CONTEXT_FILE}" >&2
+                    return 1
+                }
+                TARGET_SITEMAP_SEARCH_VALUE="${CONTEXT_VALUE}"
+                ;;
+            TEMPLATES_DIR)
+                TEMPLATES_DIR_VALUE="${CONTEXT_VALUE}"
+                ;;
+            TEMPLATE)
+                TEMPLATE_VALUE="${CONTEXT_VALUE}"
+                ;;
+            TEMPLATE_ASSETS_PATH)
+                TEMPLATE_ASSETS_PATH_VALUE="${CONTEXT_VALUE}"
+                ;;
+            TEMPLATE_OVERRIDE)
+                TEMPLATE_OVERRIDE_VALUES+=("${CONTEXT_VALUE}")
+                ;;
+            *)
+                echo "Archive plan context has unsupported field ${CONTEXT_KEY}: ${CONTEXT_FILE}" >&2
+                return 1
+                ;;
+        esac
+    done < "${CONTEXT_FILE}" || {
         echo "Unable to read archive plan context file: ${CONTEXT_FILE}" >&2
         return 1
     }
 
-    # fail early on corrupted persisted context before queue execution fans out
-    ARCHIVE_PLAN_CONTEXT_VARS=$(echo "${ARCHIVE_PLAN_CONTEXT}" | marsh_get_variables)
-    eval "$(printf '%s\n' "${ARCHIVE_PLAN_CONTEXT_VARS}" | marsh_get_local_declarations)" 2>/dev/null || {
-        echo "Unable to prepare archive plan context variables: ${CONTEXT_FILE}" >&2
-        return 1
-    }
-    eval "${ARCHIVE_PLAN_CONTEXT}" 2>/dev/null || {
-        echo "Unable to evaluate archive plan context: ${CONTEXT_FILE}" >&2
-        return 1
-    }
-    [[ "${BUILD_CONTEXT_TARGET_OUTPUT_REL+isset}" == "isset" ]] || {
+    [[ "${HAS_BUILD_CONTEXT_TARGET_OUTPUT_REL}" == true ]] || {
         echo "Archive plan context missing BUILD_CONTEXT_TARGET_OUTPUT_REL: ${CONTEXT_FILE}" >&2
         return 1
     }
-    [[ "${BUILD_CONTEXT_SOURCE_ROOT+isset}" == "isset" ]] || {
+    [[ "${HAS_BUILD_CONTEXT_SOURCE_ROOT}" == true ]] || {
         echo "Archive plan context missing BUILD_CONTEXT_SOURCE_ROOT: ${CONTEXT_FILE}" >&2
         return 1
     }
 
-    printf '%s\n' "${ARCHIVE_PLAN_CONTEXT}"
+    printf -v "${BUILD_CONTEXT_TARGET_OUTPUT_REL_VAR}" '%s' "${BUILD_CONTEXT_TARGET_OUTPUT_REL_VALUE}"
+    printf -v "${BUILD_CONTEXT_SOURCE_ROOT_VAR}" '%s' "${BUILD_CONTEXT_SOURCE_ROOT_VALUE}"
+    printf -v "${TARGET_SITEMAP_VAR}" '%s' "${TARGET_SITEMAP_VALUE}"
+    printf -v "${TARGET_SITEMAP_SEARCH_VAR}" '%s' "${TARGET_SITEMAP_SEARCH_VALUE}"
+    printf -v "${TEMPLATES_DIR_VAR}" '%s' "${TEMPLATES_DIR_VALUE}"
+    printf -v "${TEMPLATE_VAR}" '%s' "${TEMPLATE_VALUE}"
+    printf -v "${TEMPLATE_ASSETS_PATH_VAR}" '%s' "${TEMPLATE_ASSETS_PATH_VALUE}"
+    TEMPLATE_OVERRIDES_JOINED=""
+    if [[ "${#TEMPLATE_OVERRIDE_VALUES[@]}" -gt 0 ]]; then
+        OIFS="${IFS}"
+        IFS=$'\n'
+        TEMPLATE_OVERRIDES_JOINED="${TEMPLATE_OVERRIDE_VALUES[*]}"
+        IFS="${OIFS}"
+    fi
+    printf -v "${TEMPLATE_OVERRIDES_TEXT_VAR}" '%s' "${TEMPLATE_OVERRIDES_JOINED}"
 }
 
 # parses one aggregate archive-queue record into shell assignments
@@ -8561,18 +8691,16 @@ function marsh_write_archive_plan_context {  # marsh_write_archive_plan_context 
 
     CONTEXT_TEMP=$(mktemp "${CONTEXT_FILE%/*}/context-XXXXXX") || return 1
     {
-        # keep the current executor field while persisting the build-context names explicitly
-        printf 'TARGET_OUTPUT_REL=%q\n' "${BUILD_CONTEXT_TARGET_OUTPUT_REL}"
-        printf 'BUILD_CONTEXT_TARGET_OUTPUT_REL=%q\n' "${BUILD_CONTEXT_TARGET_OUTPUT_REL}"
-        printf 'BUILD_CONTEXT_SOURCE_ROOT=%q\n' "${BUILD_CONTEXT_SOURCE_ROOT}"
-        printf 'TARGET_SITEMAP=%q\n' "${TARGET_SITEMAP}"
-        printf 'TARGET_SITEMAP_SEARCH=%q\n' "${TARGET_SITEMAP_SEARCH}"
-        printf 'TEMPLATES_DIR=%q\n' "${TEMPLATES_DIR}"
-        printf 'TEMPLATE=%q\n' "${TEMPLATE}"
-        printf 'TEMPLATE_ASSETS_PATH=%q\n' "${TEMPLATE_ASSETS_PATH}"
-        echo 'TEMPLATE_OVERRIDES=()'
+        # persist archive build context as fixed-shape key/value records
+        printf 'BUILD_CONTEXT_TARGET_OUTPUT_REL\t%s\n' "${BUILD_CONTEXT_TARGET_OUTPUT_REL}"
+        printf 'BUILD_CONTEXT_SOURCE_ROOT\t%s\n' "${BUILD_CONTEXT_SOURCE_ROOT}"
+        printf 'TARGET_SITEMAP\t%s\n' "${TARGET_SITEMAP}"
+        printf 'TARGET_SITEMAP_SEARCH\t%s\n' "${TARGET_SITEMAP_SEARCH}"
+        printf 'TEMPLATES_DIR\t%s\n' "${TEMPLATES_DIR}"
+        printf 'TEMPLATE\t%s\n' "${TEMPLATE}"
+        printf 'TEMPLATE_ASSETS_PATH\t%s\n' "${TEMPLATE_ASSETS_PATH}"
         for TEMPLATE_OVERRIDE in "${TEMPLATE_OVERRIDES[@]}"; do
-            printf 'TEMPLATE_OVERRIDES+=(%q)\n' "${TEMPLATE_OVERRIDE}"
+            printf 'TEMPLATE_OVERRIDE\t%s\n' "${TEMPLATE_OVERRIDE}"
         done
     } > "${CONTEXT_TEMP}" || {
         rm -f "${CONTEXT_TEMP}"

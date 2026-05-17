@@ -168,6 +168,50 @@ function marsh_test_capture_template_tag_metadata {
     printf 'TAG_VAR=%s\nTAG_TYPE=%s' "${TAG_VAR}" "${TAG_TYPE}"
 }
 
+function marsh_test_capture_archive_plan_build_context {
+    local ARCHIVE_PLAN_ROOT BUILD_CONTEXT_TARGET_OUTPUT_REL BUILD_CONTEXT_SOURCE_ROOT TARGET_SITEMAP TARGET_SITEMAP_SEARCH TEMPLATES_DIR TEMPLATE TEMPLATE_ASSETS_PATH TEMPLATE_OVERRIDE TEMPLATE_OVERRIDES_TEXT
+    local -a TEMPLATE_OVERRIDES
+
+    ARCHIVE_PLAN_ROOT="${1:-}"
+    [[ "${ARCHIVE_PLAN_ROOT}" == "" ]] && return 1
+    BUILD_CONTEXT_TARGET_OUTPUT_REL=""
+    BUILD_CONTEXT_SOURCE_ROOT=""
+    TARGET_SITEMAP=""
+    TARGET_SITEMAP_SEARCH=""
+    TEMPLATES_DIR=""
+    TEMPLATE=""
+    TEMPLATE_ASSETS_PATH=""
+    TEMPLATE_OVERRIDES_TEXT=""
+    TEMPLATE_OVERRIDES=()
+    marsh_load_archive_plan_build_context \
+        "${ARCHIVE_PLAN_ROOT}" \
+        "BUILD_CONTEXT_TARGET_OUTPUT_REL" \
+        "BUILD_CONTEXT_SOURCE_ROOT" \
+        "TARGET_SITEMAP" \
+        "TARGET_SITEMAP_SEARCH" \
+        "TEMPLATES_DIR" \
+        "TEMPLATE" \
+        "TEMPLATE_ASSETS_PATH" \
+        "TEMPLATE_OVERRIDES_TEXT" || return $?
+    if [[ "${TEMPLATE_OVERRIDES_TEXT}" != "" ]]; then
+        while IFS= read -r TEMPLATE_OVERRIDE; do
+            TEMPLATE_OVERRIDES+=("${TEMPLATE_OVERRIDE}")
+        done <<< "${TEMPLATE_OVERRIDES_TEXT}"
+    fi
+
+    printf '%s\n' \
+        "BUILD_CONTEXT_TARGET_OUTPUT_REL=${BUILD_CONTEXT_TARGET_OUTPUT_REL}" \
+        "BUILD_CONTEXT_SOURCE_ROOT=${BUILD_CONTEXT_SOURCE_ROOT}" \
+        "TARGET_SITEMAP=${TARGET_SITEMAP}" \
+        "TARGET_SITEMAP_SEARCH=${TARGET_SITEMAP_SEARCH}" \
+        "TEMPLATES_DIR=${TEMPLATES_DIR}" \
+        "TEMPLATE=${TEMPLATE}" \
+        "TEMPLATE_ASSETS_PATH=${TEMPLATE_ASSETS_PATH}"
+    for TEMPLATE_OVERRIDE in "${TEMPLATE_OVERRIDES[@]}"; do
+        printf 'TEMPLATE_OVERRIDE=%s\n' "${TEMPLATE_OVERRIDE}"
+    done
+}
+
 function marsh_test_create_archive_document {
     local TARGET_OUTPUT_ROOT DOCUMENT TYPE TITLE DATE_VALUE STATE_VALUE
 
@@ -5630,19 +5674,25 @@ function marsh_test {
             ARCHIVE_PLAN_ROOT="${TEST_TEMP_PREFIX}.archive-plan"
             mkdir -p "${ARCHIVE_PLAN_ROOT}"
             {
-                printf 'TARGET_OUTPUT_REL=%q\n' '.'
-                printf 'BUILD_CONTEXT_TARGET_OUTPUT_REL=%q\n' 'news'
-                printf 'BUILD_CONTEXT_SOURCE_ROOT=%q\n' '/site/source'
-                printf 'TARGET_SITEMAP=%q\n' 'site-map/index.markdown'
-                printf 'TARGET_SITEMAP_SEARCH=%q\n' false
-                printf 'TEMPLATES_DIR=%q\n' '/site/templates'
-                printf 'TEMPLATE=%q\n' 'sample'
-                printf 'TEMPLATE_ASSETS_PATH=%q\n' ''
-                echo 'TEMPLATE_OVERRIDES=()'
-                printf 'TEMPLATE_OVERRIDES+=(%q)\n' '/site/override.yaml'
+                printf 'BUILD_CONTEXT_TARGET_OUTPUT_REL\t%s\n' 'news'
+                printf 'BUILD_CONTEXT_SOURCE_ROOT\t%s\n' '/site/source'
+                printf 'TARGET_SITEMAP\t%s\n' 'site-map/index.markdown'
+                printf 'TARGET_SITEMAP_SEARCH\t%s\n' false
+                printf 'TEMPLATES_DIR\t%s\n' '/site/templates'
+                printf 'TEMPLATE\t%s\n' 'sample'
+                printf 'TEMPLATE_ASSETS_PATH\t%s\n' ''
+                printf 'TEMPLATE_OVERRIDE\t%s\n' '/site/override.yaml'
             } > "${ARCHIVE_PLAN_ROOT}/context"
-            ACTUAL=$(marsh_load_archive_plan_build_context "${ARCHIVE_PLAN_ROOT}")
-            EXPECTED=$(<"${ARCHIVE_PLAN_ROOT}/context")
+            ACTUAL=$(marsh_test_capture_archive_plan_build_context "${ARCHIVE_PLAN_ROOT}")
+            EXPECTED=$(printf '%s\n' \
+                'BUILD_CONTEXT_TARGET_OUTPUT_REL=news' \
+                'BUILD_CONTEXT_SOURCE_ROOT=/site/source' \
+                'TARGET_SITEMAP=site-map/index.markdown' \
+                'TARGET_SITEMAP_SEARCH=false' \
+                'TEMPLATES_DIR=/site/templates' \
+                'TEMPLATE=sample' \
+                'TEMPLATE_ASSETS_PATH=' \
+                'TEMPLATE_OVERRIDE=/site/override.yaml')
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -6039,12 +6089,11 @@ function marsh_test {
                 'news/page/1/index.markdown' 'news/page/1/index.markdown' '.' \'\')
             ASSERTION="equals"
             if [[ -d "${ARCHIVE_PLAN_ROOT}" ]] && [[ -f "${ARCHIVE_PLAN_ROOT}/context" ]] && [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                ACTUAL=$(<"${ARCHIVE_PLAN_ROOT}/context" grep -E '^(TARGET_OUTPUT_REL|BUILD_CONTEXT_TARGET_OUTPUT_REL|BUILD_CONTEXT_SOURCE_ROOT|TEMPLATE)=')
+                ACTUAL=$(<"${ARCHIVE_PLAN_ROOT}/context" grep -E '^(BUILD_CONTEXT_TARGET_OUTPUT_REL|BUILD_CONTEXT_SOURCE_ROOT|TEMPLATE)'$'\t')
                 EXPECTED=$(printf '%s\n' \
-                    "TARGET_OUTPUT_REL=." \
-                    "BUILD_CONTEXT_TARGET_OUTPUT_REL=." \
-                    "BUILD_CONTEXT_SOURCE_ROOT=''" \
-                    "TEMPLATE=sample")
+                    'BUILD_CONTEXT_TARGET_OUTPUT_REL'$'\t''.' \
+                    'BUILD_CONTEXT_SOURCE_ROOT'$'\t' \
+                    'TEMPLATE'$'\t''sample')
                 ASSERTION="equals"
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                     RES="[PASS]"
@@ -8734,6 +8783,27 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
+        marsh_write_archive_plan_context:0)
+            TEST_NAME+=":writes_fixed_shape_context"
+            CONTEXT_FILE="${TEST_TEMP_PREFIX}.archive-plan/context"
+            mkdir -p "${CONTEXT_FILE%/*}"
+            marsh_write_archive_plan_context "${CONTEXT_FILE}" 'news' '/site/source' 'site-map/index.markdown' false '/site/templates' 'sample' '1' '/site/override.yaml' ''
+            ACTUAL=$(<"${CONTEXT_FILE}")
+            EXPECTED=$(printf '%s\n' \
+                'BUILD_CONTEXT_TARGET_OUTPUT_REL'$'\t''news' \
+                'BUILD_CONTEXT_SOURCE_ROOT'$'\t''/site/source' \
+                'TARGET_SITEMAP'$'\t''site-map/index.markdown' \
+                'TARGET_SITEMAP_SEARCH'$'\t''false' \
+                'TEMPLATES_DIR'$'\t''/site/templates' \
+                'TEMPLATE'$'\t''sample' \
+                'TEMPLATE_ASSETS_PATH'$'\t' \
+                'TEMPLATE_OVERRIDE'$'\t''/site/override.yaml')
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            rm -rf "${CONTEXT_FILE%/*}"
+            ;;
         marsh_write_document_artifacts:0)
             TEST_NAME+=":frontmatter_reuses_existing_artifacts"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
@@ -9381,6 +9451,7 @@ KNOWN_FUNCTIONS=(
     marsh_rewrite_sitemap_links
     marsh_text_transform
     marsh_text_transform_headings
+    marsh_write_archive_plan_context
     marsh_write_document_artifacts
     marsh_write_document_metadata_artifacts
     marsh_write_target_archive_manifest

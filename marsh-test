@@ -212,6 +212,58 @@ function marsh_test_capture_archive_plan_build_context {
     done
 }
 
+function marsh_test_capture_target_build_metadata {
+    local SOURCE_PREFIX TARGET_PATH TARGET_NAME TARGET_SOURCE TARGET_FORCE TARGET_SITEMAP TARGET_SITEMAP_SEARCH TARGET_TEMPLATE_SOURCE TARGET_TEMPLATE TARGET_TEMPLATE_ASSETS_PATH
+    local TARGET_TEMPLATE_OVERRIDE TARGET_TEMPLATE_OVERRIDES_TEXT
+    local -a TARGET_TEMPLATE_OVERRIDES
+
+    SOURCE_PREFIX="${1:-}"
+    [[ "${SOURCE_PREFIX}" == "" ]] && return 1
+    TARGET_PATH=""
+    TARGET_NAME=""
+    TARGET_SOURCE=""
+    TARGET_FORCE=""
+    TARGET_SITEMAP=""
+    TARGET_SITEMAP_SEARCH=""
+    TARGET_TEMPLATE_SOURCE=""
+    TARGET_TEMPLATE=""
+    TARGET_TEMPLATE_ASSETS_PATH=""
+    TARGET_TEMPLATE_OVERRIDES_TEXT=""
+    TARGET_TEMPLATE_OVERRIDES=()
+    marsh_load_target_build_metadata \
+        "${SOURCE_PREFIX}" \
+        "TARGET_PATH" \
+        "TARGET_NAME" \
+        "TARGET_SOURCE" \
+        "TARGET_FORCE" \
+        "TARGET_SITEMAP" \
+        "TARGET_SITEMAP_SEARCH" \
+        "TARGET_TEMPLATE_SOURCE" \
+        "TARGET_TEMPLATE" \
+        "TARGET_TEMPLATE_ASSETS_PATH" \
+        "TARGET_TEMPLATE_OVERRIDES_TEXT" || return $?
+    if [[ "${TARGET_TEMPLATE_OVERRIDES_TEXT}" != "" ]]; then
+        while IFS= read -r TARGET_TEMPLATE_OVERRIDE; do
+            [[ "${TARGET_TEMPLATE_OVERRIDE}" == "" ]] && continue
+            TARGET_TEMPLATE_OVERRIDES+=("${TARGET_TEMPLATE_OVERRIDE}")
+        done <<< "${TARGET_TEMPLATE_OVERRIDES_TEXT}"
+    fi
+
+    printf '%s\n' \
+        "TARGET_PATH=${TARGET_PATH}" \
+        "TARGET_NAME=${TARGET_NAME}" \
+        "TARGET_SOURCE=${TARGET_SOURCE}" \
+        "TARGET_FORCE=${TARGET_FORCE}" \
+        "TARGET_SITEMAP=${TARGET_SITEMAP}" \
+        "TARGET_SITEMAP_SEARCH=${TARGET_SITEMAP_SEARCH}" \
+        "TARGET_TEMPLATE_SOURCE=${TARGET_TEMPLATE_SOURCE}" \
+        "TARGET_TEMPLATE=${TARGET_TEMPLATE}" \
+        "TARGET_TEMPLATE_ASSETS_PATH=${TARGET_TEMPLATE_ASSETS_PATH}"
+    for TARGET_TEMPLATE_OVERRIDE in "${TARGET_TEMPLATE_OVERRIDES[@]}"; do
+        printf 'TARGET_TEMPLATE_OVERRIDE=%s\n' "${TARGET_TEMPLATE_OVERRIDE}"
+    done
+}
+
 function marsh_test_capture_target_plan_build_context {
     local TARGET_PLAN_ROOT TARGET_OUTPUT_REL TARGET_FORCE TARGET_SKIP_TEMPLATE_ASSETS TARGET_SITEMAP TARGET_SITEMAP_SEARCH TEMPLATES_DIR TEMPLATE TEMPLATE_ASSETS_PATH
     local BUILD_CONTEXT_TARGET_OUTPUT_REL BUILD_CONTEXT_SOURCE_ROOT CONFIG_FILE_DIR TARGET_NAME TARGET_TEMPLATE_SOURCE TEMPLATE_OVERRIDE TEMPLATE_OVERRIDES_TEXT
@@ -5871,6 +5923,84 @@ function marsh_test {
             fi
             rm -rf "${ARCHIVE_PLAN_ROOT}"
             ;;
+        marsh_load_target_build_metadata:0)
+            TEST_NAME+=":minimal"
+            MARSH_TEST_TARGET_BUILD_MIN_Path="/site/minimal"
+            ACTUAL=$(marsh_test_capture_target_build_metadata "MARSH_TEST_TARGET_BUILD_MIN_")
+            EXPECTED=$(printf '%s\n' \
+                'TARGET_PATH=/site/minimal' \
+                'TARGET_NAME=' \
+                'TARGET_SOURCE=' \
+                'TARGET_FORCE=' \
+                'TARGET_SITEMAP=' \
+                'TARGET_SITEMAP_SEARCH=' \
+                'TARGET_TEMPLATE_SOURCE=' \
+                'TARGET_TEMPLATE=' \
+                'TARGET_TEMPLATE_ASSETS_PATH=')
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            unset MARSH_TEST_TARGET_BUILD_MIN_Path
+            ;;
+        marsh_load_target_build_metadata:1)
+            TEST_NAME+=":template_fields"
+            MARSH_TEST_TARGET_BUILD_Path="/site/output"
+            MARSH_TEST_TARGET_BUILD_Name="Main Site"
+            MARSH_TEST_TARGET_BUILD_Source="source/www"
+            MARSH_TEST_TARGET_BUILD_Force="true"
+            MARSH_TEST_TARGET_BUILD_Sitemap_Source="site-map/index.markdown"
+            MARSH_TEST_TARGET_BUILD_Sitemap_Search="true"
+            MARSH_TEST_TARGET_BUILD_Template_Source="templates/default"
+            MARSH_TEST_TARGET_BUILD_Template_Assets_Path="assets/site"
+            MARSH_TEST_TARGET_BUILD_Template_Overrides_0="foo=foo"
+            MARSH_TEST_TARGET_BUILD_Template_Overrides_1=""
+            MARSH_TEST_TARGET_BUILD_Template_Overrides_2="bar=bar"
+            ACTUAL=$(marsh_test_capture_target_build_metadata "MARSH_TEST_TARGET_BUILD_")
+            EXPECTED=$(printf '%s\n' \
+                'TARGET_PATH=/site/output' \
+                'TARGET_NAME=Main Site' \
+                'TARGET_SOURCE=source/www' \
+                'TARGET_FORCE=true' \
+                'TARGET_SITEMAP=site-map/index.markdown' \
+                'TARGET_SITEMAP_SEARCH=true' \
+                'TARGET_TEMPLATE_SOURCE=templates/default' \
+                'TARGET_TEMPLATE=d1af1f096150eef65e4232d10be08968' \
+                'TARGET_TEMPLATE_ASSETS_PATH=assets/site' \
+                'TARGET_TEMPLATE_OVERRIDE=foo=foo' \
+                'TARGET_TEMPLATE_OVERRIDE=bar=bar')
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            unset MARSH_TEST_TARGET_BUILD_Path MARSH_TEST_TARGET_BUILD_Name MARSH_TEST_TARGET_BUILD_Source
+            unset MARSH_TEST_TARGET_BUILD_Force MARSH_TEST_TARGET_BUILD_Sitemap_Source
+            unset MARSH_TEST_TARGET_BUILD_Sitemap_Search MARSH_TEST_TARGET_BUILD_Template_Source
+            unset MARSH_TEST_TARGET_BUILD_Template_Assets_Path
+            unset MARSH_TEST_TARGET_BUILD_Template_Overrides_0 MARSH_TEST_TARGET_BUILD_Template_Overrides_1
+            unset MARSH_TEST_TARGET_BUILD_Template_Overrides_2
+            ;;
+        marsh_load_target_build_metadata:2)
+            TEST_NAME+=":missing_target"
+            marsh_load_target_build_metadata \
+                "MARSH_TEST_TARGET_BUILD_MISSING_" \
+                "TARGET_PATH" \
+                "TARGET_NAME" \
+                "TARGET_SOURCE" \
+                "TARGET_FORCE" \
+                "TARGET_SITEMAP" \
+                "TARGET_SITEMAP_SEARCH" \
+                "TARGET_TEMPLATE_SOURCE" \
+                "TARGET_TEMPLATE" \
+                "TARGET_TEMPLATE_ASSETS_PATH" \
+                "TARGET_TEMPLATE_OVERRIDES_TEXT" 2>/dev/null
+            ACTUAL=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" -eq "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
         marsh_load_target_plan_build_context:0)
             TEST_NAME+=":loads_valid_context"
             TARGET_PLAN_ROOT="${TEST_TEMP_PREFIX}.target-plan"
@@ -9541,6 +9671,7 @@ KNOWN_FUNCTIONS=(
     marsh_lock_release
     marsh_lock_wait
     marsh_load_archive_plan_build_context
+    marsh_load_target_build_metadata
     marsh_load_target_plan_build_context
     marsh_load_target_source_value
     marsh_normalize_internal_path

@@ -558,7 +558,18 @@ function marsh_cli {
         TARGET_COUNT=0
         TARGET_COUNT_INDEX=0
         TARGET_COUNT_PREFIX="CONFIG_Build_Targets_${TARGET_COUNT_INDEX}_"
-        while marsh_get_target_metadata "${TARGET_COUNT_PREFIX}" "TARGET_" >/dev/null; do
+        while marsh_load_target_build_metadata \
+                    "${TARGET_COUNT_PREFIX}" \
+                    "TARGET_PATH" \
+                    "TARGET_NAME" \
+                    "TARGET_SOURCE" \
+                    "TARGET_FORCE" \
+                    "TARGET_SITEMAP" \
+                    "TARGET_SITEMAP_SEARCH" \
+                    "TARGET_TEMPLATE_SOURCE" \
+                    "TARGET_TEMPLATE" \
+                    "TARGET_TEMPLATE_ASSETS_PATH" \
+                    "TARGET_TEMPLATE_OVERRIDES_TEXT" >/dev/null; do
             TARGET_COUNT=$((TARGET_COUNT + 1))
             TARGET_COUNT_INDEX=$((TARGET_COUNT_INDEX + 1))
             TARGET_COUNT_PREFIX="CONFIG_Build_Targets_${TARGET_COUNT_INDEX}_"
@@ -576,14 +587,29 @@ function marsh_cli {
         INDEX=0
         TARGET_NUMBER=1
         PREFIX="CONFIG_Build_Targets_${INDEX}_"
-        while META=$(marsh_get_target_metadata "${PREFIX}" "TARGET_"); do
+        while marsh_load_target_build_metadata \
+                    "${PREFIX}" \
+                    "TARGET_PATH" \
+                    "TARGET_NAME" \
+                    "TARGET_SOURCE" \
+                    "TARGET_FORCE" \
+                    "TARGET_SITEMAP" \
+                    "TARGET_SITEMAP_SEARCH" \
+                    "TARGET_TEMPLATE_SOURCE" \
+                    "TARGET_TEMPLATE" \
+                    "TARGET_TEMPLATE_ASSETS_PATH" \
+                    "TARGET_TEMPLATE_OVERRIDES_TEXT"; do
             TARGET_START_TIME=$(marsh_get_shell_timestamp) || die_gracefully
             if [[ "${BUILD_START_TIME:-}" == "" ]]; then
                 BUILD_START_TIME="${TARGET_START_TIME}"
             fi
-            META_VARS=$(echo "${META}" | marsh_get_variables)
-            eval "$(printf '%s\n' "${META_VARS}" | marsh_get_local_declarations)"
-            eval "${META}"
+            TARGET_TEMPLATE_OVERRIDES=()
+            if [[ "${TARGET_TEMPLATE_OVERRIDES_TEXT}" != "" ]]; then
+                while IFS= read -r TARGET_TEMPLATE_OVERRIDE; do
+                    [[ "${TARGET_TEMPLATE_OVERRIDE}" == "" ]] && continue
+                    TARGET_TEMPLATE_OVERRIDES+=("${TARGET_TEMPLATE_OVERRIDE}")
+                done <<< "${TARGET_TEMPLATE_OVERRIDES_TEXT}"
+            fi
             if marsh_should_log "info" "${LOG_LEVEL}" "${LOG_LEVELS_CSV}"; then
                 echo "Building target ${TARGET_NUMBER}: ${TARGET_NAME:-}"
                 echo "Target ${TARGET_NUMBER}: planning build"
@@ -3560,6 +3586,91 @@ function marsh_write_target_plan_context {  # marsh_write_target_plan_context ta
         rm -f "${CONTEXT_TEMP}"
         return 1
     }
+}
+
+# loads the build target metadata for one target prefix
+function marsh_load_target_build_metadata {  # marsh_load_target_build_metadata source_prefix target_path_var target_name_var target_source_var target_force_var target_sitemap_var target_sitemap_search_var target_template_source_var target_template_var target_template_assets_path_var target_template_overrides_text_var
+    local SOURCE_PREFIX TARGET_PATH_VAR TARGET_NAME_VAR TARGET_SOURCE_VAR TARGET_FORCE_VAR TARGET_SITEMAP_VAR TARGET_SITEMAP_SEARCH_VAR
+    local TARGET_TEMPLATE_SOURCE_VAR TARGET_TEMPLATE_VAR TARGET_TEMPLATE_ASSETS_PATH_VAR TARGET_TEMPLATE_OVERRIDES_TEXT_VAR
+    local TARGET_PATH_NAME TARGET_NAME_NAME TARGET_SOURCE_NAME TARGET_FORCE_NAME TARGET_SITEMAP_NAME TARGET_SITEMAP_SOURCE_NAME TARGET_SITEMAP_SEARCH_NAME
+    local TARGET_TEMPLATE_SOURCE_NAME TARGET_TEMPLATE_ASSETS_PATH_NAME TARGET_TEMPLATE_OVERRIDE TARGET_TEMPLATE_OVERRIDES_JOINED OIFS
+    local TARGET_PATH_VALUE TARGET_NAME_VALUE TARGET_SOURCE_VALUE TARGET_FORCE_VALUE TARGET_SITEMAP_VALUE TARGET_SITEMAP_SEARCH_VALUE
+    local TARGET_TEMPLATE_SOURCE_VALUE TARGET_TEMPLATE_VALUE TARGET_TEMPLATE_ASSETS_PATH_VALUE
+
+    SOURCE_PREFIX="${1:-}"
+    TARGET_PATH_VAR="${2:-}"
+    TARGET_NAME_VAR="${3:-}"
+    TARGET_SOURCE_VAR="${4:-}"
+    TARGET_FORCE_VAR="${5:-}"
+    TARGET_SITEMAP_VAR="${6:-}"
+    TARGET_SITEMAP_SEARCH_VAR="${7:-}"
+    TARGET_TEMPLATE_SOURCE_VAR="${8:-}"
+    TARGET_TEMPLATE_VAR="${9:-}"
+    TARGET_TEMPLATE_ASSETS_PATH_VAR="${10:-}"
+    TARGET_TEMPLATE_OVERRIDES_TEXT_VAR="${11:-}"
+    [[ "${SOURCE_PREFIX}" == "" ]] && return 1
+    [[ "${TARGET_PATH_VAR}" == "" ]] && return 1
+    [[ "${TARGET_NAME_VAR}" == "" ]] && return 1
+    [[ "${TARGET_SOURCE_VAR}" == "" ]] && return 1
+    [[ "${TARGET_FORCE_VAR}" == "" ]] && return 1
+    [[ "${TARGET_SITEMAP_VAR}" == "" ]] && return 1
+    [[ "${TARGET_SITEMAP_SEARCH_VAR}" == "" ]] && return 1
+    [[ "${TARGET_TEMPLATE_SOURCE_VAR}" == "" ]] && return 1
+    [[ "${TARGET_TEMPLATE_VAR}" == "" ]] && return 1
+    [[ "${TARGET_TEMPLATE_ASSETS_PATH_VAR}" == "" ]] && return 1
+    [[ "${TARGET_TEMPLATE_OVERRIDES_TEXT_VAR}" == "" ]] && return 1
+
+    TARGET_PATH_NAME="${SOURCE_PREFIX}Path"
+    [[ -z ${!TARGET_PATH_NAME+isset} ]] && return 1
+    TARGET_NAME_NAME="${SOURCE_PREFIX}Name"
+    TARGET_SOURCE_NAME="${SOURCE_PREFIX}Source"
+    TARGET_FORCE_NAME="${SOURCE_PREFIX}Force"
+    TARGET_SITEMAP_NAME="${SOURCE_PREFIX}Sitemap"
+    TARGET_SITEMAP_SOURCE_NAME="${SOURCE_PREFIX}Sitemap_Source"
+    TARGET_SITEMAP_SEARCH_NAME="${SOURCE_PREFIX}Sitemap_Search"
+    TARGET_TEMPLATE_SOURCE_NAME="${SOURCE_PREFIX}Template_Source"
+    TARGET_TEMPLATE_ASSETS_PATH_NAME="${SOURCE_PREFIX}Template_Assets_Path"
+
+    TARGET_PATH_VALUE="${!TARGET_PATH_NAME}"
+    TARGET_NAME_VALUE="${!TARGET_NAME_NAME:-}"
+    TARGET_SOURCE_VALUE="${!TARGET_SOURCE_NAME:-}"
+    TARGET_FORCE_VALUE="${!TARGET_FORCE_NAME:-}"
+    TARGET_SITEMAP_VALUE="${!TARGET_SITEMAP_SOURCE_NAME:-}"
+    if [[ "${TARGET_SITEMAP_VALUE}" == "" ]]; then
+        TARGET_SITEMAP_VALUE="${!TARGET_SITEMAP_NAME:-}"
+    fi
+    TARGET_SITEMAP_SEARCH_VALUE="${!TARGET_SITEMAP_SEARCH_NAME:-}"
+    TARGET_TEMPLATE_SOURCE_VALUE="${!TARGET_TEMPLATE_SOURCE_NAME:-}"
+    TARGET_TEMPLATE_ASSETS_PATH_VALUE="${!TARGET_TEMPLATE_ASSETS_PATH_NAME:-}"
+    TARGET_TEMPLATE_VALUE=""
+    if [[ "${TARGET_TEMPLATE_SOURCE_VALUE}" != "" ]]; then
+        TARGET_TEMPLATE_VALUE=$(marsh_get_template_cache_name "${TARGET_TEMPLATE_SOURCE_VALUE}") || return 1
+    fi
+
+    TARGET_TEMPLATE_OVERRIDES_JOINED=""
+    while IFS= read -r TARGET_TEMPLATE_OVERRIDE; do
+        [[ "${TARGET_TEMPLATE_OVERRIDE}" == "" ]] && continue
+        if [[ "${TARGET_TEMPLATE_OVERRIDES_JOINED}" == "" ]]; then
+            TARGET_TEMPLATE_OVERRIDES_JOINED="${TARGET_TEMPLATE_OVERRIDE}"
+        else
+            OIFS="${IFS}"
+            IFS=$'\n'
+            TARGET_TEMPLATE_OVERRIDES_JOINED+=$'\n'"${TARGET_TEMPLATE_OVERRIDE}"
+            IFS="${OIFS}"
+        fi
+    done < <(marsh_get_flatarray_values "${SOURCE_PREFIX}Template_Overrides_") || return 1
+
+    # write target build fields into caller-owned locals
+    printf -v "${TARGET_PATH_VAR}" '%s' "${TARGET_PATH_VALUE}"
+    printf -v "${TARGET_NAME_VAR}" '%s' "${TARGET_NAME_VALUE}"
+    printf -v "${TARGET_SOURCE_VAR}" '%s' "${TARGET_SOURCE_VALUE}"
+    printf -v "${TARGET_FORCE_VAR}" '%s' "${TARGET_FORCE_VALUE}"
+    printf -v "${TARGET_SITEMAP_VAR}" '%s' "${TARGET_SITEMAP_VALUE}"
+    printf -v "${TARGET_SITEMAP_SEARCH_VAR}" '%s' "${TARGET_SITEMAP_SEARCH_VALUE}"
+    printf -v "${TARGET_TEMPLATE_SOURCE_VAR}" '%s' "${TARGET_TEMPLATE_SOURCE_VALUE}"
+    printf -v "${TARGET_TEMPLATE_VAR}" '%s' "${TARGET_TEMPLATE_VALUE}"
+    printf -v "${TARGET_TEMPLATE_ASSETS_PATH_VAR}" '%s' "${TARGET_TEMPLATE_ASSETS_PATH_VALUE}"
+    printf -v "${TARGET_TEMPLATE_OVERRIDES_TEXT_VAR}" '%s' "${TARGET_TEMPLATE_OVERRIDES_JOINED}"
 }
 
 # loads the fixed-shape target plan context used by the planned target executor

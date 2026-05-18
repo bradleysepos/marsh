@@ -65,7 +65,7 @@ function marsh_cli {
     local TARGET_COUNT TARGET_COUNT_INDEX TARGET_COUNT_PREFIX TARGET_NUMBER
     local BUILD_START_TIME BUILD_END_TIME BUILD_ELAPSED
     local TARGET_START_TIME TARGET_END_TIME TARGET_ELAPSED
-    local TARGET_ARCHIVE_MANIFEST
+    local TARGET_ARCHIVE_MANIFEST TARGET_ARCHIVE_RECORD
     local TARGET_ARCHIVE_TEMPLATE TARGET_ARCHIVE_TEMPLATE_SOURCE TARGET_ARCHIVE_TEMPLATE_ASSETS_PATH
     local SITE_SOURCE_ROOT TARGET_SOURCE_ROOT TARGET_SITEMAP_SEARCH
     local TARGET_PLAN_ROOT
@@ -75,7 +75,7 @@ function marsh_cli {
     local BUILD_TEMPLATE_OVERRIDE_INDEX
     local COMMAND_STATUS
     local -a COMMANDS OPTARRAY DEPS MARKDOWN_OPTIONS MARKDOWN_FILEEXT MARKDOWN_OPTIONS_CLIARGS MARKDOWN_UNKNOWN
-    local -a TARGET_ARCHIVE_TYPES TARGET_ARCHIVE_EXCLUDED_STATES TARGET_ARCHIVE_TEMPLATE_OVERRIDES BUILD_TEMPLATE_OVERRIDES
+    local -a TARGET_ARCHIVE_RECORDS TARGET_ARCHIVE_TYPES TARGET_ARCHIVE_EXCLUDED_STATES TARGET_ARCHIVE_TEMPLATE_OVERRIDES BUILD_TEMPLATE_OVERRIDES
 
     # args with help
     LOG_LEVELS=('info' 'verbose')
@@ -614,6 +614,12 @@ function marsh_cli {
             BUILD_CONTEXT_TARGET_OUTPUT_REL="${TARGET_PATH}"
             [[ "${TARGET_SOURCE:-}" != "" ]] || BUILD_CONTEXT_SOURCE_ROOT=""
 
+            TARGET_ARCHIVE_RECORDS=()
+            while IFS= read -r TARGET_ARCHIVE_RECORD; do
+                [[ "${TARGET_ARCHIVE_RECORD}" == "" ]] && continue
+                TARGET_ARCHIVE_RECORDS+=("${TARGET_ARCHIVE_RECORD}")
+            done < <(marsh_get_target_archive_records "${PREFIX}") || die_gracefully
+
             TARGET_PLAN_ROOT=$(marsh_plan_target \
                         "${SITE_SOURCE_ROOT}" \
                         "${MARSH_CONFIG_PATH}" \
@@ -631,7 +637,9 @@ function marsh_cli {
                         "${MARKDOWN_FILEEXT_CSV}" \
                         "${MARSH_CONFIG_FILE_DIR}" \
                         "${TARGET_NAME}" \
-                        "${TARGET_TEMPLATE_SOURCE:-}") || die_gracefully
+                        "${TARGET_TEMPLATE_SOURCE:-}" \
+                        "${#TARGET_ARCHIVE_RECORDS[@]}" \
+                        "${TARGET_ARCHIVE_RECORDS[@]}") || die_gracefully
 
             marsh_build_planned_target \
                         "${MARSH_CONFIG_PATH}" \
@@ -3333,14 +3341,14 @@ function marsh_get_target_temp_root {  # marsh_get_target_temp_root target_outpu
 }
 
 # aggregates planner-owned target work under a target-local plan root
-function marsh_plan_target {  # marsh_plan_target site_source_root site_output_root target force source sitemap sitemap_search templates_dir template #template_overrides[@] template_overrides[@] template_assets_path build_context_source_root markdown_fileext_csv [config_file_dir] [target_name] [target_template_source]
+function marsh_plan_target {  # marsh_plan_target site_source_root site_output_root target force source sitemap sitemap_search templates_dir template #template_overrides[@] template_overrides[@] template_assets_path build_context_source_root markdown_fileext_csv [config_file_dir] [target_name] [target_template_source] [#target_archive_records[@]] [target_archive_records[@]]
     local SITE_SOURCE_ROOT SITE_OUTPUT_ROOT TARGET FORCE SOURCE SITEMAP SITEMAP_SEARCH TEMPLATES_DIR TEMPLATE
-    local NUM_TEMPLATE_OVERRIDES TEMPLATE_ASSETS_PATH BUILD_CONTEXT_SOURCE_ROOT MARKDOWN_FILEEXT_CSV
+    local NUM_TEMPLATE_OVERRIDES NUM_TARGET_ARCHIVE_RECORDS TEMPLATE_ASSETS_PATH BUILD_CONTEXT_SOURCE_ROOT MARKDOWN_FILEEXT_CSV
     local CONFIG_FILE_DIR TARGET_NAME TARGET_TEMPLATE_SOURCE
     local TARGET_OUTPUT_REL TARGET_OUTPUT_ROOT TARGET_PLAN_ROOT
     local PLAN_RECORD TARGET_ARCHIVE_PLAN_ROOT
     local SOURCE_SCOPE_ROOT BUILD_CONTEXT_COMPARE_SOURCE_ROOT
-    local -a TEMPLATE_OVERRIDES SOURCE_INVENTORY_RECORDS DOCUMENT_RECORDS SOURCE_ASSET_RECORDS SITEMAP_RECORDS ARCHIVE_PLAN_ROOTS
+    local -a TEMPLATE_OVERRIDES TARGET_ARCHIVE_RECORDS SOURCE_INVENTORY_RECORDS DOCUMENT_RECORDS SOURCE_ASSET_RECORDS SITEMAP_RECORDS ARCHIVE_PLAN_ROOTS
 
     SITE_SOURCE_ROOT="${1:-}"
     SITE_OUTPUT_ROOT="${2:-}"
@@ -3368,6 +3376,19 @@ function marsh_plan_target {  # marsh_plan_target site_source_root site_output_r
     CONFIG_FILE_DIR="${4:-}"
     TARGET_NAME="${5:-}"
     TARGET_TEMPLATE_SOURCE="${6:-}"
+    NUM_TARGET_ARCHIVE_RECORDS=0
+    if [[ "${#@}" -gt 6 ]]; then
+        NUM_TARGET_ARCHIVE_RECORDS="${7:-0}"
+        shift 7
+    else
+        shift "${#@}"
+    fi
+    TARGET_ARCHIVE_RECORDS=()
+    while [[ "${NUM_TARGET_ARCHIVE_RECORDS}" -gt 0 ]] && [[ "${#@}" -gt 0 ]]; do
+        TARGET_ARCHIVE_RECORDS+=("${1}")
+        NUM_TARGET_ARCHIVE_RECORDS=$((NUM_TARGET_ARCHIVE_RECORDS - 1))
+        shift 1
+    done
     [[ "${MARKDOWN_FILEEXT_CSV}" == "" ]] && return 1
 
     TARGET_OUTPUT_REL="${TARGET%/}"
@@ -3458,6 +3479,8 @@ function marsh_plan_target {  # marsh_plan_target site_source_root site_output_r
         "${TEMPLATE_ASSETS_PATH}" \
         "${TARGET_OUTPUT_REL}" \
         "${BUILD_CONTEXT_SOURCE_ROOT}" \
+        "${#TARGET_ARCHIVE_RECORDS[@]}" \
+        "${TARGET_ARCHIVE_RECORDS[@]}" \
         "${#TEMPLATE_OVERRIDES[@]}" \
         "${TEMPLATE_OVERRIDES[@]}" \
         "${DOCUMENT_RECORDS[@]}") || return 1
@@ -7876,6 +7899,96 @@ function marsh_get_archive_temp_path {  # marsh_get_archive_temp_path target_out
     esac
 }
 
+# emits one archive-planning record per configured target archive
+function marsh_get_target_archive_records {  # marsh_get_target_archive_records source_prefix
+    local SOURCE_PREFIX TARGET_PATH_NAME
+    local II SEP OIFS
+    local ARCHIVE_PATH_NAME ARCHIVE_ENCODING_NAME ARCHIVE_NAME_NAME ARCHIVE_LANGUAGE_NAME ARCHIVE_LANGUAGE_CODE_NAME ARCHIVE_ROOT_PATH_NAME
+    local ARCHIVE_COUNT_NAME ARCHIVE_PAGE_SIZE_NAME ARCHIVE_CONTENT_NAME ARCHIVE_TEMPLATE_SOURCE_NAME ARCHIVE_TEMPLATE_ASSETS_PATH_NAME
+    local ARCHIVE_TYPES_JOINED ARCHIVE_EXCLUDED_STATES_JOINED ARCHIVE_TEMPLATE_OVERRIDES_JOINED ARCHIVE_TEMPLATE_VALUE
+    local -a ARCHIVE_TYPES ARCHIVE_EXCLUDED_STATES ARCHIVE_TEMPLATE_OVERRIDES
+
+    SOURCE_PREFIX="${1:-}"
+    [[ "${SOURCE_PREFIX}" == "" ]] && return 1
+
+    TARGET_PATH_NAME="${SOURCE_PREFIX}Path"
+    [[ -z ${!TARGET_PATH_NAME+isset} ]] && return 1
+
+    SEP=$(printf '\034')
+    II=0
+    ARCHIVE_PATH_NAME="${SOURCE_PREFIX}Archives_${II}_Path"
+    ARCHIVE_ENCODING_NAME="${SOURCE_PREFIX}Archives_${II}_Encoding"
+    ARCHIVE_NAME_NAME="${SOURCE_PREFIX}Archives_${II}_Name"
+    ARCHIVE_LANGUAGE_NAME="${SOURCE_PREFIX}Archives_${II}_Language"
+    ARCHIVE_LANGUAGE_CODE_NAME="${SOURCE_PREFIX}Archives_${II}_Language_Code"
+    ARCHIVE_ROOT_PATH_NAME="${SOURCE_PREFIX}Archives_${II}_Root_Path"
+    ARCHIVE_COUNT_NAME="${SOURCE_PREFIX}Archives_${II}_Count"
+    ARCHIVE_PAGE_SIZE_NAME="${SOURCE_PREFIX}Archives_${II}_Page_Size"
+    ARCHIVE_CONTENT_NAME="${SOURCE_PREFIX}Archives_${II}_Content"
+    ARCHIVE_TEMPLATE_SOURCE_NAME="${SOURCE_PREFIX}Archives_${II}_Template_Source"
+    ARCHIVE_TEMPLATE_ASSETS_PATH_NAME="${SOURCE_PREFIX}Archives_${II}_Template_Assets_Path"
+    while [[ "${!ARCHIVE_PATH_NAME:-}" != "" ]]; do
+        ARCHIVE_TYPES=()
+        while IFS= read -r ARCHIVE_TYPE; do
+            ARCHIVE_TYPES+=("${ARCHIVE_TYPE}")
+        done < <(marsh_get_flatarray_values "${SOURCE_PREFIX}Archives_${II}_Types_")
+
+        ARCHIVE_EXCLUDED_STATES=()
+        while IFS= read -r ARCHIVE_EXCLUDED_STATE; do
+            ARCHIVE_EXCLUDED_STATES+=("${ARCHIVE_EXCLUDED_STATE}")
+        done < <(marsh_get_flatarray_values "${SOURCE_PREFIX}Archives_${II}_Exclude_States_")
+
+        ARCHIVE_TEMPLATE_OVERRIDES=()
+        while IFS= read -r ARCHIVE_TEMPLATE_OVERRIDE; do
+            ARCHIVE_TEMPLATE_OVERRIDES+=("${ARCHIVE_TEMPLATE_OVERRIDE}")
+        done < <(marsh_get_flatarray_values "${SOURCE_PREFIX}Archives_${II}_Template_Overrides_")
+
+        OIFS="${IFS}"
+        IFS="${SEP}"
+        ARCHIVE_TYPES_JOINED="${ARCHIVE_TYPES[*]}"
+        ARCHIVE_EXCLUDED_STATES_JOINED="${ARCHIVE_EXCLUDED_STATES[*]}"
+        ARCHIVE_TEMPLATE_OVERRIDES_JOINED="${ARCHIVE_TEMPLATE_OVERRIDES[*]}"
+        IFS="${OIFS}"
+
+        ARCHIVE_TEMPLATE_VALUE=""
+        if [[ "${!ARCHIVE_TEMPLATE_SOURCE_NAME:-}" != "" ]]; then
+            ARCHIVE_TEMPLATE_VALUE=$(marsh_get_template_cache_name "${!ARCHIVE_TEMPLATE_SOURCE_NAME}") || return 1
+        fi
+
+        printf '%s\034%s\034%s\034%s\034%s\034%s\034%s\034%s\034%s\034%s\034%s\034%s\034%s\034%s\034%s\n' \
+            "${!ARCHIVE_PATH_NAME}" \
+            "${!ARCHIVE_ENCODING_NAME:-}" \
+            "${!ARCHIVE_NAME_NAME:-}" \
+            "${!ARCHIVE_LANGUAGE_NAME:-}" \
+            "${!ARCHIVE_LANGUAGE_CODE_NAME:-}" \
+            "${!ARCHIVE_ROOT_PATH_NAME:-}" \
+            "${!ARCHIVE_COUNT_NAME:-}" \
+            "${!ARCHIVE_PAGE_SIZE_NAME:-}" \
+            "${!ARCHIVE_CONTENT_NAME:-}" \
+            "${ARCHIVE_TYPES_JOINED}" \
+            "${ARCHIVE_EXCLUDED_STATES_JOINED}" \
+            "${!ARCHIVE_TEMPLATE_SOURCE_NAME:-}" \
+            "${!ARCHIVE_TEMPLATE_ASSETS_PATH_NAME:-}" \
+            "${ARCHIVE_TEMPLATE_OVERRIDES_JOINED}" \
+            "${ARCHIVE_TEMPLATE_VALUE}"
+
+        II=$((II + 1))
+        ARCHIVE_PATH_NAME="${SOURCE_PREFIX}Archives_${II}_Path"
+        ARCHIVE_ENCODING_NAME="${SOURCE_PREFIX}Archives_${II}_Encoding"
+        ARCHIVE_NAME_NAME="${SOURCE_PREFIX}Archives_${II}_Name"
+        ARCHIVE_LANGUAGE_NAME="${SOURCE_PREFIX}Archives_${II}_Language"
+        ARCHIVE_LANGUAGE_CODE_NAME="${SOURCE_PREFIX}Archives_${II}_Language_Code"
+        ARCHIVE_ROOT_PATH_NAME="${SOURCE_PREFIX}Archives_${II}_Root_Path"
+        ARCHIVE_COUNT_NAME="${SOURCE_PREFIX}Archives_${II}_Count"
+        ARCHIVE_PAGE_SIZE_NAME="${SOURCE_PREFIX}Archives_${II}_Page_Size"
+        ARCHIVE_CONTENT_NAME="${SOURCE_PREFIX}Archives_${II}_Content"
+        ARCHIVE_TEMPLATE_SOURCE_NAME="${SOURCE_PREFIX}Archives_${II}_Template_Source"
+        ARCHIVE_TEMPLATE_ASSETS_PATH_NAME="${SOURCE_PREFIX}Archives_${II}_Template_Assets_Path"
+    done
+
+    return 0
+}
+
 # plans target archive page generation
 function marsh_plan_archive_pages {  # marsh_plan_archive_pages target_output_root encoding archive_source archive_title language langcode count page_size #types[@] types[@] #excluded_states[@] excluded_states[@] archive_manifest archive_root_path templates_dir template sitemap sitemap_search #template_overrides[@] template_overrides[@] template_assets_path build_context_target_output_rel build_context_source_root
     local TARGET_OUTPUT_ROOT ENCODING ARCHIVE_SOURCE ARCHIVE_TITLE LANGUAGE LANGCODE COUNT PAGE_SIZE
@@ -8010,17 +8123,18 @@ function marsh_plan_archive_pages {  # marsh_plan_archive_pages target_output_ro
 }
 
 # plans all archives configured for one target
-function marsh_plan_target_archives {  # marsh_plan_target_archives site_output_root markdown_fileext_csv target_plan_root target_output_rel config_file_dir templates_dir target_name sitemap sitemap_search template target_template_source template_assets_path build_context_target_output_rel build_context_source_root #template_overrides[@] template_overrides[@] [document_records[@]]
+function marsh_plan_target_archives {  # marsh_plan_target_archives site_output_root markdown_fileext_csv target_plan_root target_output_rel config_file_dir templates_dir target_name sitemap sitemap_search template target_template_source template_assets_path build_context_target_output_rel build_context_source_root #target_archive_records[@] target_archive_records[@] #template_overrides[@] template_overrides[@] [document_records[@]]
     local SITE_OUTPUT_ROOT MARKDOWN_FILEEXT_CSV TARGET_PLAN_ROOT TARGET_OUTPUT_ROOT TARGET_OUTPUT_REL
     local CONFIG_FILE_DIR TEMPLATES_DIR TARGET_NAME TARGET_SITEMAP TARGET_SITEMAP_SEARCH TEMPLATE TARGET_TEMPLATE_SOURCE TEMPLATE_ASSETS_PATH BUILD_CONTEXT_TARGET_OUTPUT_REL BUILD_CONTEXT_SOURCE_ROOT
-    local NUM_TEMPLATE_OVERRIDES
+    local NUM_TARGET_ARCHIVE_RECORDS NUM_TEMPLATE_OVERRIDES
     local TARGET_ARCHIVE_MANIFEST TARGET_ARCHIVE_PLAN_ROOT
+    local TARGET_ARCHIVE_RECORD TARGET_ARCHIVE_RECORD_EXTRA
+    local TARGET_ARCHIVE_PATH TARGET_ARCHIVE_ENCODING TARGET_ARCHIVE_NAME_VALUE TARGET_ARCHIVE_LANGUAGE_VALUE TARGET_ARCHIVE_LANGUAGE_CODE_VALUE TARGET_ARCHIVE_ROOT TARGET_ARCHIVE_COUNT_VALUE TARGET_ARCHIVE_PAGE_SIZE_VALUE TARGET_ARCHIVE_CONTENT_VALUE
+    local TARGET_ARCHIVE_TYPES_JOINED TARGET_ARCHIVE_EXCLUDED_STATES_JOINED TARGET_ARCHIVE_TEMPLATE_SOURCE_VALUE TARGET_ARCHIVE_TEMPLATE_ASSETS_PATH_VALUE TARGET_ARCHIVE_TEMPLATE_OVERRIDES_JOINED TARGET_ARCHIVE_TEMPLATE_VALUE
+    local TARGET_ARCHIVE_COMPARE_RECORD TARGET_ARCHIVE_COMPARE_RECORD_EXTRA TARGET_ARCHIVE_COMPARE_PATH TARGET_ARCHIVE_COMPARE_TYPES_JOINED TARGET_ARCHIVE_COMPARE_EXCLUDED_STATES_JOINED
     local TARGET_ARCHIVE_TEMPLATE TARGET_ARCHIVE_TEMPLATE_SOURCE TARGET_ARCHIVE_TEMPLATE_ASSETS_PATH
-    local TARGET_ARCHIVE_ROOT TARGET_ARCHIVE_TYPES_KEY TARGET_ARCHIVE_EXCLUDED_STATES_KEY
-    local TARGET_ARCHIVE_COMPARE_TYPES_KEY TARGET_ARCHIVE_COMPARE_EXCLUDED_STATES_KEY
     local I J OIFS
-    local -a TEMPLATE_OVERRIDES DOCUMENT_RECORDS_IN TARGET_ARCHIVE_TYPES TARGET_ARCHIVE_EXCLUDED_STATES TARGET_ARCHIVE_TEMPLATE_OVERRIDES
-    local -a TARGET_ARCHIVE_GROUP_PATHS TARGET_ARCHIVE_COMPARE_TYPES TARGET_ARCHIVE_COMPARE_EXCLUDED_STATES
+    local -a TARGET_ARCHIVE_RECORDS TEMPLATE_OVERRIDES DOCUMENT_RECORDS_IN TARGET_ARCHIVE_TYPES TARGET_ARCHIVE_EXCLUDED_STATES TARGET_ARCHIVE_TEMPLATE_OVERRIDES TARGET_ARCHIVE_GROUP_PATHS
 
     SITE_OUTPUT_ROOT="${1:-}"
     MARKDOWN_FILEEXT_CSV="${2:-}"
@@ -8036,12 +8150,20 @@ function marsh_plan_target_archives {  # marsh_plan_target_archives site_output_
     TEMPLATE_ASSETS_PATH="${12:-}"
     BUILD_CONTEXT_TARGET_OUTPUT_REL="${13:-${TARGET_OUTPUT_REL}}"
     BUILD_CONTEXT_SOURCE_ROOT="${14:-}"
-    NUM_TEMPLATE_OVERRIDES="${15:-0}"
+    NUM_TARGET_ARCHIVE_RECORDS="${15:-0}"
     [[ "${SITE_OUTPUT_ROOT}" == "" ]] && return 1
     [[ "${MARKDOWN_FILEEXT_CSV}" == "" ]] && return 1
     [[ "${TARGET_PLAN_ROOT}" == "" ]] && return 1
     [[ "${TARGET_OUTPUT_REL}" == "" ]] && return 1
     shift 15
+    TARGET_ARCHIVE_RECORDS=()
+    while [[ "${NUM_TARGET_ARCHIVE_RECORDS}" -gt 0 ]] && [[ "${#@}" -gt 0 ]]; do
+        TARGET_ARCHIVE_RECORDS+=("${1}")
+        NUM_TARGET_ARCHIVE_RECORDS=$((NUM_TARGET_ARCHIVE_RECORDS - 1))
+        shift 1
+    done
+    NUM_TEMPLATE_OVERRIDES="${1:-0}"
+    shift 1
     TEMPLATE_OVERRIDES=()
     while [[ "${NUM_TEMPLATE_OVERRIDES}" -gt 0 ]] && [[ "${#@}" -gt 0 ]]; do
         TEMPLATE_OVERRIDES+=("${1}")
@@ -8052,7 +8174,7 @@ function marsh_plan_target_archives {  # marsh_plan_target_archives site_output_
 
     TARGET_OUTPUT_ROOT=$(marsh_get_target_directory_path "${SITE_OUTPUT_ROOT}/${TARGET_OUTPUT_REL}") || return 1
 
-    if [[ "${#TARGET_ARCHIVES[@]}" -eq 0 ]]; then
+    if [[ "${#TARGET_ARCHIVE_RECORDS[@]}" -eq 0 ]]; then
         return 0
     fi
 
@@ -8063,29 +8185,35 @@ function marsh_plan_target_archives {  # marsh_plan_target_archives site_output_
     # archives for the same target share the same manifest
     TARGET_ARCHIVE_MANIFEST="${TARGET_PLAN_ROOT}/archive-manifest"
 
-    for I in "${!TARGET_ARCHIVES[@]}"; do
-        [[ "${TARGET_ARCHIVES[$I]:-}" == "" ]] && continue
+    for I in "${!TARGET_ARCHIVE_RECORDS[@]}"; do
+        TARGET_ARCHIVE_RECORD="${TARGET_ARCHIVE_RECORDS[$I]:-}"
+        [[ "${TARGET_ARCHIVE_RECORD}" == "" ]] && continue
+        IFS=$(printf '\034') read -r TARGET_ARCHIVE_PATH TARGET_ARCHIVE_ENCODING TARGET_ARCHIVE_NAME_VALUE TARGET_ARCHIVE_LANGUAGE_VALUE TARGET_ARCHIVE_LANGUAGE_CODE_VALUE TARGET_ARCHIVE_ROOT TARGET_ARCHIVE_COUNT_VALUE TARGET_ARCHIVE_PAGE_SIZE_VALUE TARGET_ARCHIVE_CONTENT_VALUE TARGET_ARCHIVE_TYPES_JOINED TARGET_ARCHIVE_EXCLUDED_STATES_JOINED TARGET_ARCHIVE_TEMPLATE_SOURCE_VALUE TARGET_ARCHIVE_TEMPLATE_ASSETS_PATH_VALUE TARGET_ARCHIVE_TEMPLATE_OVERRIDES_JOINED TARGET_ARCHIVE_TEMPLATE_VALUE TARGET_ARCHIVE_RECORD_EXTRA <<< "${TARGET_ARCHIVE_RECORD}"
+        [[ "${TARGET_ARCHIVE_RECORD_EXTRA}" == "" ]] && [[ "${TARGET_ARCHIVE_PATH}" != "" ]] || {
+            echo "Malformed target archive record: ${TARGET_PLAN_ROOT}" >&2
+            return 1
+        }
 
-        # unpack per-archive selection arrays from their serialized metadata form
+        # unpack per-archive selection arrays from their serialized record form
         OIFS="${IFS}"
-        IFS=$(echo @|tr @ '\034')
-        TARGET_ARCHIVE_TYPES=(${TARGET_ARCHIVES_TYPES[$I]:-})
-        TARGET_ARCHIVE_EXCLUDED_STATES=(${TARGET_ARCHIVES_EXCLUDED_STATES[$I]:-})
-        TARGET_ARCHIVE_TEMPLATE_OVERRIDES=(${TARGET_ARCHIVES_TEMPLATE_OVERRIDES[$I]:-})
+        IFS=$(printf '\034')
+        TARGET_ARCHIVE_TYPES=(${TARGET_ARCHIVE_TYPES_JOINED:-})
+        TARGET_ARCHIVE_EXCLUDED_STATES=(${TARGET_ARCHIVE_EXCLUDED_STATES_JOINED:-})
+        TARGET_ARCHIVE_TEMPLATE_OVERRIDES=(${TARGET_ARCHIVE_TEMPLATE_OVERRIDES_JOINED:-})
         IFS="${OIFS}"
 
         # start from the target defaults, then let archive-specific settings override them
         TARGET_ARCHIVE_TEMPLATE="${TEMPLATE:-}"
         TARGET_ARCHIVE_TEMPLATE_SOURCE="${TARGET_TEMPLATE_SOURCE:-}"
         TARGET_ARCHIVE_TEMPLATE_ASSETS_PATH="${TEMPLATE_ASSETS_PATH:-}"
-        if [[ "${TARGET_ARCHIVES_TEMPLATE_SOURCE[$I]:-}" != "" ]]; then
-            TARGET_ARCHIVE_TEMPLATE="${TARGET_ARCHIVES_TEMPLATE[$I]:-}"
-            TARGET_ARCHIVE_TEMPLATE_SOURCE="${TARGET_ARCHIVES_TEMPLATE_SOURCE[$I]:-}"
+        if [[ "${TARGET_ARCHIVE_TEMPLATE_SOURCE_VALUE}" != "" ]]; then
+            TARGET_ARCHIVE_TEMPLATE="${TARGET_ARCHIVE_TEMPLATE_VALUE:-}"
+            TARGET_ARCHIVE_TEMPLATE_SOURCE="${TARGET_ARCHIVE_TEMPLATE_SOURCE_VALUE}"
         fi
-        if [[ "${TARGET_ARCHIVES_TEMPLATE_ASSETS_PATH[$I]:-}" != "" ]]; then
-            TARGET_ARCHIVE_TEMPLATE_ASSETS_PATH="${TARGET_ARCHIVES_TEMPLATE_ASSETS_PATH[$I]:-}"
+        if [[ "${TARGET_ARCHIVE_TEMPLATE_ASSETS_PATH_VALUE}" != "" ]]; then
+            TARGET_ARCHIVE_TEMPLATE_ASSETS_PATH="${TARGET_ARCHIVE_TEMPLATE_ASSETS_PATH_VALUE}"
         fi
-        if [[ "${TARGET_ARCHIVES_TEMPLATE_SOURCE[$I]:-}" == "" ]] && [[ "${TARGET_ARCHIVES_TEMPLATE_OVERRIDES[$I]:-}" == "" ]]; then
+        if [[ "${TARGET_ARCHIVE_TEMPLATE_SOURCE_VALUE}" == "" ]] && [[ "${TARGET_ARCHIVE_TEMPLATE_OVERRIDES_JOINED}" == "" ]]; then
             TARGET_ARCHIVE_TEMPLATE_OVERRIDES=("${TARGET_TEMPLATE_OVERRIDES[@]}")
         fi
         if [[ "${TARGET_ARCHIVE_TEMPLATE_SOURCE:-}" != "" ]]; then
@@ -8099,37 +8227,32 @@ function marsh_plan_target_archives {  # marsh_plan_target_archives site_output_
 
         # where no explicit archive root is configured, group archives that share the
         # same content selection so they derive a stable shared root path
-        TARGET_ARCHIVE_ROOT="${TARGET_ARCHIVES_ROOT_PATH[$I]:-}"
         if [[ "${TARGET_ARCHIVE_ROOT}" == "" ]]; then
             TARGET_ARCHIVE_GROUP_PATHS=()
-            TARGET_ARCHIVE_TYPES_KEY=$(printf '%s\034' "${TARGET_ARCHIVE_TYPES[@]}")
-            TARGET_ARCHIVE_EXCLUDED_STATES_KEY=$(printf '%s\034' "${TARGET_ARCHIVE_EXCLUDED_STATES[@]}")
-            for J in "${!TARGET_ARCHIVES[@]}"; do
-                [[ "${TARGET_ARCHIVES[$J]:-}" == "" ]] && continue
-                OIFS="${IFS}"
-                IFS=$(echo @|tr @ '\034')
-                TARGET_ARCHIVE_COMPARE_TYPES=(${TARGET_ARCHIVES_TYPES[$J]:-})
-                TARGET_ARCHIVE_COMPARE_EXCLUDED_STATES=(${TARGET_ARCHIVES_EXCLUDED_STATES[$J]:-})
-                IFS="${OIFS}"
-                TARGET_ARCHIVE_COMPARE_TYPES_KEY=$(printf '%s\034' "${TARGET_ARCHIVE_COMPARE_TYPES[@]}")
-                TARGET_ARCHIVE_COMPARE_EXCLUDED_STATES_KEY=$(printf '%s\034' "${TARGET_ARCHIVE_COMPARE_EXCLUDED_STATES[@]}")
-                if [[ "${TARGET_ARCHIVE_COMPARE_TYPES_KEY}" == "${TARGET_ARCHIVE_TYPES_KEY}" ]] && [[ "${TARGET_ARCHIVE_COMPARE_EXCLUDED_STATES_KEY}" == "${TARGET_ARCHIVE_EXCLUDED_STATES_KEY}" ]]; then
-                    TARGET_ARCHIVE_GROUP_PATHS+=("${TARGET_ARCHIVES[$J]}")
+            for TARGET_ARCHIVE_COMPARE_RECORD in "${TARGET_ARCHIVE_RECORDS[@]}"; do
+                [[ "${TARGET_ARCHIVE_COMPARE_RECORD}" == "" ]] && continue
+                IFS=$(printf '\034') read -r TARGET_ARCHIVE_COMPARE_PATH _ _ _ _ _ _ _ _ TARGET_ARCHIVE_COMPARE_TYPES_JOINED TARGET_ARCHIVE_COMPARE_EXCLUDED_STATES_JOINED _ _ _ _ TARGET_ARCHIVE_COMPARE_RECORD_EXTRA <<< "${TARGET_ARCHIVE_COMPARE_RECORD}"
+                [[ "${TARGET_ARCHIVE_COMPARE_RECORD_EXTRA}" == "" ]] && [[ "${TARGET_ARCHIVE_COMPARE_PATH}" != "" ]] || {
+                    echo "Malformed target archive record: ${TARGET_PLAN_ROOT}" >&2
+                    return 1
+                }
+                if [[ "${TARGET_ARCHIVE_COMPARE_TYPES_JOINED}" == "${TARGET_ARCHIVE_TYPES_JOINED}" ]] && [[ "${TARGET_ARCHIVE_COMPARE_EXCLUDED_STATES_JOINED}" == "${TARGET_ARCHIVE_EXCLUDED_STATES_JOINED}" ]]; then
+                    TARGET_ARCHIVE_GROUP_PATHS+=("${TARGET_ARCHIVE_COMPARE_PATH}")
                 fi
             done
-            TARGET_ARCHIVE_ROOT=$(marsh_get_archive_root_path "${TARGET_ARCHIVES[$I]}" "${TARGET_ARCHIVE_GROUP_PATHS[@]}") || return 1
+            TARGET_ARCHIVE_ROOT=$(marsh_get_archive_root_path "${TARGET_ARCHIVE_PATH}" "${TARGET_ARCHIVE_GROUP_PATHS[@]}") || return 1
         fi
 
         # each archive config expands into one explicit archive plan root
         TARGET_ARCHIVE_PLAN_ROOT=$(marsh_plan_archive_pages \
             "${TARGET_OUTPUT_ROOT}" \
-            "${TARGET_ARCHIVES_ENCODING[$I]}" \
-            "${TARGET_ARCHIVES[$I]}" \
-            "${TARGET_ARCHIVES_NAME[$I]:-$TARGET_NAME}" \
-            "${TARGET_ARCHIVES_LANGUAGE[$I]:-}" \
-            "${TARGET_ARCHIVES_LANGUAGE_CODE[$I]:-}" \
-            "${TARGET_ARCHIVES_COUNT[$I]}" \
-            "${TARGET_ARCHIVES_PAGE_SIZE[$I]}" \
+            "${TARGET_ARCHIVE_ENCODING}" \
+            "${TARGET_ARCHIVE_PATH}" \
+            "${TARGET_ARCHIVE_NAME_VALUE:-$TARGET_NAME}" \
+            "${TARGET_ARCHIVE_LANGUAGE_VALUE:-}" \
+            "${TARGET_ARCHIVE_LANGUAGE_CODE_VALUE:-}" \
+            "${TARGET_ARCHIVE_COUNT_VALUE}" \
+            "${TARGET_ARCHIVE_PAGE_SIZE_VALUE}" \
             "${#TARGET_ARCHIVE_TYPES[@]}" \
             "${TARGET_ARCHIVE_TYPES[@]}" \
             "${#TARGET_ARCHIVE_EXCLUDED_STATES[@]}" \

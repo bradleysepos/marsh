@@ -275,6 +275,16 @@ function marsh_test_capture_target_plan_build_context {
     done
 }
 
+function marsh_test_capture_target_source_value {
+    local SOURCE_PREFIX TARGET_SOURCE_VALUE
+
+    SOURCE_PREFIX="${1:-}"
+    [[ "${SOURCE_PREFIX}" == "" ]] && return 1
+    TARGET_SOURCE_VALUE=""
+    marsh_load_target_source_value "${SOURCE_PREFIX}" "TARGET_SOURCE_VALUE" || return $?
+    printf 'TARGET_SOURCE=%s\n' "${TARGET_SOURCE_VALUE}"
+}
+
 function marsh_test_create_archive_document {
     local TARGET_OUTPUT_ROOT DOCUMENT TYPE TITLE DATE_VALUE STATE_VALUE
 
@@ -5836,6 +5846,39 @@ function marsh_test {
             fi
             rm -rf "${TARGET_PLAN_ROOT}"
             ;;
+        marsh_load_target_source_value:0)
+            TEST_NAME+=":reads_source"
+            MARSH_TEST_TARGET_SOURCE_Path='.'
+            MARSH_TEST_TARGET_SOURCE_Source='source/*'
+            ACTUAL=$(marsh_test_capture_target_source_value "MARSH_TEST_TARGET_SOURCE_")
+            EXPECTED='TARGET_SOURCE=source/*'
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            unset MARSH_TEST_TARGET_SOURCE_Path MARSH_TEST_TARGET_SOURCE_Source
+            ;;
+        marsh_load_target_source_value:1)
+            TEST_NAME+=":defaults_empty"
+            MARSH_TEST_TARGET_SOURCE_Path='.'
+            ACTUAL=$(marsh_test_capture_target_source_value "MARSH_TEST_TARGET_SOURCE_")
+            EXPECTED='TARGET_SOURCE='
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            unset MARSH_TEST_TARGET_SOURCE_Path
+            ;;
+        marsh_load_target_source_value:2)
+            TEST_NAME+=":missing_target"
+            marsh_load_target_source_value "MARSH_TEST_TARGET_SOURCE_MISSING_" "TARGET_SOURCE_VALUE" 2>/dev/null
+            ACTUAL=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" -eq "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
         marsh_normalize_internal_path:0)
             TEST_NAME+=":path_cleanup"
             ACTUAL=$(marsh_normalize_internal_path "./news/.")
@@ -9591,6 +9634,7 @@ KNOWN_FUNCTIONS=(
     marsh_lock_wait
     marsh_load_archive_plan_build_context
     marsh_load_target_plan_build_context
+    marsh_load_target_source_value
     marsh_normalize_internal_path
     marsh_normalize_path
     marsh_parse_target_archive_queue_record

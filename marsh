@@ -2716,7 +2716,7 @@ function marsh_create_target_source_root {  # marsh_create_target_source_root ta
 
 # returns the common site source root for all configured targets
 function marsh_get_site_source_root_path {  # marsh_get_site_source_root_path config_file_dir
-    local CONFIG_FILE_DIR INDEX PREFIX META META_VARS TARGET_SOURCE_VALUE SOURCE_ROOT
+    local CONFIG_FILE_DIR INDEX PREFIX TARGET_SOURCE_VALUE SOURCE_ROOT
     local -a SOURCE_ROOTS
 
     CONFIG_FILE_DIR="${1:-.}"
@@ -2731,11 +2731,7 @@ function marsh_get_site_source_root_path {  # marsh_get_site_source_root_path co
     SOURCE_ROOTS=()
     INDEX=0
     PREFIX="CONFIG_Build_Targets_${INDEX}_"
-    while META=$(marsh_get_target_metadata "${PREFIX}" "TARGET_"); do
-        META_VARS=$(echo "${META}" | marsh_get_variables)
-        eval "$(printf '%s\n' "${META_VARS}" | marsh_get_local_declarations)"
-        eval "${META}"
-        TARGET_SOURCE_VALUE="${TARGET_SOURCE:-}"
+    while marsh_load_target_source_value "${PREFIX}" "TARGET_SOURCE_VALUE"; do
         if [[ "${TARGET_SOURCE_VALUE}" != "" ]]; then
             if [[ ! "${TARGET_SOURCE_VALUE}" =~ ^/ ]]; then
                 TARGET_SOURCE_VALUE="${CONFIG_FILE_DIR}/${TARGET_SOURCE_VALUE}"
@@ -3710,6 +3706,23 @@ function marsh_load_target_plan_build_context {  # marsh_load_target_plan_build_
         IFS="${OIFS}"
     fi
     printf -v "${TEMPLATE_OVERRIDES_TEXT_VAR}" '%s' "${TEMPLATE_OVERRIDES_JOINED}"
+}
+
+# loads the configured source field for one target prefix
+function marsh_load_target_source_value {  # marsh_load_target_source_value source_prefix source_var
+    local SOURCE_PREFIX SOURCE_VAR TARGET_PATH_NAME TARGET_SOURCE_NAME TARGET_SOURCE_FIELD_VALUE
+
+    SOURCE_PREFIX="${1:-}"
+    SOURCE_VAR="${2:-}"
+    [[ "${SOURCE_PREFIX}" == "" ]] && return 1
+    [[ "${SOURCE_VAR}" == "" ]] && return 1
+
+    TARGET_PATH_NAME="${SOURCE_PREFIX}Path"
+    [[ -z ${!TARGET_PATH_NAME+isset} ]] && return 1
+    TARGET_SOURCE_NAME="${SOURCE_PREFIX}Source"
+    TARGET_SOURCE_FIELD_VALUE="${!TARGET_SOURCE_NAME:-}"
+
+    printf -v "${SOURCE_VAR}" '%s' "${TARGET_SOURCE_FIELD_VALUE}"
 }
 
 # writes a named record file under the target plan root from the provided records

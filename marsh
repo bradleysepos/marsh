@@ -61,7 +61,7 @@ function marsh_cli {
     local COMMAND OPTSPEC UNKNOWN TEMP_DIR TEMPLATES_DIR LOG_LEVEL LOG_LEVELS LOG_LEVELS_CSV LOG_LEVEL_DEFAULT FORCE JOBS
     local MARKDOWN_COMMAND MARKDOWN_REWRITE_LINKS
     local MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV
-    local INDEX PREFIX META META_VARS CONFIG_VARS OIFS I J
+    local INDEX PREFIX CONFIG_ASSIGNMENTS OIFS I J
     local TARGET_COUNT TARGET_COUNT_INDEX TARGET_COUNT_PREFIX TARGET_NUMBER
     local BUILD_START_TIME BUILD_END_TIME BUILD_ELAPSED
     local TARGET_START_TIME TARGET_END_TIME TARGET_ELAPSED
@@ -451,11 +451,14 @@ function marsh_cli {
             [[ "${MARSH_CONFIG_FILE}" != "" ]] && MARSH_CONFIG_FILE="${MARSH_CONFIG_FILE%/}/marsh-config.yaml"
         fi
         if [[ -f "${MARSH_CONFIG_FILE}" ]] && [[ -r "${MARSH_CONFIG_FILE}" ]]; then
-            MARSH_CONFIG=$(marsh_parse_yaml "${MARSH_CONFIG_FILE}" "CONFIG_")
-            [[ $? -ne 0 ]] && echo "Unable to parse yaml file: ${MARSH_CONFIG_FILE}" >&2 && return 1
-            CONFIG_VARS=$(printf '%s\n' "${MARSH_CONFIG}" | marsh_get_variables)
-            eval "$(printf '%s\n' "${CONFIG_VARS}" | marsh_get_local_declarations)"
-            eval "${MARSH_CONFIG}"
+            CONFIG_ASSIGNMENTS=$(marsh_parse_yaml "${MARSH_CONFIG_FILE}" "CONFIG_") || {
+                echo "Unable to parse yaml file: ${MARSH_CONFIG_FILE}" >&2
+                return 1
+            }
+            marsh_load_parsed_yaml_assignments "${CONFIG_ASSIGNMENTS}" || {
+                echo "Unable to load parsed yaml assignments: ${MARSH_CONFIG_FILE}" >&2
+                return 1
+            }
         else
             echo "Configuration file not found: ${MARSH_CONFIG_FILE#$SELF_DIR/}" >&2
             return 1
@@ -991,6 +994,86 @@ function marsh_is_markdown_extension {  # marsh_is_markdown_extension file_ext m
         [[ "${FILE_EXT}" == "${MD_EXT}" ]] && return 0
     done
     return 1
+}
+
+# loads marsh_parse_yaml assignment output without evaluating shell code
+function marsh_load_parsed_yaml_assignments {  # marsh_load_parsed_yaml_assignments parsed_yaml_assignments
+    local PARSED_YAML_ASSIGNMENTS ASSIGNMENT_LINE PARSED_ASSIGNMENT_NAME PARSED_ASSIGNMENT_VALUE
+
+    PARSED_YAML_ASSIGNMENTS="${1:-}"
+    [[ "${PARSED_YAML_ASSIGNMENTS}" == "" ]] && return 0
+
+    while IFS= read -r ASSIGNMENT_LINE || [[ "${ASSIGNMENT_LINE}" != "" ]]; do
+        [[ "${ASSIGNMENT_LINE}" == "" ]] && continue
+        marsh_parse_internal_assignment "${ASSIGNMENT_LINE}" "PARSED_ASSIGNMENT_NAME" "PARSED_ASSIGNMENT_VALUE" "parsed yaml" || return 1
+        printf -v "${PARSED_ASSIGNMENT_NAME}" '%s' "${PARSED_ASSIGNMENT_VALUE}"
+    done <<< "${PARSED_YAML_ASSIGNMENTS}"
+}
+
+# parses one marsh-owned assignment line without evaluating shell code
+function marsh_parse_internal_assignment {  # marsh_parse_internal_assignment assignment_line out_name_var out_value_var error_context
+    local ASSIGNMENT_LINE OUT_NAME_VAR OUT_VALUE_VAR ERROR_CONTEXT
+    local INTERNAL_ASSIGNMENT_NAME INTERNAL_ASSIGNMENT_VALUE INTERNAL_ASSIGNMENT_CURSOR INTERNAL_ASSIGNMENT_NEXT_CHAR
+
+    ASSIGNMENT_LINE="${1:-}"
+    OUT_NAME_VAR="${2:-}"
+    OUT_VALUE_VAR="${3:-}"
+    ERROR_CONTEXT="${4:-}"
+    [[ "${ASSIGNMENT_LINE}" != "" ]] || return 1
+    [[ "${ERROR_CONTEXT}" != "" ]] || return 1
+    [[ "${OUT_NAME_VAR}" != "" ]] || return 1
+    [[ "${OUT_VALUE_VAR}" != "" ]] || return 1
+
+    if [[ "${ASSIGNMENT_LINE}" == *$'\n'* ]] || [[ "${ASSIGNMENT_LINE}" == *$'\r'* ]]; then
+        echo "Unsupported ${ERROR_CONTEXT} multiline value" >&2
+        return 1
+    fi
+    [[ "${ASSIGNMENT_LINE}" == *=* ]] || {
+        echo "Malformed ${ERROR_CONTEXT} assignment line: ${ASSIGNMENT_LINE}" >&2
+        return 1
+    }
+
+    INTERNAL_ASSIGNMENT_NAME="${ASSIGNMENT_LINE%%=*}"
+    INTERNAL_ASSIGNMENT_VALUE="${ASSIGNMENT_LINE#*=}"
+
+    # restrict assignment names to plain shell variable form
+    [[ "${INTERNAL_ASSIGNMENT_NAME}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || {
+        echo "Invalid ${ERROR_CONTEXT} assignment name: ${INTERNAL_ASSIGNMENT_NAME}" >&2
+        return 1
+    }
+
+    if [[ "${INTERNAL_ASSIGNMENT_VALUE}" == true ]] || [[ "${INTERNAL_ASSIGNMENT_VALUE}" == false ]]; then
+        printf -v "${OUT_NAME_VAR}" '%s' "${INTERNAL_ASSIGNMENT_NAME}"
+        printf -v "${OUT_VALUE_VAR}" '%s' "${INTERNAL_ASSIGNMENT_VALUE}"
+        return 0
+    fi
+
+    if [[ ! "${INTERNAL_ASSIGNMENT_VALUE}" == '"'*'"' ]]; then
+        echo "Unsupported ${ERROR_CONTEXT} assignment value: ${ASSIGNMENT_LINE}" >&2
+        return 1
+    fi
+
+    INTERNAL_ASSIGNMENT_VALUE="${INTERNAL_ASSIGNMENT_VALUE#\"}"
+    INTERNAL_ASSIGNMENT_VALUE="${INTERNAL_ASSIGNMENT_VALUE%\"}"
+
+    # accept only the backslash-quote form emitted by marsh-owned assignment writers
+    INTERNAL_ASSIGNMENT_CURSOR=0
+    while [[ "${INTERNAL_ASSIGNMENT_CURSOR}" -lt "${#INTERNAL_ASSIGNMENT_VALUE}" ]]; do
+        if [[ "${INTERNAL_ASSIGNMENT_VALUE:${INTERNAL_ASSIGNMENT_CURSOR}:1}" == $'\\' ]]; then
+            INTERNAL_ASSIGNMENT_NEXT_CHAR="${INTERNAL_ASSIGNMENT_VALUE:$((INTERNAL_ASSIGNMENT_CURSOR + 1)):1}"
+            if [[ "${INTERNAL_ASSIGNMENT_NEXT_CHAR}" != '"' ]]; then
+                echo "Unsupported ${ERROR_CONTEXT} backslash form: ${ASSIGNMENT_LINE}" >&2
+                return 1
+            fi
+            INTERNAL_ASSIGNMENT_CURSOR=$((INTERNAL_ASSIGNMENT_CURSOR + 2))
+            continue
+        fi
+        INTERNAL_ASSIGNMENT_CURSOR=$((INTERNAL_ASSIGNMENT_CURSOR + 1))
+    done
+
+    INTERNAL_ASSIGNMENT_VALUE="${INTERNAL_ASSIGNMENT_VALUE//\\\"/\"}"
+    printf -v "${OUT_NAME_VAR}" '%s' "${INTERNAL_ASSIGNMENT_NAME}"
+    printf -v "${OUT_VALUE_VAR}" '%s' "${INTERNAL_ASSIGNMENT_VALUE}"
 }
 
 # creates bash variables from yaml records

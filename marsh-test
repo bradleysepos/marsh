@@ -212,6 +212,31 @@ function marsh_test_capture_archive_plan_build_context {
     done
 }
 
+function marsh_test_capture_parsed_yaml_assignments {
+    local PARSED_YAML_ASSIGNMENTS
+
+    PARSED_YAML_ASSIGNMENTS="${1:-}"
+    MARSH_TEST_PARSED_YAML_Build_Path=""
+    MARSH_TEST_PARSED_YAML_Build_URL=""
+    MARSH_TEST_PARSED_YAML_Build_Name=""
+    MARSH_TEST_PARSED_YAML_Build_Targets_0_Path=""
+    MARSH_TEST_PARSED_YAML_Build_Targets_0_Source=""
+    MARSH_TEST_PARSED_YAML_Build_Targets_0_Force=""
+    MARSH_TEST_PARSED_YAML_QUOTED=""
+    MARSH_TEST_PARSED_YAML_EMPTY="__unset__"
+    marsh_load_parsed_yaml_assignments "${PARSED_YAML_ASSIGNMENTS}" || return $?
+
+    printf '%s\n' \
+        "BUILD_PATH=${MARSH_TEST_PARSED_YAML_Build_Path}" \
+        "BUILD_URL=${MARSH_TEST_PARSED_YAML_Build_URL}" \
+        "BUILD_NAME=${MARSH_TEST_PARSED_YAML_Build_Name}" \
+        "TARGET_PATH=${MARSH_TEST_PARSED_YAML_Build_Targets_0_Path}" \
+        "TARGET_SOURCE=${MARSH_TEST_PARSED_YAML_Build_Targets_0_Source}" \
+        "TARGET_FORCE=${MARSH_TEST_PARSED_YAML_Build_Targets_0_Force}" \
+        "QUOTED=${MARSH_TEST_PARSED_YAML_QUOTED}" \
+        "EMPTY=${MARSH_TEST_PARSED_YAML_EMPTY}"
+}
+
 function marsh_test_capture_target_build_metadata {
     local SOURCE_PREFIX TARGET_PATH TARGET_NAME TARGET_SOURCE TARGET_FORCE TARGET_SITEMAP TARGET_SITEMAP_SEARCH TARGET_TEMPLATE_SOURCE TARGET_TEMPLATE TARGET_TEMPLATE_ASSETS_PATH
     local TARGET_TEMPLATE_OVERRIDE TARGET_TEMPLATE_OVERRIDES_TEXT
@@ -673,7 +698,7 @@ function marsh_test {
     TEST_TEMP_PREFIX="${MARSH_TEST_TEMP}/${TEST_NAME//[:]/-}"
 
     # variables used in test cases
-    local SOURCE_FILE META_FILE CONTENT_FILE TARGET_OUTPUT_ROOT HASH ARCHIVE_HASH SEP MANIFEST_FILE STDERR_FILE
+    local SOURCE_FILE META_FILE CONTENT_FILE TARGET_OUTPUT_ROOT HASH ARCHIVE_HASH SEP MANIFEST_FILE STDERR_FILE ASSIGNMENTS
     local INDEX_FILE CACHE_FILE TEMPLATE_DIR TEMPLATE_OVERRIDE_FILE MARSH_OTEMP MARSH_OCONFIG_PATH MARSH_OCONFIG_URL
     local SOURCE_ROOT SITE_OUTPUT_ROOT SOURCE_SCOPE EXPECTED_SOURCE_ROOT
     local TARGET_PLAN_ROOT ARCHIVE_PLAN_ROOT ARCHIVE_PLAN_OUTPUT ARCHIVE_SOURCE_FILE ARCHIVE_MANIFEST
@@ -5923,6 +5948,78 @@ function marsh_test {
             fi
             rm -rf "${ARCHIVE_PLAN_ROOT}"
             ;;
+        marsh_load_parsed_yaml_assignments:0)
+            TEST_NAME+=":bootstrap_shape"
+            ASSIGNMENTS=$(marsh_parse_yaml "Build:"$'\n'"  Path: public"$'\n'"  URL: https://example.test"$'\n'"  Name: Example Site"$'\n'"  Targets:"$'\n'"    - Path: ."$'\n'"      Source: source/*"$'\n'"      Force: false" "MARSH_TEST_PARSED_YAML_")
+            ACTUAL=$(marsh_test_capture_parsed_yaml_assignments "${ASSIGNMENTS}")
+            EXPECTED=$(printf '%s\n' \
+                'BUILD_PATH=public' \
+                'BUILD_URL=https://example.test' \
+                'BUILD_NAME=Example Site' \
+                'TARGET_PATH=.' \
+                'TARGET_SOURCE=source/*' \
+                'TARGET_FORCE=false' \
+                'QUOTED=' \
+                'EMPTY=__unset__')
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            unset MARSH_TEST_PARSED_YAML_Build_Path MARSH_TEST_PARSED_YAML_Build_URL MARSH_TEST_PARSED_YAML_Build_Name
+            unset MARSH_TEST_PARSED_YAML_Build_Targets_0_Path MARSH_TEST_PARSED_YAML_Build_Targets_0_Source MARSH_TEST_PARSED_YAML_Build_Targets_0_Force
+            unset MARSH_TEST_PARSED_YAML_QUOTED MARSH_TEST_PARSED_YAML_EMPTY
+            ;;
+        marsh_load_parsed_yaml_assignments:1)
+            TEST_NAME+=":quoted_empty"
+            ASSIGNMENTS='MARSH_TEST_PARSED_YAML_QUOTED="literal $HOME and \"quote\""'$'\n''MARSH_TEST_PARSED_YAML_EMPTY=""'
+            ACTUAL=$(marsh_test_capture_parsed_yaml_assignments "${ASSIGNMENTS}")
+            EXPECTED=$(printf '%s\n' \
+                'BUILD_PATH=' \
+                'BUILD_URL=' \
+                'BUILD_NAME=' \
+                'TARGET_PATH=' \
+                'TARGET_SOURCE=' \
+                'TARGET_FORCE=' \
+                'QUOTED=literal $HOME and "quote"' \
+                'EMPTY=')
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            unset MARSH_TEST_PARSED_YAML_Build_Path MARSH_TEST_PARSED_YAML_Build_URL MARSH_TEST_PARSED_YAML_Build_Name
+            unset MARSH_TEST_PARSED_YAML_Build_Targets_0_Path MARSH_TEST_PARSED_YAML_Build_Targets_0_Source MARSH_TEST_PARSED_YAML_Build_Targets_0_Force
+            unset MARSH_TEST_PARSED_YAML_QUOTED MARSH_TEST_PARSED_YAML_EMPTY
+            ;;
+        marsh_load_parsed_yaml_assignments:2)
+            TEST_NAME+=":rejects_unsupported"
+            ACTUAL=$(marsh_load_parsed_yaml_assignments 'MARSH_TEST_PARSED_YAML_INVALID=literal' 2>&1 >/dev/null)
+            STATUS=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${STATUS}" -eq "${EXPECTED}" ]]; then
+                EXPECTED='Unsupported parsed yaml assignment value: MARSH_TEST_PARSED_YAML_INVALID=literal'
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            unset MARSH_TEST_PARSED_YAML_INVALID
+            ;;
+        marsh_load_parsed_yaml_assignments:3)
+            TEST_NAME+=":rejects_non_quote_backslash"
+            ACTUAL=$(marsh_load_parsed_yaml_assignments 'MARSH_TEST_PARSED_YAML_INVALID="foo\bar"' 2>&1 >/dev/null)
+            STATUS=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${STATUS}" -eq "${EXPECTED}" ]]; then
+                EXPECTED='Unsupported parsed yaml backslash form: MARSH_TEST_PARSED_YAML_INVALID="foo\bar"'
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            unset MARSH_TEST_PARSED_YAML_INVALID
+            ;;
         marsh_load_target_build_metadata:0)
             TEST_NAME+=":minimal"
             MARSH_TEST_TARGET_BUILD_MIN_Path="/site/minimal"
@@ -9671,11 +9768,13 @@ KNOWN_FUNCTIONS=(
     marsh_lock_release
     marsh_lock_wait
     marsh_load_archive_plan_build_context
+    marsh_load_parsed_yaml_assignments
     marsh_load_target_build_metadata
     marsh_load_target_plan_build_context
     marsh_load_target_source_value
     marsh_normalize_internal_path
     marsh_normalize_path
+    marsh_parse_internal_assignment
     marsh_parse_target_archive_queue_record
     marsh_parse_template_metadata
     marsh_parse_template_tag

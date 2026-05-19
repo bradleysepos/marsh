@@ -237,6 +237,23 @@ function marsh_test_capture_parsed_yaml_assignments {
         "EMPTY=${MARSH_TEST_PARSED_YAML_EMPTY}"
 }
 
+function marsh_test_capture_document_metadata_assignment {
+    local ASSIGNMENT_LINE KEY_NAME ENTRY_KIND VALUE INDEX_VALUE
+
+    ASSIGNMENT_LINE="${1:-}"
+    KEY_NAME=""
+    ENTRY_KIND=""
+    VALUE=""
+    INDEX_VALUE=""
+    marsh_parse_document_metadata_assignment "${ASSIGNMENT_LINE}" "KEY_NAME" "ENTRY_KIND" "VALUE" "INDEX_VALUE" || return $?
+
+    printf '%s\n' \
+        "KEY_NAME=${KEY_NAME}" \
+        "ENTRY_TYPE=${ENTRY_KIND}" \
+        "VALUE=${VALUE}" \
+        "INDEX=${INDEX_VALUE}"
+}
+
 function marsh_test_capture_target_build_metadata {
     local SOURCE_PREFIX TARGET_PATH TARGET_NAME TARGET_SOURCE TARGET_FORCE TARGET_SITEMAP TARGET_SITEMAP_SEARCH TARGET_TEMPLATE_SOURCE TARGET_TEMPLATE TARGET_TEMPLATE_ASSETS_PATH
     local TARGET_TEMPLATE_OVERRIDE TARGET_TEMPLATE_OVERRIDES_TEXT
@@ -6299,6 +6316,114 @@ function marsh_test {
             fi
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}" "${MARSH_TEMP}/asset-copy-cache"
             ;;
+        marsh_parse_document_metadata_assignment:0)
+            TEST_NAME+=":quoted_value"
+            ACTUAL=$(marsh_test_capture_document_metadata_assignment 'Title="Hello \"World\""')
+            EXPECTED=$(printf '%s\n' \
+                'KEY_NAME=Title' \
+                'ENTRY_TYPE=value' \
+                'VALUE=Hello "World"' \
+                'INDEX=')
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_parse_document_metadata_assignment:1)
+            TEST_NAME+=":boolean_value"
+            ACTUAL=$(marsh_test_capture_document_metadata_assignment 'Draft=false')
+            EXPECTED=$(printf '%s\n' \
+                'KEY_NAME=Draft' \
+                'ENTRY_TYPE=value' \
+                'VALUE=false' \
+                'INDEX=')
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_parse_document_metadata_assignment:2)
+            TEST_NAME+=":empty_string"
+            ACTUAL=$(marsh_test_capture_document_metadata_assignment 'Summary=""')
+            EXPECTED=$(printf '%s\n' \
+                'KEY_NAME=Summary' \
+                'ENTRY_TYPE=value' \
+                'VALUE=' \
+                'INDEX=')
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_parse_document_metadata_assignment:3)
+            TEST_NAME+=":indexed_list_item"
+            ACTUAL=$(marsh_test_capture_document_metadata_assignment 'State_12="published"')
+            EXPECTED=$(printf '%s\n' \
+                'KEY_NAME=State' \
+                'ENTRY_TYPE=list-item' \
+                'VALUE=published' \
+                'INDEX=12')
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_parse_document_metadata_assignment:4)
+            TEST_NAME+=":rejects_malformed_line"
+            ACTUAL=$(marsh_parse_document_metadata_assignment 'Title' 'KEY_NAME' 'ENTRY_KIND' 'VALUE' 'INDEX_VALUE' 2>&1 >/dev/null)
+            STATUS=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${STATUS}" -eq "${EXPECTED}" ]]; then
+                EXPECTED='Malformed document metadata assignment line: Title'
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            ;;
+        marsh_parse_document_metadata_assignment:5)
+            TEST_NAME+=":rejects_unquoted_scalar"
+            ACTUAL=$(marsh_parse_document_metadata_assignment 'Title=Hello' 'KEY_NAME' 'ENTRY_KIND' 'VALUE' 'INDEX_VALUE' 2>&1 >/dev/null)
+            STATUS=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${STATUS}" -eq "${EXPECTED}" ]]; then
+                EXPECTED='Unsupported document metadata assignment value: Title=Hello'
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            ;;
+        marsh_parse_document_metadata_assignment:6)
+            TEST_NAME+=":rejects_non_quote_backslash"
+            ACTUAL=$(marsh_parse_document_metadata_assignment 'Title="foo\bar"' 'KEY_NAME' 'ENTRY_KIND' 'VALUE' 'INDEX_VALUE' 2>&1 >/dev/null)
+            STATUS=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${STATUS}" -eq "${EXPECTED}" ]]; then
+                EXPECTED='Unsupported document metadata backslash form: Title="foo\bar"'
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            ;;
+        marsh_parse_document_metadata_assignment:7)
+            TEST_NAME+=":rejects_multiline"
+            ACTUAL=$(marsh_parse_document_metadata_assignment $'Title="foo\nbar"' 'KEY_NAME' 'ENTRY_KIND' 'VALUE' 'INDEX_VALUE' 2>&1 >/dev/null)
+            STATUS=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${STATUS}" -eq "${EXPECTED}" ]]; then
+                EXPECTED='Unsupported document metadata multiline value'
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            ;;
         marsh_parse_target_archive_queue_record:0)
             TEST_NAME+=":parses_queue_record"
             RECORD=$(printf '%q\t%q\t%q\t%q\t%q\n' 'news/index.markdown' 'news/index.markdown' '.' '/site/source' '/tmp/archive-plan')
@@ -9774,6 +9899,7 @@ KNOWN_FUNCTIONS=(
     marsh_load_target_source_value
     marsh_normalize_internal_path
     marsh_normalize_path
+    marsh_parse_document_metadata_assignment
     marsh_parse_internal_assignment
     marsh_parse_target_archive_queue_record
     marsh_parse_template_metadata

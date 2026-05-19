@@ -7389,6 +7389,39 @@ function marsh_has_frontmatter {  # marsh_has_frontmatter source
     [[ "${FIRST_LINE}" =~ ^---\ *(#.*)?$ ]]
 }
 
+# parses one document metadata cache assignment line into caller-owned outputs
+function marsh_parse_document_metadata_assignment {  # marsh_parse_document_metadata_assignment assignment_line out_name_var out_entry_type_var out_value_var out_index_var
+    local ASSIGNMENT_LINE OUT_NAME_VAR OUT_ENTRY_TYPE_VAR OUT_VALUE_VAR OUT_INDEX_VAR
+    local PARSED_METADATA_NAME PARSED_METADATA_VALUE PARSED_METADATA_BASE_NAME PARSED_METADATA_INDEX PARSED_METADATA_ENTRY_TYPE
+
+    ASSIGNMENT_LINE="${1:-}"
+    OUT_NAME_VAR="${2:-}"
+    OUT_ENTRY_TYPE_VAR="${3:-}"
+    OUT_VALUE_VAR="${4:-}"
+    OUT_INDEX_VAR="${5:-}"
+    [[ "${ASSIGNMENT_LINE}" != "" ]] || return 1
+    [[ "${OUT_NAME_VAR}" != "" ]] || return 1
+    [[ "${OUT_ENTRY_TYPE_VAR}" != "" ]] || return 1
+    [[ "${OUT_VALUE_VAR}" != "" ]] || return 1
+    [[ "${OUT_INDEX_VAR}" != "" ]] || return 1
+
+    marsh_parse_internal_assignment "${ASSIGNMENT_LINE}" "PARSED_METADATA_NAME" "PARSED_METADATA_VALUE" "document metadata" || return 1
+
+    PARSED_METADATA_BASE_NAME="${PARSED_METADATA_NAME}"
+    PARSED_METADATA_INDEX=""
+    PARSED_METADATA_ENTRY_TYPE="value"
+    if [[ "${PARSED_METADATA_NAME}" =~ _[0-9]+$ ]]; then
+        PARSED_METADATA_BASE_NAME="${PARSED_METADATA_NAME%_*}"
+        PARSED_METADATA_INDEX="${PARSED_METADATA_NAME##*_}"
+        PARSED_METADATA_ENTRY_TYPE="list-item"
+    fi
+
+    printf -v "${OUT_NAME_VAR}" '%s' "${PARSED_METADATA_BASE_NAME}"
+    printf -v "${OUT_ENTRY_TYPE_VAR}" '%s' "${PARSED_METADATA_ENTRY_TYPE}"
+    printf -v "${OUT_VALUE_VAR}" '%s' "${PARSED_METADATA_VALUE}"
+    printf -v "${OUT_INDEX_VAR}" '%s' "${PARSED_METADATA_INDEX}"
+}
+
 # plans target documents to build from the target source inventory
 function marsh_plan_target_documents {  # marsh_plan_target_documents site_output_root target target_output_rel target_source_root markdown_fileext_csv
     local SITE_OUTPUT_ROOT TARGET TARGET_OUTPUT_REL TARGET_SOURCE_ROOT MARKDOWN_FILEEXT_CSV

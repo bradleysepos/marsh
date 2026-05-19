@@ -304,6 +304,49 @@ function marsh_test_capture_document_metadata_state {
     rm -f "${META_CACHE_FILE}"
 }
 
+function marsh_test_capture_document_metadata_lookup {
+    local META_CACHE_CONTENTS TAG_NAME META_CACHE_FILE STATE_COUNT
+    local STATUS
+    local KEY_NAME ENTRY_TYPE ENTRY_VALUE ENTRY_ITEM
+
+    META_CACHE_CONTENTS="${1:-}"
+    TAG_NAME="${2:-}"
+    META_CACHE_FILE=$(mktemp "${MARSH_TEST_TEMP}/document-meta-lookup-XXXXXX") || return 1
+    printf '%s\n' "${META_CACHE_CONTENTS}" > "${META_CACHE_FILE}" || {
+        rm -f "${META_CACHE_FILE}"
+        return 1
+    }
+
+    STATE_COUNT=""
+    marsh_load_document_metadata_state "${META_CACHE_FILE}" "MARSH_TEST_DOCUMENT_METADATA_LOOKUP_" "STATE_COUNT" || {
+        STATUS=$?
+        rm -f "${META_CACHE_FILE}"
+        return ${STATUS}
+    }
+
+    KEY_NAME=""
+    ENTRY_TYPE=""
+    ENTRY_VALUE=""
+    marsh_lookup_document_metadata_state "MARSH_TEST_DOCUMENT_METADATA_LOOKUP_" "${STATE_COUNT}" "${TAG_NAME}" "KEY_NAME" "ENTRY_TYPE" "ENTRY_VALUE" || {
+        STATUS=$?
+        rm -f "${META_CACHE_FILE}"
+        return ${STATUS}
+    }
+
+    printf '%s\n' \
+        "KEY=${KEY_NAME}" \
+        "TYPE=${ENTRY_TYPE}"
+    if [[ "${ENTRY_TYPE}" == "list" ]]; then
+        while IFS= read -r ENTRY_ITEM; do
+            printf 'LIST_ITEM=%s\n' "${ENTRY_ITEM}"
+        done <<< "${ENTRY_VALUE}"
+    else
+        printf 'VALUE=%s\n' "${ENTRY_VALUE}"
+    fi
+
+    rm -f "${META_CACHE_FILE}"
+}
+
 function marsh_test_capture_target_build_metadata {
     local SOURCE_PREFIX TARGET_PATH TARGET_NAME TARGET_SOURCE TARGET_FORCE TARGET_SITEMAP TARGET_SITEMAP_SEARCH TARGET_TEMPLATE_SOURCE TARGET_TEMPLATE TARGET_TEMPLATE_ASSETS_PATH
     local TARGET_TEMPLATE_OVERRIDE TARGET_TEMPLATE_OVERRIDES_TEXT
@@ -6304,6 +6347,96 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
+        marsh_lookup_document_metadata_state:0)
+            TEST_NAME+=":custom_value_lookup"
+            ACTUAL=$(marsh_test_capture_document_metadata_lookup "$(printf '%s\n' \
+                'Custom_Thing="kept"' \
+                'Title="Hello"')" 'document.custom-thing')
+            EXPECTED=$(printf '%s\n' \
+                'KEY=Custom_Thing' \
+                'TYPE=value' \
+                'VALUE=kept')
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_lookup_document_metadata_state:1)
+            TEST_NAME+=":custom_list_lookup"
+            ACTUAL=$(marsh_test_capture_document_metadata_lookup "$(printf '%s\n' \
+                'Authors=""' \
+                'Authors_0="Alice"' \
+                'Authors_1="Bob"')" 'document.authors')
+            EXPECTED=$(printf '%s\n' \
+                'KEY=Authors' \
+                'TYPE=list' \
+                'LIST_ITEM=Alice' \
+                'LIST_ITEM=Bob')
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_lookup_document_metadata_state:2)
+            TEST_NAME+=":missing_key"
+            ACTUAL=$(marsh_test_capture_document_metadata_lookup 'Title="Hello"' 'document.foo' 2>&1 >/dev/null)
+            STATUS=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${STATUS}" -eq "${EXPECTED}" ]]; then
+                EXPECTED=''
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            ;;
+        marsh_lookup_document_metadata_state:3)
+            TEST_NAME+=":ambiguous_key"
+            ACTUAL=$(marsh_test_capture_document_metadata_lookup "$(printf '%s\n' \
+                'Foo_Bar="alpha"' \
+                'FOO_BAR="beta"')" 'document.foo-bar' 2>&1 >/dev/null)
+            STATUS=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${STATUS}" -eq "${EXPECTED}" ]]; then
+                EXPECTED=''
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            ;;
+        marsh_lookup_document_metadata_state:4)
+            TEST_NAME+=":reserved_generated_tag_ignored"
+            ACTUAL=$(marsh_test_capture_document_metadata_lookup "$(printf '%s\n' \
+                'Href="frontmatter href"' \
+                'Page_Next_Href="frontmatter next"' \
+                'Custom_Thing="kept"')" 'document.href' 2>&1 >/dev/null)
+            STATUS=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${STATUS}" -eq "${EXPECTED}" ]]; then
+                EXPECTED=''
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    ACTUAL=$(marsh_test_capture_document_metadata_lookup "$(printf '%s\n' \
+                        'Href="frontmatter href"' \
+                        'Page_Next_Href="frontmatter next"' \
+                        'Custom_Thing="kept"')" 'document.page-next-href' 2>&1 >/dev/null)
+                    STATUS=$?
+                    EXPECTED=1
+                    ASSERTION="equals"
+                    if [[ "${STATUS}" -eq "${EXPECTED}" ]]; then
+                        EXPECTED=''
+                        ASSERTION="equals"
+                        if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                            RES="[PASS]"
+                        fi
+                    fi
+                fi
+            fi
+            ;;
         marsh_normalize_internal_path:0)
             TEST_NAME+=":path_cleanup"
             ACTUAL=$(marsh_normalize_internal_path "./news/.")
@@ -10012,6 +10145,7 @@ KNOWN_FUNCTIONS=(
     marsh_load_target_build_metadata
     marsh_load_target_plan_build_context
     marsh_load_target_source_value
+    marsh_lookup_document_metadata_state
     marsh_normalize_internal_path
     marsh_normalize_path
     marsh_parse_document_metadata_assignment

@@ -7521,6 +7521,63 @@ function marsh_load_document_metadata_state {  # marsh_load_document_metadata_st
     printf -v "${OUT_COUNT_VAR}" '%s' "${ENTRY_COUNT}"
 }
 
+# looks up one custom document.* metadata entry from loaded document metadata state
+function marsh_lookup_document_metadata_state {  # marsh_lookup_document_metadata_state state_prefix state_count tag_name out_key_var out_type_var out_value_var
+    local STATE_PREFIX STATE_COUNT TAG_NAME OUT_KEY_VAR OUT_TYPE_VAR OUT_VALUE_VAR
+    local NORMALIZED_TAG MATCH_COUNT MATCH_INDEX INDEX
+    local NORMALIZED_KEY_VAR TYPE_VAR VALUE_VAR LIST_VAR KEY_VAR
+    local LOOKUP_ENTRY_TYPE LOOKUP_ENTRY_VALUE
+
+    STATE_PREFIX="${1:-}"
+    STATE_COUNT="${2:-}"
+    TAG_NAME="${3:-}"
+    OUT_KEY_VAR="${4:-}"
+    OUT_TYPE_VAR="${5:-}"
+    OUT_VALUE_VAR="${6:-}"
+    [[ "${STATE_PREFIX}" != "" ]] || return 1
+    [[ "${STATE_COUNT}" =~ ^[0-9]+$ ]] || return 1
+    [[ "${TAG_NAME}" != "" ]] || return 1
+    [[ "${OUT_KEY_VAR}" != "" ]] || return 1
+    [[ "${OUT_TYPE_VAR}" != "" ]] || return 1
+    [[ "${OUT_VALUE_VAR}" != "" ]] || return 1
+    [[ "${TAG_NAME#document.}" != "${TAG_NAME}" ]] || return 1
+
+    NORMALIZED_TAG="${TAG_NAME#document.}"
+    marsh_normalize_document_metadata_key "${NORMALIZED_TAG}" "NORMALIZED_TAG" || return 1
+    marsh_is_reserved_document_tag "${NORMALIZED_TAG}" && return 1
+
+    MATCH_COUNT=0
+    MATCH_INDEX=""
+    INDEX=0
+    while [[ "${INDEX}" -lt "${STATE_COUNT}" ]]; do
+        NORMALIZED_KEY_VAR="${STATE_PREFIX}NORMALIZED_KEY_${INDEX}"
+        [[ "${!NORMALIZED_KEY_VAR}" == "${NORMALIZED_TAG}" ]] || {
+            INDEX=$((INDEX + 1))
+            continue
+        }
+        MATCH_INDEX="${INDEX}"
+        MATCH_COUNT=$((MATCH_COUNT + 1))
+        INDEX=$((INDEX + 1))
+    done
+    [[ "${MATCH_COUNT}" -eq 1 ]] || return 1
+
+    KEY_VAR="${STATE_PREFIX}KEY_${MATCH_INDEX}"
+    TYPE_VAR="${STATE_PREFIX}TYPE_${MATCH_INDEX}"
+    VALUE_VAR="${STATE_PREFIX}VALUE_${MATCH_INDEX}"
+    LIST_VAR="${STATE_PREFIX}LIST_${MATCH_INDEX}"
+    LOOKUP_ENTRY_TYPE="${!TYPE_VAR}"
+    [[ "${LOOKUP_ENTRY_TYPE}" == "value" ]] || [[ "${LOOKUP_ENTRY_TYPE}" == "list" ]] || return 1
+
+    LOOKUP_ENTRY_VALUE="${!VALUE_VAR}"
+    if [[ "${LOOKUP_ENTRY_TYPE}" == "list" ]]; then
+        LOOKUP_ENTRY_VALUE="${!LIST_VAR}"
+    fi
+
+    printf -v "${OUT_KEY_VAR}" '%s' "${!KEY_VAR}"
+    printf -v "${OUT_TYPE_VAR}" '%s' "${LOOKUP_ENTRY_TYPE}"
+    printf -v "${OUT_VALUE_VAR}" '%s' "${LOOKUP_ENTRY_VALUE}"
+}
+
 # normalizes a document metadata key for custom document.* metadata
 function marsh_normalize_document_metadata_key {  # marsh_normalize_document_metadata_key metadata_key out_key_var
     local METADATA_KEY OUT_KEY_VAR NORMALIZED_KEY

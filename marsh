@@ -7389,6 +7389,152 @@ function marsh_has_frontmatter {  # marsh_has_frontmatter source
     [[ "${FIRST_LINE}" =~ ^---\ *(#.*)?$ ]]
 }
 
+# returns success when a normalized key collides with a reserved document.* metadata key
+function marsh_is_reserved_document_tag {  # marsh_is_reserved_document_tag normalized_key
+    local NORMALIZED_KEY
+
+    NORMALIZED_KEY="${1:-}"
+    [[ "${NORMALIZED_KEY}" != "" ]] || return 1
+
+    case "${NORMALIZED_KEY}" in
+        href | \
+        uri | \
+        content | \
+        page-canonical-uri | \
+        page-canonical-href | \
+        page-first-uri | \
+        page-first-href | \
+        page-prev-uri | \
+        page-prev-href | \
+        page-next-uri | \
+        page-next-href | \
+        page-last-uri | \
+        page-last-href)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+# loads one document metadata cache file into caller-owned flat state
+function marsh_load_document_metadata_state {  # marsh_load_document_metadata_state meta_cache_file state_prefix out_count_var
+    local META_CACHE_FILE STATE_PREFIX OUT_COUNT_VAR ASSIGNMENT_LINE
+    local ENTRY_NAME ENTRY_TYPE ENTRY_VALUE ENTRY_INDEX
+    local CURRENT_KEY CURRENT_NORMALIZED_KEY CURRENT_TYPE CURRENT_VALUE CURRENT_LIST
+    local ENTRY_COUNT
+    local CURRENT_RESERVED CURRENT_HAS_VALUE CURRENT_HAS_LIST_ITEMS
+
+    META_CACHE_FILE="${1:-}"
+    STATE_PREFIX="${2:-}"
+    OUT_COUNT_VAR="${3:-}"
+    [[ "${META_CACHE_FILE}" != "" ]] || return 1
+    [[ "${STATE_PREFIX}" != "" ]] || return 1
+    [[ "${OUT_COUNT_VAR}" != "" ]] || return 1
+    [[ -f "${META_CACHE_FILE}" ]] && [[ -r "${META_CACHE_FILE}" ]] || return 1
+    [[ "${STATE_PREFIX}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 1
+    [[ "${OUT_COUNT_VAR}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 1
+
+    CURRENT_KEY=""
+    CURRENT_NORMALIZED_KEY=""
+    CURRENT_TYPE=""
+    CURRENT_VALUE=""
+    CURRENT_LIST=""
+    CURRENT_RESERVED=false
+    CURRENT_HAS_VALUE=false
+    CURRENT_HAS_LIST_ITEMS=false
+    ENTRY_COUNT=0
+
+    while IFS= read -r ASSIGNMENT_LINE || [[ "${ASSIGNMENT_LINE}" != "" ]]; do
+        [[ "${ASSIGNMENT_LINE}" != "" ]] || continue
+
+        ENTRY_NAME=""
+        ENTRY_TYPE=""
+        ENTRY_VALUE=""
+        ENTRY_INDEX=""
+        marsh_parse_document_metadata_assignment "${ASSIGNMENT_LINE}" "ENTRY_NAME" "ENTRY_TYPE" "ENTRY_VALUE" "ENTRY_INDEX" || return 1
+
+        if [[ "${CURRENT_KEY}" != "" ]] && [[ "${ENTRY_NAME}" != "${CURRENT_KEY}" ]]; then
+            if [[ "${CURRENT_RESERVED}" != true ]]; then
+                printf -v "${STATE_PREFIX}KEY_${ENTRY_COUNT}" '%s' "${CURRENT_KEY}"
+                printf -v "${STATE_PREFIX}NORMALIZED_KEY_${ENTRY_COUNT}" '%s' "${CURRENT_NORMALIZED_KEY}"
+                printf -v "${STATE_PREFIX}TYPE_${ENTRY_COUNT}" '%s' "${CURRENT_TYPE}"
+                printf -v "${STATE_PREFIX}VALUE_${ENTRY_COUNT}" '%s' "${CURRENT_VALUE}"
+                printf -v "${STATE_PREFIX}LIST_${ENTRY_COUNT}" '%s' "${CURRENT_LIST}"
+                ENTRY_COUNT=$((ENTRY_COUNT + 1))
+            fi
+
+            CURRENT_KEY=""
+            CURRENT_NORMALIZED_KEY=""
+            CURRENT_TYPE=""
+            CURRENT_VALUE=""
+            CURRENT_LIST=""
+            CURRENT_RESERVED=false
+            CURRENT_HAS_VALUE=false
+            CURRENT_HAS_LIST_ITEMS=false
+        fi
+
+        if [[ "${CURRENT_KEY}" == "" ]]; then
+            CURRENT_KEY="${ENTRY_NAME}"
+            marsh_normalize_document_metadata_key "${CURRENT_KEY}" "CURRENT_NORMALIZED_KEY" || return 1
+            CURRENT_TYPE="value"
+            CURRENT_VALUE=""
+            CURRENT_LIST=""
+            CURRENT_RESERVED=false
+            CURRENT_HAS_VALUE=false
+            CURRENT_HAS_LIST_ITEMS=false
+            marsh_is_reserved_document_tag "${CURRENT_NORMALIZED_KEY}" && CURRENT_RESERVED=true
+        fi
+
+        if [[ "${ENTRY_TYPE}" == "value" ]]; then
+            if [[ "${CURRENT_HAS_VALUE}" == true ]] || [[ "${CURRENT_HAS_LIST_ITEMS}" == true ]]; then
+                echo "Malformed document metadata cache entry sequence: ${CURRENT_KEY}" >&2
+                return 1
+            fi
+            CURRENT_VALUE="${ENTRY_VALUE}"
+            CURRENT_HAS_VALUE=true
+        else
+            if [[ "${CURRENT_HAS_LIST_ITEMS}" != true ]]; then
+                if [[ "${CURRENT_HAS_VALUE}" == true ]] && [[ "${CURRENT_VALUE}" != "" ]]; then
+                    echo "Malformed document metadata cache entry sequence: ${CURRENT_KEY}" >&2
+                    return 1
+                fi
+                CURRENT_TYPE="list"
+                CURRENT_VALUE=""
+            fi
+            [[ "${CURRENT_LIST}" == "" ]] || CURRENT_LIST+=$'\n'
+            CURRENT_LIST+="${ENTRY_VALUE}"
+            CURRENT_HAS_LIST_ITEMS=true
+        fi
+    done < "${META_CACHE_FILE}"
+
+    if [[ "${CURRENT_KEY}" != "" ]] && [[ "${CURRENT_RESERVED}" != true ]]; then
+        printf -v "${STATE_PREFIX}KEY_${ENTRY_COUNT}" '%s' "${CURRENT_KEY}"
+        printf -v "${STATE_PREFIX}NORMALIZED_KEY_${ENTRY_COUNT}" '%s' "${CURRENT_NORMALIZED_KEY}"
+        printf -v "${STATE_PREFIX}TYPE_${ENTRY_COUNT}" '%s' "${CURRENT_TYPE}"
+        printf -v "${STATE_PREFIX}VALUE_${ENTRY_COUNT}" '%s' "${CURRENT_VALUE}"
+        printf -v "${STATE_PREFIX}LIST_${ENTRY_COUNT}" '%s' "${CURRENT_LIST}"
+        ENTRY_COUNT=$((ENTRY_COUNT + 1))
+    fi
+
+    printf -v "${OUT_COUNT_VAR}" '%s' "${ENTRY_COUNT}"
+}
+
+# normalizes a document metadata key for custom document.* metadata
+function marsh_normalize_document_metadata_key {  # marsh_normalize_document_metadata_key metadata_key out_key_var
+    local METADATA_KEY OUT_KEY_VAR NORMALIZED_KEY
+
+    METADATA_KEY="${1:-}"
+    OUT_KEY_VAR="${2:-}"
+    [[ "${METADATA_KEY}" != "" ]] || return 1
+    [[ "${OUT_KEY_VAR}" != "" ]] || return 1
+
+    NORMALIZED_KEY=$(printf '%s' "${METADATA_KEY}" | awk '{ print tolower($0) }') || return 1
+    NORMALIZED_KEY="${NORMALIZED_KEY//_/-}"
+    printf -v "${OUT_KEY_VAR}" '%s' "${NORMALIZED_KEY}"
+}
+
 # parses one document metadata cache assignment line into caller-owned outputs
 function marsh_parse_document_metadata_assignment {  # marsh_parse_document_metadata_assignment assignment_line out_name_var out_entry_type_var out_value_var out_index_var
     local ASSIGNMENT_LINE OUT_NAME_VAR OUT_ENTRY_TYPE_VAR OUT_VALUE_VAR OUT_INDEX_VAR

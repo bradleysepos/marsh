@@ -254,6 +254,56 @@ function marsh_test_capture_document_metadata_assignment {
         "INDEX=${INDEX_VALUE}"
 }
 
+function marsh_test_capture_document_metadata_state {
+    local META_CACHE_CONTENTS META_CACHE_FILE STATE_COUNT INDEX_VAR KEY_VAR NORMALIZED_VAR TYPE_VAR VALUE_VAR LIST_VAR
+    local STATUS
+    local KEY_NAME NORMALIZED_KEY ENTRY_TYPE VALUE_TEXT LIST_TEXT LIST_ITEM
+
+    META_CACHE_CONTENTS="${1:-}"
+    META_CACHE_FILE=$(mktemp "${MARSH_TEST_TEMP}/document-meta-cache-XXXXXX") || return 1
+    printf '%s\n' "${META_CACHE_CONTENTS}" > "${META_CACHE_FILE}" || {
+        rm -f "${META_CACHE_FILE}"
+        return 1
+    }
+
+    STATE_COUNT=""
+    marsh_load_document_metadata_state "${META_CACHE_FILE}" "MARSH_TEST_DOCUMENT_METADATA_STATE_" "STATE_COUNT" || {
+        STATUS=$?
+        rm -f "${META_CACHE_FILE}"
+        return ${STATUS}
+    }
+
+    printf 'COUNT=%s\n' "${STATE_COUNT}"
+    INDEX_VAR=0
+    while [[ "${INDEX_VAR}" -lt "${STATE_COUNT}" ]]; do
+        KEY_VAR="MARSH_TEST_DOCUMENT_METADATA_STATE_KEY_${INDEX_VAR}"
+        NORMALIZED_VAR="MARSH_TEST_DOCUMENT_METADATA_STATE_NORMALIZED_KEY_${INDEX_VAR}"
+        TYPE_VAR="MARSH_TEST_DOCUMENT_METADATA_STATE_TYPE_${INDEX_VAR}"
+        VALUE_VAR="MARSH_TEST_DOCUMENT_METADATA_STATE_VALUE_${INDEX_VAR}"
+        LIST_VAR="MARSH_TEST_DOCUMENT_METADATA_STATE_LIST_${INDEX_VAR}"
+
+        KEY_NAME="${!KEY_VAR}"
+        NORMALIZED_KEY="${!NORMALIZED_VAR}"
+        ENTRY_TYPE="${!TYPE_VAR}"
+        VALUE_TEXT="${!VALUE_VAR}"
+        LIST_TEXT="${!LIST_VAR}"
+
+        printf '%s\n' \
+            "KEY=${KEY_NAME}" \
+            "NORMALIZED_KEY=${NORMALIZED_KEY}" \
+            "TYPE=${ENTRY_TYPE}" \
+            "VALUE=${VALUE_TEXT}"
+        if [[ "${ENTRY_TYPE}" == "list" ]]; then
+            while IFS= read -r LIST_ITEM; do
+                printf 'LIST_ITEM=%s\n' "${LIST_ITEM}"
+            done <<< "${LIST_TEXT}"
+        fi
+        INDEX_VAR=$((INDEX_VAR + 1))
+    done
+
+    rm -f "${META_CACHE_FILE}"
+}
+
 function marsh_test_capture_target_build_metadata {
     local SOURCE_PREFIX TARGET_PATH TARGET_NAME TARGET_SOURCE TARGET_FORCE TARGET_SITEMAP TARGET_SITEMAP_SEARCH TARGET_TEMPLATE_SOURCE TARGET_TEMPLATE TARGET_TEMPLATE_ASSETS_PATH
     local TARGET_TEMPLATE_OVERRIDE TARGET_TEMPLATE_OVERRIDES_TEXT
@@ -5965,6 +6015,70 @@ function marsh_test {
             fi
             rm -rf "${ARCHIVE_PLAN_ROOT}"
             ;;
+        marsh_load_document_metadata_state:0)
+            TEST_NAME+=":value_and_list_entries"
+            ACTUAL=$(marsh_test_capture_document_metadata_state "$(printf '%s\n' \
+                'Title="Hello World"' \
+                'Draft=false' \
+                'Summary=""' \
+                'Authors=""' \
+                'Authors_0="Alice"' \
+                'Authors_1="Bob"')")
+            EXPECTED=$(printf '%s\n' \
+                'COUNT=4' \
+                'KEY=Title' \
+                'NORMALIZED_KEY=title' \
+                'TYPE=value' \
+                'VALUE=Hello World' \
+                'KEY=Draft' \
+                'NORMALIZED_KEY=draft' \
+                'TYPE=value' \
+                'VALUE=false' \
+                'KEY=Summary' \
+                'NORMALIZED_KEY=summary' \
+                'TYPE=value' \
+                'VALUE=' \
+                'KEY=Authors' \
+                'NORMALIZED_KEY=authors' \
+                'TYPE=list' \
+                'VALUE=' \
+                'LIST_ITEM=Alice' \
+                'LIST_ITEM=Bob')
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_load_document_metadata_state:1)
+            TEST_NAME+=":ignores_reserved_generated_collisions"
+            ACTUAL=$(marsh_test_capture_document_metadata_state "$(printf '%s\n' \
+                'Href="frontmatter href"' \
+                'Page_Next_Href="frontmatter next"' \
+                'Page_Canonical_URI="frontmatter canonical"' \
+                'Custom_Thing="kept"' \
+                'Title="Hello"' \
+                'State=""' \
+                'State_0="draft"')")
+            EXPECTED=$(printf '%s\n' \
+                'COUNT=3' \
+                'KEY=Custom_Thing' \
+                'NORMALIZED_KEY=custom-thing' \
+                'TYPE=value' \
+                'VALUE=kept' \
+                'KEY=Title' \
+                'NORMALIZED_KEY=title' \
+                'TYPE=value' \
+                'VALUE=Hello' \
+                'KEY=State' \
+                'NORMALIZED_KEY=state' \
+                'TYPE=list' \
+                'VALUE=' \
+                'LIST_ITEM=draft')
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
         marsh_load_parsed_yaml_assignments:0)
             TEST_NAME+=":bootstrap_shape"
             ASSIGNMENTS=$(marsh_parse_yaml "Build:"$'\n'"  Path: public"$'\n'"  URL: https://example.test"$'\n'"  Name: Example Site"$'\n'"  Targets:"$'\n'"    - Path: ."$'\n'"      Source: source/*"$'\n'"      Force: false" "MARSH_TEST_PARSED_YAML_")
@@ -9893,6 +10007,7 @@ KNOWN_FUNCTIONS=(
     marsh_lock_release
     marsh_lock_wait
     marsh_load_archive_plan_build_context
+    marsh_load_document_metadata_state
     marsh_load_parsed_yaml_assignments
     marsh_load_target_build_metadata
     marsh_load_target_plan_build_context

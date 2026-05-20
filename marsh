@@ -4613,7 +4613,9 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
     local TEMPLATE_ASSET_TYPE ASSET ASSET_PATH ASSET_OUTPUT_PATH ASSET_QUERY ASSET_HREF
     local TEMPLATE_HEAD_ESC TEMPLATE_BODY_ESC TEMPLATE_DOCUMENT_ESC TEMPLATE_HEADER_ESC TEMPLATE_FOOTER_ESC
     local TEMPLATE_NAV_ESC TEMPLATE_NOTICE_ESC
-    local DOCUMENT_META DOCUMENT_META_VARS DOCUMENT_META_PATH DOCUMENT_CONTENT
+    local DOCUMENT_META_VARS DOCUMENT_META_PATH DOCUMENT_CONTENT
+    local DOCUMENT_META_ASSIGNMENT DOCUMENT_META_ENTRY_NAME DOCUMENT_META_ENTRY_TYPE DOCUMENT_META_ENTRY_VALUE DOCUMENT_META_ENTRY_INDEX
+    local DOCUMENT_META_VAR_NAME DOCUMENT_META_NORMALIZED_KEY DOCUMENT_META_ALLOW_RESERVED_PAGE_TAGS
     local SUBDOCUMENTS_LIST NUM_SUBDOCUMENTS
     local SUBDOCUMENT SUBDOCUMENT_SOURCE SUBDOCUMENT_CONTENT SUBDOCUMENT_CONTENT_ESC SUBDOCUMENT_META SUBDOCUMENT_META_VARS SUBDOCUMENT_REL_TO_SITE SUBDOCUMENT_META_FILE SUBDOCUMENT_CONTENT_FILE SUBDOCUMENT_ARCHIVE_META_FILE
     local SUBDOCUMENT_RENDER SUBDOCUMENT_TEMPLATE SUBDOCUMENT_RENDER_FILE SUBDOCUMENT_URI SUBDOCUMENT_ABSPATH SUBDOCUMENT_HREF
@@ -4752,12 +4754,48 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
         fi
     fi
     if [[ -f "${DOCUMENT_META_PATH}" ]] && [[ -r "${DOCUMENT_META_PATH}" ]]; then
-        # parse metadata
-        DOCUMENT_META=$(marsh_get_document_metadata "${DOCUMENT_META_PATH}" "DOCUMENT_")
-        [[ $? -ne 0 ]] && echo "Unable to parse yaml file: ${DOCUMENT_META_PATH}" >&2 && return 1
-        DOCUMENT_META_VARS=$(echo "${DOCUMENT_META}" | sed -E -e 's/^([^=]+)=.*/\1/')
-        eval "$(printf '%s\n' "${DOCUMENT_META_VARS}" | marsh_get_local_declarations)"
-        eval "${DOCUMENT_META}"
+        # populate document metadata locals from cached metadata
+        DOCUMENT_META_VARS=""
+        DOCUMENT_META_ALLOW_RESERVED_PAGE_TAGS=false
+        while IFS= read -r DOCUMENT_META_ASSIGNMENT || [[ "${DOCUMENT_META_ASSIGNMENT}" != "" ]]; do
+            [[ "${DOCUMENT_META_ASSIGNMENT}" != "" ]] || continue
+            DOCUMENT_META_ENTRY_NAME=""
+            DOCUMENT_META_ENTRY_TYPE=""
+            DOCUMENT_META_ENTRY_VALUE=""
+            DOCUMENT_META_ENTRY_INDEX=""
+            marsh_parse_document_metadata_assignment \
+                "${DOCUMENT_META_ASSIGNMENT}" \
+                "DOCUMENT_META_ENTRY_NAME" \
+                "DOCUMENT_META_ENTRY_TYPE" \
+                "DOCUMENT_META_ENTRY_VALUE" \
+                "DOCUMENT_META_ENTRY_INDEX" || return 1
+            marsh_normalize_document_metadata_key "${DOCUMENT_META_ENTRY_NAME}" "DOCUMENT_META_NORMALIZED_KEY" || return 1
+            if marsh_is_reserved_document_tag "${DOCUMENT_META_NORMALIZED_KEY}"; then
+                case "${DOCUMENT_META_NORMALIZED_KEY}" in
+                    page-canonical-uri|page-canonical-href|page-first-uri|page-first-href|page-prev-uri|page-prev-href|page-next-uri|page-next-href|page-last-uri|page-last-href)
+                        [[ "${DOCUMENT_META_ALLOW_RESERVED_PAGE_TAGS}" == true ]] || continue
+                        ;;
+                    *)
+                        continue
+                        ;;
+                esac
+            fi
+            if [[ "${DOCUMENT_META_ENTRY_TYPE}" == "list-item" ]]; then
+                DOCUMENT_META_VAR_NAME="DOCUMENT_${DOCUMENT_META_ENTRY_NAME}_${DOCUMENT_META_ENTRY_INDEX}"
+            else
+                DOCUMENT_META_VAR_NAME="DOCUMENT_${DOCUMENT_META_ENTRY_NAME}"
+            fi
+            local "${DOCUMENT_META_VAR_NAME}"
+            printf -v "${DOCUMENT_META_VAR_NAME}" '%s' "${DOCUMENT_META_ENTRY_VALUE}"
+            DOCUMENT_META_VARS+="${DOCUMENT_META_VAR_NAME}"$'\n'
+            if [[ "${DOCUMENT_META_ENTRY_NAME}" == "Type" ]] && [[ "${DOCUMENT_META_ENTRY_VALUE}" == "archive" ]]; then
+                DOCUMENT_META_ALLOW_RESERVED_PAGE_TAGS=true
+            fi
+        done < <(marsh_get_document_metadata "${DOCUMENT_META_PATH}" "") || {
+            echo "Unable to load cached metadata for document: ${DOCUMENT_SOURCE_FILE}" >&2
+            return 1
+        }
+        DOCUMENT_META_VARS="${DOCUMENT_META_VARS%$'\n'}"
     fi
 
     # archive paths are only meaningful for generated archive pages

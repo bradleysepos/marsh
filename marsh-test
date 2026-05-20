@@ -3914,6 +3914,77 @@ function marsh_test {
             fi
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}" "${SOURCE_DIR}"
             ;;
+        marsh_build_template:37)
+            TEST_NAME+=":document_metadata_value_and_list_tags"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
+            printf '%s\n' 'title={{ document.title }};authors={{ document.authors }};state={{ document.state }}' > "${TEMPLATE_DIR}/sample/partials/body.html"
+            marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "index.markdown" "content" 'Example'
+            marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "index.markdown" "meta-yaml" \
+                '---' \
+                'Title: Example' \
+                'Authors: [ Alice, Bob ]' \
+                'State: [ draft, featured ]' \
+                '...'
+            marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                ACTUAL=$(<"${TARGET_OUTPUT_ROOT}/index.html")
+                ASSERTION="contains"
+                EXPECTED='title=Example;authors=Alice'$'\n''Bob;state=draft'$'\n''featured'
+                if printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
+                    EXPECTED='<title>Example</title>'
+                    if printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
+                        EXPECTED='css/site.css'$'\n''css/print.css'
+                        if printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
+                            RES="[PASS]"
+                        fi
+                    fi
+                fi
+            fi
+            rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}"
+            ;;
+        marsh_build_template:38)
+            TEST_NAME+=":reserved_generated_tag_collisions_ignored"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
+            printf '%s\n' 'href={{ document.href }};uri={{ document.uri }};next={{ document.page-next-href }}' > "${TEMPLATE_DIR}/sample/partials/body.html"
+            marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "index.markdown" "content" 'Example'
+            marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "index.markdown" "meta-yaml" \
+                '---' \
+                'Title: Example' \
+                'Href: fake-href' \
+                'URI: https://invalid.example.test/fake' \
+                'Page_Next_Href: fake-next' \
+                '...'
+            ACTUAL=$(marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "true" 0 2>&1 >/dev/null)
+            STATUS=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${STATUS}" == "${EXPECTED}" ]]; then
+                EXPECTED=''
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    ACTUAL=$(<"${TARGET_OUTPUT_ROOT}/index.html")
+                    ASSERTION="contains"
+                    EXPECTED='href=./;uri=https://example.test/;next={{ document.page-next-href }}'
+                    if printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
+                        EXPECTED='<title>Example</title>'
+                        if printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
+                            EXPECTED='css/site.css'$'\n''css/print.css'
+                            if printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
+                                RES="[PASS]"
+                            fi
+                        fi
+                    fi
+                fi
+            fi
+            rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}"
+            ;;
         marsh_check_dependencies:0)
             TEST_NAME+=":found"
             marsh_check_dependencies bash 2>/dev/null

@@ -5757,12 +5757,14 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
 # loads cached target-relative template asset output paths for one template context
 function marsh_get_template_asset_output_paths {  # marsh_get_template_asset_output_paths target_output_rel templates_dir template #template_overrides[@] template_overrides[@] template_assets_path output_fonts_var output_styles_var output_scripts_var output_images_var output_audio_var output_video_var output_documents_var output_binaries_var output_other_var
     local TARGET_OUTPUT_REL TEMPLATES_DIR TEMPLATE NUM_TEMPLATE_OVERRIDES TEMPLATE_ASSETS_PATH
-    local CACHE_DIR CACHE_KEY CACHE_FILE CACHE_TEMP TEMPLATE_PREFIX TEMPLATE_META TEMPLATE_META_VARS
+    local CACHE_DIR CACHE_KEY CACHE_FILE CACHE_TEMP TEMPLATE_PREFIX TEMPLATE_META TEMPLATE_METADATA_STATE_COUNT
     local OUTPUT_FONTS_VAR OUTPUT_STYLES_VAR OUTPUT_SCRIPTS_VAR OUTPUT_IMAGES_VAR OUTPUT_AUDIO_VAR OUTPUT_VIDEO_VAR OUTPUT_DOCUMENTS_VAR OUTPUT_BINARIES_VAR OUTPUT_OTHER_VAR
-    local ASSET_TYPE ASSETS_VAR ASSET ASSET_PATH ASSET_OUTPUT_PATH OUTPUT_LINE_TYPE OUTPUT_LINE_PATH
-    local OUTPUT OIFS
+    local ASSET_TYPE ASSET_LISTS_TEXT_VAR ASSET ASSET_PATH ASSET_OUTPUT_PATH OUTPUT_LINE_TYPE OUTPUT_LINE_PATH
+    local OUTPUT
+    local TEMPLATE_ASSETS_FONTS_TEXT TEMPLATE_ASSETS_STYLES_TEXT TEMPLATE_ASSETS_SCRIPTS_TEXT TEMPLATE_ASSETS_IMAGES_TEXT
+    local TEMPLATE_ASSETS_AUDIO_TEXT TEMPLATE_ASSETS_VIDEO_TEXT TEMPLATE_ASSETS_DOCUMENTS_TEXT TEMPLATE_ASSETS_BINARIES_TEXT TEMPLATE_ASSETS_OTHER_TEXT
     local OUTPUT_FONTS_TEXT OUTPUT_STYLES_TEXT OUTPUT_SCRIPTS_TEXT OUTPUT_IMAGES_TEXT OUTPUT_AUDIO_TEXT OUTPUT_VIDEO_TEXT OUTPUT_DOCUMENTS_TEXT OUTPUT_BINARIES_TEXT OUTPUT_OTHER_TEXT
-    local -a TEMPLATE_OVERRIDES ASSET_TYPES ASSETS
+    local -a TEMPLATE_OVERRIDES ASSET_TYPES
 
     # init
     TARGET_OUTPUT_REL="${1:-}"
@@ -5869,20 +5871,35 @@ function marsh_get_template_asset_output_paths {  # marsh_get_template_asset_out
                 marsh_lock_release "${CACHE_FILE}"
                 return 1
             }
-            TEMPLATE_META_VARS=$(echo "${TEMPLATE_META}" | marsh_get_variables)
-            eval "$(printf '%s\n' "${TEMPLATE_META_VARS}" | marsh_get_local_declarations)"
-            eval "${TEMPLATE_META}"
+            TEMPLATE_METADATA_STATE_COUNT=0
+            marsh_load_template_metadata_state "${TEMPLATE_META}" "TEMPLATE_METADATA_STATE_" "TEMPLATE_METADATA_STATE_COUNT" || {
+                rm -f "${CACHE_TEMP}"
+                marsh_lock_release "${CACHE_FILE}"
+                return 1
+            }
+            marsh_load_template_asset_lists_from_metadata_state \
+                "TEMPLATE_METADATA_STATE_" \
+                "${TEMPLATE_METADATA_STATE_COUNT}" \
+                "TEMPLATE_ASSETS_FONTS_TEXT" \
+                "TEMPLATE_ASSETS_STYLES_TEXT" \
+                "TEMPLATE_ASSETS_SCRIPTS_TEXT" \
+                "TEMPLATE_ASSETS_IMAGES_TEXT" \
+                "TEMPLATE_ASSETS_AUDIO_TEXT" \
+                "TEMPLATE_ASSETS_VIDEO_TEXT" \
+                "TEMPLATE_ASSETS_DOCUMENTS_TEXT" \
+                "TEMPLATE_ASSETS_BINARIES_TEXT" \
+                "TEMPLATE_ASSETS_OTHER_TEXT" || {
+                rm -f "${CACHE_TEMP}"
+                marsh_lock_release "${CACHE_FILE}"
+                return 1
+            }
 
             # cache records so callers can rebuild arrays explicitly
             ASSET_TYPES=('FONTS' 'STYLES' 'SCRIPTS' 'IMAGES' 'AUDIO' 'VIDEO' 'DOCUMENTS' 'BINARIES' 'OTHER')
             OUTPUT=""
             for ASSET_TYPE in "${ASSET_TYPES[@]}"; do
-                ASSETS_VAR="TEMPLATE_ASSETS_${ASSET_TYPE}[@]"
-                OIFS="${IFS}"
-                IFS=$'\n'
-                ASSETS=(${!ASSETS_VAR})
-                IFS="${OIFS}"
-                for ASSET in "${ASSETS[@]}"; do
+                ASSET_LISTS_TEXT_VAR="TEMPLATE_ASSETS_${ASSET_TYPE}_TEXT"
+                while IFS= read -r ASSET; do
                     [[ "${ASSET}" == "" ]] && continue
                     ASSET_PATH="${ASSET%\?*}"
                     ASSET_OUTPUT_PATH=$(marsh_resolve_template_asset_output_path "${TARGET_OUTPUT_REL}" "${ASSET_PATH}" "${TEMPLATE_ASSETS_PATH}") || {
@@ -5892,7 +5909,7 @@ function marsh_get_template_asset_output_paths {  # marsh_get_template_asset_out
                         return 1
                     }
                     OUTPUT+="${ASSET_TYPE}"$'\t'"${ASSET_OUTPUT_PATH}"$'\n'
-                done
+                done <<< "${!ASSET_LISTS_TEXT_VAR}"
             done
             printf '%s' "${OUTPUT}" > "${CACHE_TEMP}" || {
                 echo "Unable to write template asset output cache file: ${CACHE_TEMP}" >&2
@@ -5993,8 +6010,10 @@ function marsh_get_template_asset_output_paths {  # marsh_get_template_asset_out
 # returns the existing template asset paths declared by template metadata and overrides
 function marsh_get_template_assets {  # marsh_get_template_assets templates_dir template #template_overrides[@] template_overrides[@]
     local TEMPLATES_DIR TEMPLATE NUM_TEMPLATE_OVERRIDES
-    local TEMPLATE_PREFIX TEMPLATE_META TEMPLATE_META_VARS
+    local TEMPLATE_PREFIX TEMPLATE_META TEMPLATE_METADATA_STATE_COUNT
     local ASSET ASSET_PATH
+    local TEMPLATE_ASSETS_FONTS_TEXT TEMPLATE_ASSETS_STYLES_TEXT TEMPLATE_ASSETS_SCRIPTS_TEXT TEMPLATE_ASSETS_IMAGES_TEXT
+    local TEMPLATE_ASSETS_AUDIO_TEXT TEMPLATE_ASSETS_VIDEO_TEXT TEMPLATE_ASSETS_DOCUMENTS_TEXT TEMPLATE_ASSETS_BINARIES_TEXT TEMPLATE_ASSETS_OTHER_TEXT
     local -a TEMPLATE_OVERRIDES TEMPLATE_ASSETS_ALL
 
     TEMPLATES_DIR="${1:-}"
@@ -6016,20 +6035,58 @@ function marsh_get_template_assets {  # marsh_get_template_assets templates_dir 
         echo "Unable to load template metadata: ${TEMPLATES_DIR}/${TEMPLATE}" >&2
         return 1
     }
-    TEMPLATE_META_VARS=$(echo "${TEMPLATE_META}" | marsh_get_variables)
-    eval "$(printf '%s\n' "${TEMPLATE_META_VARS}" | marsh_get_local_declarations)"
-    eval "${TEMPLATE_META}"
+    TEMPLATE_METADATA_STATE_COUNT=0
+    marsh_load_template_metadata_state "${TEMPLATE_META}" "TEMPLATE_METADATA_STATE_" "TEMPLATE_METADATA_STATE_COUNT" || return 1
+    marsh_load_template_asset_lists_from_metadata_state \
+        "TEMPLATE_METADATA_STATE_" \
+        "${TEMPLATE_METADATA_STATE_COUNT}" \
+        "TEMPLATE_ASSETS_FONTS_TEXT" \
+        "TEMPLATE_ASSETS_STYLES_TEXT" \
+        "TEMPLATE_ASSETS_SCRIPTS_TEXT" \
+        "TEMPLATE_ASSETS_IMAGES_TEXT" \
+        "TEMPLATE_ASSETS_AUDIO_TEXT" \
+        "TEMPLATE_ASSETS_VIDEO_TEXT" \
+        "TEMPLATE_ASSETS_DOCUMENTS_TEXT" \
+        "TEMPLATE_ASSETS_BINARIES_TEXT" \
+        "TEMPLATE_ASSETS_OTHER_TEXT" || return 1
 
     TEMPLATE_ASSETS_ALL=()
-    TEMPLATE_ASSETS_ALL+=("${TEMPLATE_ASSETS_FONTS[@]}")
-    TEMPLATE_ASSETS_ALL+=("${TEMPLATE_ASSETS_STYLES[@]}")
-    TEMPLATE_ASSETS_ALL+=("${TEMPLATE_ASSETS_SCRIPTS[@]}")
-    TEMPLATE_ASSETS_ALL+=("${TEMPLATE_ASSETS_IMAGES[@]}")
-    TEMPLATE_ASSETS_ALL+=("${TEMPLATE_ASSETS_AUDIO[@]}")
-    TEMPLATE_ASSETS_ALL+=("${TEMPLATE_ASSETS_VIDEO[@]}")
-    TEMPLATE_ASSETS_ALL+=("${TEMPLATE_ASSETS_DOCUMENTS[@]}")
-    TEMPLATE_ASSETS_ALL+=("${TEMPLATE_ASSETS_BINARIES[@]}")
-    TEMPLATE_ASSETS_ALL+=("${TEMPLATE_ASSETS_OTHER[@]}")
+    while IFS= read -r ASSET; do
+        [[ "${ASSET}" == "" ]] && continue
+        TEMPLATE_ASSETS_ALL+=("${ASSET}")
+    done <<< "${TEMPLATE_ASSETS_FONTS_TEXT}"
+    while IFS= read -r ASSET; do
+        [[ "${ASSET}" == "" ]] && continue
+        TEMPLATE_ASSETS_ALL+=("${ASSET}")
+    done <<< "${TEMPLATE_ASSETS_STYLES_TEXT}"
+    while IFS= read -r ASSET; do
+        [[ "${ASSET}" == "" ]] && continue
+        TEMPLATE_ASSETS_ALL+=("${ASSET}")
+    done <<< "${TEMPLATE_ASSETS_SCRIPTS_TEXT}"
+    while IFS= read -r ASSET; do
+        [[ "${ASSET}" == "" ]] && continue
+        TEMPLATE_ASSETS_ALL+=("${ASSET}")
+    done <<< "${TEMPLATE_ASSETS_IMAGES_TEXT}"
+    while IFS= read -r ASSET; do
+        [[ "${ASSET}" == "" ]] && continue
+        TEMPLATE_ASSETS_ALL+=("${ASSET}")
+    done <<< "${TEMPLATE_ASSETS_AUDIO_TEXT}"
+    while IFS= read -r ASSET; do
+        [[ "${ASSET}" == "" ]] && continue
+        TEMPLATE_ASSETS_ALL+=("${ASSET}")
+    done <<< "${TEMPLATE_ASSETS_VIDEO_TEXT}"
+    while IFS= read -r ASSET; do
+        [[ "${ASSET}" == "" ]] && continue
+        TEMPLATE_ASSETS_ALL+=("${ASSET}")
+    done <<< "${TEMPLATE_ASSETS_DOCUMENTS_TEXT}"
+    while IFS= read -r ASSET; do
+        [[ "${ASSET}" == "" ]] && continue
+        TEMPLATE_ASSETS_ALL+=("${ASSET}")
+    done <<< "${TEMPLATE_ASSETS_BINARIES_TEXT}"
+    while IFS= read -r ASSET; do
+        [[ "${ASSET}" == "" ]] && continue
+        TEMPLATE_ASSETS_ALL+=("${ASSET}")
+    done <<< "${TEMPLATE_ASSETS_OTHER_TEXT}"
 
     for ASSET in "${TEMPLATE_ASSETS_ALL[@]}"; do
         ASSET_PATH="${ASSET%\?*}"
@@ -6230,6 +6287,114 @@ function marsh_is_reserved_archive_page_template_tag {  # marsh_is_reserved_arch
             return 1
             ;;
     esac
+}
+
+# loads grouped template asset lists from loaded template metadata state
+function marsh_load_template_asset_lists_from_metadata_state {  # marsh_load_template_asset_lists_from_metadata_state state_prefix state_count out_fonts_var out_styles_var out_scripts_var out_images_var out_audio_var out_video_var out_documents_var out_binaries_var out_other_var
+    local STATE_PREFIX STATE_COUNT
+    local OUT_FONTS_VAR OUT_STYLES_VAR OUT_SCRIPTS_VAR OUT_IMAGES_VAR OUT_AUDIO_VAR OUT_VIDEO_VAR OUT_DOCUMENTS_VAR OUT_BINARIES_VAR OUT_OTHER_VAR
+    local INDEX KEY_VAR TYPE_VAR LIST_VAR ENTRY_KEY ENTRY_TYPE ENTRY_LIST ENTRY_ITEM
+    local FONTS_TEXT STYLES_TEXT SCRIPTS_TEXT IMAGES_TEXT AUDIO_TEXT VIDEO_TEXT DOCUMENTS_TEXT BINARIES_TEXT OTHER_TEXT
+
+    STATE_PREFIX="${1:-}"
+    STATE_COUNT="${2:-}"
+    OUT_FONTS_VAR="${3:-}"
+    OUT_STYLES_VAR="${4:-}"
+    OUT_SCRIPTS_VAR="${5:-}"
+    OUT_IMAGES_VAR="${6:-}"
+    OUT_AUDIO_VAR="${7:-}"
+    OUT_VIDEO_VAR="${8:-}"
+    OUT_DOCUMENTS_VAR="${9:-}"
+    OUT_BINARIES_VAR="${10:-}"
+    OUT_OTHER_VAR="${11:-}"
+    [[ "${STATE_PREFIX}" != "" ]] || return 1
+    [[ "${STATE_COUNT}" =~ ^[0-9]+$ ]] || return 1
+    [[ "${OUT_FONTS_VAR}" != "" ]] || return 1
+    [[ "${OUT_STYLES_VAR}" != "" ]] || return 1
+    [[ "${OUT_SCRIPTS_VAR}" != "" ]] || return 1
+    [[ "${OUT_IMAGES_VAR}" != "" ]] || return 1
+    [[ "${OUT_AUDIO_VAR}" != "" ]] || return 1
+    [[ "${OUT_VIDEO_VAR}" != "" ]] || return 1
+    [[ "${OUT_DOCUMENTS_VAR}" != "" ]] || return 1
+    [[ "${OUT_BINARIES_VAR}" != "" ]] || return 1
+    [[ "${OUT_OTHER_VAR}" != "" ]] || return 1
+
+    FONTS_TEXT=""
+    STYLES_TEXT=""
+    SCRIPTS_TEXT=""
+    IMAGES_TEXT=""
+    AUDIO_TEXT=""
+    VIDEO_TEXT=""
+    DOCUMENTS_TEXT=""
+    BINARIES_TEXT=""
+    OTHER_TEXT=""
+    INDEX=0
+    while [[ "${INDEX}" -lt "${STATE_COUNT}" ]]; do
+        KEY_VAR="${STATE_PREFIX}KEY_${INDEX}"
+        TYPE_VAR="${STATE_PREFIX}TYPE_${INDEX}"
+        LIST_VAR="${STATE_PREFIX}LIST_${INDEX}"
+        ENTRY_KEY="${!KEY_VAR}"
+        ENTRY_TYPE="${!TYPE_VAR}"
+        ENTRY_LIST="${!LIST_VAR}"
+
+        case "${ENTRY_KEY}" in
+            TEMPLATE_ASSETS_FONTS|TEMPLATE_ASSETS_STYLES|TEMPLATE_ASSETS_SCRIPTS|TEMPLATE_ASSETS_IMAGES|TEMPLATE_ASSETS_AUDIO|TEMPLATE_ASSETS_VIDEO|TEMPLATE_ASSETS_DOCUMENTS|TEMPLATE_ASSETS_BINARIES|TEMPLATE_ASSETS_OTHER)
+                [[ "${ENTRY_TYPE}" == "list" ]] || return 1
+                while IFS= read -r ENTRY_ITEM; do
+                    [[ "${ENTRY_ITEM}" == "" ]] && continue
+                    case "${ENTRY_KEY}" in
+                        TEMPLATE_ASSETS_FONTS)
+                            [[ "${FONTS_TEXT}" == "" ]] || FONTS_TEXT+=$'\n'
+                            FONTS_TEXT+="${ENTRY_ITEM}"
+                            ;;
+                        TEMPLATE_ASSETS_STYLES)
+                            [[ "${STYLES_TEXT}" == "" ]] || STYLES_TEXT+=$'\n'
+                            STYLES_TEXT+="${ENTRY_ITEM}"
+                            ;;
+                        TEMPLATE_ASSETS_SCRIPTS)
+                            [[ "${SCRIPTS_TEXT}" == "" ]] || SCRIPTS_TEXT+=$'\n'
+                            SCRIPTS_TEXT+="${ENTRY_ITEM}"
+                            ;;
+                        TEMPLATE_ASSETS_IMAGES)
+                            [[ "${IMAGES_TEXT}" == "" ]] || IMAGES_TEXT+=$'\n'
+                            IMAGES_TEXT+="${ENTRY_ITEM}"
+                            ;;
+                        TEMPLATE_ASSETS_AUDIO)
+                            [[ "${AUDIO_TEXT}" == "" ]] || AUDIO_TEXT+=$'\n'
+                            AUDIO_TEXT+="${ENTRY_ITEM}"
+                            ;;
+                        TEMPLATE_ASSETS_VIDEO)
+                            [[ "${VIDEO_TEXT}" == "" ]] || VIDEO_TEXT+=$'\n'
+                            VIDEO_TEXT+="${ENTRY_ITEM}"
+                            ;;
+                        TEMPLATE_ASSETS_DOCUMENTS)
+                            [[ "${DOCUMENTS_TEXT}" == "" ]] || DOCUMENTS_TEXT+=$'\n'
+                            DOCUMENTS_TEXT+="${ENTRY_ITEM}"
+                            ;;
+                        TEMPLATE_ASSETS_BINARIES)
+                            [[ "${BINARIES_TEXT}" == "" ]] || BINARIES_TEXT+=$'\n'
+                            BINARIES_TEXT+="${ENTRY_ITEM}"
+                            ;;
+                        TEMPLATE_ASSETS_OTHER)
+                            [[ "${OTHER_TEXT}" == "" ]] || OTHER_TEXT+=$'\n'
+                            OTHER_TEXT+="${ENTRY_ITEM}"
+                            ;;
+                    esac
+                done <<< "${ENTRY_LIST}"
+                ;;
+        esac
+        INDEX=$((INDEX + 1))
+    done
+
+    printf -v "${OUT_FONTS_VAR}" '%s' "${FONTS_TEXT}"
+    printf -v "${OUT_STYLES_VAR}" '%s' "${STYLES_TEXT}"
+    printf -v "${OUT_SCRIPTS_VAR}" '%s' "${SCRIPTS_TEXT}"
+    printf -v "${OUT_IMAGES_VAR}" '%s' "${IMAGES_TEXT}"
+    printf -v "${OUT_AUDIO_VAR}" '%s' "${AUDIO_TEXT}"
+    printf -v "${OUT_VIDEO_VAR}" '%s' "${VIDEO_TEXT}"
+    printf -v "${OUT_DOCUMENTS_VAR}" '%s' "${DOCUMENTS_TEXT}"
+    printf -v "${OUT_BINARIES_VAR}" '%s' "${BINARIES_TEXT}"
+    printf -v "${OUT_OTHER_VAR}" '%s' "${OTHER_TEXT}"
 }
 
 # loads template metadata output into caller-owned flat state

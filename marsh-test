@@ -6022,6 +6022,21 @@ function marsh_test {
             fi
             rm -rf "${TEMPLATE_DIR}" "${MARSH_TEST_TEMP}/template-asset-output-cache"
             ;;
+        marsh_get_template_assets:0)
+            TEST_NAME+=":returns_existing_assets"
+            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
+            ACTUAL=$(marsh_get_template_assets "${TEMPLATE_DIR}" "sample" 0)
+            EXPECTED=$(printf '%s\n' \
+                'css/site.css' \
+                'js/site.js' \
+                'images/logo.png')
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            rm -rf "${TEMPLATE_DIR}"
+            ;;
         marsh_get_template_cache_name:0)
             TEST_NAME+=":path_with_basename"
             ACTUAL=$(marsh_get_template_cache_name "templates/default")

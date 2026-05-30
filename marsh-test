@@ -4063,6 +4063,130 @@ function marsh_test {
             fi
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}"
             ;;
+        marsh_build_template:42)
+            TEST_NAME+=":archive_subdocument_value_and_list_tags"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
+            mkdir -p "${TARGET_OUTPUT_ROOT}/news" "${SOURCE_ROOT}/news"
+            marsh_test_create_archive_template "${TEMPLATE_DIR}" "sample" "html" true
+            printf '%s\n' '{{ subdocuments }}' > "${TEMPLATE_DIR}/sample/partials/archive-body.html"
+            printf '%s\n' 'title={{ document.title }};authors={{ document.authors }};state={{ document.state }}' > "${TEMPLATE_DIR}/sample/partials/archive-document.html"
+            printf '%s\n' \
+                '---' \
+                'Type: post' \
+                'Title: Tagged Item' \
+                'Authors: [ Alice, Bob ]' \
+                'State: [ draft, featured ]' \
+                'Date: 2026-01-01' \
+                '...' \
+                '' \
+                '# Tagged Item' > "${SOURCE_ROOT}/news/item.markdown"
+            marsh_build_document "${TARGET_OUTPUT_ROOT}" "." "news/item.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" "." "${SOURCE_ROOT}" >/dev/null 2>&1
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                MANIFEST_FILE="${TARGET_OUTPUT_ROOT}/.archive-manifest"
+                marsh_test_write_archive_manifest "${TARGET_OUTPUT_ROOT}" "${MANIFEST_FILE}" "news/item.markdown"
+                ACTUAL=$(marsh_build_archive "html" "${TARGET_OUTPUT_ROOT}" "index.markdown" "Archive" "English" "en" "" "" "1" "post" "0" "${MANIFEST_FILE}" 2>/dev/null)
+                EXPECTED='index.markdown'
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    marsh_build_document "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" >/dev/null 2>&1
+                    ACTUAL=$?
+                    EXPECTED=0
+                    ASSERTION="equals"
+                    if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                        marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+                        ACTUAL=$?
+                        EXPECTED=0
+                        ASSERTION="equals"
+                        if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                            ACTUAL=$(<"${TARGET_OUTPUT_ROOT}/index.html")
+                            EXPECTED='title=Tagged Item;authors=Alice'$'\n''Bob;state=draft'$'\n''featured'
+                            ASSERTION="contains"
+                            if printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
+                                RES="[PASS]"
+                            fi
+                        fi
+                    fi
+                fi
+            fi
+            rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}" "${SOURCE_ROOT}"
+            ;;
+        marsh_build_template:43)
+            TEST_NAME+=":archive_subdocument_metadata_does_not_leak"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
+            mkdir -p "${TARGET_OUTPUT_ROOT}/news/2026/01" "${SOURCE_ROOT}/news/2026/01"
+            marsh_test_create_archive_template "${TEMPLATE_DIR}" "sample" "html" true
+            printf '%s\n' '{{ subdocuments }}' > "${TEMPLATE_DIR}/sample/partials/archive-body.html"
+            printf '%s\n' 'title={{ document.title }};authors={{ document.authors }};state={{ document.state }}' > "${TEMPLATE_DIR}/sample/partials/archive-document.html"
+            printf '%s\n' \
+                '---' \
+                'Type: post' \
+                'Title: First Item' \
+                'Authors: [ Alice ]' \
+                'State: [ draft ]' \
+                'Date: 2026-01-01' \
+                '...' \
+                '' \
+                '# First Item' > "${SOURCE_ROOT}/news/2026/01/01-first.markdown"
+            printf '%s\n' \
+                '---' \
+                'Type: post' \
+                'Title: Second Item' \
+                'Date: 2026-01-02' \
+                '...' \
+                '' \
+                '# Second Item' > "${SOURCE_ROOT}/news/2026/01/02-second.markdown"
+            {
+                marsh_build_document "${TARGET_OUTPUT_ROOT}" "." "news/2026/01/01-first.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" "." "${SOURCE_ROOT}" >/dev/null 2>&1 \
+                    && marsh_build_document "${TARGET_OUTPUT_ROOT}" "." "news/2026/01/02-second.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" "." "${SOURCE_ROOT}" >/dev/null 2>&1
+            }
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                MANIFEST_FILE="${TARGET_OUTPUT_ROOT}/.archive-manifest"
+                marsh_test_write_archive_manifest "${TARGET_OUTPUT_ROOT}" "${MANIFEST_FILE}" \
+                    "news/2026/01/01-first.markdown" \
+                    "news/2026/01/02-second.markdown"
+                ACTUAL=$(marsh_build_archive "html" "${TARGET_OUTPUT_ROOT}" "index.markdown" "Archive" "English" "en" "" "" "1" "post" "0" "${MANIFEST_FILE}" 2>/dev/null)
+                EXPECTED='index.markdown'
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    marsh_build_document "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" >/dev/null 2>&1
+                    ACTUAL=$?
+                    EXPECTED=0
+                    ASSERTION="equals"
+                    if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                        marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+                        ACTUAL=$?
+                        EXPECTED=0
+                        ASSERTION="equals"
+                        if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                            ACTUAL=$(<"${TARGET_OUTPUT_ROOT}/index.html")
+                            ASSERTION="contains"
+                            EXPECTED='title=First Item;authors=Alice;state=draft'
+                            if printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
+                                EXPECTED='title=Second Item;authors=;state='
+                                if printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
+                                    EXPECTED='title=Second Item;authors=Alice;state=draft'
+                                    ASSERTION="not-contains"
+                                    if ! printf '%s\n' "${ACTUAL}" | grep -F -q -- "${EXPECTED}"; then
+                                        RES="[PASS]"
+                                    fi
+                                fi
+                            fi
+                        fi
+                    fi
+                fi
+            fi
+            rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}" "${SOURCE_ROOT}"
+            ;;
         marsh_check_dependencies:0)
             TEST_NAME+=":found"
             marsh_check_dependencies bash 2>/dev/null

@@ -4259,6 +4259,19 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
         return 0
     }
 
+    function clear_subdocument_render_metadata_scope {  # clear_subdocument_render_metadata_scope metadata_vars
+        local METADATA_VARS METADATA_VAR
+
+        METADATA_VARS="${1:-}"
+
+        if [[ "${METADATA_VARS}" != "" ]]; then
+            while IFS= read -r METADATA_VAR; do
+                [[ "${METADATA_VAR}" != "" ]] || continue
+                unset "${METADATA_VAR}"
+            done <<< "${METADATA_VARS}"
+        fi
+    }
+
     function get_partial_conditional_tags {  # get_partial_conditional_tags file
         local FILE CACHE_DIR CACHE_KEY CACHE_FILE CACHE_TEMP
 
@@ -4653,7 +4666,7 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
     local DOCUMENT_META_ASSIGNMENT DOCUMENT_META_ENTRY_NAME DOCUMENT_META_ENTRY_TYPE DOCUMENT_META_ENTRY_VALUE DOCUMENT_META_ENTRY_INDEX
     local DOCUMENT_META_VAR_NAME DOCUMENT_META_NORMALIZED_KEY DOCUMENT_META_ALLOW_RESERVED_PAGE_TAGS
     local SUBDOCUMENTS_LIST NUM_SUBDOCUMENTS
-    local SUBDOCUMENT SUBDOCUMENT_SOURCE SUBDOCUMENT_CONTENT SUBDOCUMENT_CONTENT_ESC SUBDOCUMENT_META SUBDOCUMENT_META_VARS SUBDOCUMENT_REL_TO_SITE SUBDOCUMENT_META_FILE SUBDOCUMENT_CONTENT_FILE SUBDOCUMENT_ARCHIVE_META_FILE
+    local SUBDOCUMENT SUBDOCUMENT_SOURCE SUBDOCUMENT_CONTENT SUBDOCUMENT_CONTENT_ESC SUBDOCUMENT_META_VARS SUBDOCUMENT_REL_TO_SITE SUBDOCUMENT_META_FILE SUBDOCUMENT_CONTENT_FILE SUBDOCUMENT_ARCHIVE_META_FILE
     local SUBDOCUMENT_RENDER SUBDOCUMENT_TEMPLATE SUBDOCUMENT_RENDER_FILE SUBDOCUMENT_URI SUBDOCUMENT_ABSPATH SUBDOCUMENT_HREF
     local SUBDOCUMENT_OUTPUT_PATH SUBDOCUMENT_OUTPUT_EXT
     local SUBDOCUMENTS_MANIFEST SUBDOCUMENT_URI_FROM_MANIFEST SUBDOCUMENT_ABSPATH_FROM_MANIFEST
@@ -4664,6 +4677,8 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
     local SUBDOCUMENT_CONTENT_IS_RENDERED SUBDOCUMENT_CONTENT_USE_ONCE
     local SITEMAP SITEMAP_DIR SITEMAP_NAME SITEMAP_OUTPUT_PATH SITEMAP_HREF SITEMAP_RENDER_PATH PROCESSED_SITEMAP_PATH SITEMAP_LOOKUP_PATH
     local DOCUMENT_HREF_ESC
+    local SUBDOCUMENT_META_ASSIGNMENT SUBDOCUMENT_META_ENTRY_NAME SUBDOCUMENT_META_ENTRY_TYPE SUBDOCUMENT_META_ENTRY_VALUE SUBDOCUMENT_META_ENTRY_INDEX
+    local SUBDOCUMENT_META_VAR_NAME SUBDOCUMENT_META_NORMALIZED_KEY SUBDOCUMENT_META_ALLOW_RESERVED_PAGE_TAGS
     local -a TEMPLATE_OVERRIDES PARTIALS TEMPLATE_ASSET_TYPES
     local -a TEMPLATE_TAG_ASSETS_FONTS TEMPLATE_TAG_ASSETS_STYLES TEMPLATE_TAG_ASSETS_SCRIPTS TEMPLATE_TAG_ASSETS_IMAGES
     local -a TEMPLATE_TAG_ASSETS_AUDIO TEMPLATE_TAG_ASSETS_VIDEO TEMPLATE_TAG_ASSETS_DOCUMENTS TEMPLATE_TAG_ASSETS_BINARIES TEMPLATE_TAG_ASSETS_OTHER
@@ -5205,7 +5220,7 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
                 SUBDOCUMENT_ABSPATH=""
                 SUBDOCUMENT_URI_FROM_MANIFEST="${SUBDOCUMENT_URIS[$J]:-}"
                 SUBDOCUMENT_ABSPATH_FROM_MANIFEST="${SUBDOCUMENT_ABSPATHS[$J]:-}"
-                SUBDOCUMENT_META=""
+                clear_subdocument_render_metadata_scope "${SUBDOCUMENT_META_VARS:-}"
                 SUBDOCUMENT_META_VARS=""
                 SUBDOCUMENT_CONTENT_IS_RENDERED=false
                 SUBDOCUMENT_CONTENT_USE_ONCE=false
@@ -5214,12 +5229,46 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
                 SUBDOCUMENT_ARCHIVE_META_FILE=$(marsh_get_document_temp_path "${BUILD_CONTEXT_OUTPUT_ROOT}" "${SUBDOCUMENT_REL_TO_SITE}" "archive-meta" 2>/dev/null) || SUBDOCUMENT_ARCHIVE_META_FILE=""
                 # document metadata
                 if [[ -f "${SUBDOCUMENT_META_FILE}" ]] && [[ -r "${SUBDOCUMENT_META_FILE}" ]]; then
-                    # parse metadata
-                    SUBDOCUMENT_META=$(marsh_get_document_metadata "${SUBDOCUMENT_META_FILE}" "SUBDOCUMENT_")
-                    [[ $? -ne 0 ]] && echo "Unable to parse yaml file: ${SUBDOCUMENT_META_FILE}" >&2 && return 1
-                    SUBDOCUMENT_META_VARS=$(echo "${SUBDOCUMENT_META}" | sed -E -e 's/^([^=]+)=.*/\1/')
-                    eval "$(printf '%s\n' "${SUBDOCUMENT_META_VARS}" | marsh_get_local_declarations)"
-                    eval "${SUBDOCUMENT_META}"
+                    SUBDOCUMENT_META_ALLOW_RESERVED_PAGE_TAGS=false
+                    while IFS= read -r SUBDOCUMENT_META_ASSIGNMENT || [[ "${SUBDOCUMENT_META_ASSIGNMENT}" != "" ]]; do
+                        [[ "${SUBDOCUMENT_META_ASSIGNMENT}" != "" ]] || continue
+                        SUBDOCUMENT_META_ENTRY_NAME=""
+                        SUBDOCUMENT_META_ENTRY_TYPE=""
+                        SUBDOCUMENT_META_ENTRY_VALUE=""
+                        SUBDOCUMENT_META_ENTRY_INDEX=""
+                        marsh_parse_document_metadata_assignment \
+                            "${SUBDOCUMENT_META_ASSIGNMENT}" \
+                            "SUBDOCUMENT_META_ENTRY_NAME" \
+                            "SUBDOCUMENT_META_ENTRY_TYPE" \
+                            "SUBDOCUMENT_META_ENTRY_VALUE" \
+                            "SUBDOCUMENT_META_ENTRY_INDEX" || return 1
+                        marsh_normalize_document_metadata_key "${SUBDOCUMENT_META_ENTRY_NAME}" "SUBDOCUMENT_META_NORMALIZED_KEY" || return 1
+                        if marsh_is_reserved_document_tag "${SUBDOCUMENT_META_NORMALIZED_KEY}"; then
+                            case "${SUBDOCUMENT_META_NORMALIZED_KEY}" in
+                                page-canonical-uri|page-canonical-href|page-first-uri|page-first-href|page-prev-uri|page-prev-href|page-next-uri|page-next-href|page-last-uri|page-last-href)
+                                    [[ "${SUBDOCUMENT_META_ALLOW_RESERVED_PAGE_TAGS}" == true ]] || continue
+                                    ;;
+                                *)
+                                    continue
+                                    ;;
+                            esac
+                        fi
+                        if [[ "${SUBDOCUMENT_META_ENTRY_TYPE}" == "list-item" ]]; then
+                            SUBDOCUMENT_META_VAR_NAME="SUBDOCUMENT_${SUBDOCUMENT_META_ENTRY_NAME}_${SUBDOCUMENT_META_ENTRY_INDEX}"
+                        else
+                            SUBDOCUMENT_META_VAR_NAME="SUBDOCUMENT_${SUBDOCUMENT_META_ENTRY_NAME}"
+                        fi
+                        local "${SUBDOCUMENT_META_VAR_NAME}"
+                        printf -v "${SUBDOCUMENT_META_VAR_NAME}" '%s' "${SUBDOCUMENT_META_ENTRY_VALUE}"
+                        SUBDOCUMENT_META_VARS+="${SUBDOCUMENT_META_VAR_NAME}"$'\n'
+                        if [[ "${SUBDOCUMENT_META_ENTRY_NAME}" == "Type" ]] && [[ "${SUBDOCUMENT_META_ENTRY_VALUE}" == "archive" ]]; then
+                            SUBDOCUMENT_META_ALLOW_RESERVED_PAGE_TAGS=true
+                        fi
+                    done < <(marsh_get_document_metadata "${SUBDOCUMENT_META_FILE}" "") || {
+                        echo "Unable to load cached metadata for subdocument: ${SUBDOCUMENT_META_FILE}" >&2
+                        return 1
+                    }
+                    SUBDOCUMENT_META_VARS="${SUBDOCUMENT_META_VARS%$'\n'}"
                 fi
                 [[ -f "${SUBDOCUMENT_CONTENT_FILE}" ]] && [[ -r "${SUBDOCUMENT_CONTENT_FILE}" ]] || {
                     echo "Subdocument content not found: ${SUBDOCUMENT_REL_TO_SITE}" >&2
@@ -6062,10 +6111,10 @@ function marsh_resolve_loaded_document_metadata_tag {  # marsh_resolve_loaded_do
     return 0
 }
 
-# resolves a template tag for render-time consumers without rescanning custom document metadata
+# resolves a template tag for render-time consumers without rescanning loaded document metadata
 function marsh_resolve_render_template_tag {  # marsh_resolve_render_template_tag tag_name prefix metadata_vars out_var_var out_type_var out_value_var
     local TAG_NAME PREFIX METADATA_VARS OUT_VAR_VAR OUT_TYPE_VAR OUT_VALUE_VAR
-    local RESOLVED_VAR RESOLVED_TYPE RESOLVED_VALUE
+    local RESOLVED_VAR RESOLVED_TYPE RESOLVED_VALUE STATE_PREFIX_VAR STATE_COUNT_VAR
 
     TAG_NAME="${1:-}"
     PREFIX="${2:-}"
@@ -6085,15 +6134,14 @@ function marsh_resolve_render_template_tag {  # marsh_resolve_render_template_ta
     RESOLVED_VAR=""
     RESOLVED_TYPE=""
     RESOLVED_VALUE=""
+    STATE_PREFIX_VAR="${PREFIX}METADATA_STATE_PREFIX"
+    STATE_COUNT_VAR="${PREFIX}METADATA_STATE_COUNT"
 
-    if [[ "${PREFIX}" == "DOCUMENT_" ]]; then
-        marsh_resolve_template_tag_metadata "${TAG_NAME}" "${PREFIX}" "" "RESOLVED_VAR" "RESOLVED_TYPE" 2>/dev/null || true
-        if [[ "${RESOLVED_VAR}" == "" ]] && [[ "${RESOLVED_TYPE}" == "" ]]; then
-            marsh_resolve_loaded_document_metadata_tag "${TAG_NAME}" "${PREFIX}" "RESOLVED_TYPE" "RESOLVED_VALUE" 2>/dev/null || {
-                marsh_resolve_template_tag_metadata "${TAG_NAME}" "${PREFIX}" "${METADATA_VARS}" "RESOLVED_VAR" "RESOLVED_TYPE" 2>/dev/null || true
-            }
-        fi
-    else
+    marsh_resolve_template_tag_metadata "${TAG_NAME}" "${PREFIX}" "" "RESOLVED_VAR" "RESOLVED_TYPE" 2>/dev/null || true
+    if [[ "${RESOLVED_VAR}" == "" ]] && [[ "${RESOLVED_TYPE}" == "" ]] && [[ "${!STATE_PREFIX_VAR:-}" != "" ]] && [[ "${!STATE_COUNT_VAR:-}" =~ ^[0-9]+$ ]]; then
+        marsh_resolve_loaded_document_metadata_tag "${TAG_NAME}" "${PREFIX}" "RESOLVED_TYPE" "RESOLVED_VALUE" 2>/dev/null || true
+    fi
+    if [[ "${RESOLVED_VAR}" == "" ]] && [[ "${RESOLVED_TYPE}" == "" ]] && [[ "${METADATA_VARS}" != "" ]]; then
         marsh_resolve_template_tag_metadata "${TAG_NAME}" "${PREFIX}" "${METADATA_VARS}" "RESOLVED_VAR" "RESOLVED_TYPE" 2>/dev/null || true
     fi
 

@@ -6000,6 +6000,109 @@ function marsh_is_reserved_archive_page_template_tag {  # marsh_is_reserved_arch
     esac
 }
 
+# loads template metadata output into caller-owned flat state
+function marsh_load_template_metadata_state {  # marsh_load_template_metadata_state template_metadata_text state_prefix out_count_var
+    local TEMPLATE_METADATA_TEXT STATE_PREFIX OUT_COUNT_VAR ASSIGNMENT_LINE
+    local ENTRY_NAME ENTRY_TYPE ENTRY_VALUE
+    local CURRENT_KEY CURRENT_TYPE CURRENT_VALUE CURRENT_LIST
+    local CURRENT_HAS_VALUE CURRENT_HAS_LIST_ROOT CURRENT_HAS_LIST_ITEMS ENTRY_COUNT
+
+    TEMPLATE_METADATA_TEXT="${1-}"
+    STATE_PREFIX="${2:-}"
+    OUT_COUNT_VAR="${3:-}"
+    [[ "${STATE_PREFIX}" != "" ]] || return 1
+    [[ "${OUT_COUNT_VAR}" != "" ]] || return 1
+    [[ "${STATE_PREFIX}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 1
+    [[ "${OUT_COUNT_VAR}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 1
+
+    CURRENT_KEY=""
+    CURRENT_TYPE=""
+    CURRENT_VALUE=""
+    CURRENT_LIST=""
+    CURRENT_HAS_VALUE=false
+    CURRENT_HAS_LIST_ROOT=false
+    CURRENT_HAS_LIST_ITEMS=false
+    ENTRY_COUNT=0
+
+    while IFS= read -r ASSIGNMENT_LINE || [[ "${ASSIGNMENT_LINE}" != "" ]]; do
+        [[ "${ASSIGNMENT_LINE}" != "" ]] || continue
+
+        ENTRY_NAME=""
+        ENTRY_TYPE=""
+        ENTRY_VALUE=""
+        marsh_parse_template_metadata_assignment "${ASSIGNMENT_LINE}" "ENTRY_NAME" "ENTRY_TYPE" "ENTRY_VALUE" || return 1
+
+        if [[ "${CURRENT_KEY}" != "" ]] && [[ "${ENTRY_NAME}" != "${CURRENT_KEY}" ]]; then
+            printf -v "${STATE_PREFIX}KEY_${ENTRY_COUNT}" '%s' "${CURRENT_KEY}"
+            printf -v "${STATE_PREFIX}TYPE_${ENTRY_COUNT}" '%s' "${CURRENT_TYPE}"
+            printf -v "${STATE_PREFIX}VALUE_${ENTRY_COUNT}" '%s' "${CURRENT_VALUE}"
+            printf -v "${STATE_PREFIX}LIST_${ENTRY_COUNT}" '%s' "${CURRENT_LIST}"
+            ENTRY_COUNT=$((ENTRY_COUNT + 1))
+
+            CURRENT_KEY=""
+            CURRENT_TYPE=""
+            CURRENT_VALUE=""
+            CURRENT_LIST=""
+            CURRENT_HAS_VALUE=false
+            CURRENT_HAS_LIST_ROOT=false
+            CURRENT_HAS_LIST_ITEMS=false
+        fi
+
+        if [[ "${CURRENT_KEY}" == "" ]]; then
+            CURRENT_KEY="${ENTRY_NAME}"
+            CURRENT_TYPE=""
+            CURRENT_VALUE=""
+            CURRENT_LIST=""
+            CURRENT_HAS_VALUE=false
+            CURRENT_HAS_LIST_ROOT=false
+            CURRENT_HAS_LIST_ITEMS=false
+        fi
+
+        case "${ENTRY_TYPE}" in
+            value)
+                if [[ "${CURRENT_HAS_VALUE}" == true ]] || [[ "${CURRENT_HAS_LIST_ROOT}" == true ]] || [[ "${CURRENT_HAS_LIST_ITEMS}" == true ]]; then
+                    echo "Malformed template metadata assignment sequence: ${CURRENT_KEY}" >&2
+                    return 1
+                fi
+                CURRENT_TYPE='value'
+                CURRENT_VALUE="${ENTRY_VALUE}"
+                CURRENT_HAS_VALUE=true
+                ;;
+            list-root)
+                if [[ "${CURRENT_HAS_VALUE}" == true ]] || [[ "${CURRENT_HAS_LIST_ROOT}" == true ]] || [[ "${CURRENT_HAS_LIST_ITEMS}" == true ]]; then
+                    echo "Malformed template metadata assignment sequence: ${CURRENT_KEY}" >&2
+                    return 1
+                fi
+                CURRENT_TYPE='list'
+                CURRENT_HAS_LIST_ROOT=true
+                ;;
+            list-item)
+                if [[ "${CURRENT_HAS_VALUE}" == true ]] || [[ "${CURRENT_HAS_LIST_ROOT}" != true ]] && [[ "${CURRENT_HAS_LIST_ITEMS}" != true ]]; then
+                    echo "Malformed template metadata assignment sequence: ${CURRENT_KEY}" >&2
+                    return 1
+                fi
+                CURRENT_TYPE='list'
+                [[ "${CURRENT_LIST}" == "" ]] || CURRENT_LIST+=$'\n'
+                CURRENT_LIST+="${ENTRY_VALUE}"
+                CURRENT_HAS_LIST_ITEMS=true
+                ;;
+            *)
+                return 1
+                ;;
+        esac
+    done <<< "${TEMPLATE_METADATA_TEXT}"
+
+    if [[ "${CURRENT_KEY}" != "" ]]; then
+        printf -v "${STATE_PREFIX}KEY_${ENTRY_COUNT}" '%s' "${CURRENT_KEY}"
+        printf -v "${STATE_PREFIX}TYPE_${ENTRY_COUNT}" '%s' "${CURRENT_TYPE}"
+        printf -v "${STATE_PREFIX}VALUE_${ENTRY_COUNT}" '%s' "${CURRENT_VALUE}"
+        printf -v "${STATE_PREFIX}LIST_${ENTRY_COUNT}" '%s' "${CURRENT_LIST}"
+        ENTRY_COUNT=$((ENTRY_COUNT + 1))
+    fi
+
+    printf -v "${OUT_COUNT_VAR}" '%s' "${ENTRY_COUNT}"
+}
+
 # prints bash variable assignments for template metadata
 function marsh_parse_template_metadata {  # marsh_parse_template_metadata prefix template_dir #template_overrides[@] template_overrides[@]
     local PREFIX TEMPLATE_DIR NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDE
@@ -6172,6 +6275,42 @@ function marsh_parse_template_metadata {  # marsh_parse_template_metadata prefix
             [[ "${ASSET:-}" != "" ]] && echo "${PREFIX}ASSETS_${ASSET_TYPE_UPPER}+=(\"${ASSET//\"/\\\"}\")"
         done
     done
+}
+
+# parses one template metadata assignment line
+function marsh_parse_template_metadata_assignment {  # marsh_parse_template_metadata_assignment assignment_line out_name_var out_type_var out_value_var
+    local ASSIGNMENT_LINE OUT_NAME_VAR OUT_TYPE_VAR OUT_VALUE_VAR
+    local TEMPLATE_ASSIGNMENT_NAME TEMPLATE_ASSIGNMENT_VALUE TEMPLATE_ASSIGNMENT_TEXT
+
+    ASSIGNMENT_LINE="${1:-}"
+    OUT_NAME_VAR="${2:-}"
+    OUT_TYPE_VAR="${3:-}"
+    OUT_VALUE_VAR="${4:-}"
+    [[ "${ASSIGNMENT_LINE}" != "" ]] || return 1
+    [[ "${OUT_NAME_VAR}" != "" ]] || return 1
+    [[ "${OUT_TYPE_VAR}" != "" ]] || return 1
+    [[ "${OUT_VALUE_VAR}" != "" ]] || return 1
+
+    if [[ "${ASSIGNMENT_LINE}" =~ ^([A-Za-z_][A-Za-z0-9_]*)=\(\)$ ]]; then
+        printf -v "${OUT_NAME_VAR}" '%s' "${BASH_REMATCH[1]}"
+        printf -v "${OUT_TYPE_VAR}" '%s' 'list-root'
+        printf -v "${OUT_VALUE_VAR}" '%s' ''
+        return 0
+    fi
+
+    if [[ "${ASSIGNMENT_LINE}" =~ ^([A-Za-z_][A-Za-z0-9_]*)\+=\((.*)\)$ ]]; then
+        TEMPLATE_ASSIGNMENT_TEXT="${BASH_REMATCH[1]}=${BASH_REMATCH[2]}"
+        marsh_parse_internal_assignment "${TEMPLATE_ASSIGNMENT_TEXT}" "TEMPLATE_ASSIGNMENT_NAME" "TEMPLATE_ASSIGNMENT_VALUE" 'template metadata' || return 1
+        printf -v "${OUT_NAME_VAR}" '%s' "${TEMPLATE_ASSIGNMENT_NAME}"
+        printf -v "${OUT_TYPE_VAR}" '%s' 'list-item'
+        printf -v "${OUT_VALUE_VAR}" '%s' "${TEMPLATE_ASSIGNMENT_VALUE}"
+        return 0
+    fi
+
+    marsh_parse_internal_assignment "${ASSIGNMENT_LINE}" "TEMPLATE_ASSIGNMENT_NAME" "TEMPLATE_ASSIGNMENT_VALUE" 'template metadata' || return 1
+    printf -v "${OUT_NAME_VAR}" '%s' "${TEMPLATE_ASSIGNMENT_NAME}"
+    printf -v "${OUT_TYPE_VAR}" '%s' 'value'
+    printf -v "${OUT_VALUE_VAR}" '%s' "${TEMPLATE_ASSIGNMENT_VALUE}"
 }
 
 # parses a template tag into caller-owned outputs

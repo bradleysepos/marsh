@@ -453,6 +453,55 @@ function marsh_test_capture_template_asset_output_paths {
     done
 }
 
+function marsh_test_capture_template_metadata_assignment {
+    local ASSIGNMENT_LINE KEY_NAME ENTRY_TYPE VALUE_TEXT
+
+    ASSIGNMENT_LINE="${1:-}"
+    KEY_NAME=""
+    ENTRY_TYPE=""
+    VALUE_TEXT=""
+    marsh_parse_template_metadata_assignment "${ASSIGNMENT_LINE}" "KEY_NAME" "ENTRY_TYPE" "VALUE_TEXT" || return $?
+
+    printf '%s\n' \
+        "KEY_NAME=${KEY_NAME}" \
+        "ENTRY_TYPE=${ENTRY_TYPE}" \
+        "VALUE=${VALUE_TEXT}"
+}
+
+function marsh_test_capture_template_metadata_state {
+    local TEMPLATE_METADATA_TEXT STATE_COUNT INDEX_VAR KEY_VAR TYPE_VAR VALUE_VAR LIST_VAR
+    local KEY_NAME ENTRY_TYPE VALUE_TEXT LIST_TEXT LIST_ITEM
+
+    TEMPLATE_METADATA_TEXT="${1-}"
+    STATE_COUNT=""
+    marsh_load_template_metadata_state "${TEMPLATE_METADATA_TEXT}" "MARSH_TEST_TEMPLATE_METADATA_STATE_" "STATE_COUNT" || return $?
+
+    printf 'COUNT=%s\n' "${STATE_COUNT}"
+    INDEX_VAR=0
+    while [[ "${INDEX_VAR}" -lt "${STATE_COUNT}" ]]; do
+        KEY_VAR="MARSH_TEST_TEMPLATE_METADATA_STATE_KEY_${INDEX_VAR}"
+        TYPE_VAR="MARSH_TEST_TEMPLATE_METADATA_STATE_TYPE_${INDEX_VAR}"
+        VALUE_VAR="MARSH_TEST_TEMPLATE_METADATA_STATE_VALUE_${INDEX_VAR}"
+        LIST_VAR="MARSH_TEST_TEMPLATE_METADATA_STATE_LIST_${INDEX_VAR}"
+
+        KEY_NAME="${!KEY_VAR}"
+        ENTRY_TYPE="${!TYPE_VAR}"
+        VALUE_TEXT="${!VALUE_VAR}"
+        LIST_TEXT="${!LIST_VAR}"
+
+        printf '%s\n' \
+            "KEY=${KEY_NAME}" \
+            "TYPE=${ENTRY_TYPE}" \
+            "VALUE=${VALUE_TEXT}"
+        if [[ "${ENTRY_TYPE}" == "list" ]] && [[ "${LIST_TEXT}" != "" ]]; then
+            while IFS= read -r LIST_ITEM; do
+                printf 'LIST_ITEM=%s\n' "${LIST_ITEM}"
+            done <<< "${LIST_TEXT}"
+        fi
+        INDEX_VAR=$((INDEX_VAR + 1))
+    done
+}
+
 function marsh_test_capture_target_plan_build_context {
     local TARGET_PLAN_ROOT TARGET_OUTPUT_REL TARGET_FORCE TARGET_SKIP_TEMPLATE_ASSETS TARGET_SITEMAP TARGET_SITEMAP_SEARCH TEMPLATES_DIR TEMPLATE TEMPLATE_ASSETS_PATH
     local BUILD_CONTEXT_TARGET_OUTPUT_REL BUILD_CONTEXT_SOURCE_ROOT CONFIG_FILE_DIR TARGET_NAME TARGET_TEMPLATE_SOURCE TEMPLATE_OVERRIDE TEMPLATE_OVERRIDES_TEXT
@@ -6671,6 +6720,56 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
+        marsh_load_template_metadata_state:0)
+            TEST_NAME+=":value_and_list_entries"
+            ACTUAL=$(marsh_test_capture_template_metadata_state "$(printf '%s\n' \
+                'TEMPLATE_Template_Partials_Base="/site/templates/base.html"' \
+                'TEMPLATE_Template_Partials_Head="/site/templates/head.html"' \
+                'TEMPLATE_ASSETS_FONTS=()' \
+                'TEMPLATE_ASSETS_STYLES=()' \
+                'TEMPLATE_ASSETS_STYLES+=("css/site.css")' \
+                'TEMPLATE_ASSETS_STYLES+=("css/print.css")' \
+                'TEMPLATE_ASSETS_SCRIPTS=()')")
+            EXPECTED=$(printf '%s\n' \
+                'COUNT=5' \
+                'KEY=TEMPLATE_Template_Partials_Base' \
+                'TYPE=value' \
+                'VALUE=/site/templates/base.html' \
+                'KEY=TEMPLATE_Template_Partials_Head' \
+                'TYPE=value' \
+                'VALUE=/site/templates/head.html' \
+                'KEY=TEMPLATE_ASSETS_FONTS' \
+                'TYPE=list' \
+                'VALUE=' \
+                'KEY=TEMPLATE_ASSETS_STYLES' \
+                'TYPE=list' \
+                'VALUE=' \
+                'LIST_ITEM=css/site.css' \
+                'LIST_ITEM=css/print.css' \
+                'KEY=TEMPLATE_ASSETS_SCRIPTS' \
+                'TYPE=list' \
+                'VALUE=')
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_load_template_metadata_state:1)
+            TEST_NAME+=":rejects_append_without_root"
+            ACTUAL=$(marsh_load_template_metadata_state "$(printf '%s\n' \
+                'TEMPLATE_Template_Partials_Base="/site/templates/base.html"' \
+                'TEMPLATE_ASSETS_STYLES+=("css/site.css")')" 'MARSH_TEST_TEMPLATE_METADATA_STATE_' 'STATE_COUNT' 2>&1 >/dev/null)
+            STATUS=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${STATUS}" -eq "${EXPECTED}" ]]; then
+                EXPECTED='Malformed template metadata assignment sequence: TEMPLATE_ASSETS_STYLES'
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            ;;
         marsh_lookup_document_metadata_state:0)
             TEST_NAME+=":custom_value_lookup"
             ACTUAL=$(marsh_test_capture_document_metadata_lookup "$(printf '%s\n' \
@@ -7121,6 +7220,56 @@ function marsh_test {
                 RES="[PASS]"
             fi
             rm -rf "${TEMPLATE_DIR}"
+            ;;
+        marsh_parse_template_metadata_assignment:0)
+            TEST_NAME+=":quoted_value"
+            ACTUAL=$(marsh_test_capture_template_metadata_assignment 'TEMPLATE_Template_Partials_Base="/site/templates/base.html"')
+            EXPECTED=$(printf '%s\n' \
+                'KEY_NAME=TEMPLATE_Template_Partials_Base' \
+                'ENTRY_TYPE=value' \
+                'VALUE=/site/templates/base.html')
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_parse_template_metadata_assignment:1)
+            TEST_NAME+=":list_root"
+            ACTUAL=$(marsh_test_capture_template_metadata_assignment 'TEMPLATE_ASSETS_STYLES=()')
+            EXPECTED=$(printf '%s\n' \
+                'KEY_NAME=TEMPLATE_ASSETS_STYLES' \
+                'ENTRY_TYPE=list-root' \
+                'VALUE=')
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_parse_template_metadata_assignment:2)
+            TEST_NAME+=":list_item"
+            ACTUAL=$(marsh_test_capture_template_metadata_assignment 'TEMPLATE_ASSETS_STYLES+=("css/site.css")')
+            EXPECTED=$(printf '%s\n' \
+                'KEY_NAME=TEMPLATE_ASSETS_STYLES' \
+                'ENTRY_TYPE=list-item' \
+                'VALUE=css/site.css')
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_parse_template_metadata_assignment:3)
+            TEST_NAME+=":rejects_unsupported_scalar"
+            ACTUAL=$(marsh_parse_template_metadata_assignment 'TEMPLATE_Template_Partials_Base=/site/templates/base.html' 'KEY_NAME' 'ENTRY_TYPE' 'VALUE' 2>&1 >/dev/null)
+            STATUS=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${STATUS}" -eq "${EXPECTED}" ]]; then
+                EXPECTED='Unsupported template metadata assignment value: TEMPLATE_Template_Partials_Base=/site/templates/base.html'
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
             ;;
         marsh_parse_yaml:0)
             TEST_NAME+=":map"
@@ -10469,6 +10618,7 @@ KNOWN_FUNCTIONS=(
     marsh_load_target_build_metadata
     marsh_load_target_plan_build_context
     marsh_load_target_source_value
+    marsh_load_template_metadata_state
     marsh_lookup_document_metadata_state
     marsh_normalize_internal_path
     marsh_normalize_path
@@ -10476,6 +10626,7 @@ KNOWN_FUNCTIONS=(
     marsh_parse_internal_assignment
     marsh_parse_target_archive_queue_record
     marsh_parse_template_metadata
+    marsh_parse_template_metadata_assignment
     marsh_parse_template_tag
     marsh_parse_yaml
     marsh_plan_archive_pages

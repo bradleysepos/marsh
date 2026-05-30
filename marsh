@@ -4599,9 +4599,6 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
                         TAG_VALUES+=("${TAG_ARRAY_VALUE}")
                     done <<< "${TAG_VALUE}"
                     TAG_VALUE=$(printf '%s\n' "${TAG_VALUES[@]}")
-                elif [[ "${TAG_TYPE}" == "shell-array" ]]; then
-                    eval "TAG_VALUES=(\"\${${TAG_VAR}[@]}\")"
-                    TAG_VALUE=$(printf '%s\n' "${TAG_VALUES[@]}")
                 elif [[ "${TAG_TYPE}" == "file" ]]; then
                     if [[ -f "${!TAG_VAR}" ]] && [[ -r "${!TAG_VAR}" ]]; then
                         TAG_VALUE=$(<"${!TAG_VAR}")
@@ -6789,6 +6786,53 @@ function marsh_parse_template_tag {  # marsh_parse_template_tag tag_string tag_n
     return 0
 }
 
+# resolves known render-time shell-array template tags into list text without eval
+function marsh_resolve_render_shell_array_tag {  # marsh_resolve_render_shell_array_tag tag_var out_value_var
+    local TAG_VAR OUT_VALUE_VAR
+    local TAG_VALUE_TEXT
+
+    TAG_VAR="${1:-}"
+    OUT_VALUE_VAR="${2:-}"
+    [[ "${TAG_VAR}" != "" ]] || return 1
+    [[ "${OUT_VALUE_VAR}" != "" ]] || return 1
+
+    TAG_VALUE_TEXT=""
+    case "${TAG_VAR}" in
+        TEMPLATE_TAG_ASSETS_FONTS)
+            TAG_VALUE_TEXT=$(printf '%s\n' "${TEMPLATE_TAG_ASSETS_FONTS[@]}")
+            ;;
+        TEMPLATE_TAG_ASSETS_STYLES)
+            TAG_VALUE_TEXT=$(printf '%s\n' "${TEMPLATE_TAG_ASSETS_STYLES[@]}")
+            ;;
+        TEMPLATE_TAG_ASSETS_SCRIPTS)
+            TAG_VALUE_TEXT=$(printf '%s\n' "${TEMPLATE_TAG_ASSETS_SCRIPTS[@]}")
+            ;;
+        TEMPLATE_TAG_ASSETS_IMAGES)
+            TAG_VALUE_TEXT=$(printf '%s\n' "${TEMPLATE_TAG_ASSETS_IMAGES[@]}")
+            ;;
+        TEMPLATE_TAG_ASSETS_AUDIO)
+            TAG_VALUE_TEXT=$(printf '%s\n' "${TEMPLATE_TAG_ASSETS_AUDIO[@]}")
+            ;;
+        TEMPLATE_TAG_ASSETS_VIDEO)
+            TAG_VALUE_TEXT=$(printf '%s\n' "${TEMPLATE_TAG_ASSETS_VIDEO[@]}")
+            ;;
+        TEMPLATE_TAG_ASSETS_DOCUMENTS)
+            TAG_VALUE_TEXT=$(printf '%s\n' "${TEMPLATE_TAG_ASSETS_DOCUMENTS[@]}")
+            ;;
+        TEMPLATE_TAG_ASSETS_BINARIES)
+            TAG_VALUE_TEXT=$(printf '%s\n' "${TEMPLATE_TAG_ASSETS_BINARIES[@]}")
+            ;;
+        TEMPLATE_TAG_ASSETS_OTHER)
+            TAG_VALUE_TEXT=$(printf '%s\n' "${TEMPLATE_TAG_ASSETS_OTHER[@]}")
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+
+    printf -v "${OUT_VALUE_VAR}" '%s' "${TAG_VALUE_TEXT}"
+}
+
 # resolves a custom document tag from loaded document metadata state
 function marsh_resolve_loaded_document_metadata_tag {  # marsh_resolve_loaded_document_metadata_tag tag_name prefix out_type_var out_value_var
     local TAG_NAME PREFIX OUT_TYPE_VAR OUT_VALUE_VAR
@@ -6861,6 +6905,12 @@ function marsh_resolve_render_template_tag {  # marsh_resolve_render_template_ta
     fi
     if [[ "${RESOLVED_VAR}" == "" ]] && [[ "${RESOLVED_TYPE}" == "" ]] && [[ "${METADATA_VARS}" != "" ]]; then
         marsh_resolve_template_tag_metadata "${TAG_NAME}" "${PREFIX}" "${METADATA_VARS}" "RESOLVED_VAR" "RESOLVED_TYPE" 2>/dev/null || true
+    fi
+
+    if [[ "${RESOLVED_TYPE}" == "shell-array" ]]; then
+        marsh_resolve_render_shell_array_tag "${RESOLVED_VAR}" "RESOLVED_VALUE" || return 1
+        RESOLVED_TYPE="list"
+        RESOLVED_VAR=""
     fi
 
     [[ "${RESOLVED_TYPE}" != "" ]] || return 1

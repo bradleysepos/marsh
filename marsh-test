@@ -168,6 +168,30 @@ function marsh_test_capture_template_tag_metadata {
     printf 'TAG_VAR=%s\nTAG_TYPE=%s' "${TAG_VAR}" "${TAG_TYPE}"
 }
 
+function marsh_test_capture_render_template_tag {
+    local TAG_NAME PREFIX METADATA_VARS TAG_VAR TAG_TYPE TAG_VALUE LIST_ITEM
+
+    TAG_NAME="${1:-}"
+    PREFIX="${2:-}"
+    METADATA_VARS="${3:-}"
+    TAG_VAR=""
+    TAG_TYPE=""
+    TAG_VALUE=""
+    marsh_resolve_render_template_tag "${TAG_NAME}" "${PREFIX}" "${METADATA_VARS}" "TAG_VAR" "TAG_TYPE" "TAG_VALUE" || return $?
+
+    printf '%s\n' \
+        "TAG_VAR=${TAG_VAR}" \
+        "TAG_TYPE=${TAG_TYPE}"
+    if [[ "${TAG_TYPE}" == "list" ]]; then
+        while IFS= read -r LIST_ITEM; do
+            [[ "${LIST_ITEM}" == "" ]] && continue
+            printf 'LIST_ITEM=%s\n' "${LIST_ITEM}"
+        done <<< "${TAG_VALUE}"
+    else
+        printf 'TAG_VALUE=%s\n' "${TAG_VALUE}"
+    fi
+}
+
 function marsh_test_capture_archive_plan_build_context {
     local ARCHIVE_PLAN_ROOT BUILD_CONTEXT_TARGET_OUTPUT_REL BUILD_CONTEXT_SOURCE_ROOT TARGET_SITEMAP TARGET_SITEMAP_SEARCH TEMPLATES_DIR TEMPLATE TEMPLATE_ASSETS_PATH TEMPLATE_OVERRIDE TEMPLATE_OVERRIDES_TEXT
     local -a TEMPLATE_OVERRIDES
@@ -8490,6 +8514,21 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
+        marsh_resolve_render_template_tag:0)
+            TEST_NAME+=":template_asset_shell_array_normalized_to_list"
+            TEMPLATE_TAG_ASSETS_STYLES=('css/site.css' 'css/print.css')
+            ACTUAL=$(marsh_test_capture_render_template_tag "template.assets.styles" "DOCUMENT_" "")
+            EXPECTED=$(printf '%s\n' \
+                'TAG_VAR=' \
+                'TAG_TYPE=list' \
+                'LIST_ITEM=css/site.css' \
+                'LIST_ITEM=css/print.css')
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            unset TEMPLATE_TAG_ASSETS_STYLES
+            ;;
         marsh_resolve_template_asset_output_path:0)
             TEST_NAME+=":target_relative_default"
             ACTUAL=$(marsh_resolve_template_asset_output_path "docs" "assets/css/site.css")
@@ -10657,6 +10696,7 @@ KNOWN_FUNCTIONS=(
     marsh_publish_processed_output
     marsh_resolve_config_path
     marsh_resolve_relative_path
+    marsh_resolve_render_template_tag
     marsh_resolve_sitemap_source_path
     marsh_resolve_template_asset_output_path
     marsh_resolve_template_tag_metadata

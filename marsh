@@ -4653,8 +4653,17 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
     local DEST DEST_FINAL DEST_PRINT DEST_RENDER_PATH
     local TEMPLATE_DIR TEMPLATE LOG_LEVEL LOG_LEVELS_CSV MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_FILEEXT_REGEX MARKDOWN_REWRITE_LINKS TEMPLATE_ASSETS_PATH
     local NUM_TEMPLATE_OVERRIDES
-    local TEMPLATE_PREFIX TEMPLATE_META TEMPLATE_META_VARS
+    local TEMPLATE_PREFIX TEMPLATE_META TEMPLATE_METADATA_STATE_COUNT TEMPLATE_METADATA_INDEX
+    local TEMPLATE_METADATA_KEY_VAR TEMPLATE_METADATA_TYPE_VAR TEMPLATE_METADATA_VALUE_VAR TEMPLATE_METADATA_LIST_VAR
+    local TEMPLATE_METADATA_ENTRY_KEY TEMPLATE_METADATA_ENTRY_TYPE TEMPLATE_METADATA_ENTRY_VALUE TEMPLATE_METADATA_ENTRY_LIST
     local TEMPLATE_RENDER
+    local TEMPLATE_Template_Partials_Redirect TEMPLATE_Template_Partials_Base TEMPLATE_Template_Partials_Head TEMPLATE_Template_Partials_Body
+    local TEMPLATE_Template_Partials_Document TEMPLATE_Template_Partials_Header TEMPLATE_Template_Partials_Footer TEMPLATE_Template_Partials_Nav
+    local TEMPLATE_Template_Partials_Notice TEMPLATE_Template_Partials_Archive_HTML_Base TEMPLATE_Template_Partials_Archive_HTML_Head
+    local TEMPLATE_Template_Partials_Archive_HTML_Body TEMPLATE_Template_Partials_Archive_HTML_Document TEMPLATE_Template_Partials_Archive_HTML_Header
+    local TEMPLATE_Template_Partials_Archive_HTML_Footer TEMPLATE_Template_Partials_Archive_HTML_Nav TEMPLATE_Template_Partials_Archive_HTML_Notice
+    local TEMPLATE_Template_Partials_Archive_Atom_Base TEMPLATE_Template_Partials_Archive_Atom_Body TEMPLATE_Template_Partials_Archive_Atom_Document
+    local TEMPLATE_Template_Partials_Archive_JSON_Base TEMPLATE_Template_Partials_Archive_JSON_Body TEMPLATE_Template_Partials_Archive_JSON_Document
     local TEMPLATE_BASE_FILE TEMPLATE_HEAD_FILE TEMPLATE_BODY_FILE TEMPLATE_DOCUMENT_FILE TEMPLATE_HEADER_FILE TEMPLATE_FOOTER_FILE TEMPLATE_NAV_FILE TEMPLATE_NOTICE_FILE
     local TEMPLATE_BASE_TEMPLATE TEMPLATE_HEAD_TEMPLATE TEMPLATE_BODY_TEMPLATE TEMPLATE_DOCUMENT_TEMPLATE TEMPLATE_HEADER_TEMPLATE TEMPLATE_FOOTER_TEMPLATE
     local TEMPLATE_NAV_TEMPLATE TEMPLATE_NOTICE_TEMPLATE
@@ -4681,6 +4690,8 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
     local SUBDOCUMENT_META_ASSIGNMENT SUBDOCUMENT_META_ENTRY_NAME SUBDOCUMENT_META_ENTRY_TYPE SUBDOCUMENT_META_ENTRY_VALUE SUBDOCUMENT_META_ENTRY_INDEX
     local SUBDOCUMENT_META_VAR_NAME SUBDOCUMENT_META_NORMALIZED_KEY SUBDOCUMENT_META_ALLOW_RESERVED_PAGE_TAGS
     local -a TEMPLATE_OVERRIDES PARTIALS TEMPLATE_ASSET_TYPES
+    local -a TEMPLATE_ASSETS_FONTS TEMPLATE_ASSETS_STYLES TEMPLATE_ASSETS_SCRIPTS TEMPLATE_ASSETS_IMAGES
+    local -a TEMPLATE_ASSETS_AUDIO TEMPLATE_ASSETS_VIDEO TEMPLATE_ASSETS_DOCUMENTS TEMPLATE_ASSETS_BINARIES TEMPLATE_ASSETS_OTHER
     local -a TEMPLATE_TAG_ASSETS_FONTS TEMPLATE_TAG_ASSETS_STYLES TEMPLATE_TAG_ASSETS_SCRIPTS TEMPLATE_TAG_ASSETS_IMAGES
     local -a TEMPLATE_TAG_ASSETS_AUDIO TEMPLATE_TAG_ASSETS_VIDEO TEMPLATE_TAG_ASSETS_DOCUMENTS TEMPLATE_TAG_ASSETS_BINARIES TEMPLATE_TAG_ASSETS_OTHER
     local TEMPLATE_ASSET_OUTPUT_PATHS_FONTS_TEXT TEMPLATE_ASSET_OUTPUT_PATHS_STYLES_TEXT TEMPLATE_ASSET_OUTPUT_PATHS_SCRIPTS_TEXT TEMPLATE_ASSET_OUTPUT_PATHS_IMAGES_TEXT
@@ -4892,9 +4903,230 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
         TEMPLATE_PREFIX="TEMPLATE_"
         TEMPLATE_META=$(marsh_get_template_metadata "${TEMPLATE_PREFIX}" "${TEMPLATE_DIR}/${TEMPLATE}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}")
         [[ $? -ne 0 ]] && return 1
-        TEMPLATE_META_VARS=$(echo "${TEMPLATE_META}" | marsh_get_variables)
-        eval "$(printf '%s\n' "${TEMPLATE_META_VARS}" | marsh_get_local_declarations)"
-        eval "${TEMPLATE_META}"
+        TEMPLATE_METADATA_STATE_COUNT=0
+        marsh_load_template_metadata_state "${TEMPLATE_META}" "TEMPLATE_METADATA_STATE_" "TEMPLATE_METADATA_STATE_COUNT" || return 1
+
+        TEMPLATE_Template_Partials_Redirect=""
+        TEMPLATE_Template_Partials_Base=""
+        TEMPLATE_Template_Partials_Head=""
+        TEMPLATE_Template_Partials_Body=""
+        TEMPLATE_Template_Partials_Document=""
+        TEMPLATE_Template_Partials_Header=""
+        TEMPLATE_Template_Partials_Footer=""
+        TEMPLATE_Template_Partials_Nav=""
+        TEMPLATE_Template_Partials_Notice=""
+        TEMPLATE_Template_Partials_Archive_HTML_Base=""
+        TEMPLATE_Template_Partials_Archive_HTML_Head=""
+        TEMPLATE_Template_Partials_Archive_HTML_Body=""
+        TEMPLATE_Template_Partials_Archive_HTML_Document=""
+        TEMPLATE_Template_Partials_Archive_HTML_Header=""
+        TEMPLATE_Template_Partials_Archive_HTML_Footer=""
+        TEMPLATE_Template_Partials_Archive_HTML_Nav=""
+        TEMPLATE_Template_Partials_Archive_HTML_Notice=""
+        TEMPLATE_Template_Partials_Archive_Atom_Base=""
+        TEMPLATE_Template_Partials_Archive_Atom_Body=""
+        TEMPLATE_Template_Partials_Archive_Atom_Document=""
+        TEMPLATE_Template_Partials_Archive_JSON_Base=""
+        TEMPLATE_Template_Partials_Archive_JSON_Body=""
+        TEMPLATE_Template_Partials_Archive_JSON_Document=""
+        TEMPLATE_ASSETS_FONTS=()
+        TEMPLATE_ASSETS_STYLES=()
+        TEMPLATE_ASSETS_SCRIPTS=()
+        TEMPLATE_ASSETS_IMAGES=()
+        TEMPLATE_ASSETS_AUDIO=()
+        TEMPLATE_ASSETS_VIDEO=()
+        TEMPLATE_ASSETS_DOCUMENTS=()
+        TEMPLATE_ASSETS_BINARIES=()
+        TEMPLATE_ASSETS_OTHER=()
+
+        TEMPLATE_METADATA_INDEX=0
+        while [[ "${TEMPLATE_METADATA_INDEX}" -lt "${TEMPLATE_METADATA_STATE_COUNT}" ]]; do
+            TEMPLATE_METADATA_KEY_VAR="TEMPLATE_METADATA_STATE_KEY_${TEMPLATE_METADATA_INDEX}"
+            TEMPLATE_METADATA_TYPE_VAR="TEMPLATE_METADATA_STATE_TYPE_${TEMPLATE_METADATA_INDEX}"
+            TEMPLATE_METADATA_VALUE_VAR="TEMPLATE_METADATA_STATE_VALUE_${TEMPLATE_METADATA_INDEX}"
+            TEMPLATE_METADATA_LIST_VAR="TEMPLATE_METADATA_STATE_LIST_${TEMPLATE_METADATA_INDEX}"
+            TEMPLATE_METADATA_ENTRY_KEY="${!TEMPLATE_METADATA_KEY_VAR}"
+            TEMPLATE_METADATA_ENTRY_TYPE="${!TEMPLATE_METADATA_TYPE_VAR}"
+            TEMPLATE_METADATA_ENTRY_VALUE="${!TEMPLATE_METADATA_VALUE_VAR}"
+            TEMPLATE_METADATA_ENTRY_LIST="${!TEMPLATE_METADATA_LIST_VAR}"
+
+            case "${TEMPLATE_METADATA_ENTRY_KEY}" in
+                TEMPLATE_Template_Partials_Redirect)
+                    [[ "${TEMPLATE_METADATA_ENTRY_TYPE}" == "value" ]] || return 1
+                    TEMPLATE_Template_Partials_Redirect="${TEMPLATE_METADATA_ENTRY_VALUE}"
+                    ;;
+                TEMPLATE_Template_Partials_Base)
+                    [[ "${TEMPLATE_METADATA_ENTRY_TYPE}" == "value" ]] || return 1
+                    TEMPLATE_Template_Partials_Base="${TEMPLATE_METADATA_ENTRY_VALUE}"
+                    ;;
+                TEMPLATE_Template_Partials_Head)
+                    [[ "${TEMPLATE_METADATA_ENTRY_TYPE}" == "value" ]] || return 1
+                    TEMPLATE_Template_Partials_Head="${TEMPLATE_METADATA_ENTRY_VALUE}"
+                    ;;
+                TEMPLATE_Template_Partials_Body)
+                    [[ "${TEMPLATE_METADATA_ENTRY_TYPE}" == "value" ]] || return 1
+                    TEMPLATE_Template_Partials_Body="${TEMPLATE_METADATA_ENTRY_VALUE}"
+                    ;;
+                TEMPLATE_Template_Partials_Document)
+                    [[ "${TEMPLATE_METADATA_ENTRY_TYPE}" == "value" ]] || return 1
+                    TEMPLATE_Template_Partials_Document="${TEMPLATE_METADATA_ENTRY_VALUE}"
+                    ;;
+                TEMPLATE_Template_Partials_Header)
+                    [[ "${TEMPLATE_METADATA_ENTRY_TYPE}" == "value" ]] || return 1
+                    TEMPLATE_Template_Partials_Header="${TEMPLATE_METADATA_ENTRY_VALUE}"
+                    ;;
+                TEMPLATE_Template_Partials_Footer)
+                    [[ "${TEMPLATE_METADATA_ENTRY_TYPE}" == "value" ]] || return 1
+                    TEMPLATE_Template_Partials_Footer="${TEMPLATE_METADATA_ENTRY_VALUE}"
+                    ;;
+                TEMPLATE_Template_Partials_Nav)
+                    [[ "${TEMPLATE_METADATA_ENTRY_TYPE}" == "value" ]] || return 1
+                    TEMPLATE_Template_Partials_Nav="${TEMPLATE_METADATA_ENTRY_VALUE}"
+                    ;;
+                TEMPLATE_Template_Partials_Notice)
+                    [[ "${TEMPLATE_METADATA_ENTRY_TYPE}" == "value" ]] || return 1
+                    TEMPLATE_Template_Partials_Notice="${TEMPLATE_METADATA_ENTRY_VALUE}"
+                    ;;
+                TEMPLATE_Template_Partials_Archive_HTML_Base)
+                    [[ "${TEMPLATE_METADATA_ENTRY_TYPE}" == "value" ]] || return 1
+                    TEMPLATE_Template_Partials_Archive_HTML_Base="${TEMPLATE_METADATA_ENTRY_VALUE}"
+                    ;;
+                TEMPLATE_Template_Partials_Archive_HTML_Head)
+                    [[ "${TEMPLATE_METADATA_ENTRY_TYPE}" == "value" ]] || return 1
+                    TEMPLATE_Template_Partials_Archive_HTML_Head="${TEMPLATE_METADATA_ENTRY_VALUE}"
+                    ;;
+                TEMPLATE_Template_Partials_Archive_HTML_Body)
+                    [[ "${TEMPLATE_METADATA_ENTRY_TYPE}" == "value" ]] || return 1
+                    TEMPLATE_Template_Partials_Archive_HTML_Body="${TEMPLATE_METADATA_ENTRY_VALUE}"
+                    ;;
+                TEMPLATE_Template_Partials_Archive_HTML_Document)
+                    [[ "${TEMPLATE_METADATA_ENTRY_TYPE}" == "value" ]] || return 1
+                    TEMPLATE_Template_Partials_Archive_HTML_Document="${TEMPLATE_METADATA_ENTRY_VALUE}"
+                    ;;
+                TEMPLATE_Template_Partials_Archive_HTML_Header)
+                    [[ "${TEMPLATE_METADATA_ENTRY_TYPE}" == "value" ]] || return 1
+                    TEMPLATE_Template_Partials_Archive_HTML_Header="${TEMPLATE_METADATA_ENTRY_VALUE}"
+                    ;;
+                TEMPLATE_Template_Partials_Archive_HTML_Footer)
+                    [[ "${TEMPLATE_METADATA_ENTRY_TYPE}" == "value" ]] || return 1
+                    TEMPLATE_Template_Partials_Archive_HTML_Footer="${TEMPLATE_METADATA_ENTRY_VALUE}"
+                    ;;
+                TEMPLATE_Template_Partials_Archive_HTML_Nav)
+                    [[ "${TEMPLATE_METADATA_ENTRY_TYPE}" == "value" ]] || return 1
+                    TEMPLATE_Template_Partials_Archive_HTML_Nav="${TEMPLATE_METADATA_ENTRY_VALUE}"
+                    ;;
+                TEMPLATE_Template_Partials_Archive_HTML_Notice)
+                    [[ "${TEMPLATE_METADATA_ENTRY_TYPE}" == "value" ]] || return 1
+                    TEMPLATE_Template_Partials_Archive_HTML_Notice="${TEMPLATE_METADATA_ENTRY_VALUE}"
+                    ;;
+                TEMPLATE_Template_Partials_Archive_Atom_Base)
+                    [[ "${TEMPLATE_METADATA_ENTRY_TYPE}" == "value" ]] || return 1
+                    TEMPLATE_Template_Partials_Archive_Atom_Base="${TEMPLATE_METADATA_ENTRY_VALUE}"
+                    ;;
+                TEMPLATE_Template_Partials_Archive_Atom_Body)
+                    [[ "${TEMPLATE_METADATA_ENTRY_TYPE}" == "value" ]] || return 1
+                    TEMPLATE_Template_Partials_Archive_Atom_Body="${TEMPLATE_METADATA_ENTRY_VALUE}"
+                    ;;
+                TEMPLATE_Template_Partials_Archive_Atom_Document)
+                    [[ "${TEMPLATE_METADATA_ENTRY_TYPE}" == "value" ]] || return 1
+                    TEMPLATE_Template_Partials_Archive_Atom_Document="${TEMPLATE_METADATA_ENTRY_VALUE}"
+                    ;;
+                TEMPLATE_Template_Partials_Archive_JSON_Base)
+                    [[ "${TEMPLATE_METADATA_ENTRY_TYPE}" == "value" ]] || return 1
+                    TEMPLATE_Template_Partials_Archive_JSON_Base="${TEMPLATE_METADATA_ENTRY_VALUE}"
+                    ;;
+                TEMPLATE_Template_Partials_Archive_JSON_Body)
+                    [[ "${TEMPLATE_METADATA_ENTRY_TYPE}" == "value" ]] || return 1
+                    TEMPLATE_Template_Partials_Archive_JSON_Body="${TEMPLATE_METADATA_ENTRY_VALUE}"
+                    ;;
+                TEMPLATE_Template_Partials_Archive_JSON_Document)
+                    [[ "${TEMPLATE_METADATA_ENTRY_TYPE}" == "value" ]] || return 1
+                    TEMPLATE_Template_Partials_Archive_JSON_Document="${TEMPLATE_METADATA_ENTRY_VALUE}"
+                    ;;
+                TEMPLATE_ASSETS_FONTS)
+                    [[ "${TEMPLATE_METADATA_ENTRY_TYPE}" == "list" ]] || return 1
+                    if [[ "${TEMPLATE_METADATA_ENTRY_LIST}" != "" ]]; then
+                        while IFS= read -r ASSET; do
+                            [[ "${ASSET}" == "" ]] && continue
+                            TEMPLATE_ASSETS_FONTS+=("${ASSET}")
+                        done <<< "${TEMPLATE_METADATA_ENTRY_LIST}"
+                    fi
+                    ;;
+                TEMPLATE_ASSETS_STYLES)
+                    [[ "${TEMPLATE_METADATA_ENTRY_TYPE}" == "list" ]] || return 1
+                    if [[ "${TEMPLATE_METADATA_ENTRY_LIST}" != "" ]]; then
+                        while IFS= read -r ASSET; do
+                            [[ "${ASSET}" == "" ]] && continue
+                            TEMPLATE_ASSETS_STYLES+=("${ASSET}")
+                        done <<< "${TEMPLATE_METADATA_ENTRY_LIST}"
+                    fi
+                    ;;
+                TEMPLATE_ASSETS_SCRIPTS)
+                    [[ "${TEMPLATE_METADATA_ENTRY_TYPE}" == "list" ]] || return 1
+                    if [[ "${TEMPLATE_METADATA_ENTRY_LIST}" != "" ]]; then
+                        while IFS= read -r ASSET; do
+                            [[ "${ASSET}" == "" ]] && continue
+                            TEMPLATE_ASSETS_SCRIPTS+=("${ASSET}")
+                        done <<< "${TEMPLATE_METADATA_ENTRY_LIST}"
+                    fi
+                    ;;
+                TEMPLATE_ASSETS_IMAGES)
+                    [[ "${TEMPLATE_METADATA_ENTRY_TYPE}" == "list" ]] || return 1
+                    if [[ "${TEMPLATE_METADATA_ENTRY_LIST}" != "" ]]; then
+                        while IFS= read -r ASSET; do
+                            [[ "${ASSET}" == "" ]] && continue
+                            TEMPLATE_ASSETS_IMAGES+=("${ASSET}")
+                        done <<< "${TEMPLATE_METADATA_ENTRY_LIST}"
+                    fi
+                    ;;
+                TEMPLATE_ASSETS_AUDIO)
+                    [[ "${TEMPLATE_METADATA_ENTRY_TYPE}" == "list" ]] || return 1
+                    if [[ "${TEMPLATE_METADATA_ENTRY_LIST}" != "" ]]; then
+                        while IFS= read -r ASSET; do
+                            [[ "${ASSET}" == "" ]] && continue
+                            TEMPLATE_ASSETS_AUDIO+=("${ASSET}")
+                        done <<< "${TEMPLATE_METADATA_ENTRY_LIST}"
+                    fi
+                    ;;
+                TEMPLATE_ASSETS_VIDEO)
+                    [[ "${TEMPLATE_METADATA_ENTRY_TYPE}" == "list" ]] || return 1
+                    if [[ "${TEMPLATE_METADATA_ENTRY_LIST}" != "" ]]; then
+                        while IFS= read -r ASSET; do
+                            [[ "${ASSET}" == "" ]] && continue
+                            TEMPLATE_ASSETS_VIDEO+=("${ASSET}")
+                        done <<< "${TEMPLATE_METADATA_ENTRY_LIST}"
+                    fi
+                    ;;
+                TEMPLATE_ASSETS_DOCUMENTS)
+                    [[ "${TEMPLATE_METADATA_ENTRY_TYPE}" == "list" ]] || return 1
+                    if [[ "${TEMPLATE_METADATA_ENTRY_LIST}" != "" ]]; then
+                        while IFS= read -r ASSET; do
+                            [[ "${ASSET}" == "" ]] && continue
+                            TEMPLATE_ASSETS_DOCUMENTS+=("${ASSET}")
+                        done <<< "${TEMPLATE_METADATA_ENTRY_LIST}"
+                    fi
+                    ;;
+                TEMPLATE_ASSETS_BINARIES)
+                    [[ "${TEMPLATE_METADATA_ENTRY_TYPE}" == "list" ]] || return 1
+                    if [[ "${TEMPLATE_METADATA_ENTRY_LIST}" != "" ]]; then
+                        while IFS= read -r ASSET; do
+                            [[ "${ASSET}" == "" ]] && continue
+                            TEMPLATE_ASSETS_BINARIES+=("${ASSET}")
+                        done <<< "${TEMPLATE_METADATA_ENTRY_LIST}"
+                    fi
+                    ;;
+                TEMPLATE_ASSETS_OTHER)
+                    [[ "${TEMPLATE_METADATA_ENTRY_TYPE}" == "list" ]] || return 1
+                    if [[ "${TEMPLATE_METADATA_ENTRY_LIST}" != "" ]]; then
+                        while IFS= read -r ASSET; do
+                            [[ "${ASSET}" == "" ]] && continue
+                            TEMPLATE_ASSETS_OTHER+=("${ASSET}")
+                        done <<< "${TEMPLATE_METADATA_ENTRY_LIST}"
+                    fi
+                    ;;
+            esac
+            TEMPLATE_METADATA_INDEX=$((TEMPLATE_METADATA_INDEX + 1))
+        done
 
         # partials
         PARTIALS=("${TEMPLATE_Template_Partials_Redirect:-}" "${TEMPLATE_Template_Partials_Base:-}" "${TEMPLATE_Template_Partials_Head:-}" "${TEMPLATE_Template_Partials_Body:-}" "${TEMPLATE_Template_Partials_Document:-}" "${TEMPLATE_Template_Partials_Header:-}" "${TEMPLATE_Template_Partials_Footer:-}" "${TEMPLATE_Template_Partials_Nav:-}" "${TEMPLATE_Template_Partials_Notice:-}" "${TEMPLATE_Template_Partials_Archive_HTML_Base:-}" "${TEMPLATE_Template_Partials_Archive_HTML_Head:-}" "${TEMPLATE_Template_Partials_Archive_HTML_Body:-}" "${TEMPLATE_Template_Partials_Archive_HTML_Document:-}" "${TEMPLATE_Template_Partials_Archive_HTML_Header:-}" "${TEMPLATE_Template_Partials_Archive_HTML_Footer:-}" "${TEMPLATE_Template_Partials_Archive_HTML_Nav:-}" "${TEMPLATE_Template_Partials_Archive_HTML_Notice:-}" "${TEMPLATE_Template_Partials_Archive_Atom_Base:-}" "${TEMPLATE_Template_Partials_Archive_Atom_Body:-}" "${TEMPLATE_Template_Partials_Archive_Atom_Document:-}" "${TEMPLATE_Template_Partials_Archive_JSON_Base:-}" "${TEMPLATE_Template_Partials_Archive_JSON_Body:-}" "${TEMPLATE_Template_Partials_Archive_JSON_Document:-}")

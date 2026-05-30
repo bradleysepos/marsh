@@ -6598,9 +6598,11 @@ function marsh_load_template_metadata_state {  # marsh_load_template_metadata_st
 # prints bash variable assignments for template metadata
 function marsh_parse_template_metadata {  # marsh_parse_template_metadata prefix template_dir #template_overrides[@] template_overrides[@]
     local PREFIX TEMPLATE_DIR NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDE
-    local TEMPLATE_META TEMPLATE_LOOKUP_VALUE TEMPLATE_PARSED_YAML_STATE_COUNT PARTIAL_LOOKUP_KEY PARTIAL_OUTPUT_NAME
+    local TEMPLATE_META TEMPLATE_LOOKUP_VALUE TEMPLATE_PARSED_YAML_STATE_COUNT PARTIAL_OUTPUT_NAME
     local INDEX ASSET_TYPE ASSET_TYPE_UPPER ASSET FILTER_INDEX REGEX EXTENDED MATCH REPLACE EXTRA I
-    local ASSETS_INDEX ASSETS_TYPE OIFS ASSET_TEXT_VAR ASSETS_TEXT ASSETS_UPDATED_TEXT
+    local ASSETS_INDEX ASSETS_TYPE ASSET_TEXT_VAR ASSETS_TEXT ASSETS_UPDATED_TEXT
+    local STATE_INDEX STATE_KEY_VAR STATE_VALUE_VAR STATE_KEY STATE_VALUE
+    local PARTIAL_VALUE_VAR ASSET_ENTRY_VAR FILTER_REGEX_VAR FILTER_EXTENDED_VAR FILTER_ASSET_TYPE_VAR
     local TEMPLATE_ASSETS_FONTS_TEXT TEMPLATE_ASSETS_STYLES_TEXT TEMPLATE_ASSETS_SCRIPTS_TEXT TEMPLATE_ASSETS_IMAGES_TEXT
     local TEMPLATE_ASSETS_AUDIO_TEXT TEMPLATE_ASSETS_VIDEO_TEXT TEMPLATE_ASSETS_DOCUMENTS_TEXT TEMPLATE_ASSETS_BINARIES_TEXT TEMPLATE_ASSETS_OTHER_TEXT
     local -a TEMPLATE_OVERRIDES ASSET_TYPES ASSETS_TEMP TEMPLATE_PARTIAL_KEYS
@@ -6642,7 +6644,7 @@ function marsh_parse_template_metadata {  # marsh_parse_template_metadata prefix
     TEMPLATE_PARSED_YAML_STATE_COUNT=0
     marsh_load_parsed_yaml_state "${TEMPLATE_META}" "MARSH_TEMPLATE_STATE_" "TEMPLATE_PARSED_YAML_STATE_COUNT" || return 1
 
-    # print partials paths relative to template dir
+    # materialize resolved partial values, asset entries, and filter fields in one pass
     TEMPLATE_PARTIAL_KEYS=(
         'MARSH_TEMPLATE_Template_Partials_Base'
         'MARSH_TEMPLATE_Template_Partials_Head'
@@ -6668,47 +6670,78 @@ function marsh_parse_template_metadata {  # marsh_parse_template_metadata prefix
         'MARSH_TEMPLATE_Template_Partials_Archive_JSON_Body'
         'MARSH_TEMPLATE_Template_Partials_Archive_JSON_Document'
     )
-    for PARTIAL_LOOKUP_KEY in "${TEMPLATE_PARTIAL_KEYS[@]}"; do
-        TEMPLATE_LOOKUP_VALUE=""
-        if marsh_lookup_parsed_yaml_state "MARSH_TEMPLATE_STATE_" "${TEMPLATE_PARSED_YAML_STATE_COUNT}" "${PARTIAL_LOOKUP_KEY}" "TEMPLATE_LOOKUP_VALUE"; then
-            PARTIAL_OUTPUT_NAME="${PARTIAL_LOOKUP_KEY#MARSH_TEMPLATE_}"
+    ASSET_TYPES=('Fonts' 'Styles' 'Scripts' 'Images' 'Audio' 'Video' 'Documents' 'Binaries' 'Other')
+    for ASSET_TYPE in "${ASSET_TYPES[@]}"; do
+        ASSET_TEXT_VAR="TEMPLATE_ASSETS_${ASSET_TYPE}_TEXT"
+        printf -v "${ASSET_TEXT_VAR}" '%s' ''
+    done
+    STATE_INDEX=0
+    while [[ "${STATE_INDEX}" -lt "${TEMPLATE_PARSED_YAML_STATE_COUNT}" ]]; do
+        STATE_KEY_VAR="MARSH_TEMPLATE_STATE_KEY_${STATE_INDEX}"
+        STATE_VALUE_VAR="MARSH_TEMPLATE_STATE_VALUE_${STATE_INDEX}"
+        STATE_KEY="${!STATE_KEY_VAR}"
+        STATE_VALUE="${!STATE_VALUE_VAR}"
+        case "${STATE_KEY}" in
+            MARSH_TEMPLATE_Template_Partials_*)
+                PARTIAL_OUTPUT_NAME="${STATE_KEY#MARSH_TEMPLATE_}"
+                PARTIAL_VALUE_VAR="TEMPLATE_PARTIAL_VALUE_${PARTIAL_OUTPUT_NAME}"
+                printf -v "${PARTIAL_VALUE_VAR}" '%s' "${STATE_VALUE}"
+                ;;
+            MARSH_TEMPLATE_Template_Assets_*)
+                if [[ "${STATE_KEY}" =~ ^MARSH_TEMPLATE_Template_Assets_([A-Za-z]+)_([0-9]+)$ ]]; then
+                    ASSET_ENTRY_VAR="TEMPLATE_ASSET_VALUE_${BASH_REMATCH[1]}_${BASH_REMATCH[2]}"
+                    printf -v "${ASSET_ENTRY_VAR}" '%s' "${STATE_VALUE}"
+                fi
+                ;;
+            MARSH_TEMPLATE_Template_Filters_*)
+                if [[ "${STATE_KEY}" =~ ^MARSH_TEMPLATE_Template_Filters_([0-9]+)_Regex$ ]]; then
+                    FILTER_REGEX_VAR="TEMPLATE_FILTER_REGEX_${BASH_REMATCH[1]}"
+                    printf -v "${FILTER_REGEX_VAR}" '%s' "${STATE_VALUE}"
+                elif [[ "${STATE_KEY}" =~ ^MARSH_TEMPLATE_Template_Filters_([0-9]+)_Extended$ ]]; then
+                    FILTER_EXTENDED_VAR="TEMPLATE_FILTER_EXTENDED_${BASH_REMATCH[1]}"
+                    printf -v "${FILTER_EXTENDED_VAR}" '%s' "${STATE_VALUE}"
+                elif [[ "${STATE_KEY}" =~ ^MARSH_TEMPLATE_Template_Filters_([0-9]+)_Assets_([0-9]+)$ ]]; then
+                    FILTER_ASSET_TYPE_VAR="TEMPLATE_FILTER_ASSET_TYPE_${BASH_REMATCH[1]}_${BASH_REMATCH[2]}"
+                    printf -v "${FILTER_ASSET_TYPE_VAR}" '%s' "${STATE_VALUE}"
+                fi
+                ;;
+        esac
+        STATE_INDEX=$((STATE_INDEX + 1))
+    done
+
+    # print partials paths relative to template dir
+    for STATE_KEY in "${TEMPLATE_PARTIAL_KEYS[@]}"; do
+        PARTIAL_OUTPUT_NAME="${STATE_KEY#MARSH_TEMPLATE_}"
+        PARTIAL_VALUE_VAR="TEMPLATE_PARTIAL_VALUE_${PARTIAL_OUTPUT_NAME}"
+        TEMPLATE_LOOKUP_VALUE="${!PARTIAL_VALUE_VAR:-}"
+        if [[ "${TEMPLATE_LOOKUP_VALUE}" != "" ]]; then
             echo "${PREFIX}${PARTIAL_OUTPUT_NAME}=\"${TEMPLATE_DIR}/${TEMPLATE_LOOKUP_VALUE//\"/\\\"}\""
         fi
     done
 
     # assets
-    ASSET_TYPES=('Fonts' 'Styles' 'Scripts' 'Images' 'Audio' 'Video' 'Documents' 'Binaries' 'Other')
     for ASSET_TYPE in "${ASSET_TYPES[@]}"; do
         ASSET_TEXT_VAR="TEMPLATE_ASSETS_${ASSET_TYPE}_TEXT"
-        printf -v "${ASSET_TEXT_VAR}" '%s' ''
         INDEX=0
-        ASSET="MARSH_TEMPLATE_Template_Assets_${ASSET_TYPE}_${INDEX}"
-        TEMPLATE_LOOKUP_VALUE=""
-        marsh_lookup_parsed_yaml_state "MARSH_TEMPLATE_STATE_" "${TEMPLATE_PARSED_YAML_STATE_COUNT}" "${ASSET}" "TEMPLATE_LOOKUP_VALUE" || TEMPLATE_LOOKUP_VALUE=""
-        ASSET="${TEMPLATE_LOOKUP_VALUE}"
+        ASSET_ENTRY_VAR="TEMPLATE_ASSET_VALUE_${ASSET_TYPE}_${INDEX}"
+        ASSET="${!ASSET_ENTRY_VAR:-}"
         while [[ "${ASSET}" != "" ]]; do
             ASSETS_TEXT="${!ASSET_TEXT_VAR}"
             [[ "${ASSETS_TEXT}" == "" ]] || ASSETS_TEXT+=$'\n'
             ASSETS_TEXT+="${ASSET}"
             printf -v "${ASSET_TEXT_VAR}" '%s' "${ASSETS_TEXT}"
             INDEX=$((INDEX+1))
-            ASSET="MARSH_TEMPLATE_Template_Assets_${ASSET_TYPE}_${INDEX}"
-            TEMPLATE_LOOKUP_VALUE=""
-            marsh_lookup_parsed_yaml_state "MARSH_TEMPLATE_STATE_" "${TEMPLATE_PARSED_YAML_STATE_COUNT}" "${ASSET}" "TEMPLATE_LOOKUP_VALUE" || TEMPLATE_LOOKUP_VALUE=""
-            ASSET="${TEMPLATE_LOOKUP_VALUE}"
+            ASSET_ENTRY_VAR="TEMPLATE_ASSET_VALUE_${ASSET_TYPE}_${INDEX}"
+            ASSET="${!ASSET_ENTRY_VAR:-}"
         done
     done
 
     # assets filters
     FILTER_INDEX=0
-    REGEX="MARSH_TEMPLATE_Template_Filters_${FILTER_INDEX}_Regex"
-    TEMPLATE_LOOKUP_VALUE=""
-    marsh_lookup_parsed_yaml_state "MARSH_TEMPLATE_STATE_" "${TEMPLATE_PARSED_YAML_STATE_COUNT}" "${REGEX}" "TEMPLATE_LOOKUP_VALUE" || TEMPLATE_LOOKUP_VALUE=""
-    REGEX="${TEMPLATE_LOOKUP_VALUE}"
-    EXTENDED="MARSH_TEMPLATE_Template_Filters_${FILTER_INDEX}_Extended"
-    TEMPLATE_LOOKUP_VALUE=""
-    marsh_lookup_parsed_yaml_state "MARSH_TEMPLATE_STATE_" "${TEMPLATE_PARSED_YAML_STATE_COUNT}" "${EXTENDED}" "TEMPLATE_LOOKUP_VALUE" || TEMPLATE_LOOKUP_VALUE=""
-    EXTENDED="${TEMPLATE_LOOKUP_VALUE}"
+    FILTER_REGEX_VAR="TEMPLATE_FILTER_REGEX_${FILTER_INDEX}"
+    REGEX="${!FILTER_REGEX_VAR:-}"
+    FILTER_EXTENDED_VAR="TEMPLATE_FILTER_EXTENDED_${FILTER_INDEX}"
+    EXTENDED="${!FILTER_EXTENDED_VAR:-}"
     # loop over assets filters
     while [[ "${REGEX}" != "" ]]; do
         # escape match
@@ -6731,10 +6764,8 @@ function marsh_parse_template_metadata {  # marsh_parse_template_metadata prefix
             continue
         fi
         ASSETS_INDEX=0
-        ASSETS_TYPE="MARSH_TEMPLATE_Template_Filters_${FILTER_INDEX}_Assets_${ASSETS_INDEX}"
-        TEMPLATE_LOOKUP_VALUE=""
-        marsh_lookup_parsed_yaml_state "MARSH_TEMPLATE_STATE_" "${TEMPLATE_PARSED_YAML_STATE_COUNT}" "${ASSETS_TYPE}" "TEMPLATE_LOOKUP_VALUE" || TEMPLATE_LOOKUP_VALUE=""
-        ASSETS_TYPE="${TEMPLATE_LOOKUP_VALUE}"
+        FILTER_ASSET_TYPE_VAR="TEMPLATE_FILTER_ASSET_TYPE_${FILTER_INDEX}_${ASSETS_INDEX}"
+        ASSETS_TYPE="${!FILTER_ASSET_TYPE_VAR:-}"
         # loop over assets types for filter
         while [[ "${ASSETS_TYPE}" != "" ]]; do
             ASSET_TEXT_VAR="TEMPLATE_ASSETS_${ASSETS_TYPE}_TEXT"
@@ -6763,25 +6794,14 @@ function marsh_parse_template_metadata {  # marsh_parse_template_metadata prefix
             done
             printf -v "${ASSET_TEXT_VAR}" '%s' "${ASSETS_UPDATED_TEXT}"
             ASSETS_INDEX=$((ASSETS_INDEX+1))
-            ASSETS_TYPE="MARSH_TEMPLATE_Template_Filters_${FILTER_INDEX}_Assets_${ASSETS_INDEX}"
-            TEMPLATE_LOOKUP_VALUE=""
-            marsh_lookup_parsed_yaml_state "MARSH_TEMPLATE_STATE_" "${TEMPLATE_PARSED_YAML_STATE_COUNT}" "${ASSETS_TYPE}" "TEMPLATE_LOOKUP_VALUE" || TEMPLATE_LOOKUP_VALUE=""
-            ASSETS_TYPE="${TEMPLATE_LOOKUP_VALUE}"
+            FILTER_ASSET_TYPE_VAR="TEMPLATE_FILTER_ASSET_TYPE_${FILTER_INDEX}_${ASSETS_INDEX}"
+            ASSETS_TYPE="${!FILTER_ASSET_TYPE_VAR:-}"
         done
         FILTER_INDEX=$((FILTER_INDEX+1))
-        REGEX="MARSH_TEMPLATE_Template_Filters_${FILTER_INDEX}_Regex"
-        TEMPLATE_LOOKUP_VALUE=""
-        marsh_lookup_parsed_yaml_state "MARSH_TEMPLATE_STATE_" "${TEMPLATE_PARSED_YAML_STATE_COUNT}" "${REGEX}" "TEMPLATE_LOOKUP_VALUE" || TEMPLATE_LOOKUP_VALUE=""
-        REGEX="${TEMPLATE_LOOKUP_VALUE}"
-        EXTENDED="MARSH_TEMPLATE_Template_Filters_${FILTER_INDEX}_Extended"
-        TEMPLATE_LOOKUP_VALUE=""
-        marsh_lookup_parsed_yaml_state "MARSH_TEMPLATE_STATE_" "${TEMPLATE_PARSED_YAML_STATE_COUNT}" "${EXTENDED}" "TEMPLATE_LOOKUP_VALUE" || TEMPLATE_LOOKUP_VALUE=""
-        EXTENDED="${TEMPLATE_LOOKUP_VALUE}"
-        ASSETS_INDEX=0
-        ASSETS_TYPE="MARSH_TEMPLATE_Template_Filters_${FILTER_INDEX}_Assets_${ASSETS_INDEX}"
-        TEMPLATE_LOOKUP_VALUE=""
-        marsh_lookup_parsed_yaml_state "MARSH_TEMPLATE_STATE_" "${TEMPLATE_PARSED_YAML_STATE_COUNT}" "${ASSETS_TYPE}" "TEMPLATE_LOOKUP_VALUE" || TEMPLATE_LOOKUP_VALUE=""
-        ASSETS_TYPE="${TEMPLATE_LOOKUP_VALUE}"
+        FILTER_REGEX_VAR="TEMPLATE_FILTER_REGEX_${FILTER_INDEX}"
+        REGEX="${!FILTER_REGEX_VAR:-}"
+        FILTER_EXTENDED_VAR="TEMPLATE_FILTER_EXTENDED_${FILTER_INDEX}"
+        EXTENDED="${!FILTER_EXTENDED_VAR:-}"
     done
 
     # print assets

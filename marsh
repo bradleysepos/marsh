@@ -6505,10 +6505,10 @@ function marsh_parse_template_metadata {  # marsh_parse_template_metadata prefix
     local PREFIX TEMPLATE_DIR NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDE
     local TEMPLATE_META TEMPLATE_META_VARS
     local INDEX ASSET_TYPE ASSET_TYPE_UPPER ASSET FILTER_INDEX REGEX EXTENDED MATCH REPLACE EXTRA I
-    local ASSETS_INDEX ASSETS_TYPE OIFS
-    local -a TEMPLATE_OVERRIDES TEMPLATE_ASSETS_FONTS TEMPLATE_ASSETS_STYLES TEMPLATE_ASSETS_SCRIPTS TEMPLATE_ASSETS_IMAGES
-    local -a TEMPLATE_ASSETS_AUDIO TEMPLATE_ASSETS_VIDEO TEMPLATE_ASSETS_DOCUMENTS TEMPLATE_ASSETS_BINARIES TEMPLATE_ASSETS_OTHER
-    local -a ASSET_TYPES ASSETS ASSETS_TEMP
+    local ASSETS_INDEX ASSETS_TYPE OIFS ASSET_TEXT_VAR ASSETS_TEXT ASSETS_UPDATED_TEXT
+    local TEMPLATE_ASSETS_FONTS_TEXT TEMPLATE_ASSETS_STYLES_TEXT TEMPLATE_ASSETS_SCRIPTS_TEXT TEMPLATE_ASSETS_IMAGES_TEXT
+    local TEMPLATE_ASSETS_AUDIO_TEXT TEMPLATE_ASSETS_VIDEO_TEXT TEMPLATE_ASSETS_DOCUMENTS_TEXT TEMPLATE_ASSETS_BINARIES_TEXT TEMPLATE_ASSETS_OTHER_TEXT
+    local -a TEMPLATE_OVERRIDES ASSET_TYPES ASSETS_TEMP
 
     # init
     PREFIX="${1:-}"
@@ -6577,12 +6577,16 @@ function marsh_parse_template_metadata {  # marsh_parse_template_metadata prefix
     # assets
     ASSET_TYPES=('Fonts' 'Styles' 'Scripts' 'Images' 'Audio' 'Video' 'Documents' 'Binaries' 'Other')
     for ASSET_TYPE in "${ASSET_TYPES[@]}"; do
-        eval "TEMPLATE_ASSETS_${ASSET_TYPE}=()"
+        ASSET_TEXT_VAR="TEMPLATE_ASSETS_${ASSET_TYPE}_TEXT"
+        printf -v "${ASSET_TEXT_VAR}" '%s' ''
         INDEX=0
         ASSET="MARSH_TEMPLATE_Template_Assets_${ASSET_TYPE}_${INDEX}"
         ASSET="${!ASSET:-}"
         while [[ "${ASSET}" != "" ]]; do
-            eval "TEMPLATE_ASSETS_${ASSET_TYPE}+=(\"${ASSET//\"/\\\"}\")"
+            ASSETS_TEXT="${!ASSET_TEXT_VAR}"
+            [[ "${ASSETS_TEXT}" == "" ]] || ASSETS_TEXT+=$'\n'
+            ASSETS_TEXT+="${ASSET}"
+            printf -v "${ASSET_TEXT_VAR}" '%s' "${ASSETS_TEXT}"
             INDEX=$((INDEX+1))
             ASSET="MARSH_TEMPLATE_Template_Assets_${ASSET_TYPE}_${INDEX}"
             ASSET="${!ASSET:-}"
@@ -6621,30 +6625,31 @@ function marsh_parse_template_metadata {  # marsh_parse_template_metadata prefix
         ASSETS_TYPE="${!ASSETS_TYPE}"
         # loop over assets types for filter
         while [[ "${ASSETS_TYPE}" != "" ]]; do
-            ASSETS="TEMPLATE_ASSETS_${ASSETS_TYPE}[@]"
-            OIFS="${IFS}"
-            IFS=$'\n'
-            ASSETS=(${!ASSETS})
-            IFS="${OIFS}"
+            ASSET_TEXT_VAR="TEMPLATE_ASSETS_${ASSETS_TYPE}_TEXT"
+            ASSETS_TEXT="${!ASSET_TEXT_VAR}"
             ASSETS_TEMP=()
             # loop over all individual assets of this type
-            for ASSET in "${ASSETS[@]}"; do
-                # do regex
-                if [[ "${EXTENDED}" == true ]]; then
-                    ASSET=$(echo "${ASSET}" | sed -E "${REGEX}" 2>/dev/null)
-                else
-                    ASSET=$(echo "${ASSET}" | sed "${REGEX}" 2>/dev/null)
-                fi
-                # remove empty
-                if [[ "${ASSET:-}" != "" ]]; then
-                    ASSETS_TEMP+=("${ASSET}")
-                fi
-            done
-            # update original array
-            eval "TEMPLATE_ASSETS_${ASSETS_TYPE}=()"
+            if [[ "${ASSETS_TEXT}" != "" ]]; then
+                while IFS= read -r ASSET; do
+                    # do regex
+                    if [[ "${EXTENDED}" == true ]]; then
+                        ASSET=$(echo "${ASSET}" | sed -E "${REGEX}" 2>/dev/null)
+                    else
+                        ASSET=$(echo "${ASSET}" | sed "${REGEX}" 2>/dev/null)
+                    fi
+                    # remove empty
+                    if [[ "${ASSET:-}" != "" ]]; then
+                        ASSETS_TEMP+=("${ASSET}")
+                    fi
+                done <<< "${ASSETS_TEXT}"
+            fi
+            # update original asset list text
+            ASSETS_UPDATED_TEXT=""
             for I in "${!ASSETS_TEMP[@]}"; do
-                eval "TEMPLATE_ASSETS_${ASSETS_TYPE}+=(\"${ASSETS_TEMP[$I]//\"/\\\"}\")"
+                [[ "${ASSETS_UPDATED_TEXT}" == "" ]] || ASSETS_UPDATED_TEXT+=$'\n'
+                ASSETS_UPDATED_TEXT+="${ASSETS_TEMP[$I]}"
             done
+            printf -v "${ASSET_TEXT_VAR}" '%s' "${ASSETS_UPDATED_TEXT}"
             ASSETS_INDEX=$((ASSETS_INDEX+1))
             ASSETS_TYPE="MARSH_TEMPLATE_Template_Filters_${FILTER_INDEX}_Assets_${ASSETS_INDEX}"
             ASSETS_TYPE="${!ASSETS_TYPE:-}"
@@ -6662,15 +6667,14 @@ function marsh_parse_template_metadata {  # marsh_parse_template_metadata prefix
     # print assets
     for ASSET_TYPE in "${ASSET_TYPES[@]}"; do
         ASSET_TYPE_UPPER=$(echo "${ASSET_TYPE}" | awk '{ print toupper($0) }')
-        ASSETS="TEMPLATE_ASSETS_${ASSET_TYPE}[@]"
-        OIFS="${IFS}"
-        IFS=$'\n'
-        ASSETS=(${!ASSETS})
-        IFS="${OIFS}"
+        ASSET_TEXT_VAR="TEMPLATE_ASSETS_${ASSET_TYPE}_TEXT"
+        ASSETS_TEXT="${!ASSET_TEXT_VAR}"
         echo "${PREFIX}ASSETS_${ASSET_TYPE_UPPER}=()"
-        for ASSET in "${ASSETS[@]}"; do
-            [[ "${ASSET:-}" != "" ]] && echo "${PREFIX}ASSETS_${ASSET_TYPE_UPPER}+=(\"${ASSET//\"/\\\"}\")"
-        done
+        if [[ "${ASSETS_TEXT}" != "" ]]; then
+            while IFS= read -r ASSET; do
+                [[ "${ASSET:-}" != "" ]] && echo "${PREFIX}ASSETS_${ASSET_TYPE_UPPER}+=(\"${ASSET//\"/\\\"}\")"
+            done <<< "${ASSETS_TEXT}"
+        fi
     done
 }
 

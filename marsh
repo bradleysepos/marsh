@@ -8347,8 +8347,8 @@ function marsh_build_archive {  # marsh_build_archive encoding target_output_roo
 # loads cached archive metadata for a document
 function marsh_get_archive_metadata {  # marsh_get_archive_metadata target_output_root document
     local TARGET_OUTPUT_ROOT DOCUMENT
-    local INDEX META DOCUMENT_SITE_REL META_PREFIX META_ASSIGNMENTS META_VARS TARGET_OUTPUT_REL
-    local TYPE_VAR TYPE URI ABSPATH VALUE_ESC
+    local INDEX META META_CACHE DOCUMENT_SITE_REL TARGET_OUTPUT_REL
+    local TYPE URI ABSPATH VALUE_ESC STATE_TEXT STATE_VALUE
     local -a STATE
 
     # init
@@ -8369,21 +8369,15 @@ function marsh_get_archive_metadata {  # marsh_get_archive_metadata target_outpu
 
     # get archive metadata from the document metadata
     META=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "${DOCUMENT_SITE_REL}" "meta-yaml" 2>/dev/null) || META=""
+    META_CACHE=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "${DOCUMENT_SITE_REL}" "meta" 2>/dev/null) || META_CACHE=""
     [[ -f "${META}" ]] && [[ -r "${META}" ]] || return 1
 
-    # parse
-    META_PREFIX=$(echo "marsh_archive_${META}_" | sed -E -e 's/[^A-Za-z0-9_]/_/g')
-    META_PREFIX=$(echo "${META_PREFIX}" | sed -E -e 's/_{2,}/_/g')
-    META_ASSIGNMENTS=$(marsh_get_document_metadata "${META}" "${META_PREFIX}")
-    [[ $? -ne 0 ]] && return 1
-    META_VARS=$(echo "${META_ASSIGNMENTS}" | marsh_get_variables)
-    eval "$(printf '%s\n' "${META_VARS}" | marsh_get_local_declarations)"
-    eval "${META_ASSIGNMENTS}"
+    # ensure the cache exists before loading it
+    marsh_get_document_metadata "${META}" "" >/dev/null || return 1
+    marsh_load_archive_document_metadata "${META_CACHE}" "TYPE" "STATE_TEXT" || return 1
 
     # keep only the metadata that archive generation actually needs
     # reconstruct public paths here so archive generation does not need to repeat it
-    TYPE_VAR="${META_PREFIX}Type"
-    TYPE="${!TYPE_VAR:-}"
     TARGET_OUTPUT_REL=$(marsh_get_target_output_path "${TARGET_OUTPUT_ROOT}") || return 1
     if [[ "${TARGET_OUTPUT_REL}" == "." ]]; then
         URI="${DOCUMENT_SITE_REL}"
@@ -8398,8 +8392,9 @@ function marsh_get_archive_metadata {  # marsh_get_archive_metadata target_outpu
     # reconstruct state array
     STATE=()
     while IFS= read -r STATE_VALUE; do
+        [[ "${STATE_VALUE}" != "" ]] || continue
         STATE+=("${STATE_VALUE}")
-    done < <(marsh_get_flatarray_values "${META_PREFIX}State_")
+    done <<< "${STATE_TEXT}"
 
     # output shell variable assignments
     printf 'TYPE=%q\n' "${TYPE}"
@@ -8628,6 +8623,57 @@ function marsh_get_target_archive_records {  # marsh_get_target_archive_records 
     done
 
     return 0
+}
+
+# loads the archive planning metadata fields from document metadata cache
+function marsh_load_archive_document_metadata {  # marsh_load_archive_document_metadata meta_cache_file type_var state_text_var
+    local META_CACHE_FILE TYPE_VAR STATE_TEXT_VAR
+    local METADATA_STATE_PREFIX METADATA_STATE_COUNT INDEX
+    local KEY_VAR TYPE_ENTRY_VAR VALUE_VAR LIST_VAR
+    local ENTRY_KEY ENTRY_TYPE
+    local ARCHIVE_TYPE ARCHIVE_STATE_TEXT
+
+    META_CACHE_FILE="${1:-}"
+    TYPE_VAR="${2:-}"
+    STATE_TEXT_VAR="${3:-}"
+    [[ "${META_CACHE_FILE}" != "" ]] || return 1
+    [[ "${TYPE_VAR}" != "" ]] || return 1
+    [[ "${STATE_TEXT_VAR}" != "" ]] || return 1
+
+    METADATA_STATE_PREFIX="MARSH_ARCHIVE_DOCUMENT_METADATA_STATE_"
+    METADATA_STATE_COUNT=0
+    marsh_load_document_metadata_state "${META_CACHE_FILE}" "${METADATA_STATE_PREFIX}" "METADATA_STATE_COUNT" || return 1
+
+    ARCHIVE_TYPE=""
+    ARCHIVE_STATE_TEXT=""
+    INDEX=0
+    while [[ "${INDEX}" -lt "${METADATA_STATE_COUNT}" ]]; do
+        KEY_VAR="${METADATA_STATE_PREFIX}KEY_${INDEX}"
+        TYPE_ENTRY_VAR="${METADATA_STATE_PREFIX}TYPE_${INDEX}"
+        VALUE_VAR="${METADATA_STATE_PREFIX}VALUE_${INDEX}"
+        LIST_VAR="${METADATA_STATE_PREFIX}LIST_${INDEX}"
+        ENTRY_KEY="${!KEY_VAR}"
+        ENTRY_TYPE="${!TYPE_ENTRY_VAR}"
+
+        case "${ENTRY_KEY}" in
+            Type)
+                [[ "${ENTRY_TYPE}" == "value" ]] || return 1
+                ARCHIVE_TYPE="${!VALUE_VAR}"
+                ;;
+            State)
+                [[ "${ENTRY_TYPE}" == "list" ]] || [[ "${ENTRY_TYPE}" == "value" ]] || return 1
+                if [[ "${ENTRY_TYPE}" == "list" ]]; then
+                    ARCHIVE_STATE_TEXT="${!LIST_VAR}"
+                else
+                    ARCHIVE_STATE_TEXT=""
+                fi
+                ;;
+        esac
+        INDEX=$((INDEX + 1))
+    done
+
+    printf -v "${TYPE_VAR}" '%s' "${ARCHIVE_TYPE}"
+    printf -v "${STATE_TEXT_VAR}" '%s' "${ARCHIVE_STATE_TEXT}"
 }
 
 # plans target archive page generation
@@ -9085,8 +9131,8 @@ function marsh_write_target_archive_manifest {  # marsh_write_target_archive_man
     local SITE_OUTPUT_ROOT MARKDOWN_FILEEXT_CSV TARGET_PLAN_ROOT MANIFEST_FILE MANIFEST_TEMP DOCUMENT_RECORD
     local DOCUMENT_ID_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC
     local DOCUMENT_ID SOURCE_RELPATH TARGET_OUTPUT_REL SOURCE_ROOT DOCUMENT_SOURCE_FILE BUILD_CONTEXT_OUTPUT_ROOT
-    local DOCUMENT_ARTIFACT_ROOT DOCUMENT_ARTIFACT_CONTENT DOCUMENT_ARTIFACT_META_YAML DOCUMENT_ARTIFACT_META DOCUMENT_ARTIFACT_ARCHIVE_META META_ASSIGNMENTS META_VARS META_PREFIX TYPE_VAR
-    local TYPE URI ABSPATH STATE_JOINED OIFS DOCUMENT_OUTPUT_REL
+    local DOCUMENT_ARTIFACT_ROOT DOCUMENT_ARTIFACT_CONTENT DOCUMENT_ARTIFACT_META_YAML DOCUMENT_ARTIFACT_META DOCUMENT_ARTIFACT_ARCHIVE_META
+    local TYPE URI ABSPATH STATE_JOINED OIFS DOCUMENT_OUTPUT_REL STATE_TEXT STATE_VALUE
     local -a DOCUMENT_RECORDS_IN STATE
 
     SITE_OUTPUT_ROOT="${1:-}"
@@ -9141,22 +9187,16 @@ function marsh_write_target_archive_manifest {  # marsh_write_target_archive_man
                 rm -f "${MANIFEST_TEMP}"
                 return 1
             }
-            META_PREFIX=$(echo "planned_archive_${DOCUMENT_ARTIFACT_META_YAML}_" | sed -E -e 's/[^A-Za-z0-9_]/_/g')
-            META_PREFIX=$(echo "${META_PREFIX}" | sed -E -e 's/_{2,}/_/g')
-            META_ASSIGNMENTS=$(marsh_get_document_metadata "${DOCUMENT_ARTIFACT_META_YAML}" "${META_PREFIX}") || {
+            marsh_load_archive_document_metadata "${DOCUMENT_ARTIFACT_META}" "TYPE" "STATE_TEXT" || {
                 echo "Unable to plan archive metadata: ${DOCUMENT_SOURCE_FILE}" >&2
                 rm -f "${MANIFEST_TEMP}"
                 return 1
             }
-            META_VARS=$(echo "${META_ASSIGNMENTS}" | marsh_get_variables)
-            eval "$(printf '%s\n' "${META_VARS}" | marsh_get_local_declarations)"
-            eval "${META_ASSIGNMENTS}"
-            TYPE_VAR="${META_PREFIX}Type"
-            TYPE="${!TYPE_VAR:-}"
             STATE=()
             while IFS= read -r STATE_VALUE; do
+                [[ "${STATE_VALUE}" != "" ]] || continue
                 STATE+=("${STATE_VALUE}")
-            done < <(marsh_get_flatarray_values "${META_PREFIX}State_")
+            done <<< "${STATE_TEXT}"
         else
             echo "Unable to plan archive metadata: ${DOCUMENT_SOURCE_FILE}" >&2
             rm -f "${MANIFEST_TEMP}"

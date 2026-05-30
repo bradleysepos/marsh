@@ -4659,6 +4659,7 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
     local TEMPLATE_BASE_TEMPLATE TEMPLATE_HEAD_TEMPLATE TEMPLATE_BODY_TEMPLATE TEMPLATE_DOCUMENT_TEMPLATE TEMPLATE_HEADER_TEMPLATE TEMPLATE_FOOTER_TEMPLATE
     local TEMPLATE_NAV_TEMPLATE TEMPLATE_NOTICE_TEMPLATE
     local TEMPLATE_ASSET_TYPE ASSET ASSET_PATH ASSET_OUTPUT_PATH ASSET_QUERY ASSET_HREF
+    local ASSET_OUTPUT_PATHS_TEXT_VAR
     local TEMPLATE_HEAD_ESC TEMPLATE_BODY_ESC TEMPLATE_DOCUMENT_ESC TEMPLATE_HEADER_ESC TEMPLATE_FOOTER_ESC
     local TEMPLATE_NAV_ESC TEMPLATE_NOTICE_ESC
     local DOCUMENT_META_VARS DOCUMENT_META_PATH DOCUMENT_META_CACHE_FILE DOCUMENT_CONTENT
@@ -4682,6 +4683,8 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
     local -a TEMPLATE_OVERRIDES PARTIALS TEMPLATE_ASSET_TYPES
     local -a TEMPLATE_TAG_ASSETS_FONTS TEMPLATE_TAG_ASSETS_STYLES TEMPLATE_TAG_ASSETS_SCRIPTS TEMPLATE_TAG_ASSETS_IMAGES
     local -a TEMPLATE_TAG_ASSETS_AUDIO TEMPLATE_TAG_ASSETS_VIDEO TEMPLATE_TAG_ASSETS_DOCUMENTS TEMPLATE_TAG_ASSETS_BINARIES TEMPLATE_TAG_ASSETS_OTHER
+    local TEMPLATE_ASSET_OUTPUT_PATHS_FONTS_TEXT TEMPLATE_ASSET_OUTPUT_PATHS_STYLES_TEXT TEMPLATE_ASSET_OUTPUT_PATHS_SCRIPTS_TEXT TEMPLATE_ASSET_OUTPUT_PATHS_IMAGES_TEXT
+    local TEMPLATE_ASSET_OUTPUT_PATHS_AUDIO_TEXT TEMPLATE_ASSET_OUTPUT_PATHS_VIDEO_TEXT TEMPLATE_ASSET_OUTPUT_PATHS_DOCUMENTS_TEXT TEMPLATE_ASSET_OUTPUT_PATHS_BINARIES_TEXT TEMPLATE_ASSET_OUTPUT_PATHS_OTHER_TEXT
     local -a TEMPLATE_ASSET_OUTPUT_PATHS_FONTS TEMPLATE_ASSET_OUTPUT_PATHS_STYLES TEMPLATE_ASSET_OUTPUT_PATHS_SCRIPTS TEMPLATE_ASSET_OUTPUT_PATHS_IMAGES
     local -a TEMPLATE_ASSET_OUTPUT_PATHS_AUDIO TEMPLATE_ASSET_OUTPUT_PATHS_VIDEO TEMPLATE_ASSET_OUTPUT_PATHS_DOCUMENTS TEMPLATE_ASSET_OUTPUT_PATHS_BINARIES TEMPLATE_ASSET_OUTPUT_PATHS_OTHER
     local -a SUBDOCUMENTS SUBDOCUMENT_URIS SUBDOCUMENT_ABSPATHS DOCUMENT_State SUBDOCUMENT_State
@@ -5000,7 +5003,57 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
         TEMPLATE_TAG_ASSETS_DOCUMENTS=()
         TEMPLATE_TAG_ASSETS_BINARIES=()
         TEMPLATE_TAG_ASSETS_OTHER=()
-        eval "$(marsh_get_template_asset_output_paths "${TARGET_OUTPUT_REL:-.}" "${TEMPLATE_DIR}" "${TEMPLATE}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_ASSETS_PATH}")" || return 1
+        marsh_get_template_asset_output_paths \
+            "${TARGET_OUTPUT_REL:-.}" \
+            "${TEMPLATE_DIR}" \
+            "${TEMPLATE}" \
+            "${#TEMPLATE_OVERRIDES[@]}" \
+            "${TEMPLATE_OVERRIDES[@]}" \
+            "${TEMPLATE_ASSETS_PATH}" \
+            "TEMPLATE_ASSET_OUTPUT_PATHS_FONTS_TEXT" \
+            "TEMPLATE_ASSET_OUTPUT_PATHS_STYLES_TEXT" \
+            "TEMPLATE_ASSET_OUTPUT_PATHS_SCRIPTS_TEXT" \
+            "TEMPLATE_ASSET_OUTPUT_PATHS_IMAGES_TEXT" \
+            "TEMPLATE_ASSET_OUTPUT_PATHS_AUDIO_TEXT" \
+            "TEMPLATE_ASSET_OUTPUT_PATHS_VIDEO_TEXT" \
+            "TEMPLATE_ASSET_OUTPUT_PATHS_DOCUMENTS_TEXT" \
+            "TEMPLATE_ASSET_OUTPUT_PATHS_BINARIES_TEXT" \
+            "TEMPLATE_ASSET_OUTPUT_PATHS_OTHER_TEXT" || return 1
+        for TEMPLATE_ASSET_TYPE in "${TEMPLATE_ASSET_TYPES[@]}"; do
+            ASSET_OUTPUT_PATHS_TEXT_VAR="TEMPLATE_ASSET_OUTPUT_PATHS_${TEMPLATE_ASSET_TYPE}_TEXT"
+            while IFS= read -r ASSET_OUTPUT_PATH; do
+                [[ "${ASSET_OUTPUT_PATH}" == "" ]] && continue
+                case "${TEMPLATE_ASSET_TYPE}" in
+                    FONTS)
+                        TEMPLATE_ASSET_OUTPUT_PATHS_FONTS+=("${ASSET_OUTPUT_PATH}")
+                        ;;
+                    STYLES)
+                        TEMPLATE_ASSET_OUTPUT_PATHS_STYLES+=("${ASSET_OUTPUT_PATH}")
+                        ;;
+                    SCRIPTS)
+                        TEMPLATE_ASSET_OUTPUT_PATHS_SCRIPTS+=("${ASSET_OUTPUT_PATH}")
+                        ;;
+                    IMAGES)
+                        TEMPLATE_ASSET_OUTPUT_PATHS_IMAGES+=("${ASSET_OUTPUT_PATH}")
+                        ;;
+                    AUDIO)
+                        TEMPLATE_ASSET_OUTPUT_PATHS_AUDIO+=("${ASSET_OUTPUT_PATH}")
+                        ;;
+                    VIDEO)
+                        TEMPLATE_ASSET_OUTPUT_PATHS_VIDEO+=("${ASSET_OUTPUT_PATH}")
+                        ;;
+                    DOCUMENTS)
+                        TEMPLATE_ASSET_OUTPUT_PATHS_DOCUMENTS+=("${ASSET_OUTPUT_PATH}")
+                        ;;
+                    BINARIES)
+                        TEMPLATE_ASSET_OUTPUT_PATHS_BINARIES+=("${ASSET_OUTPUT_PATH}")
+                        ;;
+                    OTHER)
+                        TEMPLATE_ASSET_OUTPUT_PATHS_OTHER+=("${ASSET_OUTPUT_PATH}")
+                        ;;
+                esac
+            done <<< "${!ASSET_OUTPUT_PATHS_TEXT_VAR}"
+        done
 
         # sitemap
         TARGET_SITEMAP=""
@@ -5470,11 +5523,13 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
 }
 
 # loads cached target-relative template asset output paths for one template context
-function marsh_get_template_asset_output_paths {  # marsh_get_template_asset_output_paths target_output_rel templates_dir template #template_overrides[@] template_overrides[@] template_assets_path
+function marsh_get_template_asset_output_paths {  # marsh_get_template_asset_output_paths target_output_rel templates_dir template #template_overrides[@] template_overrides[@] template_assets_path output_fonts_var output_styles_var output_scripts_var output_images_var output_audio_var output_video_var output_documents_var output_binaries_var output_other_var
     local TARGET_OUTPUT_REL TEMPLATES_DIR TEMPLATE NUM_TEMPLATE_OVERRIDES TEMPLATE_ASSETS_PATH
     local CACHE_DIR CACHE_KEY CACHE_FILE CACHE_TEMP TEMPLATE_PREFIX TEMPLATE_META TEMPLATE_META_VARS
-    local ASSET_TYPE ASSETS_VAR ASSET ASSET_PATH ASSET_OUTPUT_PATH
+    local OUTPUT_FONTS_VAR OUTPUT_STYLES_VAR OUTPUT_SCRIPTS_VAR OUTPUT_IMAGES_VAR OUTPUT_AUDIO_VAR OUTPUT_VIDEO_VAR OUTPUT_DOCUMENTS_VAR OUTPUT_BINARIES_VAR OUTPUT_OTHER_VAR
+    local ASSET_TYPE ASSETS_VAR ASSET ASSET_PATH ASSET_OUTPUT_PATH OUTPUT_LINE_TYPE OUTPUT_LINE_PATH
     local OUTPUT OIFS
+    local OUTPUT_FONTS_TEXT OUTPUT_STYLES_TEXT OUTPUT_SCRIPTS_TEXT OUTPUT_IMAGES_TEXT OUTPUT_AUDIO_TEXT OUTPUT_VIDEO_TEXT OUTPUT_DOCUMENTS_TEXT OUTPUT_BINARIES_TEXT OUTPUT_OTHER_TEXT
     local -a TEMPLATE_OVERRIDES ASSET_TYPES ASSETS
 
     # init
@@ -5494,6 +5549,34 @@ function marsh_get_template_asset_output_paths {  # marsh_get_template_asset_out
         shift 1
     done
     TEMPLATE_ASSETS_PATH="${1:-}"
+    shift 1
+    OUTPUT_FONTS_VAR="${1:-}"
+    OUTPUT_STYLES_VAR="${2:-}"
+    OUTPUT_SCRIPTS_VAR="${3:-}"
+    OUTPUT_IMAGES_VAR="${4:-}"
+    OUTPUT_AUDIO_VAR="${5:-}"
+    OUTPUT_VIDEO_VAR="${6:-}"
+    OUTPUT_DOCUMENTS_VAR="${7:-}"
+    OUTPUT_BINARIES_VAR="${8:-}"
+    OUTPUT_OTHER_VAR="${9:-}"
+    [[ "${OUTPUT_FONTS_VAR}" != "" ]] || return 1
+    [[ "${OUTPUT_STYLES_VAR}" != "" ]] || return 1
+    [[ "${OUTPUT_SCRIPTS_VAR}" != "" ]] || return 1
+    [[ "${OUTPUT_IMAGES_VAR}" != "" ]] || return 1
+    [[ "${OUTPUT_AUDIO_VAR}" != "" ]] || return 1
+    [[ "${OUTPUT_VIDEO_VAR}" != "" ]] || return 1
+    [[ "${OUTPUT_DOCUMENTS_VAR}" != "" ]] || return 1
+    [[ "${OUTPUT_BINARIES_VAR}" != "" ]] || return 1
+    [[ "${OUTPUT_OTHER_VAR}" != "" ]] || return 1
+    printf -v "${OUTPUT_FONTS_VAR}" '%s' ''
+    printf -v "${OUTPUT_STYLES_VAR}" '%s' ''
+    printf -v "${OUTPUT_SCRIPTS_VAR}" '%s' ''
+    printf -v "${OUTPUT_IMAGES_VAR}" '%s' ''
+    printf -v "${OUTPUT_AUDIO_VAR}" '%s' ''
+    printf -v "${OUTPUT_VIDEO_VAR}" '%s' ''
+    printf -v "${OUTPUT_DOCUMENTS_VAR}" '%s' ''
+    printf -v "${OUTPUT_BINARIES_VAR}" '%s' ''
+    printf -v "${OUTPUT_OTHER_VAR}" '%s' ''
 
     # normalize cache inputs so equivalent paths share one entry
     TARGET_OUTPUT_REL=$(marsh_normalize_internal_path "${TARGET_OUTPUT_REL}") || return 1
@@ -5517,110 +5600,162 @@ function marsh_get_template_asset_output_paths {  # marsh_get_template_asset_out
     })") || return 1
 
     # use existing cache if available
-    if [[ -f "${CACHE_FILE}" ]] && [[ -r "${CACHE_FILE}" ]]; then
-        cat "${CACHE_FILE}" || {
-            echo "Unable to read template asset output cache file: ${CACHE_FILE}" >&2
-            return 1
-        }
-        return 0
-    fi
-
-    # no existing cache, proceed to generate it
-    # acquire lock for cache file creation
-    if ! marsh_lock_acquire "${CACHE_FILE}" 2>/dev/null; then
-        # unable to acquire lock, likely due to another process generating asset output paths
-        # wait a while for the lock to be released and attempt to use the cache file if it exists
-        if marsh_lock_wait "${CACHE_FILE}" 2>/dev/null; then
-            # lock released, use existing cache if available
-            if [[ -f "${CACHE_FILE}" ]] && [[ -r "${CACHE_FILE}" ]]; then
-                cat "${CACHE_FILE}" || {
-                    echo "Unable to read template asset output cache file: ${CACHE_FILE}" >&2
-                    return 1
-                }
-                return 0
-            else
+    if [[ ! -f "${CACHE_FILE}" ]] || [[ ! -r "${CACHE_FILE}" ]]; then
+        # no existing cache, proceed to generate it
+        # acquire lock for cache file creation
+        if ! marsh_lock_acquire "${CACHE_FILE}" 2>/dev/null; then
+            # unable to acquire lock, likely due to another process generating asset output paths
+            # wait a while for the lock to be released and attempt to use the cache file if it exists
+            if marsh_lock_wait "${CACHE_FILE}" 2>/dev/null; then
                 # fail fast when the first writer releases the lock without publishing
                 # lock ownership is not retried because a write failure aborts the whole build
-                echo "Template asset output cache file missing after lock wait: ${CACHE_FILE}" >&2
+                if [[ ! -f "${CACHE_FILE}" ]] || [[ ! -r "${CACHE_FILE}" ]]; then
+                    echo "Template asset output cache file missing after lock wait: ${CACHE_FILE}" >&2
+                    return 1
+                fi
+            else
+                # error on timeout waiting for lock to be released
+                echo "Unable to acquire template asset output cache lock: ${CACHE_FILE}" >&2
                 return 1
             fi
         else
-            # error on timeout waiting for lock to be released
-            echo "Unable to acquire template asset output cache lock: ${CACHE_FILE}" >&2
-            return 1
-        fi
-    else
-        # lock acquired, proceed generating and caching asset output paths
-        # generate temporary cache file in lock directory
-        CACHE_TEMP=$(marsh_lock_get_directory "${CACHE_FILE}")
-        CACHE_TEMP="${CACHE_TEMP}/tempfile"
-        touch "${CACHE_TEMP}" || {
-            echo "Unable to create template asset output cache temporary file: ${CACHE_TEMP}" >&2
-            marsh_lock_release "${CACHE_FILE}"
-            return 1
-        }
+            # lock acquired, proceed generating and caching asset output paths
+            # generate temporary cache file in lock directory
+            CACHE_TEMP=$(marsh_lock_get_directory "${CACHE_FILE}")
+            CACHE_TEMP="${CACHE_TEMP}/tempfile"
+            touch "${CACHE_TEMP}" || {
+                echo "Unable to create template asset output cache temporary file: ${CACHE_TEMP}" >&2
+                marsh_lock_release "${CACHE_FILE}"
+                return 1
+            }
 
-        # load template metadata once before resolving each asset type
-        TEMPLATE_PREFIX="TEMPLATE_"
-        TEMPLATE_META=$(marsh_get_template_metadata "${TEMPLATE_PREFIX}" "${TEMPLATES_DIR}/${TEMPLATE}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}") || {
-            echo "Unable to load template metadata: ${TEMPLATES_DIR}/${TEMPLATE}" >&2
-            rm -f "${CACHE_TEMP}"
-            marsh_lock_release "${CACHE_FILE}"
-            return 1
-        }
-        TEMPLATE_META_VARS=$(echo "${TEMPLATE_META}" | marsh_get_variables)
-        eval "$(printf '%s\n' "${TEMPLATE_META_VARS}" | marsh_get_local_declarations)"
-        eval "${TEMPLATE_META}"
+            # load template metadata once before resolving each asset type
+            TEMPLATE_PREFIX="TEMPLATE_"
+            TEMPLATE_META=$(marsh_get_template_metadata "${TEMPLATE_PREFIX}" "${TEMPLATES_DIR}/${TEMPLATE}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}") || {
+                echo "Unable to load template metadata: ${TEMPLATES_DIR}/${TEMPLATE}" >&2
+                rm -f "${CACHE_TEMP}"
+                marsh_lock_release "${CACHE_FILE}"
+                return 1
+            }
+            TEMPLATE_META_VARS=$(echo "${TEMPLATE_META}" | marsh_get_variables)
+            eval "$(printf '%s\n' "${TEMPLATE_META_VARS}" | marsh_get_local_declarations)"
+            eval "${TEMPLATE_META}"
 
-        # store shell assignments so callers can eval one cached output map
-        ASSET_TYPES=('FONTS' 'STYLES' 'SCRIPTS' 'IMAGES' 'AUDIO' 'VIDEO' 'DOCUMENTS' 'BINARIES' 'OTHER')
-        OUTPUT=""
-        for ASSET_TYPE in "${ASSET_TYPES[@]}"; do
-            OUTPUT+="TEMPLATE_ASSET_OUTPUT_PATHS_${ASSET_TYPE}=()"$'\n'
-            ASSETS_VAR="TEMPLATE_ASSETS_${ASSET_TYPE}[@]"
-            OIFS="${IFS}"
-            IFS=$'\n'
-            ASSETS=(${!ASSETS_VAR})
-            IFS="${OIFS}"
-            for ASSET in "${ASSETS[@]}"; do
-                [[ "${ASSET}" == "" ]] && continue
-                ASSET_PATH="${ASSET%\?*}"
-                ASSET_OUTPUT_PATH=$(marsh_resolve_template_asset_output_path "${TARGET_OUTPUT_REL}" "${ASSET_PATH}" "${TEMPLATE_ASSETS_PATH}") || {
-                    echo "Unable to resolve template asset output path: ${ASSET_PATH}" >&2
-                    rm -f "${CACHE_TEMP}"
-                    marsh_lock_release "${CACHE_FILE}"
-                    return 1
-                }
-                OUTPUT+="TEMPLATE_ASSET_OUTPUT_PATHS_${ASSET_TYPE}+=(\"${ASSET_OUTPUT_PATH//\"/\\\"}\")"$'\n'
+            # cache records so callers can rebuild arrays explicitly
+            ASSET_TYPES=('FONTS' 'STYLES' 'SCRIPTS' 'IMAGES' 'AUDIO' 'VIDEO' 'DOCUMENTS' 'BINARIES' 'OTHER')
+            OUTPUT=""
+            for ASSET_TYPE in "${ASSET_TYPES[@]}"; do
+                ASSETS_VAR="TEMPLATE_ASSETS_${ASSET_TYPE}[@]"
+                OIFS="${IFS}"
+                IFS=$'\n'
+                ASSETS=(${!ASSETS_VAR})
+                IFS="${OIFS}"
+                for ASSET in "${ASSETS[@]}"; do
+                    [[ "${ASSET}" == "" ]] && continue
+                    ASSET_PATH="${ASSET%\?*}"
+                    ASSET_OUTPUT_PATH=$(marsh_resolve_template_asset_output_path "${TARGET_OUTPUT_REL}" "${ASSET_PATH}" "${TEMPLATE_ASSETS_PATH}") || {
+                        echo "Unable to resolve template asset output path: ${ASSET_PATH}" >&2
+                        rm -f "${CACHE_TEMP}"
+                        marsh_lock_release "${CACHE_FILE}"
+                        return 1
+                    }
+                    OUTPUT+="${ASSET_TYPE}"$'\t'"${ASSET_OUTPUT_PATH}"$'\n'
+                done
             done
-        done
-        printf '%s' "${OUTPUT}" > "${CACHE_TEMP}" || {
-            echo "Unable to write template asset output cache file: ${CACHE_TEMP}" >&2
-            rm -f "${CACHE_TEMP}"
-            marsh_lock_release "${CACHE_FILE}"
-            return 1
-        }
+            printf '%s' "${OUTPUT}" > "${CACHE_TEMP}" || {
+                echo "Unable to write template asset output cache file: ${CACHE_TEMP}" >&2
+                rm -f "${CACHE_TEMP}"
+                marsh_lock_release "${CACHE_FILE}"
+                return 1
+            }
 
-        # move temporary cache file into place as shared cache file
-        mv "${CACHE_TEMP}" "${CACHE_FILE}" 2>/dev/null || {
-            echo "Unable to write template asset output cache file: ${CACHE_FILE}" >&2
-            rm -f "${CACHE_TEMP}"
-            marsh_lock_release "${CACHE_FILE}"
-            return 1
-        }
+            # move temporary cache file into place as shared cache file
+            mv "${CACHE_TEMP}" "${CACHE_FILE}" 2>/dev/null || {
+                echo "Unable to write template asset output cache file: ${CACHE_FILE}" >&2
+                rm -f "${CACHE_TEMP}"
+                marsh_lock_release "${CACHE_FILE}"
+                return 1
+            }
 
-        # output shared cache file contents and release lock
-        cat "${CACHE_FILE}" 2>/dev/null || {
-            echo "Unable to read template asset output cache file: ${CACHE_FILE}" >&2
-            marsh_lock_release "${CACHE_FILE}"
-            return 1
-        }
-        marsh_lock_release "${CACHE_FILE}" || {
-            echo "Unable to release template asset output cache lock: ${CACHE_FILE}" >&2
-            return 1
-        }
-        return 0
+            marsh_lock_release "${CACHE_FILE}" || {
+                echo "Unable to release template asset output cache lock: ${CACHE_FILE}" >&2
+                return 1
+            }
+        fi
     fi
+
+    OUTPUT_FONTS_TEXT=""
+    OUTPUT_STYLES_TEXT=""
+    OUTPUT_SCRIPTS_TEXT=""
+    OUTPUT_IMAGES_TEXT=""
+    OUTPUT_AUDIO_TEXT=""
+    OUTPUT_VIDEO_TEXT=""
+    OUTPUT_DOCUMENTS_TEXT=""
+    OUTPUT_BINARIES_TEXT=""
+    OUTPUT_OTHER_TEXT=""
+    while IFS=$'\t' read -r OUTPUT_LINE_TYPE OUTPUT_LINE_PATH || [[ "${OUTPUT_LINE_TYPE}${OUTPUT_LINE_PATH}" != "" ]]; do
+        [[ "${OUTPUT_LINE_TYPE}" != "" ]] || continue
+        [[ "${OUTPUT_LINE_PATH}" != "" ]] || {
+            echo "Malformed template asset output cache line: ${CACHE_FILE}" >&2
+            return 1
+        }
+        case "${OUTPUT_LINE_TYPE}" in
+            FONTS)
+                [[ "${OUTPUT_FONTS_TEXT}" == "" ]] || OUTPUT_FONTS_TEXT+=$'\n'
+                OUTPUT_FONTS_TEXT+="${OUTPUT_LINE_PATH}"
+                ;;
+            STYLES)
+                [[ "${OUTPUT_STYLES_TEXT}" == "" ]] || OUTPUT_STYLES_TEXT+=$'\n'
+                OUTPUT_STYLES_TEXT+="${OUTPUT_LINE_PATH}"
+                ;;
+            SCRIPTS)
+                [[ "${OUTPUT_SCRIPTS_TEXT}" == "" ]] || OUTPUT_SCRIPTS_TEXT+=$'\n'
+                OUTPUT_SCRIPTS_TEXT+="${OUTPUT_LINE_PATH}"
+                ;;
+            IMAGES)
+                [[ "${OUTPUT_IMAGES_TEXT}" == "" ]] || OUTPUT_IMAGES_TEXT+=$'\n'
+                OUTPUT_IMAGES_TEXT+="${OUTPUT_LINE_PATH}"
+                ;;
+            AUDIO)
+                [[ "${OUTPUT_AUDIO_TEXT}" == "" ]] || OUTPUT_AUDIO_TEXT+=$'\n'
+                OUTPUT_AUDIO_TEXT+="${OUTPUT_LINE_PATH}"
+                ;;
+            VIDEO)
+                [[ "${OUTPUT_VIDEO_TEXT}" == "" ]] || OUTPUT_VIDEO_TEXT+=$'\n'
+                OUTPUT_VIDEO_TEXT+="${OUTPUT_LINE_PATH}"
+                ;;
+            DOCUMENTS)
+                [[ "${OUTPUT_DOCUMENTS_TEXT}" == "" ]] || OUTPUT_DOCUMENTS_TEXT+=$'\n'
+                OUTPUT_DOCUMENTS_TEXT+="${OUTPUT_LINE_PATH}"
+                ;;
+            BINARIES)
+                [[ "${OUTPUT_BINARIES_TEXT}" == "" ]] || OUTPUT_BINARIES_TEXT+=$'\n'
+                OUTPUT_BINARIES_TEXT+="${OUTPUT_LINE_PATH}"
+                ;;
+            OTHER)
+                [[ "${OUTPUT_OTHER_TEXT}" == "" ]] || OUTPUT_OTHER_TEXT+=$'\n'
+                OUTPUT_OTHER_TEXT+="${OUTPUT_LINE_PATH}"
+                ;;
+            *)
+                echo "Malformed template asset output cache line: ${CACHE_FILE}" >&2
+                return 1
+                ;;
+        esac
+    done < "${CACHE_FILE}" || {
+        echo "Unable to read template asset output cache file: ${CACHE_FILE}" >&2
+        return 1
+    }
+
+    printf -v "${OUTPUT_FONTS_VAR}" '%s' "${OUTPUT_FONTS_TEXT}"
+    printf -v "${OUTPUT_STYLES_VAR}" '%s' "${OUTPUT_STYLES_TEXT}"
+    printf -v "${OUTPUT_SCRIPTS_VAR}" '%s' "${OUTPUT_SCRIPTS_TEXT}"
+    printf -v "${OUTPUT_IMAGES_VAR}" '%s' "${OUTPUT_IMAGES_TEXT}"
+    printf -v "${OUTPUT_AUDIO_VAR}" '%s' "${OUTPUT_AUDIO_TEXT}"
+    printf -v "${OUTPUT_VIDEO_VAR}" '%s' "${OUTPUT_VIDEO_TEXT}"
+    printf -v "${OUTPUT_DOCUMENTS_VAR}" '%s' "${OUTPUT_DOCUMENTS_TEXT}"
+    printf -v "${OUTPUT_BINARIES_VAR}" '%s' "${OUTPUT_BINARIES_TEXT}"
+    printf -v "${OUTPUT_OTHER_VAR}" '%s' "${OUTPUT_OTHER_TEXT}"
+    return 0
 }
 
 # returns the existing template asset paths declared by template metadata and overrides

@@ -4377,7 +4377,7 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
             TAG_VAR=""
             TAG_TYPE=""
             CONDITIONAL_VALUE=""
-            marsh_resolve_template_tag_metadata "${TAG}" "${PREFIX}" "${METADATA_VARS}" "TAG_VAR" "TAG_TYPE" 2>/dev/null || true
+            marsh_resolve_render_template_tag "${TAG}" "${PREFIX}" "${METADATA_VARS}" "TAG_VAR" "TAG_TYPE" "CONDITIONAL_VALUE" 2>/dev/null || true
             if [[ "${TAG_TYPE}" == "array" ]]; then
                 CONDITIONAL_VALUES=()
                 while IFS= read -r CONDITIONAL_ITEM; do
@@ -4387,8 +4387,19 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
                 IFS=$(printf '\034')
                 CONDITIONAL_VALUE="${CONDITIONAL_VALUES[*]}"
                 IFS="${OIFS}"
+            elif [[ "${TAG_TYPE}" == "list" ]]; then
+                CONDITIONAL_VALUES=()
+                while IFS= read -r CONDITIONAL_ITEM; do
+                    CONDITIONAL_VALUES+=("${CONDITIONAL_ITEM}")
+                done <<< "${CONDITIONAL_VALUE}"
+                OIFS="${IFS}"
+                IFS=$(printf '\034')
+                CONDITIONAL_VALUE="${CONDITIONAL_VALUES[*]}"
+                IFS="${OIFS}"
             elif [[ "${TAG_TYPE}" == "string" ]]; then
-                CONDITIONAL_VALUE="${!TAG_VAR:-}"
+                if [[ "${TAG_VAR}" != "" ]]; then
+                    CONDITIONAL_VALUE="${!TAG_VAR:-}"
+                fi
             else
                 TAG_TYPE="unsupported"
             fi
@@ -4449,7 +4460,8 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
                 [[ "${TAG}" == "" ]] && continue
                 TAG_VAR=""
                 TAG_TYPE=""
-                marsh_resolve_template_tag_metadata "${TAG}" "${PREFIX}" "${METADATA_VARS}" "TAG_VAR" "TAG_TYPE" 2>/dev/null || true
+                CONDITIONAL_VALUE=""
+                marsh_resolve_render_template_tag "${TAG}" "${PREFIX}" "${METADATA_VARS}" "TAG_VAR" "TAG_TYPE" "CONDITIONAL_VALUE" 2>/dev/null || true
                 if [[ "${TAG_TYPE}" == "array" ]]; then
                     CONDITIONAL_VALUES=()
                     while IFS= read -r CONDITIONAL_ITEM; do
@@ -4461,8 +4473,22 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
                         marsh_lock_release "${CACHE_FILE}"
                         return 1
                     }
+                elif [[ "${TAG_TYPE}" == "list" ]]; then
+                    CONDITIONAL_VALUES=()
+                    while IFS= read -r CONDITIONAL_ITEM; do
+                        CONDITIONAL_VALUES+=("${CONDITIONAL_ITEM}")
+                    done <<< "${CONDITIONAL_VALUE}"
+                    process_conditionals "${CACHE_TEMP}" "${TAG}" "${CONDITIONAL_VALUES[@]}" || {
+                        echo "Unable to process conditional tag in partial: ${TAG} ${FILE}" >&2
+                        rm -f "${CACHE_TEMP}"
+                        marsh_lock_release "${CACHE_FILE}"
+                        return 1
+                    }
                 elif [[ "${TAG_TYPE}" == "string" ]]; then
-                    process_conditionals "${CACHE_TEMP}" "${TAG}" "${!TAG_VAR:-}" || {
+                    if [[ "${TAG_VAR}" != "" ]]; then
+                        CONDITIONAL_VALUE="${!TAG_VAR:-}"
+                    fi
+                    process_conditionals "${CACHE_TEMP}" "${TAG}" "${CONDITIONAL_VALUE}" || {
                         echo "Unable to process conditional tag in partial: ${TAG} ${FILE}" >&2
                         rm -f "${CACHE_TEMP}"
                         marsh_lock_release "${CACHE_FILE}"
@@ -4545,13 +4571,20 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
             done <<< "${TAG_TRANSFORMS_TEXT}"
             TAG_VAR=""
             TAG_TYPE=""
-            marsh_resolve_template_tag_metadata "${TAG_NAME}" "${PREFIX}" "${METADATA_VARS}" "TAG_VAR" "TAG_TYPE" 2>/dev/null || true
-            if [[ "${TAG_VAR}" != "" ]] && [[ "${TAG_TYPE}" != "" ]]; then
+            TAG_VALUE=""
+            marsh_resolve_render_template_tag "${TAG_NAME}" "${PREFIX}" "${METADATA_VARS}" "TAG_VAR" "TAG_TYPE" "TAG_VALUE" 2>/dev/null || true
+            if [[ "${TAG_TYPE}" != "" ]]; then
                 if [[ "${TAG_TYPE}" == "array" ]]; then
                     TAG_VALUES=()
                     while IFS= read -r TAG_ARRAY_VALUE; do
                         TAG_VALUES+=("${TAG_ARRAY_VALUE}")
                     done < <(marsh_get_flatarray_values "${TAG_VAR}")
+                    TAG_VALUE=$(printf '%s\n' "${TAG_VALUES[@]}")
+                elif [[ "${TAG_TYPE}" == "list" ]]; then
+                    TAG_VALUES=()
+                    while IFS= read -r TAG_ARRAY_VALUE; do
+                        TAG_VALUES+=("${TAG_ARRAY_VALUE}")
+                    done <<< "${TAG_VALUE}"
                     TAG_VALUE=$(printf '%s\n' "${TAG_VALUES[@]}")
                 elif [[ "${TAG_TYPE}" == "shell-array" ]]; then
                     eval "TAG_VALUES=(\"\${${TAG_VAR}[@]}\")"
@@ -4564,7 +4597,9 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
                         return 1
                     fi
                 elif [[ "${TAG_TYPE}" == "string" ]]; then
-                    TAG_VALUE="${!TAG_VAR}"
+                    if [[ "${TAG_VAR}" != "" ]]; then
+                        TAG_VALUE="${!TAG_VAR}"
+                    fi
                 else
                     rm -f "${REPLACEMENTS}"
                     return 1
@@ -4613,7 +4648,8 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
     local TEMPLATE_ASSET_TYPE ASSET ASSET_PATH ASSET_OUTPUT_PATH ASSET_QUERY ASSET_HREF
     local TEMPLATE_HEAD_ESC TEMPLATE_BODY_ESC TEMPLATE_DOCUMENT_ESC TEMPLATE_HEADER_ESC TEMPLATE_FOOTER_ESC
     local TEMPLATE_NAV_ESC TEMPLATE_NOTICE_ESC
-    local DOCUMENT_META_VARS DOCUMENT_META_PATH DOCUMENT_CONTENT
+    local DOCUMENT_META_VARS DOCUMENT_META_PATH DOCUMENT_META_CACHE_FILE DOCUMENT_CONTENT
+    local DOCUMENT_METADATA_STATE_PREFIX DOCUMENT_METADATA_STATE_COUNT
     local DOCUMENT_META_ASSIGNMENT DOCUMENT_META_ENTRY_NAME DOCUMENT_META_ENTRY_TYPE DOCUMENT_META_ENTRY_VALUE DOCUMENT_META_ENTRY_INDEX
     local DOCUMENT_META_VAR_NAME DOCUMENT_META_NORMALIZED_KEY DOCUMENT_META_ALLOW_RESERVED_PAGE_TAGS
     local SUBDOCUMENTS_LIST NUM_SUBDOCUMENTS
@@ -4726,6 +4762,9 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
     # document content and metadata
     DOCUMENT_CONTENT=$(marsh_get_document_temp_path "${BUILD_CONTEXT_OUTPUT_ROOT}" "${DOCUMENT_REL_TO_TARGET}" "content") || return 1
     DOCUMENT_META_PATH=$(marsh_get_document_temp_path "${BUILD_CONTEXT_OUTPUT_ROOT}" "${DOCUMENT_REL_TO_TARGET}" "meta-yaml") || return 1
+    DOCUMENT_META_CACHE_FILE=$(marsh_get_document_temp_path "${BUILD_CONTEXT_OUTPUT_ROOT}" "${DOCUMENT_REL_TO_TARGET}" "meta") || return 1
+    DOCUMENT_METADATA_STATE_PREFIX="DOCUMENT_METADATA_STATE_"
+    DOCUMENT_METADATA_STATE_COUNT=0
     if [[ ! -e "${DOCUMENT_CONTENT}" ]]; then
         if [[ "${DOCUMENT_SOURCE_FILE}" == "" ]] && [[ "${TARGET_SOURCE_ROOT}" == "" ]]; then
             echo "Document source root not found for target: ${BUILD_CONTEXT_OUTPUT_ROOT}" >&2
@@ -4796,6 +4835,10 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
             return 1
         }
         DOCUMENT_META_VARS="${DOCUMENT_META_VARS%$'\n'}"
+        marsh_load_document_metadata_state "${DOCUMENT_META_CACHE_FILE}" "${DOCUMENT_METADATA_STATE_PREFIX}" "DOCUMENT_METADATA_STATE_COUNT" || {
+            echo "Unable to load document metadata state for document: ${DOCUMENT_SOURCE_FILE}" >&2
+            return 1
+        }
     fi
 
     # archive paths are only meaningful for generated archive pages
@@ -5976,6 +6019,88 @@ function marsh_parse_template_tag {  # marsh_parse_template_tag tag_string tag_n
     done
     printf -v "${TAG_NAME_VAR}" '%s' "${TAG_NAME_VALUE}"
     printf -v "${TAG_TRANSFORMS_VAR}" '%s' "${PARSED_TRANSFORMS_TEXT}"
+    return 0
+}
+
+# resolves a custom document tag from loaded document metadata state
+function marsh_resolve_loaded_document_metadata_tag {  # marsh_resolve_loaded_document_metadata_tag tag_name prefix out_type_var out_value_var
+    local TAG_NAME PREFIX OUT_TYPE_VAR OUT_VALUE_VAR
+    local STATE_PREFIX_VAR STATE_COUNT_VAR LOOKUP_KEY LOOKUP_TYPE LOOKUP_VALUE
+
+    TAG_NAME="${1:-}"
+    PREFIX="${2:-}"
+    OUT_TYPE_VAR="${3:-}"
+    OUT_VALUE_VAR="${4:-}"
+    [[ "${TAG_NAME}" != "" ]] || return 1
+    [[ "${PREFIX}" != "" ]] || return 1
+    [[ "${OUT_TYPE_VAR}" != "" ]] || return 1
+    [[ "${OUT_VALUE_VAR}" != "" ]] || return 1
+    [[ "${TAG_NAME#document.}" != "${TAG_NAME}" ]] || return 1
+
+    STATE_PREFIX_VAR="${PREFIX}METADATA_STATE_PREFIX"
+    STATE_COUNT_VAR="${PREFIX}METADATA_STATE_COUNT"
+    [[ "${!STATE_PREFIX_VAR:-}" != "" ]] || return 1
+    [[ "${!STATE_COUNT_VAR:-}" =~ ^[0-9]+$ ]] || return 1
+
+    LOOKUP_KEY=""
+    LOOKUP_TYPE=""
+    LOOKUP_VALUE=""
+    marsh_lookup_document_metadata_state "${!STATE_PREFIX_VAR}" "${!STATE_COUNT_VAR}" "${TAG_NAME}" "LOOKUP_KEY" "LOOKUP_TYPE" "LOOKUP_VALUE" || return 1
+
+    case "${LOOKUP_TYPE}" in
+        value)
+            printf -v "${OUT_TYPE_VAR}" '%s' 'string'
+            ;;
+        list)
+            printf -v "${OUT_TYPE_VAR}" '%s' 'list'
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+    printf -v "${OUT_VALUE_VAR}" '%s' "${LOOKUP_VALUE}"
+    return 0
+}
+
+# resolves a template tag for render-time consumers without rescanning custom document metadata
+function marsh_resolve_render_template_tag {  # marsh_resolve_render_template_tag tag_name prefix metadata_vars out_var_var out_type_var out_value_var
+    local TAG_NAME PREFIX METADATA_VARS OUT_VAR_VAR OUT_TYPE_VAR OUT_VALUE_VAR
+    local RESOLVED_VAR RESOLVED_TYPE RESOLVED_VALUE
+
+    TAG_NAME="${1:-}"
+    PREFIX="${2:-}"
+    METADATA_VARS="${3:-}"
+    OUT_VAR_VAR="${4:-}"
+    OUT_TYPE_VAR="${5:-}"
+    OUT_VALUE_VAR="${6:-}"
+    [[ "${TAG_NAME}" != "" ]] || return 1
+    [[ "${PREFIX}" != "" ]] || return 1
+    [[ "${OUT_VAR_VAR}" != "" ]] || return 1
+    [[ "${OUT_TYPE_VAR}" != "" ]] || return 1
+    [[ "${OUT_VALUE_VAR}" != "" ]] || return 1
+
+    printf -v "${OUT_VAR_VAR}" '%s' ''
+    printf -v "${OUT_TYPE_VAR}" '%s' ''
+    printf -v "${OUT_VALUE_VAR}" '%s' ''
+    RESOLVED_VAR=""
+    RESOLVED_TYPE=""
+    RESOLVED_VALUE=""
+
+    if [[ "${PREFIX}" == "DOCUMENT_" ]]; then
+        marsh_resolve_template_tag_metadata "${TAG_NAME}" "${PREFIX}" "" "RESOLVED_VAR" "RESOLVED_TYPE" 2>/dev/null || true
+        if [[ "${RESOLVED_VAR}" == "" ]] && [[ "${RESOLVED_TYPE}" == "" ]]; then
+            marsh_resolve_loaded_document_metadata_tag "${TAG_NAME}" "${PREFIX}" "RESOLVED_TYPE" "RESOLVED_VALUE" 2>/dev/null || {
+                marsh_resolve_template_tag_metadata "${TAG_NAME}" "${PREFIX}" "${METADATA_VARS}" "RESOLVED_VAR" "RESOLVED_TYPE" 2>/dev/null || true
+            }
+        fi
+    else
+        marsh_resolve_template_tag_metadata "${TAG_NAME}" "${PREFIX}" "${METADATA_VARS}" "RESOLVED_VAR" "RESOLVED_TYPE" 2>/dev/null || true
+    fi
+
+    [[ "${RESOLVED_TYPE}" != "" ]] || return 1
+    printf -v "${OUT_VAR_VAR}" '%s' "${RESOLVED_VAR}"
+    printf -v "${OUT_TYPE_VAR}" '%s' "${RESOLVED_TYPE}"
+    printf -v "${OUT_VALUE_VAR}" '%s' "${RESOLVED_VALUE}"
     return 0
 }
 

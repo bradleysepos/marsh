@@ -4824,15 +4824,12 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
                 "DOCUMENT_META_ENTRY_VALUE" \
                 "DOCUMENT_META_ENTRY_INDEX" || return 1
             marsh_normalize_document_metadata_key "${DOCUMENT_META_ENTRY_NAME}" "DOCUMENT_META_NORMALIZED_KEY" || return 1
-            if marsh_is_reserved_document_tag "${DOCUMENT_META_NORMALIZED_KEY}"; then
-                case "${DOCUMENT_META_NORMALIZED_KEY}" in
-                    page-canonical-uri|page-canonical-href|page-first-uri|page-first-href|page-prev-uri|page-prev-href|page-next-uri|page-next-href|page-last-uri|page-last-href)
-                        [[ "${DOCUMENT_META_ALLOW_RESERVED_PAGE_TAGS}" == true ]] || continue
-                        ;;
-                    *)
-                        continue
-                        ;;
-                esac
+            if marsh_is_reserved_document_template_tag "${DOCUMENT_META_NORMALIZED_KEY}"; then
+                if marsh_is_reserved_archive_page_template_tag "${DOCUMENT_META_NORMALIZED_KEY}"; then
+                    [[ "${DOCUMENT_META_ALLOW_RESERVED_PAGE_TAGS}" == true ]] || continue
+                else
+                    continue
+                fi
             fi
             if [[ "${DOCUMENT_META_ENTRY_TYPE}" == "list-item" ]]; then
                 DOCUMENT_META_VAR_NAME="DOCUMENT_${DOCUMENT_META_ENTRY_NAME}_${DOCUMENT_META_ENTRY_INDEX}"
@@ -5243,15 +5240,12 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
                             "SUBDOCUMENT_META_ENTRY_VALUE" \
                             "SUBDOCUMENT_META_ENTRY_INDEX" || return 1
                         marsh_normalize_document_metadata_key "${SUBDOCUMENT_META_ENTRY_NAME}" "SUBDOCUMENT_META_NORMALIZED_KEY" || return 1
-                        if marsh_is_reserved_document_tag "${SUBDOCUMENT_META_NORMALIZED_KEY}"; then
-                            case "${SUBDOCUMENT_META_NORMALIZED_KEY}" in
-                                page-canonical-uri|page-canonical-href|page-first-uri|page-first-href|page-prev-uri|page-prev-href|page-next-uri|page-next-href|page-last-uri|page-last-href)
-                                    [[ "${SUBDOCUMENT_META_ALLOW_RESERVED_PAGE_TAGS}" == true ]] || continue
-                                    ;;
-                                *)
-                                    continue
-                                    ;;
-                            esac
+                        if marsh_is_reserved_document_template_tag "${SUBDOCUMENT_META_NORMALIZED_KEY}"; then
+                            if marsh_is_reserved_archive_page_template_tag "${SUBDOCUMENT_META_NORMALIZED_KEY}"; then
+                                [[ "${SUBDOCUMENT_META_ALLOW_RESERVED_PAGE_TAGS}" == true ]] || continue
+                            else
+                                continue
+                            fi
                         fi
                         if [[ "${SUBDOCUMENT_META_ENTRY_TYPE}" == "list-item" ]]; then
                             SUBDOCUMENT_META_VAR_NAME="SUBDOCUMENT_${SUBDOCUMENT_META_ENTRY_NAME}_${SUBDOCUMENT_META_ENTRY_INDEX}"
@@ -5820,6 +5814,55 @@ function marsh_get_template_metadata {  # marsh_get_template_metadata prefix tem
         }
         return 0
     fi
+}
+
+# returns success when a normalized key collides with a reserved document.* metadata key
+function marsh_is_reserved_document_template_tag {  # marsh_is_reserved_document_template_tag normalized_key
+    local NORMALIZED_KEY
+
+    NORMALIZED_KEY="${1:-}"
+    [[ "${NORMALIZED_KEY}" != "" ]] || return 1
+
+    if marsh_is_reserved_archive_page_template_tag "${NORMALIZED_KEY}"; then
+        return 0
+    fi
+
+    case "${NORMALIZED_KEY}" in
+        href | \
+        uri | \
+        content)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+# returns success when a normalized key collides with a reserved archive-specific document.* metadata key
+function marsh_is_reserved_archive_page_template_tag {  # marsh_is_reserved_archive_page_template_tag normalized_key
+    local NORMALIZED_KEY
+
+    NORMALIZED_KEY="${1:-}"
+    [[ "${NORMALIZED_KEY}" != "" ]] || return 1
+
+    case "${NORMALIZED_KEY}" in
+        page-canonical-uri | \
+        page-canonical-href | \
+        page-first-uri | \
+        page-first-href | \
+        page-prev-uri | \
+        page-prev-href | \
+        page-next-uri | \
+        page-next-href | \
+        page-last-uri | \
+        page-last-href)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
 }
 
 # prints bash variable assignments for template metadata
@@ -7600,35 +7643,6 @@ function marsh_has_frontmatter {  # marsh_has_frontmatter source
     [[ "${FIRST_LINE}" =~ ^---\ *(#.*)?$ ]]
 }
 
-# returns success when a normalized key collides with a reserved document.* metadata key
-function marsh_is_reserved_document_tag {  # marsh_is_reserved_document_tag normalized_key
-    local NORMALIZED_KEY
-
-    NORMALIZED_KEY="${1:-}"
-    [[ "${NORMALIZED_KEY}" != "" ]] || return 1
-
-    case "${NORMALIZED_KEY}" in
-        href | \
-        uri | \
-        content | \
-        page-canonical-uri | \
-        page-canonical-href | \
-        page-first-uri | \
-        page-first-href | \
-        page-prev-uri | \
-        page-prev-href | \
-        page-next-uri | \
-        page-next-href | \
-        page-last-uri | \
-        page-last-href)
-            return 0
-            ;;
-        *)
-            return 1
-            ;;
-    esac
-}
-
 # loads one document metadata cache file into caller-owned flat state
 function marsh_load_document_metadata_state {  # marsh_load_document_metadata_state meta_cache_file state_prefix out_count_var
     local META_CACHE_FILE STATE_PREFIX OUT_COUNT_VAR ASSIGNMENT_LINE
@@ -7695,7 +7709,7 @@ function marsh_load_document_metadata_state {  # marsh_load_document_metadata_st
             CURRENT_RESERVED=false
             CURRENT_HAS_VALUE=false
             CURRENT_HAS_LIST_ITEMS=false
-            marsh_is_reserved_document_tag "${CURRENT_NORMALIZED_KEY}" && CURRENT_RESERVED=true
+            marsh_is_reserved_document_template_tag "${CURRENT_NORMALIZED_KEY}" && CURRENT_RESERVED=true
         fi
 
         if [[ "${ENTRY_TYPE}" == "value" ]]; then
@@ -7755,7 +7769,7 @@ function marsh_lookup_document_metadata_state {  # marsh_lookup_document_metadat
 
     NORMALIZED_TAG="${TAG_NAME#document.}"
     marsh_normalize_document_metadata_key "${NORMALIZED_TAG}" "NORMALIZED_TAG" || return 1
-    marsh_is_reserved_document_tag "${NORMALIZED_TAG}" && return 1
+    marsh_is_reserved_document_template_tag "${NORMALIZED_TAG}" && return 1
 
     MATCH_COUNT=0
     MATCH_INDEX=""

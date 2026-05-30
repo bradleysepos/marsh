@@ -1010,6 +1010,104 @@ function marsh_load_parsed_yaml_assignments {  # marsh_load_parsed_yaml_assignme
     done <<< "${PARSED_YAML_ASSIGNMENTS}"
 }
 
+# loads marsh-owned parsed yaml assignments into caller-owned flat state
+function marsh_load_parsed_yaml_state {  # marsh_load_parsed_yaml_state parsed_yaml_assignments state_prefix out_count_var
+    local PARSED_YAML_ASSIGNMENTS STATE_PREFIX OUT_COUNT_VAR ASSIGNMENT_LINE
+    local PARSED_ASSIGNMENT_NAME PARSED_ASSIGNMENT_VALUE STATE_ENTRY_COUNT
+
+    PARSED_YAML_ASSIGNMENTS="${1:-}"
+    STATE_PREFIX="${2:-}"
+    OUT_COUNT_VAR="${3:-}"
+    [[ "${STATE_PREFIX}" != "" ]] || return 1
+    [[ "${OUT_COUNT_VAR}" != "" ]] || return 1
+    [[ "${STATE_PREFIX}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 1
+    [[ "${OUT_COUNT_VAR}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 1
+
+    STATE_ENTRY_COUNT=0
+    while IFS= read -r ASSIGNMENT_LINE || [[ "${ASSIGNMENT_LINE}" != "" ]]; do
+        [[ "${ASSIGNMENT_LINE}" == "" ]] && continue
+        marsh_parse_parsed_yaml_assignment "${ASSIGNMENT_LINE}" "PARSED_ASSIGNMENT_NAME" "PARSED_ASSIGNMENT_VALUE" || return 1
+        printf -v "${STATE_PREFIX}KEY_${STATE_ENTRY_COUNT}" '%s' "${PARSED_ASSIGNMENT_NAME}"
+        printf -v "${STATE_PREFIX}VALUE_${STATE_ENTRY_COUNT}" '%s' "${PARSED_ASSIGNMENT_VALUE}"
+        STATE_ENTRY_COUNT=$((STATE_ENTRY_COUNT + 1))
+    done <<< "${PARSED_YAML_ASSIGNMENTS}"
+
+    printf -v "${OUT_COUNT_VAR}" '%s' "${STATE_ENTRY_COUNT}"
+}
+
+# looks up one marsh-owned parsed yaml assignment value from loaded state using last-write-wins semantics
+function marsh_lookup_parsed_yaml_state {  # marsh_lookup_parsed_yaml_state state_prefix state_count key out_value_var
+    local STATE_PREFIX STATE_COUNT KEY_NAME OUT_VALUE_VAR
+    local STATE_INDEX STATE_KEY_VAR STATE_VALUE_VAR
+
+    STATE_PREFIX="${1:-}"
+    STATE_COUNT="${2:-}"
+    KEY_NAME="${3:-}"
+    OUT_VALUE_VAR="${4:-}"
+    [[ "${STATE_PREFIX}" != "" ]] || return 1
+    [[ "${STATE_COUNT}" =~ ^[0-9]+$ ]] || return 1
+    [[ "${KEY_NAME}" != "" ]] || return 1
+    [[ "${OUT_VALUE_VAR}" != "" ]] || return 1
+
+    STATE_INDEX=$((STATE_COUNT - 1))
+    while [[ "${STATE_INDEX}" -ge 0 ]]; do
+        STATE_KEY_VAR="${STATE_PREFIX}KEY_${STATE_INDEX}"
+        if [[ "${!STATE_KEY_VAR}" == "${KEY_NAME}" ]]; then
+            STATE_VALUE_VAR="${STATE_PREFIX}VALUE_${STATE_INDEX}"
+            printf -v "${OUT_VALUE_VAR}" '%s' "${!STATE_VALUE_VAR}"
+            return 0
+        fi
+        STATE_INDEX=$((STATE_INDEX - 1))
+    done
+    return 1
+}
+
+# parses one marsh-owned parsed-yaml assignment line without evaluating shell code
+function marsh_parse_parsed_yaml_assignment {  # marsh_parse_parsed_yaml_assignment assignment_line out_name_var out_value_var
+    local ASSIGNMENT_LINE OUT_NAME_VAR OUT_VALUE_VAR
+    local ASSIGNMENT_NAME ASSIGNMENT_VALUE
+
+    ASSIGNMENT_LINE="${1:-}"
+    OUT_NAME_VAR="${2:-}"
+    OUT_VALUE_VAR="${3:-}"
+    [[ "${ASSIGNMENT_LINE}" != "" ]] || return 1
+    [[ "${OUT_NAME_VAR}" != "" ]] || return 1
+    [[ "${OUT_VALUE_VAR}" != "" ]] || return 1
+
+    if [[ "${ASSIGNMENT_LINE}" == *$'\n'* ]] || [[ "${ASSIGNMENT_LINE}" == *$'\r'* ]]; then
+        echo "Unsupported parsed yaml multiline value" >&2
+        return 1
+    fi
+    [[ "${ASSIGNMENT_LINE}" == *=* ]] || {
+        echo "Malformed parsed yaml assignment line: ${ASSIGNMENT_LINE}" >&2
+        return 1
+    }
+
+    ASSIGNMENT_NAME="${ASSIGNMENT_LINE%%=*}"
+    ASSIGNMENT_VALUE="${ASSIGNMENT_LINE#*=}"
+    [[ "${ASSIGNMENT_NAME}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || {
+        echo "Invalid parsed yaml assignment name: ${ASSIGNMENT_NAME}" >&2
+        return 1
+    }
+
+    if [[ "${ASSIGNMENT_VALUE}" == true ]] || [[ "${ASSIGNMENT_VALUE}" == false ]]; then
+        printf -v "${OUT_NAME_VAR}" '%s' "${ASSIGNMENT_NAME}"
+        printf -v "${OUT_VALUE_VAR}" '%s' "${ASSIGNMENT_VALUE}"
+        return 0
+    fi
+
+    if [[ ! "${ASSIGNMENT_VALUE}" == '"'*'"' ]]; then
+        echo "Unsupported parsed yaml assignment value: ${ASSIGNMENT_LINE}" >&2
+        return 1
+    fi
+
+    ASSIGNMENT_VALUE="${ASSIGNMENT_VALUE#\"}"
+    ASSIGNMENT_VALUE="${ASSIGNMENT_VALUE%\"}"
+    ASSIGNMENT_VALUE="${ASSIGNMENT_VALUE//\\\"/\"}"
+    printf -v "${OUT_NAME_VAR}" '%s' "${ASSIGNMENT_NAME}"
+    printf -v "${OUT_VALUE_VAR}" '%s' "${ASSIGNMENT_VALUE}"
+}
+
 # parses one marsh-owned assignment line without evaluating shell code
 function marsh_parse_internal_assignment {  # marsh_parse_internal_assignment assignment_line out_name_var out_value_var error_context
     local ASSIGNMENT_LINE OUT_NAME_VAR OUT_VALUE_VAR ERROR_CONTEXT
@@ -6500,12 +6598,12 @@ function marsh_load_template_metadata_state {  # marsh_load_template_metadata_st
 # prints bash variable assignments for template metadata
 function marsh_parse_template_metadata {  # marsh_parse_template_metadata prefix template_dir #template_overrides[@] template_overrides[@]
     local PREFIX TEMPLATE_DIR NUM_TEMPLATE_OVERRIDES TEMPLATE_OVERRIDE
-    local TEMPLATE_META TEMPLATE_META_VARS
+    local TEMPLATE_META TEMPLATE_LOOKUP_VALUE TEMPLATE_PARSED_YAML_STATE_COUNT PARTIAL_LOOKUP_KEY PARTIAL_OUTPUT_NAME
     local INDEX ASSET_TYPE ASSET_TYPE_UPPER ASSET FILTER_INDEX REGEX EXTENDED MATCH REPLACE EXTRA I
     local ASSETS_INDEX ASSETS_TYPE OIFS ASSET_TEXT_VAR ASSETS_TEXT ASSETS_UPDATED_TEXT
     local TEMPLATE_ASSETS_FONTS_TEXT TEMPLATE_ASSETS_STYLES_TEXT TEMPLATE_ASSETS_SCRIPTS_TEXT TEMPLATE_ASSETS_IMAGES_TEXT
     local TEMPLATE_ASSETS_AUDIO_TEXT TEMPLATE_ASSETS_VIDEO_TEXT TEMPLATE_ASSETS_DOCUMENTS_TEXT TEMPLATE_ASSETS_BINARIES_TEXT TEMPLATE_ASSETS_OTHER_TEXT
-    local -a TEMPLATE_OVERRIDES ASSET_TYPES ASSETS_TEMP
+    local -a TEMPLATE_OVERRIDES ASSET_TYPES ASSETS_TEMP TEMPLATE_PARTIAL_KEYS
 
     # init
     PREFIX="${1:-}"
@@ -6525,9 +6623,6 @@ function marsh_parse_template_metadata {  # marsh_parse_template_metadata prefix
     if [[ -f "${TEMPLATE_DIR}/template.yaml" ]] && [[ -r "${TEMPLATE_DIR}/template.yaml" ]]; then
         TEMPLATE_META=$(marsh_parse_yaml "${TEMPLATE_DIR}/template.yaml" "MARSH_TEMPLATE_")
         [[ $? -ne 0 ]] && echo "Unable to parse yaml file: ${TEMPLATE_DIR}/template.yaml" >&2 && return 1
-        TEMPLATE_META_VARS=$(echo "${TEMPLATE_META}" | marsh_get_variables)
-        eval "$(printf '%s\n' "${TEMPLATE_META_VARS}" | marsh_get_local_declarations)"
-        eval "${TEMPLATE_META}"
     else
         echo "Template configuration file not found: ${TEMPLATE_DIR}/template.yaml" >&2
         return 1
@@ -6535,41 +6630,51 @@ function marsh_parse_template_metadata {  # marsh_parse_template_metadata prefix
     for TEMPLATE_OVERRIDE in "${TEMPLATE_OVERRIDES[@]}"; do
         [[ "${TEMPLATE_OVERRIDE}" == "" ]] && continue
         if [[ -f "${TEMPLATE_OVERRIDE}" ]] && [[ -r "${TEMPLATE_OVERRIDE}" ]]; then
-            TEMPLATE_META=$(marsh_parse_yaml "${TEMPLATE_OVERRIDE}" "MARSH_TEMPLATE_")
+            TEMPLATE_LOOKUP_VALUE=$(marsh_parse_yaml "${TEMPLATE_OVERRIDE}" "MARSH_TEMPLATE_")
             [[ $? -ne 0 ]] && echo "Unable to parse yaml file: ${TEMPLATE_OVERRIDE}" >&2 && return 1
-            TEMPLATE_META_VARS=$(echo "${TEMPLATE_META_VARS}"$'\n'"${TEMPLATE_META}" | marsh_get_variables)
-            eval "$(printf '%s\n' "${TEMPLATE_META_VARS}" | marsh_get_local_declarations)"
-            eval "${TEMPLATE_META}"
+            [[ "${TEMPLATE_META}" == "" ]] || TEMPLATE_META+=$'\n'
+            TEMPLATE_META+="${TEMPLATE_LOOKUP_VALUE}"
         else
             echo "Template configuration override file not found: ${TEMPLATE_OVERRIDE}" >&2
             return 1
         fi
     done
+    TEMPLATE_PARSED_YAML_STATE_COUNT=0
+    marsh_load_parsed_yaml_state "${TEMPLATE_META}" "MARSH_TEMPLATE_STATE_" "TEMPLATE_PARSED_YAML_STATE_COUNT" || return 1
 
     # print partials paths relative to template dir
-    [[ "${MARSH_TEMPLATE_Template_Partials_Base:-}"     != "" ]] && echo "${PREFIX}Template_Partials_Base=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Base//\"/\\\"}\""
-    [[ "${MARSH_TEMPLATE_Template_Partials_Head:-}"     != "" ]] && echo "${PREFIX}Template_Partials_Head=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Head//\"/\\\"}\""
-    [[ "${MARSH_TEMPLATE_Template_Partials_Body:-}"     != "" ]] && echo "${PREFIX}Template_Partials_Body=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Body//\"/\\\"}\""
-    [[ "${MARSH_TEMPLATE_Template_Partials_Document:-}" != "" ]] && echo "${PREFIX}Template_Partials_Document=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Document//\"/\\\"}\""
-    [[ "${MARSH_TEMPLATE_Template_Partials_Header:-}"   != "" ]] && echo "${PREFIX}Template_Partials_Header=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Header//\"/\\\"}\""
-    [[ "${MARSH_TEMPLATE_Template_Partials_Nav:-}"      != "" ]] && echo "${PREFIX}Template_Partials_Nav=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Nav//\"/\\\"}\""
-    [[ "${MARSH_TEMPLATE_Template_Partials_Notice:-}"   != "" ]] && echo "${PREFIX}Template_Partials_Notice=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Notice//\"/\\\"}\""
-    [[ "${MARSH_TEMPLATE_Template_Partials_Footer:-}"   != "" ]] && echo "${PREFIX}Template_Partials_Footer=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Footer//\"/\\\"}\""
-    [[ "${MARSH_TEMPLATE_Template_Partials_Redirect:-}" != "" ]] && echo "${PREFIX}Template_Partials_Redirect=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Redirect//\"/\\\"}\""
-    [[ "${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Base:-}"     != "" ]] && echo "${PREFIX}Template_Partials_Archive_HTML_Base=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Base//\"/\\\"}\""
-    [[ "${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Head:-}"     != "" ]] && echo "${PREFIX}Template_Partials_Archive_HTML_Head=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Head//\"/\\\"}\""
-    [[ "${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Body:-}"     != "" ]] && echo "${PREFIX}Template_Partials_Archive_HTML_Body=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Body//\"/\\\"}\""
-    [[ "${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Document:-}" != "" ]] && echo "${PREFIX}Template_Partials_Archive_HTML_Document=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Document//\"/\\\"}\""
-    [[ "${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Header:-}"   != "" ]] && echo "${PREFIX}Template_Partials_Archive_HTML_Header=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Header//\"/\\\"}\""
-    [[ "${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Nav:-}"      != "" ]] && echo "${PREFIX}Template_Partials_Archive_HTML_Nav=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Nav//\"/\\\"}\""
-    [[ "${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Notice:-}"   != "" ]] && echo "${PREFIX}Template_Partials_Archive_HTML_Notice=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Notice//\"/\\\"}\""
-    [[ "${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Footer:-}"   != "" ]] && echo "${PREFIX}Template_Partials_Archive_HTML_Footer=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Archive_HTML_Footer//\"/\\\"}\""
-    [[ "${MARSH_TEMPLATE_Template_Partials_Archive_Atom_Base:-}"     != "" ]] && echo "${PREFIX}Template_Partials_Archive_Atom_Base=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Archive_Atom_Base//\"/\\\"}\""
-    [[ "${MARSH_TEMPLATE_Template_Partials_Archive_Atom_Body:-}"     != "" ]] && echo "${PREFIX}Template_Partials_Archive_Atom_Body=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Archive_Atom_Body//\"/\\\"}\""
-    [[ "${MARSH_TEMPLATE_Template_Partials_Archive_Atom_Document:-}" != "" ]] && echo "${PREFIX}Template_Partials_Archive_Atom_Document=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Archive_Atom_Document//\"/\\\"}\""
-    [[ "${MARSH_TEMPLATE_Template_Partials_Archive_JSON_Base:-}"     != "" ]] && echo "${PREFIX}Template_Partials_Archive_JSON_Base=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Archive_JSON_Base//\"/\\\"}\""
-    [[ "${MARSH_TEMPLATE_Template_Partials_Archive_JSON_Body:-}"     != "" ]] && echo "${PREFIX}Template_Partials_Archive_JSON_Body=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Archive_JSON_Body//\"/\\\"}\""
-    [[ "${MARSH_TEMPLATE_Template_Partials_Archive_JSON_Document:-}" != "" ]] && echo "${PREFIX}Template_Partials_Archive_JSON_Document=\"${TEMPLATE_DIR}/${MARSH_TEMPLATE_Template_Partials_Archive_JSON_Document//\"/\\\"}\""
+    TEMPLATE_PARTIAL_KEYS=(
+        'MARSH_TEMPLATE_Template_Partials_Base'
+        'MARSH_TEMPLATE_Template_Partials_Head'
+        'MARSH_TEMPLATE_Template_Partials_Body'
+        'MARSH_TEMPLATE_Template_Partials_Document'
+        'MARSH_TEMPLATE_Template_Partials_Header'
+        'MARSH_TEMPLATE_Template_Partials_Nav'
+        'MARSH_TEMPLATE_Template_Partials_Notice'
+        'MARSH_TEMPLATE_Template_Partials_Footer'
+        'MARSH_TEMPLATE_Template_Partials_Redirect'
+        'MARSH_TEMPLATE_Template_Partials_Archive_HTML_Base'
+        'MARSH_TEMPLATE_Template_Partials_Archive_HTML_Head'
+        'MARSH_TEMPLATE_Template_Partials_Archive_HTML_Body'
+        'MARSH_TEMPLATE_Template_Partials_Archive_HTML_Document'
+        'MARSH_TEMPLATE_Template_Partials_Archive_HTML_Header'
+        'MARSH_TEMPLATE_Template_Partials_Archive_HTML_Nav'
+        'MARSH_TEMPLATE_Template_Partials_Archive_HTML_Notice'
+        'MARSH_TEMPLATE_Template_Partials_Archive_HTML_Footer'
+        'MARSH_TEMPLATE_Template_Partials_Archive_Atom_Base'
+        'MARSH_TEMPLATE_Template_Partials_Archive_Atom_Body'
+        'MARSH_TEMPLATE_Template_Partials_Archive_Atom_Document'
+        'MARSH_TEMPLATE_Template_Partials_Archive_JSON_Base'
+        'MARSH_TEMPLATE_Template_Partials_Archive_JSON_Body'
+        'MARSH_TEMPLATE_Template_Partials_Archive_JSON_Document'
+    )
+    for PARTIAL_LOOKUP_KEY in "${TEMPLATE_PARTIAL_KEYS[@]}"; do
+        TEMPLATE_LOOKUP_VALUE=""
+        if marsh_lookup_parsed_yaml_state "MARSH_TEMPLATE_STATE_" "${TEMPLATE_PARSED_YAML_STATE_COUNT}" "${PARTIAL_LOOKUP_KEY}" "TEMPLATE_LOOKUP_VALUE"; then
+            PARTIAL_OUTPUT_NAME="${PARTIAL_LOOKUP_KEY#MARSH_TEMPLATE_}"
+            echo "${PREFIX}${PARTIAL_OUTPUT_NAME}=\"${TEMPLATE_DIR}/${TEMPLATE_LOOKUP_VALUE//\"/\\\"}\""
+        fi
+    done
 
     # assets
     ASSET_TYPES=('Fonts' 'Styles' 'Scripts' 'Images' 'Audio' 'Video' 'Documents' 'Binaries' 'Other')
@@ -6578,7 +6683,9 @@ function marsh_parse_template_metadata {  # marsh_parse_template_metadata prefix
         printf -v "${ASSET_TEXT_VAR}" '%s' ''
         INDEX=0
         ASSET="MARSH_TEMPLATE_Template_Assets_${ASSET_TYPE}_${INDEX}"
-        ASSET="${!ASSET:-}"
+        TEMPLATE_LOOKUP_VALUE=""
+        marsh_lookup_parsed_yaml_state "MARSH_TEMPLATE_STATE_" "${TEMPLATE_PARSED_YAML_STATE_COUNT}" "${ASSET}" "TEMPLATE_LOOKUP_VALUE" || TEMPLATE_LOOKUP_VALUE=""
+        ASSET="${TEMPLATE_LOOKUP_VALUE}"
         while [[ "${ASSET}" != "" ]]; do
             ASSETS_TEXT="${!ASSET_TEXT_VAR}"
             [[ "${ASSETS_TEXT}" == "" ]] || ASSETS_TEXT+=$'\n'
@@ -6586,16 +6693,22 @@ function marsh_parse_template_metadata {  # marsh_parse_template_metadata prefix
             printf -v "${ASSET_TEXT_VAR}" '%s' "${ASSETS_TEXT}"
             INDEX=$((INDEX+1))
             ASSET="MARSH_TEMPLATE_Template_Assets_${ASSET_TYPE}_${INDEX}"
-            ASSET="${!ASSET:-}"
+            TEMPLATE_LOOKUP_VALUE=""
+            marsh_lookup_parsed_yaml_state "MARSH_TEMPLATE_STATE_" "${TEMPLATE_PARSED_YAML_STATE_COUNT}" "${ASSET}" "TEMPLATE_LOOKUP_VALUE" || TEMPLATE_LOOKUP_VALUE=""
+            ASSET="${TEMPLATE_LOOKUP_VALUE}"
         done
     done
 
     # assets filters
     FILTER_INDEX=0
     REGEX="MARSH_TEMPLATE_Template_Filters_${FILTER_INDEX}_Regex"
-    REGEX="${!REGEX:-}"
+    TEMPLATE_LOOKUP_VALUE=""
+    marsh_lookup_parsed_yaml_state "MARSH_TEMPLATE_STATE_" "${TEMPLATE_PARSED_YAML_STATE_COUNT}" "${REGEX}" "TEMPLATE_LOOKUP_VALUE" || TEMPLATE_LOOKUP_VALUE=""
+    REGEX="${TEMPLATE_LOOKUP_VALUE}"
     EXTENDED="MARSH_TEMPLATE_Template_Filters_${FILTER_INDEX}_Extended"
-    EXTENDED="${!EXTENDED:-}"
+    TEMPLATE_LOOKUP_VALUE=""
+    marsh_lookup_parsed_yaml_state "MARSH_TEMPLATE_STATE_" "${TEMPLATE_PARSED_YAML_STATE_COUNT}" "${EXTENDED}" "TEMPLATE_LOOKUP_VALUE" || TEMPLATE_LOOKUP_VALUE=""
+    EXTENDED="${TEMPLATE_LOOKUP_VALUE}"
     # loop over assets filters
     while [[ "${REGEX}" != "" ]]; do
         # escape match
@@ -6619,7 +6732,9 @@ function marsh_parse_template_metadata {  # marsh_parse_template_metadata prefix
         fi
         ASSETS_INDEX=0
         ASSETS_TYPE="MARSH_TEMPLATE_Template_Filters_${FILTER_INDEX}_Assets_${ASSETS_INDEX}"
-        ASSETS_TYPE="${!ASSETS_TYPE}"
+        TEMPLATE_LOOKUP_VALUE=""
+        marsh_lookup_parsed_yaml_state "MARSH_TEMPLATE_STATE_" "${TEMPLATE_PARSED_YAML_STATE_COUNT}" "${ASSETS_TYPE}" "TEMPLATE_LOOKUP_VALUE" || TEMPLATE_LOOKUP_VALUE=""
+        ASSETS_TYPE="${TEMPLATE_LOOKUP_VALUE}"
         # loop over assets types for filter
         while [[ "${ASSETS_TYPE}" != "" ]]; do
             ASSET_TEXT_VAR="TEMPLATE_ASSETS_${ASSETS_TYPE}_TEXT"
@@ -6649,16 +6764,24 @@ function marsh_parse_template_metadata {  # marsh_parse_template_metadata prefix
             printf -v "${ASSET_TEXT_VAR}" '%s' "${ASSETS_UPDATED_TEXT}"
             ASSETS_INDEX=$((ASSETS_INDEX+1))
             ASSETS_TYPE="MARSH_TEMPLATE_Template_Filters_${FILTER_INDEX}_Assets_${ASSETS_INDEX}"
-            ASSETS_TYPE="${!ASSETS_TYPE:-}"
+            TEMPLATE_LOOKUP_VALUE=""
+            marsh_lookup_parsed_yaml_state "MARSH_TEMPLATE_STATE_" "${TEMPLATE_PARSED_YAML_STATE_COUNT}" "${ASSETS_TYPE}" "TEMPLATE_LOOKUP_VALUE" || TEMPLATE_LOOKUP_VALUE=""
+            ASSETS_TYPE="${TEMPLATE_LOOKUP_VALUE}"
         done
         FILTER_INDEX=$((FILTER_INDEX+1))
         REGEX="MARSH_TEMPLATE_Template_Filters_${FILTER_INDEX}_Regex"
-        REGEX="${!REGEX:-}"
+        TEMPLATE_LOOKUP_VALUE=""
+        marsh_lookup_parsed_yaml_state "MARSH_TEMPLATE_STATE_" "${TEMPLATE_PARSED_YAML_STATE_COUNT}" "${REGEX}" "TEMPLATE_LOOKUP_VALUE" || TEMPLATE_LOOKUP_VALUE=""
+        REGEX="${TEMPLATE_LOOKUP_VALUE}"
         EXTENDED="MARSH_TEMPLATE_Template_Filters_${FILTER_INDEX}_Extended"
-        EXTENDED="${!EXTENDED:-}"
+        TEMPLATE_LOOKUP_VALUE=""
+        marsh_lookup_parsed_yaml_state "MARSH_TEMPLATE_STATE_" "${TEMPLATE_PARSED_YAML_STATE_COUNT}" "${EXTENDED}" "TEMPLATE_LOOKUP_VALUE" || TEMPLATE_LOOKUP_VALUE=""
+        EXTENDED="${TEMPLATE_LOOKUP_VALUE}"
         ASSETS_INDEX=0
         ASSETS_TYPE="MARSH_TEMPLATE_Template_Filters_${FILTER_INDEX}_Assets_${ASSETS_INDEX}"
-        ASSETS_TYPE="${!ASSETS_TYPE:-}"
+        TEMPLATE_LOOKUP_VALUE=""
+        marsh_lookup_parsed_yaml_state "MARSH_TEMPLATE_STATE_" "${TEMPLATE_PARSED_YAML_STATE_COUNT}" "${ASSETS_TYPE}" "TEMPLATE_LOOKUP_VALUE" || TEMPLATE_LOOKUP_VALUE=""
+        ASSETS_TYPE="${TEMPLATE_LOOKUP_VALUE}"
     done
 
     # print assets

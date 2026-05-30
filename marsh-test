@@ -261,6 +261,21 @@ function marsh_test_capture_parsed_yaml_assignments {
         "EMPTY=${MARSH_TEST_PARSED_YAML_EMPTY}"
 }
 
+function marsh_test_capture_parsed_yaml_state_lookup {
+    local PARSED_YAML_ASSIGNMENTS KEY_NAME STATE_COUNT LOOKUP_VALUE
+
+    PARSED_YAML_ASSIGNMENTS="${1:-}"
+    KEY_NAME="${2:-}"
+    STATE_COUNT=""
+    LOOKUP_VALUE=""
+    marsh_load_parsed_yaml_state "${PARSED_YAML_ASSIGNMENTS}" "MARSH_TEST_PARSED_YAML_STATE_" "STATE_COUNT" || return $?
+    if marsh_lookup_parsed_yaml_state "MARSH_TEST_PARSED_YAML_STATE_" "${STATE_COUNT}" "${KEY_NAME}" "LOOKUP_VALUE"; then
+        printf 'COUNT=%s\nVALUE=%s\n' "${STATE_COUNT}" "${LOOKUP_VALUE}"
+        return 0
+    fi
+    printf 'COUNT=%s\nVALUE=__missing__\n' "${STATE_COUNT}"
+}
+
 function marsh_test_capture_document_metadata_assignment {
     local ASSIGNMENT_LINE KEY_NAME ENTRY_KIND VALUE INDEX_VALUE
 
@@ -6606,6 +6621,34 @@ function marsh_test {
             fi
             unset MARSH_TEST_PARSED_YAML_INVALID
             ;;
+        marsh_load_parsed_yaml_state:0)
+            TEST_NAME+=":last_assignment_wins_lookup"
+            ACTUAL=$(marsh_test_capture_parsed_yaml_state_lookup "$(printf '%s\n' \
+                'MARSH_TEST_PARSED_YAML_Template_Partials_Base="partials/base.html"' \
+                'MARSH_TEST_PARSED_YAML_Template_Partials_Base="partials/override.html"' \
+                'MARSH_TEST_PARSED_YAML_Template_Assets_Styles_0="css/site.css"')" 'MARSH_TEST_PARSED_YAML_Template_Partials_Base')
+            EXPECTED=$(printf '%s\n' \
+                'COUNT=3' \
+                'VALUE=partials/override.html')
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_load_parsed_yaml_state:1)
+            TEST_NAME+=":rejects_unsupported"
+            ACTUAL=$(marsh_load_parsed_yaml_state 'MARSH_TEST_PARSED_YAML_INVALID=literal' 'MARSH_TEST_PARSED_YAML_STATE_' 'STATE_COUNT' 2>&1 >/dev/null)
+            STATUS=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${STATUS}" -eq "${EXPECTED}" ]]; then
+                EXPECTED='Unsupported parsed yaml assignment value: MARSH_TEST_PARSED_YAML_INVALID=literal'
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            ;;
         marsh_load_target_build_metadata:0)
             TEST_NAME+=":minimal"
             MARSH_TEST_TARGET_BUILD_MIN_Path="/site/minimal"
@@ -10669,11 +10712,13 @@ KNOWN_FUNCTIONS=(
     marsh_load_archive_plan_build_context
     marsh_load_document_metadata_state
     marsh_load_parsed_yaml_assignments
+    marsh_load_parsed_yaml_state
     marsh_load_target_build_metadata
     marsh_load_target_plan_build_context
     marsh_load_target_source_value
     marsh_load_template_metadata_state
     marsh_lookup_document_metadata_state
+    marsh_lookup_parsed_yaml_state
     marsh_normalize_internal_path
     marsh_normalize_path
     marsh_parse_document_metadata_assignment

@@ -4114,7 +4114,6 @@ function marsh_test {
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
             SOURCE_DIR="${TEST_TEMP_PREFIX}.source"
-            ORIGINAL_MARSH_GET_PROCESSED_SITEMAP=""
             mkdir -p "${SOURCE_DIR}/site-map"
             marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
             printf '%s\n' '<h1>Site Map</h1>' > "${SOURCE_DIR}/site-map/index.markdown"
@@ -4125,11 +4124,12 @@ function marsh_test {
             EXPECTED=0
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                ORIGINAL_MARSH_GET_PROCESSED_SITEMAP=$(declare -f marsh_get_processed_sitemap)
-                function marsh_get_processed_sitemap {
-                    return 1
-                }
-                ACTUAL=$(marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "site-map/index.markdown" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "true" 0 2>&1 >/dev/null)
+                ACTUAL=$(
+                    function marsh_get_processed_sitemap {
+                        return 1
+                    }
+                    marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "site-map/index.markdown" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "true" 0 2>&1 >/dev/null
+                )
                 STATUS=$?
                 EXPECTED=1
                 ASSERTION="equals"
@@ -4140,8 +4140,6 @@ function marsh_test {
                         RES="[PASS]"
                     fi
                 fi
-                eval "${ORIGINAL_MARSH_GET_PROCESSED_SITEMAP}"
-                unset ORIGINAL_MARSH_GET_PROCESSED_SITEMAP
             fi
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}" "${SOURCE_DIR}"
             ;;

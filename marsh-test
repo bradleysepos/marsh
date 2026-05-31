@@ -1285,6 +1285,22 @@ function marsh_test {
             fi
             rm -rf "${TARGET_OUTPUT_ROOT}"
             ;;
+        marsh_build_archive:7)
+            TEST_NAME+=":malformed_manifest_record_tolerated"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            MANIFEST_FILE="${TEST_TEMP_PREFIX}.archive-manifest"
+            mkdir -p "${TARGET_OUTPUT_ROOT}"
+            printf '%s\t%s\t%s\t%s\t%s\n' "'broken" 'post' 'https://example.test/news/item.html' 'https://example.test/news' '' > "${MANIFEST_FILE}"
+            ACTUAL=$(marsh_build_archive "html" "${TARGET_OUTPUT_ROOT}" "index.markdown" "Archive" "English" "en" "" "1" "1" "post" "0" "${MANIFEST_FILE}" 2>/dev/null)
+            EXPECTED=$(printf '%s\n' \
+                'index.markdown' \
+                'page/1/index.markdown')
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            rm -rf "${TARGET_OUTPUT_ROOT}" "${MANIFEST_FILE}"
+            ;;
         marsh_build_document:0)
             TEST_NAME+=":metadata_cache"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
@@ -2007,6 +2023,22 @@ function marsh_test {
             fi
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}"
             ;;
+        marsh_build_planned_target_documents:2)
+            TEST_NAME+=":malformed_document_record_rejected"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            mkdir -p "${TARGET_OUTPUT_ROOT}"
+            marsh_test_create_archive_template "${TEMPLATE_DIR}" "sample" "html" true
+            BAD_DOCUMENT_RECORD=$(printf '%q\t%q\n' 'index.markdown' 'index.markdown')
+            marsh_build_planned_target_documents "${TARGET_OUTPUT_ROOT}" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "1" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" true 0 "" "${BAD_DOCUMENT_RECORD}" >/dev/null 2>&1
+            ACTUAL=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}"
+            ;;
         marsh_build_planned_target_sitemaps:0)
             TEST_NAME+=":explicit"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
@@ -2286,6 +2318,19 @@ function marsh_test {
                 fi
             fi
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}" "${SOURCE_ROOT}" "${MANIFEST_FILE}"
+            ;;
+        marsh_build_target_archive_queue_record_document:1)
+            TEST_NAME+=":malformed_queue_record_rejected"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            BAD_QUEUE_RECORD=$(printf '%q\t%q\n' 'news/index.markdown' 'news/index.markdown')
+            marsh_build_target_archive_queue_record_document "${TARGET_OUTPUT_ROOT}" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" 'marsh_test_markdown_command' '' 'markdown,md' true "${BAD_QUEUE_RECORD}" >/dev/null 2>&1
+            ACTUAL=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            rm -rf "${TARGET_OUTPUT_ROOT}"
             ;;
         marsh_build_target_documents:0)
             TEST_NAME+=":serial_success"
@@ -4329,6 +4374,30 @@ function marsh_test {
             fi
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}" "${SOURCE_ROOT}"
             ;;
+        marsh_build_template:44)
+            TEST_NAME+=":invalid_subdocument_manifest_id_reports"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            SUBDOCUMENTS_MANIFEST=""
+            mkdir -p "${TARGET_OUTPUT_ROOT}"
+            marsh_test_create_archive_template "${TEMPLATE_DIR}" "sample" "html" true
+            marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "index.markdown" "content" 'Archive page'
+            marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "index.markdown" "meta-yaml" '---' 'Type: archive' 'Title: Archive' '...'
+            SUBDOCUMENTS_MANIFEST=$(marsh_get_archive_temp_path "${TARGET_OUTPUT_ROOT}" "index.markdown" "subdocuments-manifest")
+            mkdir -p "${SUBDOCUMENTS_MANIFEST%/*}"
+            printf '/invalid\t\t\n' > "${SUBDOCUMENTS_MANIFEST}"
+            ACTUAL=$(marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "true" 0 2>&1 >/dev/null)
+            STATUS=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${STATUS}" == "${EXPECTED}" ]]; then
+                EXPECTED='Subdocument content not found: /invalid'
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}"
+            ;;
         marsh_check_dependencies:0)
             TEST_NAME+=":found"
             marsh_check_dependencies bash 2>/dev/null
@@ -4550,6 +4619,20 @@ function marsh_test {
             fi
             rm -rf "${SOURCE_ROOT}" "${SITE_OUTPUT_ROOT}"
             ;;
+        marsh_copy_planned_target_source_assets:2)
+            TEST_NAME+=":malformed_source_asset_record_rejected"
+            SITE_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            mkdir -p "${SITE_OUTPUT_ROOT}"
+            BAD_SOURCE_ASSET_RECORD=$(printf '%q\t%q\n' 'docs/logo.txt' 'docs/logo.txt')
+            marsh_copy_planned_target_source_assets "${SITE_OUTPUT_ROOT}" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" false "${BAD_SOURCE_ASSET_RECORD}" >/dev/null 2>&1
+            ACTUAL=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            rm -rf "${SITE_OUTPUT_ROOT}"
+            ;;
         marsh_copy_source_objects:0)
             TEST_NAME+=":copies_selected_objects"
             SOURCE_DIR="${TEST_TEMP_PREFIX}.source"
@@ -4604,6 +4687,38 @@ function marsh_test {
                 fi
             fi
             rm -rf "${SOURCE_DIR}" "${TARGET_OUTPUT_ROOT}"
+            ;;
+        marsh_copy_template_assets:1)
+            TEST_NAME+=":malformed_cache_is_ignored"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            CACHE_FILE=""
+            rm -rf "${MARSH_TEMP}/asset-copy-cache"
+            marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
+            marsh_copy_template_assets "${TARGET_OUTPUT_ROOT}" "." "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "${TEMPLATE_DIR}" "sample" 0 "" >/dev/null 2>&1
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                CACHE_FILE=$(find "${MARSH_TEMP}/asset-copy-cache" -type f -name '*.manifest' 2>/dev/null | head -n 1)
+                if [[ "${CACHE_FILE}" != "" ]]; then
+                    printf '%s\n' 'malformed-cache-record' > "${CACHE_FILE}"
+                    rm -f "${TARGET_OUTPUT_ROOT}/css/site.css"
+                    marsh_copy_template_assets "${TARGET_OUTPUT_ROOT}" "." "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "${TEMPLATE_DIR}" "sample" 0 "" >/dev/null 2>&1
+                    ACTUAL=$?
+                    EXPECTED=0
+                    ASSERTION="equals"
+                    if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                        ACTUAL=$(<"${TARGET_OUTPUT_ROOT}/css/site.css")
+                        EXPECTED='body { color: black; }'
+                        ASSERTION="equals"
+                        if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                            RES="[PASS]"
+                        fi
+                    fi
+                fi
+            fi
+            rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}" "${MARSH_TEMP}/asset-copy-cache"
             ;;
         marsh_create_target_source_root:0)
             TEST_NAME+=":missing_source_root_reports"

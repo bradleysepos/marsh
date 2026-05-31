@@ -6485,6 +6485,111 @@ function marsh_test {
             fi
             rm -rf "${ARCHIVE_PLAN_ROOT}"
             ;;
+        marsh_load_archive_plan_build_context:1)
+            TEST_NAME+=":missing_context_file"
+            ARCHIVE_PLAN_ROOT="${TEST_TEMP_PREFIX}.archive-plan"
+            mkdir -p "${ARCHIVE_PLAN_ROOT}"
+            ACTUAL=$(marsh_test_capture_archive_plan_build_context "${ARCHIVE_PLAN_ROOT}" 2>&1 >/dev/null)
+            STATUS=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${STATUS}" -eq "${EXPECTED}" ]]; then
+                EXPECTED="Archive plan context file not found: ${ARCHIVE_PLAN_ROOT}/context"
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${ARCHIVE_PLAN_ROOT}"
+            ;;
+        marsh_load_archive_plan_build_context:2)
+            TEST_NAME+=":malformed_line"
+            ARCHIVE_PLAN_ROOT="${TEST_TEMP_PREFIX}.archive-plan"
+            mkdir -p "${ARCHIVE_PLAN_ROOT}"
+            {
+                printf 'BUILD_CONTEXT_TARGET_OUTPUT_REL\t%s\n' 'news'
+                printf 'BUILD_CONTEXT_SOURCE_ROOT\t%s\n' '/site/source'
+                printf '%s\n' 'BROKEN_LINE'
+            } > "${ARCHIVE_PLAN_ROOT}/context"
+            ACTUAL=$(marsh_test_capture_archive_plan_build_context "${ARCHIVE_PLAN_ROOT}" 2>&1 >/dev/null)
+            STATUS=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${STATUS}" -eq "${EXPECTED}" ]]; then
+                EXPECTED="Malformed archive plan context line: ${ARCHIVE_PLAN_ROOT}/context"
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${ARCHIVE_PLAN_ROOT}"
+            ;;
+        marsh_load_archive_plan_build_context:3)
+            TEST_NAME+=":invalid_boolean"
+            ARCHIVE_PLAN_ROOT="${TEST_TEMP_PREFIX}.archive-plan"
+            mkdir -p "${ARCHIVE_PLAN_ROOT}"
+            {
+                printf 'BUILD_CONTEXT_TARGET_OUTPUT_REL\t%s\n' 'news'
+                printf 'BUILD_CONTEXT_SOURCE_ROOT\t%s\n' '/site/source'
+                printf 'TARGET_SITEMAP_SEARCH\t%s\n' 'invalid'
+            } > "${ARCHIVE_PLAN_ROOT}/context"
+            ACTUAL=$(marsh_test_capture_archive_plan_build_context "${ARCHIVE_PLAN_ROOT}" 2>&1 >/dev/null)
+            STATUS=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${STATUS}" -eq "${EXPECTED}" ]]; then
+                EXPECTED="Archive plan context has invalid TARGET_SITEMAP_SEARCH: ${ARCHIVE_PLAN_ROOT}/context"
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${ARCHIVE_PLAN_ROOT}"
+            ;;
+        marsh_load_archive_plan_build_context:4)
+            TEST_NAME+=":missing_required_field"
+            ARCHIVE_PLAN_ROOT="${TEST_TEMP_PREFIX}.archive-plan"
+            mkdir -p "${ARCHIVE_PLAN_ROOT}"
+            {
+                printf 'BUILD_CONTEXT_TARGET_OUTPUT_REL\t%s\n' 'news'
+                printf 'TARGET_SITEMAP_SEARCH\t%s\n' false
+            } > "${ARCHIVE_PLAN_ROOT}/context"
+            ACTUAL=$(marsh_test_capture_archive_plan_build_context "${ARCHIVE_PLAN_ROOT}" 2>&1 >/dev/null)
+            STATUS=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${STATUS}" -eq "${EXPECTED}" ]]; then
+                EXPECTED="Archive plan context missing BUILD_CONTEXT_SOURCE_ROOT: ${ARCHIVE_PLAN_ROOT}/context"
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${ARCHIVE_PLAN_ROOT}"
+            ;;
+        marsh_load_archive_plan_build_context:5)
+            TEST_NAME+=":unsupported_field"
+            ARCHIVE_PLAN_ROOT="${TEST_TEMP_PREFIX}.archive-plan"
+            mkdir -p "${ARCHIVE_PLAN_ROOT}"
+            {
+                printf 'BUILD_CONTEXT_TARGET_OUTPUT_REL\t%s\n' 'news'
+                printf 'BUILD_CONTEXT_SOURCE_ROOT\t%s\n' '/site/source'
+                printf 'TARGET_SITEMAP_SEARCH\t%s\n' false
+                printf 'UNSUPPORTED_FIELD\t%s\n' 'value'
+            } > "${ARCHIVE_PLAN_ROOT}/context"
+            ACTUAL=$(marsh_test_capture_archive_plan_build_context "${ARCHIVE_PLAN_ROOT}" 2>&1 >/dev/null)
+            STATUS=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${STATUS}" -eq "${EXPECTED}" ]]; then
+                EXPECTED="Archive plan context has unsupported field UNSUPPORTED_FIELD: ${ARCHIVE_PLAN_ROOT}/context"
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${ARCHIVE_PLAN_ROOT}"
+            ;;
         marsh_load_document_metadata_state:0)
             TEST_NAME+=":value_and_list_entries"
             ACTUAL=$(marsh_test_capture_document_metadata_state "$(printf '%s\n' \
@@ -6766,6 +6871,107 @@ function marsh_test {
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
+            fi
+            rm -rf "${TARGET_PLAN_ROOT}"
+            ;;
+        marsh_load_target_plan_build_context:1)
+            TEST_NAME+=":missing_context_file"
+            TARGET_PLAN_ROOT="${TEST_TEMP_PREFIX}.target-plan"
+            mkdir -p "${TARGET_PLAN_ROOT}"
+            ACTUAL=$(marsh_test_capture_target_plan_build_context "${TARGET_PLAN_ROOT}" 2>&1 >/dev/null)
+            STATUS=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${STATUS}" -eq "${EXPECTED}" ]]; then
+                EXPECTED="Target plan context file not found: ${TARGET_PLAN_ROOT}/context"
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${TARGET_PLAN_ROOT}"
+            ;;
+        marsh_load_target_plan_build_context:2)
+            TEST_NAME+=":malformed_line"
+            TARGET_PLAN_ROOT="${TEST_TEMP_PREFIX}.target-plan"
+            mkdir -p "${TARGET_PLAN_ROOT}"
+            {
+                printf 'TARGET_OUTPUT_REL\t%s\n' 'about'
+                printf '%s\n' 'BROKEN_LINE'
+            } > "${TARGET_PLAN_ROOT}/context"
+            ACTUAL=$(marsh_test_capture_target_plan_build_context "${TARGET_PLAN_ROOT}" 2>&1 >/dev/null)
+            STATUS=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${STATUS}" -eq "${EXPECTED}" ]]; then
+                EXPECTED="Malformed target plan context line: ${TARGET_PLAN_ROOT}/context"
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${TARGET_PLAN_ROOT}"
+            ;;
+        marsh_load_target_plan_build_context:3)
+            TEST_NAME+=":invalid_boolean"
+            TARGET_PLAN_ROOT="${TEST_TEMP_PREFIX}.target-plan"
+            mkdir -p "${TARGET_PLAN_ROOT}"
+            {
+                printf 'TARGET_OUTPUT_REL\t%s\n' 'about'
+                printf 'TARGET_FORCE\t%s\n' 'invalid'
+            } > "${TARGET_PLAN_ROOT}/context"
+            ACTUAL=$(marsh_test_capture_target_plan_build_context "${TARGET_PLAN_ROOT}" 2>&1 >/dev/null)
+            STATUS=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${STATUS}" -eq "${EXPECTED}" ]]; then
+                EXPECTED="Target plan context has invalid TARGET_FORCE: ${TARGET_PLAN_ROOT}/context"
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${TARGET_PLAN_ROOT}"
+            ;;
+        marsh_load_target_plan_build_context:4)
+            TEST_NAME+=":missing_required_field"
+            TARGET_PLAN_ROOT="${TEST_TEMP_PREFIX}.target-plan"
+            mkdir -p "${TARGET_PLAN_ROOT}"
+            {
+                printf 'TARGET_FORCE\t%s\n' false
+            } > "${TARGET_PLAN_ROOT}/context"
+            ACTUAL=$(marsh_test_capture_target_plan_build_context "${TARGET_PLAN_ROOT}" 2>&1 >/dev/null)
+            STATUS=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${STATUS}" -eq "${EXPECTED}" ]]; then
+                EXPECTED="Target plan context missing TARGET_OUTPUT_REL: ${TARGET_PLAN_ROOT}/context"
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${TARGET_PLAN_ROOT}"
+            ;;
+        marsh_load_target_plan_build_context:5)
+            TEST_NAME+=":unsupported_field"
+            TARGET_PLAN_ROOT="${TEST_TEMP_PREFIX}.target-plan"
+            mkdir -p "${TARGET_PLAN_ROOT}"
+            {
+                printf 'TARGET_OUTPUT_REL\t%s\n' 'about'
+                printf 'TARGET_FORCE\t%s\n' false
+                printf 'UNSUPPORTED_FIELD\t%s\n' 'value'
+            } > "${TARGET_PLAN_ROOT}/context"
+            ACTUAL=$(marsh_test_capture_target_plan_build_context "${TARGET_PLAN_ROOT}" 2>&1 >/dev/null)
+            STATUS=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${STATUS}" -eq "${EXPECTED}" ]]; then
+                EXPECTED="Target plan context has unsupported field UNSUPPORTED_FIELD: ${TARGET_PLAN_ROOT}/context"
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
             fi
             rm -rf "${TARGET_PLAN_ROOT}"
             ;;

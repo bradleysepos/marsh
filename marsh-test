@@ -2029,7 +2029,7 @@ function marsh_test {
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
             mkdir -p "${TARGET_OUTPUT_ROOT}"
             marsh_test_create_archive_template "${TEMPLATE_DIR}" "sample" "html" true
-            BAD_DOCUMENT_RECORD=$(printf '%q\t%q\n' 'index.markdown' 'index.markdown')
+            BAD_DOCUMENT_RECORD=$(printf '%s\037%s\n' 'index.markdown' 'index.markdown')
             marsh_build_planned_target_documents "${TARGET_OUTPUT_ROOT}" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "1" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" true 0 "" "${BAD_DOCUMENT_RECORD}" >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=1
@@ -2277,7 +2277,7 @@ function marsh_test {
             ;;
         marsh_build_target_archive_queue_record:0)
             TEST_NAME+=":builds_queue_record"
-            DOCUMENT_RECORD=$(printf '%q\t%q\t%q\t%q\n' 'news/index.markdown' 'news/index.markdown' '.' '/site/source')
+            DOCUMENT_RECORD=$(printf '%s\037%s\037%s\037%s\n' 'news/index.markdown' 'news/index.markdown' '.' '/site/source')
             ACTUAL=$(marsh_build_target_archive_queue_record '/tmp/archive-plan' "${DOCUMENT_RECORD}")
             EXPECTED=$(printf '%q\t%q\t%q\t%q\t%q\n' 'news/index.markdown' 'news/index.markdown' '.' '/site/source' '/tmp/archive-plan')
             ASSERTION="equals"
@@ -4623,7 +4623,7 @@ function marsh_test {
             TEST_NAME+=":malformed_source_asset_record_rejected"
             SITE_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             mkdir -p "${SITE_OUTPUT_ROOT}"
-            BAD_SOURCE_ASSET_RECORD=$(printf '%q\t%q\n' 'docs/logo.txt' 'docs/logo.txt')
+            BAD_SOURCE_ASSET_RECORD=$(printf '%s\037%s\n' 'docs/logo.txt' 'docs/logo.txt')
             marsh_copy_planned_target_source_assets "${SITE_OUTPUT_ROOT}" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" false "${BAD_SOURCE_ASSET_RECORD}" >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=1
@@ -7635,13 +7635,13 @@ function marsh_test {
             marsh_test_create_archive_document "${TARGET_OUTPUT_ROOT}" "news/item.markdown" "post" "Item" "2026-01-01"
             marsh_test_write_archive_manifest "${TARGET_OUTPUT_ROOT}" "${MANIFEST_FILE}" "news/item.markdown"
             ARCHIVE_PLAN_ROOT=$(marsh_plan_archive_pages "${TARGET_OUTPUT_ROOT}" "html" "news/index.markdown" "News" "English" "en" "" "10" "1" "post" "0" "${MANIFEST_FILE}" "" "${TEMPLATE_DIR}" "sample" "" false 0 "" "." "")
-            ACTUAL=$(while IFS=$'\t' read -r DOCUMENT_ID_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC; do
-                [[ "${DOCUMENT_ID_ESC}" == "" ]] && continue
-                printf '%s\t%s\t%s\t%s\n' "${DOCUMENT_ID_ESC:-}" "${SOURCE_RELPATH_ESC:-}" "${TARGET_OUTPUT_REL_ESC:-}" "${SOURCE_ROOT_ESC:-}"
+            ACTUAL=$(while IFS=$'\037' read -r DOCUMENT_ID SOURCE_RELPATH TARGET_OUTPUT_REL SOURCE_ROOT RECORD_REST; do
+                [[ "${DOCUMENT_ID}" == "" ]] && continue
+                printf '%s\t%s\t%s\t%s\n' "${DOCUMENT_ID:-}" "${SOURCE_RELPATH:-}" "${TARGET_OUTPUT_REL:-}" "${SOURCE_ROOT:-}"
             done < "${ARCHIVE_PLAN_ROOT}/documents")
             EXPECTED=$(printf '%s\t%s\t%s\t%s\n' \
-                'news/index.markdown' 'news/index.markdown' '.' \'\' \
-                'news/page/1/index.markdown' 'news/page/1/index.markdown' '.' \'\')
+                'news/index.markdown' 'news/index.markdown' '.' '' \
+                'news/page/1/index.markdown' 'news/page/1/index.markdown' '.' '')
             ASSERTION="equals"
             if [[ -d "${ARCHIVE_PLAN_ROOT}" ]] && [[ -f "${ARCHIVE_PLAN_ROOT}/context" ]] && [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 ACTUAL=$(<"${ARCHIVE_PLAN_ROOT}/context" grep -E '^(BUILD_CONTEXT_TARGET_OUTPUT_REL|BUILD_CONTEXT_SOURCE_ROOT|TEMPLATE)'$'\t')
@@ -7666,13 +7666,13 @@ function marsh_test {
             printf '%s\n' '# Site Map' > "${SOURCE_ROOT}/site-map.markdown"
             printf '%s\n' 'manual' > "${SOURCE_ROOT}/docs/manual.txt"
             TARGET_PLAN_ROOT=$(marsh_plan_target "${SOURCE_ROOT}" "${SITE_OUTPUT_ROOT}" "." false "${SOURCE_ROOT}" "site-map.markdown" false "${TEST_TEMP_PREFIX}.templates" "sample" 0 "" "${SOURCE_ROOT}" "markdown,md")
-            DOCUMENTS_ACTUAL=$(while IFS=$'\t' read -r DOCUMENT_ID_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC; do
-                [[ "${DOCUMENT_ID_ESC}" == "" ]] && continue
-                printf '%s\t%s\t%s\t%s\n' "${DOCUMENT_ID_ESC:-}" "${SOURCE_RELPATH_ESC:-}" "${TARGET_OUTPUT_REL_ESC:-}" "${SOURCE_ROOT_ESC:-}"
+            DOCUMENTS_ACTUAL=$(while IFS=$'\037' read -r DOCUMENT_ID SOURCE_RELPATH TARGET_OUTPUT_REL SOURCE_ROOT RECORD_REST; do
+                [[ "${DOCUMENT_ID}" == "" ]] && continue
+                printf '%s\t%s\t%s\t%s\n' "${DOCUMENT_ID:-}" "${SOURCE_RELPATH:-}" "${TARGET_OUTPUT_REL:-}" "${SOURCE_ROOT:-}"
             done < "${TARGET_PLAN_ROOT}/documents" | sort)
-            SOURCE_ASSETS_ACTUAL=$(while IFS=$'\t' read -r ASSET_RELPATH_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC; do
-                [[ "${ASSET_RELPATH_ESC}" == "" ]] && continue
-                printf '%s\t%s\t%s\t%s\n' "${ASSET_RELPATH_ESC:-}" "${SOURCE_RELPATH_ESC:-}" "${TARGET_OUTPUT_REL_ESC:-}" "${SOURCE_ROOT_ESC:-}"
+            SOURCE_ASSETS_ACTUAL=$(while IFS=$'\037' read -r ASSET_RELPATH SOURCE_RELPATH TARGET_OUTPUT_REL SOURCE_ROOT RECORD_REST; do
+                [[ "${ASSET_RELPATH}" == "" ]] && continue
+                printf '%s\t%s\t%s\t%s\n' "${ASSET_RELPATH:-}" "${SOURCE_RELPATH:-}" "${TARGET_OUTPUT_REL:-}" "${SOURCE_ROOT:-}"
             done < "${TARGET_PLAN_ROOT}/source-assets")
             SOURCE_INVENTORY_ACTUAL=$(sort < "${TARGET_PLAN_ROOT}/source-inventory")
             SITEMAPS_ACTUAL=$(<"${TARGET_PLAN_ROOT}/sitemaps")
@@ -7812,7 +7812,7 @@ function marsh_test {
             printf '%s\n' '---'$'\n''Type: post'$'\n''Date: 2026-01-01'$'\n''Title: Item'$'\n''...'$'\n'''$'\n''# Item' > "${SOURCE_ROOT}/news/item.markdown"
             TARGET_ARCHIVE_RECORDS+=("$(marsh_test_get_target_archive_record 'news/index.markdown' 'html' 'News' 'English' 'en' '' '' '10' '' 'post' '' '' '' '' 'sample')")
             TARGET_PLAN_ROOT=$(marsh_create_target_plan_root "${TARGET_OUTPUT_ROOT}")
-            marsh_write_target_plan_records "${TARGET_PLAN_ROOT}" "documents" "$(printf '%q\t%q\t%q\t%q\n' 'news/item.markdown' 'news/item.markdown' '.' "${SOURCE_ROOT}")"
+            marsh_write_target_plan_records "${TARGET_PLAN_ROOT}" "documents" "$(printf '%s\037%s\037%s\037%s\n' 'news/item.markdown' 'news/item.markdown' '.' "${SOURCE_ROOT}")"
             ARCHIVE_PLAN_OUTPUT=$(marsh_plan_target_archives "${TARGET_OUTPUT_ROOT}" "markdown,md" "${TARGET_PLAN_ROOT}" "." "${TEST_TEMP_PREFIX}.config" "${TEMPLATE_DIR}" "News" "" false "sample" "" "" "." "${SOURCE_ROOT}" "${#TARGET_ARCHIVE_RECORDS[@]}" "${TARGET_ARCHIVE_RECORDS[@]}" 0 2>/dev/null)
             ACTUAL=$?
             EXPECTED="1"
@@ -7888,7 +7888,7 @@ function marsh_test {
                 DOCUMENT_RECORDS+=("${DOCUMENT_RECORD}")
             done < <(marsh_plan_target_documents "${TARGET_OUTPUT_ROOT}" "news/2026/01/02/02-current.markdown" "." "${SOURCE_ROOT}" "markdown,md")
             TARGET_PLAN_ROOT=$(marsh_create_target_plan_root "${TARGET_OUTPUT_ROOT}")
-            marsh_write_target_plan_records "${TARGET_PLAN_ROOT}" "documents" "$(printf '%q\t%q\t%q\t%q\n' 'news/2026/01/01/01-stale.markdown' 'news/2026/01/01/01-stale.markdown' '.' "${SOURCE_ROOT}")"
+            marsh_write_target_plan_records "${TARGET_PLAN_ROOT}" "documents" "$(printf '%s\037%s\037%s\037%s\n' 'news/2026/01/01/01-stale.markdown' 'news/2026/01/01/01-stale.markdown' '.' "${SOURCE_ROOT}")"
             while IFS= read -r ARCHIVE_PLAN_ROOT; do
                 [[ "${ARCHIVE_PLAN_ROOT}" == "" ]] && continue
                 ARCHIVE_PLAN_ROOTS+=("${ARCHIVE_PLAN_ROOT}")
@@ -7920,8 +7920,8 @@ function marsh_test {
             printf '%s\n' '---'$'\n''Type: post'$'\n''Date: 2026-01-01'$'\n''Title: Persisted'$'\n''...'$'\n'''$'\n''# Persisted' > "${SOURCE_ROOT}/news/2026/01/01/01-persisted.markdown"
             TARGET_ARCHIVE_RECORDS+=("$(marsh_test_get_target_archive_record 'news/index.markdown' 'html' 'News' 'English' 'en' '' '' '10' '' 'post' '' '' '' '' 'sample')")
             TARGET_PLAN_ROOT=$(marsh_create_target_plan_root "${TARGET_OUTPUT_ROOT}")
-            marsh_write_target_plan_records "${TARGET_PLAN_ROOT}" "documents" "$(printf '%q\t%q\t%q\t%q\n' 'news/2026/01/01/01-persisted.markdown' 'news/2026/01/01/01-persisted.markdown' '.' "${SOURCE_ROOT}")"
-            INVALID_DOCUMENT_RECORD=$(printf '%q\t%q\t%q\t%q\n' 'news/2026/01/03/03-missing.markdown' 'news/2026/01/03/03-missing.markdown' '.' "${SOURCE_ROOT}")
+            marsh_write_target_plan_records "${TARGET_PLAN_ROOT}" "documents" "$(printf '%s\037%s\037%s\037%s\n' 'news/2026/01/01/01-persisted.markdown' 'news/2026/01/01/01-persisted.markdown' '.' "${SOURCE_ROOT}")"
+            INVALID_DOCUMENT_RECORD=$(printf '%s\037%s\037%s\037%s\n' 'news/2026/01/03/03-missing.markdown' 'news/2026/01/03/03-missing.markdown' '.' "${SOURCE_ROOT}")
             marsh_plan_target_archives "${TARGET_OUTPUT_ROOT}" "markdown,md" "${TARGET_PLAN_ROOT}" "." "${TEST_TEMP_PREFIX}.config" "${TEMPLATE_DIR}" "News" "" false "sample" "" "" "." "${SOURCE_ROOT}" "${#TARGET_ARCHIVE_RECORDS[@]}" "${TARGET_ARCHIVE_RECORDS[@]}" 0 "${INVALID_DOCUMENT_RECORD}" >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=1
@@ -7944,9 +7944,9 @@ function marsh_test {
             mkdir -p "${ARCHIVE_SOURCE_FILE%/*}"
             printf '%s\n' 'archive' > "${ARCHIVE_SOURCE_FILE}"
             ACTUAL=$(marsh_plan_target_documents "${SITE_OUTPUT_ROOT}" "news/index.markdown" "." "${SOURCE_ROOT}" "markdown,md")
-            ACTUAL=$(while IFS=$'\t' read -r DOCUMENT_ID_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC; do
-                [[ "${DOCUMENT_ID_ESC}" == "" ]] && continue
-                printf '%s\t%s\t%s\t%s\n' "${DOCUMENT_ID_ESC:-}" "${SOURCE_RELPATH_ESC:-}" "${TARGET_OUTPUT_REL_ESC:-}" "${SOURCE_ROOT_ESC:-}"
+            ACTUAL=$(while IFS=$'\037' read -r DOCUMENT_ID SOURCE_RELPATH TARGET_OUTPUT_REL SOURCE_ROOT RECORD_REST; do
+                [[ "${DOCUMENT_ID}" == "" ]] && continue
+                printf '%s\t%s\t%s\t%s\n' "${DOCUMENT_ID:-}" "${SOURCE_RELPATH:-}" "${TARGET_OUTPUT_REL:-}" "${SOURCE_ROOT:-}"
             done <<< "${ACTUAL}")
             EXPECTED=$(printf '%s\t%s\t%s\t%s\n' 'news/index.markdown' 'news/index.markdown' '.' "${SOURCE_ROOT}")
             ASSERTION="equals"
@@ -7980,9 +7980,9 @@ function marsh_test {
             printf '%s\n' 'ignore' > "${SOURCE_ROOT}/about/team/member.txt"
             printf '%s\n' '# news' > "${SOURCE_ROOT}/about/news/index.markdown"
             ACTUAL=$(marsh_plan_target_documents "${SITE_OUTPUT_ROOT}" "about/team" "about" "${SOURCE_ROOT}/about" "markdown,md")
-            ACTUAL=$(while IFS=$'\t' read -r DOCUMENT_ID_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC; do
-                [[ "${DOCUMENT_ID_ESC}" == "" ]] && continue
-                printf '%s\t%s\t%s\t%s\n' "${DOCUMENT_ID_ESC:-}" "${SOURCE_RELPATH_ESC:-}" "${TARGET_OUTPUT_REL_ESC:-}" "${SOURCE_ROOT_ESC:-}"
+            ACTUAL=$(while IFS=$'\037' read -r DOCUMENT_ID SOURCE_RELPATH TARGET_OUTPUT_REL SOURCE_ROOT RECORD_REST; do
+                [[ "${DOCUMENT_ID}" == "" ]] && continue
+                printf '%s\t%s\t%s\t%s\n' "${DOCUMENT_ID:-}" "${SOURCE_RELPATH:-}" "${TARGET_OUTPUT_REL:-}" "${SOURCE_ROOT:-}"
             done <<< "${ACTUAL}")
             EXPECTED=$(printf '%s\t%s\t%s\t%s\n' 'team/index.markdown' 'team/index.markdown' 'about' "${SOURCE_ROOT}/about")
             ASSERTION="equals"
@@ -8001,9 +8001,9 @@ function marsh_test {
             printf '%s\n' '# team' > "${SOURCE_ROOT}/about/team/index.markdown"
             printf '%s\n' '# home' > "${SOURCE_ROOT}/index.markdown"
             ACTUAL=$(marsh_plan_target_documents "${SITE_OUTPUT_ROOT}" "about" "." "${SOURCE_ROOT}" "markdown,md")
-            ACTUAL=$(while IFS=$'\t' read -r DOCUMENT_ID_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC; do
-                [[ "${DOCUMENT_ID_ESC}" == "" ]] && continue
-                printf '%s\n' "${DOCUMENT_ID_ESC:-}"
+            ACTUAL=$(while IFS=$'\037' read -r DOCUMENT_ID SOURCE_RELPATH TARGET_OUTPUT_REL SOURCE_ROOT RECORD_REST; do
+                [[ "${DOCUMENT_ID}" == "" ]] && continue
+                printf '%s\n' "${DOCUMENT_ID:-}"
             done <<< "${ACTUAL}" | sort)
             EXPECTED=$(printf '%s\n' \
                 'about/index.markdown' \
@@ -8023,9 +8023,9 @@ function marsh_test {
             printf '%s\n' '# team' > "${SOURCE_ROOT}/about/team/index.markdown"
             printf '%s\n' '# news' > "${SOURCE_ROOT}/about/news/index.markdown"
             ACTUAL=$(marsh_plan_target_documents "${SITE_OUTPUT_ROOT}" "about" "about" "${SOURCE_ROOT}/about" "markdown,md")
-            ACTUAL=$(while IFS=$'\t' read -r DOCUMENT_ID_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC; do
-                [[ "${DOCUMENT_ID_ESC}" == "" ]] && continue
-                printf '%s\n' "${DOCUMENT_ID_ESC:-}"
+            ACTUAL=$(while IFS=$'\037' read -r DOCUMENT_ID SOURCE_RELPATH TARGET_OUTPUT_REL SOURCE_ROOT RECORD_REST; do
+                [[ "${DOCUMENT_ID}" == "" ]] && continue
+                printf '%s\n' "${DOCUMENT_ID:-}"
             done <<< "${ACTUAL}" | sort)
             EXPECTED=$(printf '%s\n' \
                 'news/index.markdown' \
@@ -8050,9 +8050,9 @@ function marsh_test {
                 && TARGET_PLAN_ROOT=$(marsh_create_target_plan_root "${TARGET_OUTPUT_ROOT}") \
                 && marsh_write_target_plan_records "${TARGET_PLAN_ROOT}" "source-inventory" 'docs/first.markdown'; then
                 ACTUAL=$(marsh_plan_target_documents "${SITE_OUTPUT_ROOT}" "." "." "${SOURCE_ROOT}" "markdown,md")
-                ACTUAL=$(while IFS=$'\t' read -r DOCUMENT_ID_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC; do
-                    [[ "${DOCUMENT_ID_ESC}" == "" ]] && continue
-                    printf '%s\n' "${DOCUMENT_ID_ESC:-}"
+                ACTUAL=$(while IFS=$'\037' read -r DOCUMENT_ID SOURCE_RELPATH TARGET_OUTPUT_REL SOURCE_ROOT RECORD_REST; do
+                    [[ "${DOCUMENT_ID}" == "" ]] && continue
+                    printf '%s\n' "${DOCUMENT_ID:-}"
                 done <<< "${ACTUAL}" | sort)
                 EXPECTED=$(printf '%s\n' 'docs/first.markdown' 'docs/second.markdown' | sort)
                 ASSERTION="equals"
@@ -8078,9 +8078,9 @@ function marsh_test {
                 'about/team/index.markdown' \
                 'about/team/member.json' \
                 'index.markdown')
-            ACTUAL=$(while IFS=$'\t' read -r DOCUMENT_ID_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC; do
-                [[ "${DOCUMENT_ID_ESC}" == "" ]] && continue
-                printf '%s\n' "${DOCUMENT_ID_ESC:-}"
+            ACTUAL=$(while IFS=$'\037' read -r DOCUMENT_ID SOURCE_RELPATH TARGET_OUTPUT_REL SOURCE_ROOT RECORD_REST; do
+                [[ "${DOCUMENT_ID}" == "" ]] && continue
+                printf '%s\n' "${DOCUMENT_ID:-}"
             done <<< "${ACTUAL}" | sort)
             EXPECTED=$(printf '%s\n' \
                 'about/index.markdown' \
@@ -8252,9 +8252,9 @@ function marsh_test {
             printf '%s\n' '# note' > "${SOURCE_ROOT}/docs/note.markdown"
             EXPECTED_SOURCE_ROOT=$(marsh_test_get_physical_path "${SOURCE_ROOT}")
             ACTUAL=$(marsh_plan_target_source_assets "${SOURCE_ROOT}/*" "${SITE_OUTPUT_ROOT}" "." "markdown,md")
-            ACTUAL=$(while IFS=$'\t' read -r ASSET_RELPATH_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC; do
-                [[ "${ASSET_RELPATH_ESC}" == "" ]] && continue
-                printf '%s\t%s\t%s\t%s\n' "${ASSET_RELPATH_ESC:-}" "${SOURCE_RELPATH_ESC:-}" "${TARGET_OUTPUT_REL_ESC:-}" "${SOURCE_ROOT_ESC:-}"
+            ACTUAL=$(while IFS=$'\037' read -r ASSET_RELPATH SOURCE_RELPATH TARGET_OUTPUT_REL SOURCE_ROOT RECORD_REST; do
+                [[ "${ASSET_RELPATH}" == "" ]] && continue
+                printf '%s\t%s\t%s\t%s\n' "${ASSET_RELPATH:-}" "${SOURCE_RELPATH:-}" "${TARGET_OUTPUT_REL:-}" "${SOURCE_ROOT:-}"
             done <<< "${ACTUAL}" | sort)
             ASSERTION="equals"
             EXPECTED=$(printf '%s\t%s\t%s\t%s\n' \
@@ -8275,9 +8275,9 @@ function marsh_test {
             printf '%s\n' '# example' > "${SOURCE_ROOT}/index.markdown"
             EXPECTED_SOURCE_ROOT=$(marsh_test_get_physical_path "${SOURCE_ROOT}")
             ACTUAL=$(marsh_plan_target_source_assets "${SOURCE_ROOT}" "${SITE_OUTPUT_ROOT}" "www" "markdown,md")
-            ACTUAL=$(while IFS=$'\t' read -r ASSET_RELPATH_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC; do
-                [[ "${ASSET_RELPATH_ESC}" == "" ]] && continue
-                printf '%s\t%s\t%s\t%s\n' "${ASSET_RELPATH_ESC:-}" "${SOURCE_RELPATH_ESC:-}" "${TARGET_OUTPUT_REL_ESC:-}" "${SOURCE_ROOT_ESC:-}"
+            ACTUAL=$(while IFS=$'\037' read -r ASSET_RELPATH SOURCE_RELPATH TARGET_OUTPUT_REL SOURCE_ROOT RECORD_REST; do
+                [[ "${ASSET_RELPATH}" == "" ]] && continue
+                printf '%s\t%s\t%s\t%s\n' "${ASSET_RELPATH:-}" "${SOURCE_RELPATH:-}" "${TARGET_OUTPUT_REL:-}" "${SOURCE_ROOT:-}"
             done <<< "${ACTUAL}")
             ASSERTION="equals"
             EXPECTED=$(printf '%s\t%s\t%s\t%s\n' 'images/logo.png' 'images/logo.png' 'www' "${EXPECTED_SOURCE_ROOT}")
@@ -8295,13 +8295,13 @@ function marsh_test {
             ACTUAL=$(marsh_plan_target_source_assets "${SOURCE_ROOT}/*" "${SITE_OUTPUT_ROOT}" "." "markdown,md")
             printf '%s\n' 'new asset' > "${SOURCE_ROOT}/docs/second.txt"
             ACTUAL_SECOND=$(marsh_plan_target_source_assets "${SOURCE_ROOT}/*" "${SITE_OUTPUT_ROOT}" "." "markdown,md")
-            ACTUAL=$(while IFS=$'\t' read -r ASSET_RELPATH_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC; do
-                [[ "${ASSET_RELPATH_ESC}" == "" ]] && continue
-                printf '%s\n' "${ASSET_RELPATH_ESC:-}"
+            ACTUAL=$(while IFS=$'\037' read -r ASSET_RELPATH SOURCE_RELPATH TARGET_OUTPUT_REL SOURCE_ROOT RECORD_REST; do
+                [[ "${ASSET_RELPATH}" == "" ]] && continue
+                printf '%s\n' "${ASSET_RELPATH:-}"
             done <<< "${ACTUAL}")
-            ACTUAL_SECOND=$(while IFS=$'\t' read -r ASSET_RELPATH_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC; do
-                [[ "${ASSET_RELPATH_ESC}" == "" ]] && continue
-                printf '%s\n' "${ASSET_RELPATH_ESC:-}"
+            ACTUAL_SECOND=$(while IFS=$'\037' read -r ASSET_RELPATH SOURCE_RELPATH TARGET_OUTPUT_REL SOURCE_ROOT RECORD_REST; do
+                [[ "${ASSET_RELPATH}" == "" ]] && continue
+                printf '%s\n' "${ASSET_RELPATH:-}"
             done <<< "${ACTUAL_SECOND}")
             EXPECTED='docs/logo.txt'
             ASSERTION="equals"
@@ -8323,9 +8323,9 @@ function marsh_test {
                 && TARGET_PLAN_ROOT=$(marsh_create_target_plan_root "${TARGET_OUTPUT_ROOT}") \
                 && marsh_write_target_plan_records "${TARGET_PLAN_ROOT}" "source-inventory" 'docs/logo.txt'; then
                 ACTUAL=$(marsh_plan_target_source_assets "${SOURCE_ROOT}/*" "${SITE_OUTPUT_ROOT}" "." "markdown,md")
-                ACTUAL=$(while IFS=$'\t' read -r ASSET_RELPATH_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC; do
-                    [[ "${ASSET_RELPATH_ESC}" == "" ]] && continue
-                    printf '%s\n' "${ASSET_RELPATH_ESC:-}"
+                ACTUAL=$(while IFS=$'\037' read -r ASSET_RELPATH SOURCE_RELPATH TARGET_OUTPUT_REL SOURCE_ROOT RECORD_REST; do
+                    [[ "${ASSET_RELPATH}" == "" ]] && continue
+                    printf '%s\n' "${ASSET_RELPATH:-}"
                 done <<< "${ACTUAL}" | sort)
                 EXPECTED=$(printf '%s\n' 'docs/logo.txt' 'docs/second.txt' | sort)
                 ASSERTION="equals"
@@ -8378,9 +8378,9 @@ function marsh_test {
                 'download.bin' \
                 'docs/guide.pdf' \
                 'docs/note.markdown')
-            ACTUAL=$(while IFS=$'\t' read -r ASSET_RELPATH_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC; do
-                [[ "${ASSET_RELPATH_ESC}" == "" ]] && continue
-                printf '%s\n' "${ASSET_RELPATH_ESC:-}"
+            ACTUAL=$(while IFS=$'\037' read -r ASSET_RELPATH SOURCE_RELPATH TARGET_OUTPUT_REL SOURCE_ROOT RECORD_REST; do
+                [[ "${ASSET_RELPATH}" == "" ]] && continue
+                printf '%s\n' "${ASSET_RELPATH:-}"
             done <<< "${ACTUAL}" | sort)
             EXPECTED=$(printf '%s\n' 'docs/guide.pdf' 'download.bin' | sort)
             ASSERTION="equals"
@@ -10532,7 +10532,7 @@ function marsh_test {
                 DOCUMENT_RECORDS+=("${DOCUMENT_RECORD}")
             done < <(marsh_plan_target_documents "${SITE_OUTPUT_ROOT}" "news/2026/01/02/02-current.markdown" "." "${SOURCE_ROOT}" "markdown,md")
             TARGET_PLAN_ROOT=$(marsh_create_target_plan_root "${SITE_OUTPUT_ROOT}")
-            marsh_write_target_plan_records "${TARGET_PLAN_ROOT}" "documents" "$(printf '%q\t%q\t%q\t%q\n' 'news/2026/01/01/01-stale.markdown' 'news/2026/01/01/01-stale.markdown' '.' "${SOURCE_ROOT}")"
+            marsh_write_target_plan_records "${TARGET_PLAN_ROOT}" "documents" "$(printf '%s\037%s\037%s\037%s\n' 'news/2026/01/01/01-stale.markdown' 'news/2026/01/01/01-stale.markdown' '.' "${SOURCE_ROOT}")"
             marsh_write_target_archive_manifest "${SITE_OUTPUT_ROOT}" "markdown,md" "${TARGET_PLAN_ROOT}" "${DOCUMENT_RECORDS[@]}"
             ACTUAL=$?
             EXPECTED=0
@@ -10563,8 +10563,8 @@ function marsh_test {
                 '' \
                 '# Persisted' > "${SOURCE_ROOT}/news/2026/01/01/01-persisted.markdown"
             TARGET_PLAN_ROOT=$(marsh_create_target_plan_root "${SITE_OUTPUT_ROOT}")
-            marsh_write_target_plan_records "${TARGET_PLAN_ROOT}" "documents" "$(printf '%q\t%q\t%q\t%q\n' 'news/2026/01/01/01-persisted.markdown' 'news/2026/01/01/01-persisted.markdown' '.' "${SOURCE_ROOT}")"
-            INVALID_DOCUMENT_RECORD=$(printf '%q\t%q\t%q\t%q\n' 'news/2026/01/03/03-missing.markdown' 'news/2026/01/03/03-missing.markdown' '.' "${SOURCE_ROOT}")
+            marsh_write_target_plan_records "${TARGET_PLAN_ROOT}" "documents" "$(printf '%s\037%s\037%s\037%s\n' 'news/2026/01/01/01-persisted.markdown' 'news/2026/01/01/01-persisted.markdown' '.' "${SOURCE_ROOT}")"
+            INVALID_DOCUMENT_RECORD=$(printf '%s\037%s\037%s\037%s\n' 'news/2026/01/03/03-missing.markdown' 'news/2026/01/03/03-missing.markdown' '.' "${SOURCE_ROOT}")
             marsh_write_target_archive_manifest "${SITE_OUTPUT_ROOT}" "markdown,md" "${TARGET_PLAN_ROOT}" "${INVALID_DOCUMENT_RECORD}" 2>/dev/null
             ACTUAL=$?
             EXPECTED=1
@@ -10783,12 +10783,12 @@ function marsh_test {
             ARCHIVE_PLAN_ROOT_ONE="${TEST_TEMP_PREFIX}.archive-plan-1"
             ARCHIVE_PLAN_ROOT_TWO="${TEST_TEMP_PREFIX}.archive-plan-2"
             mkdir -p "${TARGET_PLAN_ROOT}" "${ARCHIVE_PLAN_ROOT_ONE}" "${ARCHIVE_PLAN_ROOT_TWO}"
-            printf '%q\t%q\t%q\t%q\n' \
+            printf '%s\037%s\037%s\037%s\n' \
                 'news/index.markdown' \
                 'news/index.markdown' \
                 '.' \
                 '/site/source' > "${ARCHIVE_PLAN_ROOT_ONE}/documents"
-            printf '%q\t%q\t%q\t%q\n' \
+            printf '%s\037%s\037%s\037%s\n' \
                 'news/feed.xml' \
                 'news/feed.xml' \
                 '.' \

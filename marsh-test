@@ -687,7 +687,7 @@ function marsh_test_create_archive_document {
 }
 
 function marsh_test_write_archive_manifest {
-    local TARGET_OUTPUT_ROOT MANIFEST_FILE ARCHIVE_META DOCUMENT TYPE URI ABSPATH STATE_JOINED OIFS
+    local TARGET_OUTPUT_ROOT MANIFEST_FILE DOCUMENT DOCUMENT_SITE_REL TYPE URI ABSPATH META_FILE META_CACHE_FILE TARGET_OUTPUT_REL STATE_TEXT STATE_VALUE
     local -a DOCUMENTS STATE
 
     TARGET_OUTPUT_ROOT="${1:-}"
@@ -702,14 +702,41 @@ function marsh_test_write_archive_manifest {
     mkdir -p "${MANIFEST_FILE%/*}" || return 1
     while IFS= read -r DOCUMENT; do
         [[ "${DOCUMENT}" == "" ]] && continue
+        DOCUMENT_SITE_REL=""
         TYPE=""
         URI=""
         ABSPATH=""
+        META_FILE=""
+        STATE_TEXT=""
         STATE=()
-        ARCHIVE_META=$(marsh_get_archive_metadata "${TARGET_OUTPUT_ROOT}" "${DOCUMENT}") || return 1
-        eval "${ARCHIVE_META}"
-        marsh_validate_record_fields "archive manifest record" "${DOCUMENT}" "${TYPE}" "${URI}" "${ABSPATH}" "${#STATE[@]}" "${STATE[@]}" || return 1
-        printf '%s\037%s\037%s\037%s\037%s' "${DOCUMENT}" "${TYPE}" "${URI}" "${ABSPATH}" "${#STATE[@]}"
+
+        DOCUMENT_SITE_REL=$(marsh_normalize_internal_path "${DOCUMENT}" 2>/dev/null) || return 1
+        [[ "${DOCUMENT_SITE_REL}" != "." ]] || return 1
+        META_FILE=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "${DOCUMENT_SITE_REL}" "meta-yaml") || return 1
+        META_CACHE_FILE=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "${DOCUMENT_SITE_REL}" "meta") || return 1
+
+        # mirror the production archive-metadata path and create the cache on demand
+        marsh_get_document_metadata "${META_FILE}" "" >/dev/null || return 1
+        marsh_load_archive_document_metadata "${META_CACHE_FILE}" "TYPE" "STATE_TEXT" || return 1
+
+        # rebuild the public archive paths the same way marsh_get_archive_metadata does
+        TARGET_OUTPUT_REL=$(marsh_get_target_output_path "${TARGET_OUTPUT_ROOT}") || return 1
+        if [[ "${TARGET_OUTPUT_REL}" == "." ]]; then
+            URI="${DOCUMENT_SITE_REL}"
+        else
+            URI="${TARGET_OUTPUT_REL}/${DOCUMENT_SITE_REL}"
+        fi
+        URI="${URI%.markdown}.html"
+        URI=$(marsh_get_absolute_output_path "${URI}" "document") || return 1
+        [[ "${URI}" =~ / ]] && ABSPATH="${URI%/*}"
+
+        while IFS= read -r STATE_VALUE; do
+            [[ "${STATE_VALUE}" != "" ]] || continue
+            STATE+=("${STATE_VALUE}")
+        done <<< "${STATE_TEXT}"
+
+        marsh_validate_record_fields "archive manifest record" "${DOCUMENT_SITE_REL}" "${TYPE}" "${URI}" "${ABSPATH}" "${#STATE[@]}" "${STATE[@]}" || return 1
+        printf '%s\037%s\037%s\037%s\037%s' "${DOCUMENT_SITE_REL}" "${TYPE}" "${URI}" "${ABSPATH}" "${#STATE[@]}"
         for STATE_VALUE in "${STATE[@]}"; do
             printf '\037%s' "${STATE_VALUE}"
         done

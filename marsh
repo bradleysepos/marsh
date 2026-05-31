@@ -2472,6 +2472,63 @@ function marsh_text_transform_headings {  # marsh_text_transform_headings action
     '
 }
 
+# validates one plaintext record field against shared byte rules
+function marsh_validate_record_field {  # marsh_validate_record_field record_field error_context
+    local RECORD_FIELD ERROR_CONTEXT
+
+    RECORD_FIELD="${1-}"
+    ERROR_CONTEXT="${2:-}"
+    [[ "${ERROR_CONTEXT}" != "" ]] || return 1
+
+    if [[ "${RECORD_FIELD}" == *$'\037'* ]]; then
+        echo "Unsupported ${ERROR_CONTEXT} field delimiter byte" >&2
+        return 1
+    fi
+    if [[ "${RECORD_FIELD}" == *$'\n'* ]] || [[ "${RECORD_FIELD}" == *$'\r'* ]]; then
+        echo "Unsupported ${ERROR_CONTEXT} multiline field" >&2
+        return 1
+    fi
+}
+
+# validates a provided field list against shared plaintext record byte rules
+function marsh_validate_record_fields {  # marsh_validate_record_fields error_context fields[@]
+    local ERROR_CONTEXT RECORD_FIELD
+
+    ERROR_CONTEXT="${1:-}"
+    [[ "${ERROR_CONTEXT}" != "" ]] || return 1
+    shift 1
+
+    while [[ "${#@}" -gt 0 ]]; do
+        RECORD_FIELD="${1-}"
+        shift 1
+        marsh_validate_record_field "${RECORD_FIELD}" "${ERROR_CONTEXT}" || return 1
+    done
+}
+
+# validates a plaintext record field count against expected bounds
+function marsh_validate_record_field_count {  # marsh_validate_record_field_count actual_count minimum_count maximum_count error_context
+    local ACTUAL_COUNT MINIMUM_COUNT MAXIMUM_COUNT ERROR_CONTEXT
+
+    ACTUAL_COUNT="${1:-}"
+    MINIMUM_COUNT="${2:-}"
+    MAXIMUM_COUNT="${3:-}"
+    ERROR_CONTEXT="${4:-}"
+    [[ "${ACTUAL_COUNT}" =~ ^[0-9]+$ ]] || return 1
+    [[ "${MINIMUM_COUNT}" =~ ^[0-9]+$ ]] || return 1
+    [[ "${MAXIMUM_COUNT}" =~ ^[0-9]+$ ]] || return 1
+    [[ "${ERROR_CONTEXT}" != "" ]] || return 1
+    [[ "${MINIMUM_COUNT}" -le "${MAXIMUM_COUNT}" ]] || return 1
+
+    if [[ "${ACTUAL_COUNT}" -lt "${MINIMUM_COUNT}" ]] || [[ "${ACTUAL_COUNT}" -gt "${MAXIMUM_COUNT}" ]]; then
+        if [[ "${MINIMUM_COUNT}" -eq "${MAXIMUM_COUNT}" ]]; then
+            echo "Malformed ${ERROR_CONTEXT} field count: expected ${MINIMUM_COUNT}, got ${ACTUAL_COUNT}" >&2
+        else
+            echo "Malformed ${ERROR_CONTEXT} field count: expected ${MINIMUM_COUNT}-${MAXIMUM_COUNT}, got ${ACTUAL_COUNT}" >&2
+        fi
+        return 1
+    fi
+}
+
 #
 # Path utilities
 #

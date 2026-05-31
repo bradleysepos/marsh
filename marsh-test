@@ -10461,6 +10461,136 @@ function marsh_test {
             fi
             rm -rf "${SITE_OUTPUT_ROOT}" "${SOURCE_ROOT}"
             ;;
+        marsh_validate_record_field:0)
+            TEST_NAME+=":plain_value_allowed"
+            marsh_validate_record_field 'news/index.markdown' 'test record'
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" -eq "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_validate_record_field:1)
+            TEST_NAME+=":literal_tabs_allowed"
+            marsh_validate_record_field $'col1\tcol2' 'test record'
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" -eq "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_validate_record_field:2)
+            TEST_NAME+=":empty_optional_allowed"
+            marsh_validate_record_field '' 'test record'
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" -eq "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_validate_record_field:3)
+            TEST_NAME+=":rejects_field_delimiter"
+            ACTUAL=$(marsh_validate_record_field $'alpha\037beta' 'test record' 2>&1 >/dev/null)
+            STATUS=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${STATUS}" -eq "${EXPECTED}" ]]; then
+                EXPECTED='Unsupported test record field delimiter byte'
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            ;;
+        marsh_validate_record_field:4)
+            TEST_NAME+=":rejects_multiline"
+            ACTUAL=$(marsh_validate_record_field $'alpha\nbeta' 'test record' 2>&1 >/dev/null)
+            STATUS=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${STATUS}" -eq "${EXPECTED}" ]]; then
+                EXPECTED='Unsupported test record multiline field'
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            ;;
+        marsh_validate_record_field_count:0)
+            TEST_NAME+=":exact_count_matches"
+            marsh_validate_record_field_count 4 4 4 'source asset record'
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" -eq "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_validate_record_field_count:1)
+            TEST_NAME+=":range_count_matches"
+            marsh_validate_record_field_count 6 5 99 'archive manifest record'
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" -eq "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_validate_record_field_count:2)
+            TEST_NAME+=":rejects_too_few_fields"
+            ACTUAL=$(marsh_validate_record_field_count 3 4 4 'source asset record' 2>&1 >/dev/null)
+            STATUS=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${STATUS}" -eq "${EXPECTED}" ]]; then
+                EXPECTED='Malformed source asset record field count: expected 4, got 3'
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            ;;
+        marsh_validate_record_field_count:3)
+            TEST_NAME+=":rejects_out_of_range_fields"
+            ACTUAL=$(marsh_validate_record_field_count 4 5 99 'archive manifest record' 2>&1 >/dev/null)
+            STATUS=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${STATUS}" -eq "${EXPECTED}" ]]; then
+                EXPECTED='Malformed archive manifest record field count: expected 5-99, got 4'
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            ;;
+        marsh_validate_record_fields:0)
+            TEST_NAME+=":validates_field_list"
+            marsh_validate_record_fields 'queue record' 'news/index.markdown' '.' '/site/source' '/tmp/archive-plan'
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" -eq "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_validate_record_fields:1)
+            TEST_NAME+=":rejects_bad_field_in_list"
+            ACTUAL=$(marsh_validate_record_fields 'queue record' 'news/index.markdown' $'bad\037field' '/site/source' '/tmp/archive-plan' 2>&1 >/dev/null)
+            STATUS=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${STATUS}" -eq "${EXPECTED}" ]]; then
+                EXPECTED='Unsupported queue record field delimiter byte'
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            ;;
         marsh_write_target_archive_manifest:4)
             TEST_NAME+=":reuses_metadata_artifacts_within_target_context"
             SITE_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
@@ -10786,6 +10916,9 @@ KNOWN_FUNCTIONS=(
     marsh_rewrite_sitemap_links
     marsh_text_transform
     marsh_text_transform_headings
+    marsh_validate_record_field
+    marsh_validate_record_field_count
+    marsh_validate_record_fields
     marsh_write_archive_plan_context
     marsh_write_document_artifacts
     marsh_write_document_metadata_artifacts

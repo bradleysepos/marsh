@@ -4005,7 +4005,7 @@ function marsh_copy_template_assets {  # marsh_copy_template_assets site_output_
     local SITE_OUTPUT_ROOT TARGET_OUTPUT_REL LOG_LEVEL LOG_LEVELS_CSV TEMPLATES_DIR TEMPLATE NUM_TEMPLATE_OVERRIDES TEMPLATE_ASSETS_PATH TEMPLATE_ASSETS
     local ASSET ASSET_PATH ASSET_OUTPUT_REL ASSET_SOURCE ASSET_DEST_PATH
     local CACHE_DIR CACHE_FILE
-    local TEMPLATE_ASSET_RECORD ASSET_SOURCE_ESC ASSET_DEST_PATH_ESC ASSET_OUTPUT_REL_ESC
+    local TEMPLATE_ASSET_RECORD TEMPLATE_ASSET_RECORD_REST
     local EXPECTED_MANIFEST CACHE_VALID
     local -a TEMPLATE_OVERRIDES TEMPLATE_ASSET_RECORDS
 
@@ -4057,7 +4057,8 @@ function marsh_copy_template_assets {  # marsh_copy_template_assets site_output_
         }
         ASSET_SOURCE="${TEMPLATES_DIR}/${TEMPLATE}/${ASSET_PATH}"
         ASSET_DEST_PATH="${SITE_OUTPUT_ROOT}/${ASSET_OUTPUT_REL}"
-        TEMPLATE_ASSET_RECORDS+=("$(printf '%q\t%q\t%q\n' "${ASSET_SOURCE}" "${ASSET_DEST_PATH}" "${ASSET_OUTPUT_REL}")")
+        marsh_validate_record_fields "template asset record" "${ASSET_SOURCE}" "${ASSET_DEST_PATH}" "${ASSET_OUTPUT_REL}" || return 1
+        TEMPLATE_ASSET_RECORDS+=("$(printf '%s\037%s\037%s\n' "${ASSET_SOURCE}" "${ASSET_DEST_PATH}" "${ASSET_OUTPUT_REL}")")
     done <<< "${TEMPLATE_ASSETS}"
     [[ "${#TEMPLATE_ASSET_RECORDS[@]}" -gt 0 ]] || return 0
 
@@ -4075,8 +4076,11 @@ function marsh_copy_template_assets {  # marsh_copy_template_assets site_output_
             CACHE_VALID=true
             while IFS= read -r TEMPLATE_ASSET_RECORD; do
                 [[ "${TEMPLATE_ASSET_RECORD}" == "" ]] && continue
-                IFS=$'\t' read -r ASSET_SOURCE_ESC ASSET_DEST_PATH_ESC ASSET_OUTPUT_REL_ESC <<< "${TEMPLATE_ASSET_RECORD}"
-                eval "ASSET_DEST_PATH=${ASSET_DEST_PATH_ESC}"
+                IFS=$'\037' read -r ASSET_SOURCE ASSET_DEST_PATH ASSET_OUTPUT_REL TEMPLATE_ASSET_RECORD_REST <<< "${TEMPLATE_ASSET_RECORD}"
+                if [[ "${ASSET_SOURCE}" == "" ]] || [[ "${ASSET_DEST_PATH}" == "" ]] || [[ "${ASSET_OUTPUT_REL}" == "" ]] || [[ "${TEMPLATE_ASSET_RECORD_REST}" != "" ]]; then
+                    CACHE_VALID=false
+                    break
+                fi
                 if [[ ! -e "${ASSET_DEST_PATH}" ]]; then
                     CACHE_VALID=false
                     break
@@ -4091,10 +4095,11 @@ function marsh_copy_template_assets {  # marsh_copy_template_assets site_output_
     # cache is invalid or missing, copy assets and generate a new cache file
     for TEMPLATE_ASSET_RECORD in "${TEMPLATE_ASSET_RECORDS[@]}"; do
         [[ "${TEMPLATE_ASSET_RECORD}" == "" ]] && continue
-        IFS=$'\t' read -r ASSET_SOURCE_ESC ASSET_DEST_PATH_ESC ASSET_OUTPUT_REL_ESC <<< "${TEMPLATE_ASSET_RECORD}"
-        eval "ASSET_SOURCE=${ASSET_SOURCE_ESC}"
-        eval "ASSET_DEST_PATH=${ASSET_DEST_PATH_ESC}"
-        eval "ASSET_OUTPUT_REL=${ASSET_OUTPUT_REL_ESC}"
+        IFS=$'\037' read -r ASSET_SOURCE ASSET_DEST_PATH ASSET_OUTPUT_REL TEMPLATE_ASSET_RECORD_REST <<< "${TEMPLATE_ASSET_RECORD}"
+        [[ "${ASSET_SOURCE}" != "" ]] || return 1
+        [[ "${ASSET_DEST_PATH}" != "" ]] || return 1
+        [[ "${ASSET_OUTPUT_REL}" != "" ]] || return 1
+        [[ "${TEMPLATE_ASSET_RECORD_REST}" == "" ]] || return 1
         mkdir -p "${ASSET_DEST_PATH%/*}" || {
             echo "Unable to create asset path: ${ASSET_DEST_PATH%/*}" >&2
             return 1

@@ -4720,6 +4720,36 @@ function marsh_test {
             fi
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}" "${MARSH_TEMP}/asset-copy-cache"
             ;;
+        marsh_copy_template_assets:2)
+            TEST_NAME+=":writes_plaintext_manifest_records"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            CACHE_FILE=""
+            CACHE_CONTENT=""
+            rm -rf "${MARSH_TEMP}/asset-copy-cache"
+            marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
+            marsh_copy_template_assets "${TARGET_OUTPUT_ROOT}" "." "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "${TEMPLATE_DIR}" "sample" 0 "" >/dev/null 2>&1
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                CACHE_FILE=$(find "${MARSH_TEMP}/asset-copy-cache" -type f -name '*.manifest' 2>/dev/null | head -n 1)
+                if [[ "${CACHE_FILE}" != "" ]]; then
+                    CACHE_CONTENT=$(<"${CACHE_FILE}")
+                    {
+                        [[ "${CACHE_CONTENT}" == *$'\037'* ]] \
+                            && [[ "${CACHE_CONTENT}" != *$'\t'* ]]
+                    }
+                    ACTUAL=$?
+                    EXPECTED=0
+                    ASSERTION="equals"
+                    if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                        RES="[PASS]"
+                    fi
+                fi
+            fi
+            rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}" "${MARSH_TEMP}/asset-copy-cache"
+            ;;
         marsh_create_target_source_root:0)
             TEST_NAME+=":missing_source_root_reports"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"

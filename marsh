@@ -4703,7 +4703,7 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
     local SUBDOCUMENT_RENDER SUBDOCUMENT_TEMPLATE SUBDOCUMENT_RENDER_FILE SUBDOCUMENT_URI SUBDOCUMENT_ABSPATH SUBDOCUMENT_HREF
     local SUBDOCUMENT_OUTPUT_PATH SUBDOCUMENT_OUTPUT_EXT
     local SUBDOCUMENTS_MANIFEST SUBDOCUMENT_URI_FROM_MANIFEST SUBDOCUMENT_ABSPATH_FROM_MANIFEST
-    local SUBDOCUMENT_DOCUMENT_ESC SUBDOCUMENT_URI_ESC SUBDOCUMENT_ABSPATH_ESC
+    local SUBDOCUMENT_RECORD SUBDOCUMENT_RECORD_REST
     local SUBDOCUMENTS_FILE
     local DEST_SCRATCH
     local TEXT_TRANSFORM UTIL_JSON_SEPARATOR I J ASSET_INDEX
@@ -5482,14 +5482,15 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
         SUBDOCUMENTS_MANIFEST=$(marsh_get_archive_temp_path "${BUILD_CONTEXT_OUTPUT_ROOT}" "${DOCUMENT_SITE_REL}" "subdocuments-manifest" 2>/dev/null) || SUBDOCUMENTS_MANIFEST=""
         if [[ -f "${SUBDOCUMENTS_MANIFEST}" ]] && [[ -r "${SUBDOCUMENTS_MANIFEST}" ]]; then
             SUBDOCUMENTS_LIST=$(<"${SUBDOCUMENTS_MANIFEST}")
-            while IFS=$'\t' read -r SUBDOCUMENT_DOCUMENT_ESC SUBDOCUMENT_URI_ESC SUBDOCUMENT_ABSPATH_ESC; do
-                [[ "${SUBDOCUMENT_DOCUMENT_ESC}" == "" ]] && continue
+            while IFS= read -r SUBDOCUMENT_RECORD; do
+                [[ "${SUBDOCUMENT_RECORD}" == "" ]] && continue
                 SUBDOCUMENT=""
                 SUBDOCUMENT_URI_FROM_MANIFEST=""
                 SUBDOCUMENT_ABSPATH_FROM_MANIFEST=""
-                eval "SUBDOCUMENT=${SUBDOCUMENT_DOCUMENT_ESC}"
-                eval "SUBDOCUMENT_URI_FROM_MANIFEST=${SUBDOCUMENT_URI_ESC}"
-                eval "SUBDOCUMENT_ABSPATH_FROM_MANIFEST=${SUBDOCUMENT_ABSPATH_ESC}"
+                SUBDOCUMENT_RECORD_REST=""
+                IFS=$'\037' read -r SUBDOCUMENT SUBDOCUMENT_URI_FROM_MANIFEST SUBDOCUMENT_ABSPATH_FROM_MANIFEST SUBDOCUMENT_RECORD_REST <<< "${SUBDOCUMENT_RECORD}"
+                [[ "${SUBDOCUMENT}" != "" ]] || return 1
+                [[ "${SUBDOCUMENT_RECORD_REST}" == "" ]] || return 1
                 SUBDOCUMENTS+=("${SUBDOCUMENT}")
                 SUBDOCUMENT_URIS+=("${SUBDOCUMENT_URI_FROM_MANIFEST}")
                 SUBDOCUMENT_ABSPATHS+=("${SUBDOCUMENT_ABSPATH_FROM_MANIFEST}")
@@ -8858,8 +8859,8 @@ function marsh_write_document_metadata_artifacts {  # marsh_write_document_metad
 function marsh_build_archive {  # marsh_build_archive encoding target_output_root archive_source archive_title language langcode count page_size #types[@] types[@] #excluded_states[@] excluded_states[@] archive_manifest archive_root_path
     local ENCODING TARGET_OUTPUT_ROOT ARCHIVE_SOURCE_REL ARCHIVE_TITLE LANGUAGE LANGCODE
     local COUNT PAGE_SIZE NUM_TYPES NUM_EXCLUDED_STATES
-    local VALID DOCUMENT TYPE STATE_JOINED OIFS E
-    local ARCHIVE_MANIFEST MANIFEST_DOCUMENT_ESC MANIFEST_TYPE_ESC MANIFEST_URI_ESC MANIFEST_ABSPATH_ESC MANIFEST_STATE_ESC
+    local VALID DOCUMENT TYPE E
+    local ARCHIVE_MANIFEST MANIFEST_RECORD MANIFEST_FIELD_COUNT MANIFEST_STATE_COUNT EXPECTED_MANIFEST_FIELD_COUNT MANIFEST_STATE_INDEX
     local URI ABSPATH
     local PAGINATED PAGE_TOTAL PAGE PAGE_START PAGE_END PAGE_INDEX PAGE_SUBDOCUMENTS_TOTAL
     local ARCHIVE_SUBDOCUMENTS_TOTAL
@@ -8869,7 +8870,7 @@ function marsh_build_archive {  # marsh_build_archive encoding target_output_roo
     local PAGE_PREV_ARCHIVE_SOURCE_REL PAGE_NEXT_ARCHIVE_SOURCE_REL PAGE_LAST_ARCHIVE_SOURCE_REL
     local PAGE_OUTPUT_PATH PAGE_CANONICAL_OUTPUT_PATH PAGE_FIRST_OUTPUT_PATH PAGE_PREV_OUTPUT_PATH PAGE_NEXT_OUTPUT_PATH PAGE_LAST_OUTPUT_PATH PAGE_BASE_PATH
     local ARCHIVE_ROOT_PATH PAGE_ARCHIVE_ROOT_HREF
-    local -a TYPES EXCLUDED_STATES STATE VALID_DOCUMENTS VALID_DOCUMENT_URIS VALID_DOCUMENT_ABSPATHS
+    local -a TYPES EXCLUDED_STATES STATE VALID_DOCUMENTS VALID_DOCUMENT_URIS VALID_DOCUMENT_ABSPATHS MANIFEST_FIELDS
     local -a ARCHIVE_PAGES PAGE_DOCUMENTS PAGE_DOCUMENT_URIS PAGE_DOCUMENT_ABSPATHS
 
     # init
@@ -8942,25 +8943,33 @@ function marsh_build_archive {  # marsh_build_archive encoding target_output_roo
     VALID_DOCUMENTS=()
     VALID_DOCUMENT_URIS=()
     VALID_DOCUMENT_ABSPATHS=()
-    while IFS=$'\t' read -r MANIFEST_DOCUMENT_ESC MANIFEST_TYPE_ESC MANIFEST_URI_ESC MANIFEST_ABSPATH_ESC MANIFEST_STATE_ESC; do
-        [[ "${MANIFEST_DOCUMENT_ESC}" == "" ]] && continue
-        DOCUMENT=""
-        TYPE=""
-        URI=""
-        ABSPATH=""
-        STATE_JOINED=""
-        STATE=()
-        eval "DOCUMENT=${MANIFEST_DOCUMENT_ESC}"
-        eval "TYPE=${MANIFEST_TYPE_ESC}"
-        eval "URI=${MANIFEST_URI_ESC}"
-        eval "ABSPATH=${MANIFEST_ABSPATH_ESC}"
-        eval "STATE_JOINED=${MANIFEST_STATE_ESC}"
-        if [[ "${STATE_JOINED}" != "" ]]; then
-            OIFS="${IFS}"
-            IFS=$(printf '\034')
-            STATE=(${STATE_JOINED})
-            IFS="${OIFS}"
+    while IFS= read -r MANIFEST_RECORD; do
+        [[ "${MANIFEST_RECORD}" == "" ]] && continue
+        MANIFEST_FIELDS=()
+        IFS=$'\037' read -r -a MANIFEST_FIELDS <<< "${MANIFEST_RECORD}"
+        MANIFEST_FIELD_COUNT="${#MANIFEST_FIELDS[@]}"
+        marsh_validate_record_field_count "${MANIFEST_FIELD_COUNT}" 5 99 'archive manifest record' || return 1
+        DOCUMENT="${MANIFEST_FIELDS[0]:-}"
+        TYPE="${MANIFEST_FIELDS[1]:-}"
+        URI="${MANIFEST_FIELDS[2]:-}"
+        ABSPATH="${MANIFEST_FIELDS[3]:-}"
+        MANIFEST_STATE_COUNT="${MANIFEST_FIELDS[4]:-}"
+        [[ "${DOCUMENT}" != "" ]] || return 1
+        [[ "${TYPE}" != "" ]] || return 1
+        [[ "${URI}" != "" ]] || return 1
+        [[ "${MANIFEST_STATE_COUNT}" =~ ^[0-9]+$ ]] || {
+            echo "Malformed archive manifest state count: ${ARCHIVE_MANIFEST}" >&2
+            return 1
+        }
+        EXPECTED_MANIFEST_FIELD_COUNT=$((5 + MANIFEST_STATE_COUNT))
+        if [[ "${MANIFEST_FIELD_COUNT}" -ne "${EXPECTED_MANIFEST_FIELD_COUNT}" ]]; then
+            echo "Malformed archive manifest state count: ${ARCHIVE_MANIFEST}" >&2
+            return 1
         fi
+        STATE=()
+        for ((MANIFEST_STATE_INDEX=0; MANIFEST_STATE_INDEX<MANIFEST_STATE_COUNT; MANIFEST_STATE_INDEX++)); do
+            STATE+=("${MANIFEST_FIELDS[$((5 + MANIFEST_STATE_INDEX))]:-}")
+        done
         if [[ "${COUNT}" != "" ]] && [[ "${VALID}" -ge "${COUNT}" ]]; then
             break
         fi
@@ -9924,7 +9933,11 @@ function marsh_write_archive_page {  # marsh_write_archive_page encoding target_
             for DOCUMENT in "${DOCUMENTS[@]}"; do
                 URI="${DOCUMENT_URIS[$INDEX]:-}"
                 ABSPATH="${DOCUMENT_ABSPATHS[$INDEX]:-}"
-                printf '%q\t%q\t%q\n' "${DOCUMENT}" "${URI}" "${ABSPATH}" || {
+                marsh_validate_record_fields "subdocument manifest record" "${DOCUMENT}" "${URI}" "${ABSPATH}" || {
+                    echo "Unable to write archive subdocument manifest: ${MANIFEST_FILE}" >&2
+                    return 1
+                }
+                printf '%s\037%s\037%s\n' "${DOCUMENT}" "${URI}" "${ABSPATH}" || {
                     echo "Unable to write archive subdocument manifest: ${MANIFEST_FILE}" >&2
                     return 1
                 }
@@ -9945,7 +9958,7 @@ function marsh_write_target_archive_manifest {  # marsh_write_target_archive_man
     local SITE_OUTPUT_ROOT MARKDOWN_FILEEXT_CSV TARGET_PLAN_ROOT MANIFEST_FILE MANIFEST_TEMP DOCUMENT_RECORD
     local DOCUMENT_ID SOURCE_RELPATH TARGET_OUTPUT_REL SOURCE_ROOT DOCUMENT_SOURCE_FILE BUILD_CONTEXT_OUTPUT_ROOT
     local DOCUMENT_ARTIFACT_ROOT DOCUMENT_ARTIFACT_CONTENT DOCUMENT_ARTIFACT_META_YAML DOCUMENT_ARTIFACT_META DOCUMENT_ARTIFACT_ARCHIVE_META
-    local TYPE URI ABSPATH STATE_JOINED OIFS DOCUMENT_OUTPUT_REL STATE_TEXT STATE_VALUE RECORD_REST
+    local TYPE URI ABSPATH DOCUMENT_OUTPUT_REL STATE_TEXT STATE_VALUE RECORD_REST
     local -a DOCUMENT_RECORDS_IN STATE
 
     SITE_OUTPUT_ROOT="${1:-}"
@@ -10030,11 +10043,15 @@ function marsh_write_target_archive_manifest {  # marsh_write_target_archive_man
         ABSPATH=""
         [[ "${URI}" =~ / ]] && ABSPATH="${URI%/*}"
 
-        OIFS="${IFS}"
-        IFS=$(printf '\034')
-        STATE_JOINED="${STATE[*]}"
-        IFS="${OIFS}"
-        printf '%q\t%q\t%q\t%q\t%q\n' "${DOCUMENT_ID}" "${TYPE}" "${URI}" "${ABSPATH}" "${STATE_JOINED}"
+        marsh_validate_record_fields "archive manifest record" "${DOCUMENT_ID}" "${TYPE}" "${URI}" "${ABSPATH}" "${#STATE[@]}" "${STATE[@]}" || {
+            rm -f "${MANIFEST_TEMP}"
+            return 1
+        }
+        printf '%s\037%s\037%s\037%s\037%s' "${DOCUMENT_ID}" "${TYPE}" "${URI}" "${ABSPATH}" "${#STATE[@]}"
+        for STATE_VALUE in "${STATE[@]}"; do
+            printf '\037%s' "${STATE_VALUE}"
+        done
+        printf '\n'
     done < <(
         for DOCUMENT_RECORD in "${DOCUMENT_RECORDS_IN[@]}"; do
             [[ "${DOCUMENT_RECORD}" == "" ]] && continue

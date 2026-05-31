@@ -708,11 +708,12 @@ function marsh_test_write_archive_manifest {
         STATE=()
         ARCHIVE_META=$(marsh_get_archive_metadata "${TARGET_OUTPUT_ROOT}" "${DOCUMENT}") || return 1
         eval "${ARCHIVE_META}"
-        OIFS="${IFS}"
-        IFS=$(printf '\034')
-        STATE_JOINED="${STATE[*]}"
-        IFS="${OIFS}"
-        printf '%q\t%q\t%q\t%q\t%q\n' "${DOCUMENT}" "${TYPE}" "${URI}" "${ABSPATH}" "${STATE_JOINED}"
+        marsh_validate_record_fields "archive manifest record" "${DOCUMENT}" "${TYPE}" "${URI}" "${ABSPATH}" "${#STATE[@]}" "${STATE[@]}" || return 1
+        printf '%s\037%s\037%s\037%s\037%s' "${DOCUMENT}" "${TYPE}" "${URI}" "${ABSPATH}" "${#STATE[@]}"
+        for STATE_VALUE in "${STATE[@]}"; do
+            printf '\037%s' "${STATE_VALUE}"
+        done
+        printf '\n'
     done < <(printf '%s\n' "${DOCUMENTS[@]}" | sort -nr -t/) > "${MANIFEST_FILE}" || return 1
 }
 
@@ -1286,18 +1287,21 @@ function marsh_test {
             rm -rf "${TARGET_OUTPUT_ROOT}"
             ;;
         marsh_build_archive:7)
-            TEST_NAME+=":malformed_manifest_record_tolerated"
+            TEST_NAME+=":malformed_manifest_record_rejected"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             MANIFEST_FILE="${TEST_TEMP_PREFIX}.archive-manifest"
             mkdir -p "${TARGET_OUTPUT_ROOT}"
-            printf '%s\t%s\t%s\t%s\t%s\n' "'broken" 'post' 'https://example.test/news/item.html' 'https://example.test/news' '' > "${MANIFEST_FILE}"
-            ACTUAL=$(marsh_build_archive "html" "${TARGET_OUTPUT_ROOT}" "index.markdown" "Archive" "English" "en" "" "1" "1" "post" "0" "${MANIFEST_FILE}" 2>/dev/null)
-            EXPECTED=$(printf '%s\n' \
-                'index.markdown' \
-                'page/1/index.markdown')
+            printf '%s\n' "'broken" > "${MANIFEST_FILE}"
+            ACTUAL=$(marsh_build_archive "html" "${TARGET_OUTPUT_ROOT}" "index.markdown" "Archive" "English" "en" "" "1" "1" "post" "0" "${MANIFEST_FILE}" 2>&1 >/dev/null)
+            STATUS=$?
+            EXPECTED=1
             ASSERTION="equals"
-            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                RES="[PASS]"
+            if [[ "${STATUS}" == "${EXPECTED}" ]]; then
+                EXPECTED='Malformed archive manifest record field count: expected 5-99, got 1'
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
             fi
             rm -rf "${TARGET_OUTPUT_ROOT}" "${MANIFEST_FILE}"
             ;;
@@ -4385,7 +4389,7 @@ function marsh_test {
             marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "index.markdown" "meta-yaml" '---' 'Type: archive' 'Title: Archive' '...'
             SUBDOCUMENTS_MANIFEST=$(marsh_get_archive_temp_path "${TARGET_OUTPUT_ROOT}" "index.markdown" "subdocuments-manifest")
             mkdir -p "${SUBDOCUMENTS_MANIFEST%/*}"
-            printf '/invalid\t\t\n' > "${SUBDOCUMENTS_MANIFEST}"
+            printf '/invalid\037\037\n' > "${SUBDOCUMENTS_MANIFEST}"
             ACTUAL=$(marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "true" 0 2>&1 >/dev/null)
             STATUS=$?
             EXPECTED=1
@@ -7928,7 +7932,7 @@ function marsh_test {
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 ACTUAL=$(<"${TARGET_PLAN_ROOT}/archive-manifest")
-                EXPECTED="$(printf '%q\t%q\t%q\t%q\t%q\n' "news/2026/01/02/02-current.markdown" "post" "https://example.test/news/2026/01/02/02-current.html" "https://example.test/news/2026/01/02" "")"
+                EXPECTED="$(printf '%s\037%s\037%s\037%s\037%s\n' "news/2026/01/02/02-current.markdown" "post" "https://example.test/news/2026/01/02/02-current.html" "https://example.test/news/2026/01/02" '0')"
                 ASSERTION="equals"
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                     RES="[PASS]"
@@ -10526,7 +10530,7 @@ function marsh_test {
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 ACTUAL=$(<"${TARGET_PLAN_ROOT}/archive-manifest")
-                EXPECTED="$(printf '%q\t%q\t%q\t%q\t%q\n' "news/2026/01/02/02-second.markdown" "post" "https://example.test/news/2026/01/02/02-second.html" "https://example.test/news/2026/01/02" "published")"$'\n'"$(printf '%q\t%q\t%q\t%q\t%q\n' "news/2026/01/01/01-first.markdown" "note" "https://example.test/news/2026/01/01/01-first.html" "https://example.test/news/2026/01/01" "")"
+                EXPECTED="$(printf '%s\037%s\037%s\037%s\037%s\037%s\n' "news/2026/01/02/02-second.markdown" "post" "https://example.test/news/2026/01/02/02-second.html" "https://example.test/news/2026/01/02" '1' 'published')"$'\n'"$(printf '%s\037%s\037%s\037%s\037%s\n' "news/2026/01/01/01-first.markdown" "note" "https://example.test/news/2026/01/01/01-first.html" "https://example.test/news/2026/01/01" '0')"
                 ASSERTION="equals"
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                     RES="[PASS]"
@@ -10569,7 +10573,7 @@ function marsh_test {
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 ACTUAL=$(<"${TARGET_PLAN_ROOT}/archive-manifest")
-                EXPECTED="$(printf '%q\t%q\t%q\t%q\t%q\n' "news/2026/01/02/02-current.markdown" "post" "https://example.test/news/2026/01/02/02-current.html" "https://example.test/news/2026/01/02" "")"
+                EXPECTED="$(printf '%s\037%s\037%s\037%s\037%s\n' "news/2026/01/02/02-current.markdown" "post" "https://example.test/news/2026/01/02/02-current.html" "https://example.test/news/2026/01/02" '0')"
                 ASSERTION="equals"
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                     RES="[PASS]"

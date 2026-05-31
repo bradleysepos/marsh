@@ -65,8 +65,7 @@ function marsh_cli {
     local TARGET_COUNT TARGET_COUNT_INDEX TARGET_COUNT_PREFIX TARGET_NUMBER
     local BUILD_START_TIME BUILD_END_TIME BUILD_ELAPSED
     local TARGET_START_TIME TARGET_END_TIME TARGET_ELAPSED
-    local TARGET_ARCHIVE_MANIFEST TARGET_ARCHIVE_RECORD
-    local TARGET_ARCHIVE_TEMPLATE TARGET_ARCHIVE_TEMPLATE_SOURCE TARGET_ARCHIVE_TEMPLATE_ASSETS_PATH
+    local TARGET_ARCHIVE_RECORD
     local SITE_SOURCE_ROOT TARGET_SOURCE_ROOT TARGET_SITEMAP_SEARCH
     local TARGET_PLAN_ROOT
     local BUILD_SITE_OUTPUT_ROOT BUILD_TARGET_OUTPUT_REL BUILD_DOCUMENT BUILD_SITEMAP BUILD_SITEMAP_SEARCH
@@ -4299,7 +4298,7 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
     }
 
     function get_partial_conditional_tags {  # get_partial_conditional_tags file
-        local FILE CACHE_DIR CACHE_KEY CACHE_FILE CACHE_TEMP
+        local FILE CACHE_DIR CACHE_FILE CACHE_TEMP
 
         # init
         FILE="${1:-}"
@@ -4395,7 +4394,7 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
     }
 
     function get_processed_conditional_partial {  # get_processed_conditional_partial file prefix metadata_vars
-        local FILE PREFIX METADATA_VARS TAGS TAG CACHE_DIR CACHE_KEY CACHE_FILE CACHE_TEMP
+        local FILE PREFIX METADATA_VARS TAGS TAG CACHE_DIR CACHE_FILE CACHE_TEMP
         local TAG_VAR TAG_TYPE CONDITIONAL_ITEM CONDITIONAL_VALUE CONDITIONAL_KEY OIFS
         local -a CONDITIONAL_VALUES
 
@@ -5781,7 +5780,7 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
 # loads cached target-relative template asset output paths for one template context
 function marsh_get_template_asset_output_paths {  # marsh_get_template_asset_output_paths target_output_rel templates_dir template #template_overrides[@] template_overrides[@] template_assets_path output_fonts_var output_styles_var output_scripts_var output_images_var output_audio_var output_video_var output_documents_var output_binaries_var output_other_var
     local TARGET_OUTPUT_REL TEMPLATES_DIR TEMPLATE NUM_TEMPLATE_OVERRIDES TEMPLATE_ASSETS_PATH
-    local CACHE_DIR CACHE_KEY CACHE_FILE CACHE_TEMP TEMPLATE_PREFIX TEMPLATE_META TEMPLATE_METADATA_STATE_COUNT
+    local CACHE_DIR CACHE_FILE CACHE_TEMP TEMPLATE_PREFIX TEMPLATE_META TEMPLATE_METADATA_STATE_COUNT
     local OUTPUT_FONTS_VAR OUTPUT_STYLES_VAR OUTPUT_SCRIPTS_VAR OUTPUT_IMAGES_VAR OUTPUT_AUDIO_VAR OUTPUT_VIDEO_VAR OUTPUT_DOCUMENTS_VAR OUTPUT_BINARIES_VAR OUTPUT_OTHER_VAR
     local ASSET_TYPE ASSET_LISTS_TEXT_VAR ASSET ASSET_PATH ASSET_OUTPUT_PATH OUTPUT_LINE_TYPE OUTPUT_LINE_PATH
     local OUTPUT
@@ -6163,7 +6162,7 @@ function marsh_get_template_cache_path {  # marsh_get_template_cache_path templa
 # loads cached template metadata assignments where available
 function marsh_get_template_metadata {  # marsh_get_template_metadata prefix template_dir #template_overrides[@] template_overrides[@]
     local PREFIX TEMPLATE_DIR NUM_TEMPLATE_OVERRIDES
-    local CACHE_DIR CACHE_KEY CACHE_FILE CACHE_TEMP TEMPLATE_META
+    local CACHE_DIR CACHE_FILE CACHE_TEMP TEMPLATE_META
     local -a TEMPLATE_OVERRIDES
 
     # init

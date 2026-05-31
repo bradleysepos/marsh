@@ -9165,7 +9165,7 @@ function marsh_build_archive {  # marsh_build_archive encoding target_output_roo
 function marsh_get_archive_metadata {  # marsh_get_archive_metadata target_output_root document
     local TARGET_OUTPUT_ROOT DOCUMENT
     local INDEX META META_CACHE DOCUMENT_SITE_REL TARGET_OUTPUT_REL
-    local TYPE URI ABSPATH VALUE_ESC STATE_TEXT STATE_VALUE
+    local TYPE URI ABSPATH STATE_TEXT STATE_VALUE
     local -a STATE
 
     # init
@@ -9213,14 +9213,13 @@ function marsh_get_archive_metadata {  # marsh_get_archive_metadata target_outpu
         STATE+=("${STATE_VALUE}")
     done <<< "${STATE_TEXT}"
 
-    # output shell variable assignments
-    printf 'TYPE=%q\n' "${TYPE}"
-    printf 'URI=%q\n' "${URI}"
-    printf 'ABSPATH=%q\n' "${ABSPATH}"
-    echo "STATE=()"
-    for VALUE_ESC in "${STATE[@]}"; do
-        printf 'STATE+=(%q)\n' "${VALUE_ESC}"
+    # emit archive metadata as a single plaintext record
+    marsh_validate_record_fields "archive metadata record" "${TYPE}" "${URI}" "${ABSPATH}" "${#STATE[@]}" "${STATE[@]}" || return 1
+    printf '%s\037%s\037%s\037%s' "${TYPE}" "${URI}" "${ABSPATH}" "${#STATE[@]}"
+    for STATE_VALUE in "${STATE[@]}"; do
+        printf '\037%s' "${STATE_VALUE}"
     done
+    printf '\n'
 
     return 0
 }

@@ -5015,13 +5015,13 @@ function marsh_test {
                 '  - featured' \
                 '...'
             ACTUAL=$(marsh_get_archive_metadata "${TARGET_OUTPUT_ROOT}" "news/article.markdown")
-            EXPECTED=$(printf '%s\n' \
-                'TYPE=post' \
-                "URI=https://example.test/$(basename "${TARGET_OUTPUT_ROOT}")/news/article.html" \
-                "ABSPATH=https://example.test/$(basename "${TARGET_OUTPUT_ROOT}")/news" \
-                'STATE=()' \
-                'STATE+=(published)' \
-                'STATE+=(featured)')
+            EXPECTED=$(printf '%s\037%s\037%s\037%s\037%s\037%s\n' \
+                'post' \
+                "https://example.test/$(basename "${TARGET_OUTPUT_ROOT}")/news/article.html" \
+                "https://example.test/$(basename "${TARGET_OUTPUT_ROOT}")/news" \
+                '2' \
+                'published' \
+                'featured')
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -5033,22 +5033,14 @@ function marsh_test {
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             mkdir -p "${TARGET_OUTPUT_ROOT}/news"
             marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "news/article.markdown" "archive-meta" \
-                'TYPE=cached' \
-                'TITLE=Cached\ Title' \
-                'DATE=2024-05-06' \
-                'URI=https://cached.example/article.html' \
-                'ABSPATH=https://cached.example' \
-                'STATE=()' \
-                'STATE+=(cached)'
+                'cached'$'\037''https://cached.example/article.html'$'\037''https://cached.example'$'\037''1'$'\037''cached'
             ACTUAL=$(marsh_get_archive_metadata "${TARGET_OUTPUT_ROOT}" "news/article.markdown")
-            EXPECTED=$(printf '%s\n' \
-                'TYPE=cached' \
-                'TITLE=Cached\ Title' \
-                'DATE=2024-05-06' \
-                'URI=https://cached.example/article.html' \
-                'ABSPATH=https://cached.example' \
-                'STATE=()' \
-                'STATE+=(cached)')
+            EXPECTED=$(printf '%s\037%s\037%s\037%s\037%s\n' \
+                'cached' \
+                'https://cached.example/article.html' \
+                'https://cached.example' \
+                '1' \
+                'cached')
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -5079,11 +5071,11 @@ function marsh_test {
                 'Date: 2024-01-02' \
                 '...'
             ACTUAL=$(marsh_get_archive_metadata "${TARGET_OUTPUT_ROOT}/" "news/article.markdown")
-            EXPECTED=$(printf '%s\n' \
-                'TYPE=post' \
-                "URI=https://example.test/$(basename "${TARGET_OUTPUT_ROOT}")/news/article.html" \
-                "ABSPATH=https://example.test/$(basename "${TARGET_OUTPUT_ROOT}")/news" \
-                'STATE=()')
+            EXPECTED=$(printf '%s\037%s\037%s\037%s\n' \
+                'post' \
+                "https://example.test/$(basename "${TARGET_OUTPUT_ROOT}")/news/article.html" \
+                "https://example.test/$(basename "${TARGET_OUTPUT_ROOT}")/news" \
+                '0')
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -5103,11 +5095,11 @@ function marsh_test {
                 'Date: 2024-01-02' \
                 '...'
             ACTUAL=$(marsh_get_archive_metadata "${TARGET_OUTPUT_ROOT}" "news/article.markdown")
-            EXPECTED=$(printf '%s\n' \
-                'TYPE=post' \
-                'URI=https://example.test/site/news/article.html' \
-                'ABSPATH=https://example.test/site/news' \
-                'STATE=()')
+            EXPECTED=$(printf '%s\037%s\037%s\037%s\n' \
+                'post' \
+                'https://example.test/site/news/article.html' \
+                'https://example.test/site/news' \
+                '0')
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"

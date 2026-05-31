@@ -2336,6 +2336,19 @@ function marsh_test {
             fi
             rm -rf "${TARGET_OUTPUT_ROOT}"
             ;;
+        marsh_build_target_archive_queue_record_document:2)
+            TEST_NAME+=":too_many_queue_record_fields_rejected"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            BAD_QUEUE_RECORD=$(printf '%s\037%s\037%s\037%s\037%s\037%s\n' 'news/index.markdown' 'news/index.markdown' '.' '/site/source' '/tmp/archive-plan' 'extra-field')
+            marsh_build_target_archive_queue_record_document "${TARGET_OUTPUT_ROOT}" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" 'marsh_test_markdown_command' '' 'markdown,md' true "${BAD_QUEUE_RECORD}" >/dev/null 2>&1
+            ACTUAL=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            rm -rf "${TARGET_OUTPUT_ROOT}"
+            ;;
         marsh_build_target_documents:0)
             TEST_NAME+=":serial_success"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
@@ -4399,6 +4412,27 @@ function marsh_test {
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                     RES="[PASS]"
                 fi
+            fi
+            rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}"
+            ;;
+        marsh_build_template:45)
+            TEST_NAME+=":too_many_subdocument_manifest_fields_rejected"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
+            SUBDOCUMENTS_MANIFEST=""
+            mkdir -p "${TARGET_OUTPUT_ROOT}"
+            marsh_test_create_archive_template "${TEMPLATE_DIR}" "sample" "html" true
+            marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "index.markdown" "content" 'Archive page'
+            marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "index.markdown" "meta-yaml" '---' 'Type: archive' 'Title: Archive' '...'
+            SUBDOCUMENTS_MANIFEST=$(marsh_get_archive_temp_path "${TARGET_OUTPUT_ROOT}" "index.markdown" "subdocuments-manifest")
+            mkdir -p "${SUBDOCUMENTS_MANIFEST%/*}"
+            printf 'news/item.markdown\037https://example.test/news/item.html\037https://example.test/news\037extra\n' > "${SUBDOCUMENTS_MANIFEST}"
+            marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+            ACTUAL=$?
+            EXPECTED=1
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
             fi
             rm -rf "${TARGET_OUTPUT_ROOT}" "${TEMPLATE_DIR}"
             ;;

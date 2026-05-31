@@ -715,7 +715,7 @@ function marsh_test_write_archive_manifest {
         META_FILE=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "${DOCUMENT_SITE_REL}" "meta-yaml") || return 1
         META_CACHE_FILE=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "${DOCUMENT_SITE_REL}" "meta") || return 1
 
-        # mirror the production archive-metadata path and create the cache on demand
+        # mirror the production archive metadata loading path and create the cache on demand
         marsh_get_document_metadata "${META_FILE}" "" >/dev/null || return 1
         marsh_load_archive_document_metadata "${META_CACHE_FILE}" "TYPE" "STATE_TEXT" || return 1
 
@@ -909,11 +909,9 @@ function marsh_test_write_document_artifacts {
     ARTIFACT="${3:-}"
     [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
     [[ "${DOCUMENT}" == "" ]] && return 1
-    [[ "${ARTIFACT}" == "archive-yaml" ]] && ARTIFACT="archive-meta"
     if [[ "${ARTIFACT}" != "content" ]] \
         && [[ "${ARTIFACT}" != "meta-yaml" ]] \
-        && [[ "${ARTIFACT}" != "meta" ]] \
-        && [[ "${ARTIFACT}" != "archive-meta" ]]; then
+        && [[ "${ARTIFACT}" != "meta" ]]; then
         return 1
     fi
     shift 3
@@ -1353,18 +1351,15 @@ function marsh_test {
             IS_RENDERED_FILE=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "index.markdown" "is-rendered")
             META_FILE=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "index.markdown" "meta-yaml")
             CACHE_FILE=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "index.markdown" "meta")
-            INDEX_FILE=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "index.markdown" "archive-meta")
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 {
                     [[ -f "${CONTENT_FILE}" ]] \
                         && [[ -f "${IS_RENDERED_FILE}" ]] \
                         && [[ -f "${META_FILE}" ]] \
                         && [[ -f "${CACHE_FILE}" ]] \
-                        && [[ -f "${INDEX_FILE}" ]] \
                         && [[ ! -f "${TARGET_OUTPUT_ROOT}/index.markdown.document" ]] \
                         && [[ ! -f "${TARGET_OUTPUT_ROOT}/index.markdown.meta.yaml" ]] \
-                        && [[ ! -f "${TARGET_OUTPUT_ROOT}/index.markdown.meta" ]] \
-                        && [[ ! -f "${TARGET_OUTPUT_ROOT}/index.markdown.archive-meta" ]]
+                        && [[ ! -f "${TARGET_OUTPUT_ROOT}/index.markdown.meta" ]]
                 }
                 ACTUAL=$?
                 EXPECTED=0
@@ -1543,8 +1538,7 @@ function marsh_test {
                 CONTENT_FILE=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "index.markdown" "content")
                 META_FILE=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "index.markdown" "meta-yaml")
                 CACHE_FILE=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "index.markdown" "meta")
-                INDEX_FILE=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "index.markdown" "archive-meta")
-                FIRST_STATE="$(<"${CONTENT_FILE}")"$'\001'"$(<"${META_FILE}")"$'\001'"$(<"${CACHE_FILE}")"$'\001'"$(<"${INDEX_FILE}")"
+                FIRST_STATE="$(<"${CONTENT_FILE}")"$'\001'"$(<"${META_FILE}")"$'\001'"$(<"${CACHE_FILE}")"
                 printf '%s\n' \
                     '---' \
                     'Type: page' \
@@ -1558,7 +1552,7 @@ function marsh_test {
                 EXPECTED=0
                 ASSERTION="equals"
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    ACTUAL="$(<"${CONTENT_FILE}")"$'\001'"$(<"${META_FILE}")"$'\001'"$(<"${CACHE_FILE}")"$'\001'"$(<"${INDEX_FILE}")"
+                    ACTUAL="$(<"${CONTENT_FILE}")"$'\001'"$(<"${META_FILE}")"$'\001'"$(<"${CACHE_FILE}")"
                     EXPECTED="${FIRST_STATE}"
                     ASSERTION="equals"
                     if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -5077,16 +5071,22 @@ function marsh_test {
             rm -rf "${TARGET_OUTPUT_ROOT}"
             ;;
         marsh_get_archive_metadata:1)
-            TEST_NAME+=":cache"
+            TEST_NAME+=":prewarmed_metadata_cache"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             mkdir -p "${TARGET_OUTPUT_ROOT}/news"
-            marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "news/article.markdown" "archive-meta" \
-                'cached'$'\037''https://cached.example/article.html'$'\037''https://cached.example'$'\037''1'$'\037''cached'
+            marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "news/article.markdown" "meta-yaml" \
+                '---' \
+                'Type: cached' \
+                'State:' \
+                '  - cached' \
+                '...'
+            META_FILE=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "news/article.markdown" "meta-yaml")
+            marsh_get_document_metadata "${META_FILE}" "" >/dev/null 2>&1
             ACTUAL=$(marsh_get_archive_metadata "${TARGET_OUTPUT_ROOT}" "news/article.markdown")
             EXPECTED=$(printf '%s\037%s\037%s\037%s\037%s\n' \
                 'cached' \
-                'https://cached.example/article.html' \
-                'https://cached.example' \
+                "https://example.test/$(basename "${TARGET_OUTPUT_ROOT}")/news/article.html" \
+                "https://example.test/$(basename "${TARGET_OUTPUT_ROOT}")/news" \
                 '1' \
                 'cached')
             ASSERTION="equals"
@@ -5255,20 +5255,17 @@ function marsh_test {
             DOCUMENT_ARTIFACT_CONTENT=""
             DOCUMENT_ARTIFACT_META_YAML=""
             DOCUMENT_ARTIFACT_META=""
-            DOCUMENT_ARTIFACT_ARCHIVE_META=""
-            marsh_get_document_artifacts "/site/public/blog" "guides/index.markdown" "DOCUMENT_ARTIFACT_ROOT" "DOCUMENT_ARTIFACT_CONTENT" "DOCUMENT_ARTIFACT_META_YAML" "DOCUMENT_ARTIFACT_META" "DOCUMENT_ARTIFACT_ARCHIVE_META"
+            marsh_get_document_artifacts "/site/public/blog" "guides/index.markdown" "DOCUMENT_ARTIFACT_ROOT" "DOCUMENT_ARTIFACT_CONTENT" "DOCUMENT_ARTIFACT_META_YAML" "DOCUMENT_ARTIFACT_META"
             ACTUAL=$(printf '%s\n' \
                 "DOCUMENT_ARTIFACT_ROOT=${DOCUMENT_ARTIFACT_ROOT}" \
                 "DOCUMENT_ARTIFACT_CONTENT=${DOCUMENT_ARTIFACT_CONTENT}" \
                 "DOCUMENT_ARTIFACT_META_YAML=${DOCUMENT_ARTIFACT_META_YAML}" \
-                "DOCUMENT_ARTIFACT_META=${DOCUMENT_ARTIFACT_META}" \
-                "DOCUMENT_ARTIFACT_ARCHIVE_META=${DOCUMENT_ARTIFACT_ARCHIVE_META}")
+                "DOCUMENT_ARTIFACT_META=${DOCUMENT_ARTIFACT_META}")
             EXPECTED=$(printf '%s\n' \
                 "DOCUMENT_ARTIFACT_ROOT=${MARSH_TEST_TEMP}/build/targets/blog/documents/guides/index.markdown" \
                 "DOCUMENT_ARTIFACT_CONTENT=${MARSH_TEST_TEMP}/build/targets/blog/documents/guides/index.markdown/content" \
                 "DOCUMENT_ARTIFACT_META_YAML=${MARSH_TEST_TEMP}/build/targets/blog/documents/guides/index.markdown/meta.yaml" \
-                "DOCUMENT_ARTIFACT_META=${MARSH_TEST_TEMP}/build/targets/blog/documents/guides/index.markdown/meta" \
-                "DOCUMENT_ARTIFACT_ARCHIVE_META=${MARSH_TEST_TEMP}/build/targets/blog/documents/guides/index.markdown/archive-meta")
+                "DOCUMENT_ARTIFACT_META=${MARSH_TEST_TEMP}/build/targets/blog/documents/guides/index.markdown/meta")
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"

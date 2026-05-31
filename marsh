@@ -7805,9 +7805,9 @@ function marsh_rewrite_sitemap_links {  # marsh_rewrite_sitemap_links sitemap_fi
 function marsh_build_document {  # marsh_build_document site_output_root target_output_rel document markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links build_context_target_output_rel build_context_source_root
     local SITE_OUTPUT_ROOT TARGET_OUTPUT_REL DOCUMENT DOCUMENT_EXT DOCUMENT_DIR TEXT_TRANSFORM
     local MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_REWRITE_LINKS
-    local TARGET_OUTPUT_ROOT DOCUMENT_SOURCE_FILE DOCUMENT_SOURCE_DIR TARGET_SOURCE_ROOT ARCHIVE_SOURCE_FILE DOCUMENT_SITE_REL DOCUMENT_TEMP_ROOT DOCUMENT_META DOCUMENT_META_CACHE DOCUMENT_CONTENT DOCUMENT_IS_RENDERED_FILE ARCHIVE_META ARCHIVE_META_TEMP DOCUMENT_OUTPUT_REL DOCUMENT_BASE_REL
-    local DOCUMENT_ARTIFACT_ROOT DOCUMENT_ARTIFACT_CONTENT DOCUMENT_ARTIFACT_META_YAML DOCUMENT_ARTIFACT_META DOCUMENT_ARTIFACT_ARCHIVE_META
-    local DOCUMENT_CONTENT_READY DOCUMENT_ARCHIVE_META_READY
+    local TARGET_OUTPUT_ROOT DOCUMENT_SOURCE_FILE DOCUMENT_SOURCE_DIR TARGET_SOURCE_ROOT ARCHIVE_SOURCE_FILE DOCUMENT_SITE_REL DOCUMENT_TEMP_ROOT DOCUMENT_META DOCUMENT_META_CACHE DOCUMENT_CONTENT DOCUMENT_IS_RENDERED_FILE DOCUMENT_OUTPUT_REL DOCUMENT_BASE_REL
+    local DOCUMENT_ARTIFACT_ROOT DOCUMENT_ARTIFACT_CONTENT DOCUMENT_ARTIFACT_META_YAML DOCUMENT_ARTIFACT_META
+    local DOCUMENT_CONTENT_READY
     local BUILD_CONTEXT_TARGET_OUTPUT_REL BUILD_CONTEXT_SOURCE_ROOT BUILD_CONTEXT_OUTPUT_ROOT
 
     # init
@@ -7845,13 +7845,12 @@ function marsh_build_document {  # marsh_build_document site_output_root target_
         echo "Document source root not found for target: ${BUILD_CONTEXT_OUTPUT_ROOT}" >&2
         return 1
     fi
-    marsh_get_document_artifacts "${BUILD_CONTEXT_OUTPUT_ROOT}" "${DOCUMENT}" "DOCUMENT_ARTIFACT_ROOT" "DOCUMENT_ARTIFACT_CONTENT" "DOCUMENT_ARTIFACT_META_YAML" "DOCUMENT_ARTIFACT_META" "DOCUMENT_ARTIFACT_ARCHIVE_META" || return 1
+    marsh_get_document_artifacts "${BUILD_CONTEXT_OUTPUT_ROOT}" "${DOCUMENT}" "DOCUMENT_ARTIFACT_ROOT" "DOCUMENT_ARTIFACT_CONTENT" "DOCUMENT_ARTIFACT_META_YAML" "DOCUMENT_ARTIFACT_META" || return 1
     DOCUMENT_TEMP_ROOT="${DOCUMENT_ARTIFACT_ROOT}"
     DOCUMENT_META="${DOCUMENT_ARTIFACT_META_YAML}"
     DOCUMENT_META_CACHE="${DOCUMENT_ARTIFACT_META}"
     DOCUMENT_CONTENT="${DOCUMENT_ARTIFACT_CONTENT}"
     DOCUMENT_IS_RENDERED_FILE=$(marsh_get_document_temp_path "${BUILD_CONTEXT_OUTPUT_ROOT}" "${DOCUMENT}" "is-rendered") || return 1
-    ARCHIVE_META="${DOCUMENT_ARTIFACT_ARCHIVE_META}"
     [[ -f "${DOCUMENT_SOURCE_FILE}" ]] && [[ -r "${DOCUMENT_SOURCE_FILE}" ]] || {
         if [[ "${TARGET_SOURCE_ROOT}" != "" ]]; then
             echo "Document source not found: ${TARGET_SOURCE_ROOT}/${DOCUMENT}" >&2
@@ -7876,9 +7875,6 @@ function marsh_build_document {  # marsh_build_document site_output_root target_
             DOCUMENT_CONTENT_READY=true
         fi
     fi
-    DOCUMENT_ARCHIVE_META_READY=false
-    [[ -f "${ARCHIVE_META}" ]] && [[ -r "${ARCHIVE_META}" ]] && DOCUMENT_ARCHIVE_META_READY=true
-
     # reuse the current build-local artifact set when it already exists
     marsh_write_document_artifacts "${BUILD_CONTEXT_OUTPUT_ROOT}" "${DOCUMENT}" "${DOCUMENT_SOURCE_FILE}" || {
         echo "Unable to write document artifacts: ${DOCUMENT_SOURCE_FILE}" >&2
@@ -7958,20 +7954,6 @@ function marsh_build_document {  # marsh_build_document site_output_root target_
             echo "Unable to mark document content as rendered: ${DOCUMENT_IS_RENDERED_FILE}" >&2
             return 1
         }
-    fi
-
-    # build archive metadata from the document metadata
-    if [[ -f "${DOCUMENT_META}" ]] && [[ -r "${DOCUMENT_META}" ]] && [[ "${DOCUMENT_ARCHIVE_META_READY}" != true ]]; then
-        ARCHIVE_META_TEMP=$(mktemp "${MARSH_TEMP}/archive-meta-XXXXXX") || {
-            echo "Unable to create archive metadata file: ${MARSH_TEMP}/archive-meta-XXXXXX" >&2
-            return 1
-        }
-        marsh_get_archive_metadata "${BUILD_CONTEXT_OUTPUT_ROOT}" "${DOCUMENT}" > "${ARCHIVE_META_TEMP}" \
-            && mv "${ARCHIVE_META_TEMP}" "${ARCHIVE_META}" || {
-                echo "Unable to build archive metadata: ${DOCUMENT_SOURCE_FILE}" >&2
-                rm -f "${ARCHIVE_META_TEMP}"
-                return 1
-            }
     fi
 
 }
@@ -8231,10 +8213,10 @@ function marsh_extract_frontmatter {  # marsh_extract_frontmatter source meta_de
 }
 
 # returns the document artifact paths for one target build context
-function marsh_get_document_artifacts {  # marsh_get_document_artifacts target_output_root document document_artifact_root_var document_artifact_content_var document_artifact_meta_yaml_var document_artifact_meta_var document_artifact_archive_meta_var
+function marsh_get_document_artifacts {  # marsh_get_document_artifacts target_output_root document document_artifact_root_var document_artifact_content_var document_artifact_meta_yaml_var document_artifact_meta_var
     local TARGET_OUTPUT_ROOT DOCUMENT
-    local DOCUMENT_ARTIFACT_ROOT_VAR DOCUMENT_ARTIFACT_CONTENT_VAR DOCUMENT_ARTIFACT_META_YAML_VAR DOCUMENT_ARTIFACT_META_VAR DOCUMENT_ARTIFACT_ARCHIVE_META_VAR
-    local DOCUMENT_ARTIFACT_ROOT_VALUE DOCUMENT_ARTIFACT_CONTENT_VALUE DOCUMENT_ARTIFACT_META_YAML_VALUE DOCUMENT_ARTIFACT_META_VALUE DOCUMENT_ARTIFACT_ARCHIVE_META_VALUE
+    local DOCUMENT_ARTIFACT_ROOT_VAR DOCUMENT_ARTIFACT_CONTENT_VAR DOCUMENT_ARTIFACT_META_YAML_VAR DOCUMENT_ARTIFACT_META_VAR
+    local DOCUMENT_ARTIFACT_ROOT_VALUE DOCUMENT_ARTIFACT_CONTENT_VALUE DOCUMENT_ARTIFACT_META_YAML_VALUE DOCUMENT_ARTIFACT_META_VALUE
 
     TARGET_OUTPUT_ROOT="${1:-}"
     DOCUMENT="${2:-}"
@@ -8242,27 +8224,23 @@ function marsh_get_document_artifacts {  # marsh_get_document_artifacts target_o
     DOCUMENT_ARTIFACT_CONTENT_VAR="${4:-}"
     DOCUMENT_ARTIFACT_META_YAML_VAR="${5:-}"
     DOCUMENT_ARTIFACT_META_VAR="${6:-}"
-    DOCUMENT_ARTIFACT_ARCHIVE_META_VAR="${7:-}"
     [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
     [[ "${DOCUMENT}" == "" ]] && return 1
     [[ "${DOCUMENT_ARTIFACT_ROOT_VAR}" == "" ]] && return 1
     [[ "${DOCUMENT_ARTIFACT_CONTENT_VAR}" == "" ]] && return 1
     [[ "${DOCUMENT_ARTIFACT_META_YAML_VAR}" == "" ]] && return 1
     [[ "${DOCUMENT_ARTIFACT_META_VAR}" == "" ]] && return 1
-    [[ "${DOCUMENT_ARTIFACT_ARCHIVE_META_VAR}" == "" ]] && return 1
 
     DOCUMENT_ARTIFACT_ROOT_VALUE=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "${DOCUMENT}" "root") || return 1
     DOCUMENT_ARTIFACT_CONTENT_VALUE=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "${DOCUMENT}" "content") || return 1
     DOCUMENT_ARTIFACT_META_YAML_VALUE=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "${DOCUMENT}" "meta-yaml") || return 1
     DOCUMENT_ARTIFACT_META_VALUE=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "${DOCUMENT}" "meta") || return 1
-    DOCUMENT_ARTIFACT_ARCHIVE_META_VALUE=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "${DOCUMENT}" "archive-meta") || return 1
 
     # write artifact paths into caller-owned locals
     printf -v "${DOCUMENT_ARTIFACT_ROOT_VAR}" '%s' "${DOCUMENT_ARTIFACT_ROOT_VALUE}"
     printf -v "${DOCUMENT_ARTIFACT_CONTENT_VAR}" '%s' "${DOCUMENT_ARTIFACT_CONTENT_VALUE}"
     printf -v "${DOCUMENT_ARTIFACT_META_YAML_VAR}" '%s' "${DOCUMENT_ARTIFACT_META_YAML_VALUE}"
     printf -v "${DOCUMENT_ARTIFACT_META_VAR}" '%s' "${DOCUMENT_ARTIFACT_META_VALUE}"
-    printf -v "${DOCUMENT_ARTIFACT_ARCHIVE_META_VAR}" '%s' "${DOCUMENT_ARTIFACT_ARCHIVE_META_VALUE}"
 }
 
 # loads cached document metadata assignments where available, creating the cache from the source metadata when needed
@@ -8416,9 +8394,6 @@ function marsh_get_document_temp_path {  # marsh_get_document_temp_path target_o
             ;;
         meta)
             printf '%s\n' "${DOCUMENT_ROOT}/meta"
-            ;;
-        archive-meta)
-            printf '%s\n' "${DOCUMENT_ROOT}/archive-meta"
             ;;
         *)
             return 1
@@ -8777,7 +8752,7 @@ function marsh_publish_processed_output {  # marsh_publish_processed_output sour
 # writes the document content and metadata artifacts for one target build context
 function marsh_write_document_artifacts {  # marsh_write_document_artifacts target_output_root document source_file
     local TARGET_OUTPUT_ROOT DOCUMENT SOURCE_FILE
-    local DOCUMENT_ARTIFACT_ROOT DOCUMENT_ARTIFACT_CONTENT DOCUMENT_ARTIFACT_IS_RENDERED_FILE DOCUMENT_ARTIFACT_META_YAML DOCUMENT_ARTIFACT_META DOCUMENT_ARTIFACT_ARCHIVE_META
+    local DOCUMENT_ARTIFACT_ROOT DOCUMENT_ARTIFACT_CONTENT DOCUMENT_ARTIFACT_IS_RENDERED_FILE DOCUMENT_ARTIFACT_META_YAML DOCUMENT_ARTIFACT_META
     local SOURCE_HAS_FRONTMATTER
 
     TARGET_OUTPUT_ROOT="${1:-}"
@@ -8788,7 +8763,7 @@ function marsh_write_document_artifacts {  # marsh_write_document_artifacts targ
     [[ "${SOURCE_FILE}" == "" ]] && return 1
     [[ -f "${SOURCE_FILE}" ]] && [[ -r "${SOURCE_FILE}" ]] || return 1
 
-    marsh_get_document_artifacts "${TARGET_OUTPUT_ROOT}" "${DOCUMENT}" "DOCUMENT_ARTIFACT_ROOT" "DOCUMENT_ARTIFACT_CONTENT" "DOCUMENT_ARTIFACT_META_YAML" "DOCUMENT_ARTIFACT_META" "DOCUMENT_ARTIFACT_ARCHIVE_META" || return 1
+    marsh_get_document_artifacts "${TARGET_OUTPUT_ROOT}" "${DOCUMENT}" "DOCUMENT_ARTIFACT_ROOT" "DOCUMENT_ARTIFACT_CONTENT" "DOCUMENT_ARTIFACT_META_YAML" "DOCUMENT_ARTIFACT_META" || return 1
     DOCUMENT_ARTIFACT_IS_RENDERED_FILE=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "${DOCUMENT}" "is-rendered") || return 1
 
     mkdir -p "${DOCUMENT_ARTIFACT_ROOT}" >/dev/null 2>&1 || return 1
@@ -8830,7 +8805,7 @@ function marsh_write_document_artifacts {  # marsh_write_document_artifacts targ
 # writes only the document metadata artifacts for one target build context
 function marsh_write_document_metadata_artifacts {  # marsh_write_document_metadata_artifacts target_output_root document source_file
     local TARGET_OUTPUT_ROOT DOCUMENT SOURCE_FILE
-    local DOCUMENT_ARTIFACT_ROOT DOCUMENT_ARTIFACT_CONTENT DOCUMENT_ARTIFACT_META_YAML DOCUMENT_ARTIFACT_META DOCUMENT_ARTIFACT_ARCHIVE_META
+    local DOCUMENT_ARTIFACT_ROOT DOCUMENT_ARTIFACT_CONTENT DOCUMENT_ARTIFACT_META_YAML DOCUMENT_ARTIFACT_META
     local DOCUMENT_META_TEMP_CONTENT
 
     TARGET_OUTPUT_ROOT="${1:-}"
@@ -8842,7 +8817,7 @@ function marsh_write_document_metadata_artifacts {  # marsh_write_document_metad
     [[ -f "${SOURCE_FILE}" ]] && [[ -r "${SOURCE_FILE}" ]] || return 1
     marsh_has_frontmatter "${SOURCE_FILE}" || return 1
 
-    marsh_get_document_artifacts "${TARGET_OUTPUT_ROOT}" "${DOCUMENT}" "DOCUMENT_ARTIFACT_ROOT" "DOCUMENT_ARTIFACT_CONTENT" "DOCUMENT_ARTIFACT_META_YAML" "DOCUMENT_ARTIFACT_META" "DOCUMENT_ARTIFACT_ARCHIVE_META" || return 1
+    marsh_get_document_artifacts "${TARGET_OUTPUT_ROOT}" "${DOCUMENT}" "DOCUMENT_ARTIFACT_ROOT" "DOCUMENT_ARTIFACT_CONTENT" "DOCUMENT_ARTIFACT_META_YAML" "DOCUMENT_ARTIFACT_META" || return 1
 
     mkdir -p "${DOCUMENT_ARTIFACT_ROOT}" >/dev/null 2>&1 || return 1
 
@@ -9181,7 +9156,7 @@ function marsh_build_archive {  # marsh_build_archive encoding target_output_roo
 # loads cached archive metadata for a document
 function marsh_get_archive_metadata {  # marsh_get_archive_metadata target_output_root document
     local TARGET_OUTPUT_ROOT DOCUMENT
-    local INDEX META META_CACHE DOCUMENT_SITE_REL TARGET_OUTPUT_REL
+    local META META_CACHE DOCUMENT_SITE_REL TARGET_OUTPUT_REL
     local TYPE URI ABSPATH STATE_TEXT STATE_VALUE
     local -a STATE
 
@@ -9193,13 +9168,6 @@ function marsh_get_archive_metadata {  # marsh_get_archive_metadata target_outpu
     TARGET_OUTPUT_ROOT=$(marsh_get_target_directory_path "${TARGET_OUTPUT_ROOT}") || return 1
     DOCUMENT_SITE_REL=$(marsh_normalize_internal_path "${DOCUMENT}" 2>/dev/null) || return 1
     [[ "${DOCUMENT_SITE_REL}" == "." ]] && return 1
-
-    # use cache where available
-    INDEX=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "${DOCUMENT_SITE_REL}" "archive-meta" 2>/dev/null) || INDEX=""
-    if [[ -f "${INDEX}" ]] && [[ -r "${INDEX}" ]]; then
-        cat "${INDEX}"
-        return 0
-    fi
 
     # get archive metadata from the document metadata
     META=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "${DOCUMENT_SITE_REL}" "meta-yaml" 2>/dev/null) || META=""
@@ -9972,7 +9940,7 @@ function marsh_write_archive_page {  # marsh_write_archive_page encoding target_
 function marsh_write_target_archive_manifest {  # marsh_write_target_archive_manifest site_output_root markdown_fileext_csv target_plan_root [document_records[@]]
     local SITE_OUTPUT_ROOT MARKDOWN_FILEEXT_CSV TARGET_PLAN_ROOT MANIFEST_FILE MANIFEST_TEMP DOCUMENT_RECORD
     local DOCUMENT_ID SOURCE_RELPATH TARGET_OUTPUT_REL SOURCE_ROOT DOCUMENT_SOURCE_FILE BUILD_CONTEXT_OUTPUT_ROOT
-    local DOCUMENT_ARTIFACT_ROOT DOCUMENT_ARTIFACT_CONTENT DOCUMENT_ARTIFACT_META_YAML DOCUMENT_ARTIFACT_META DOCUMENT_ARTIFACT_ARCHIVE_META
+    local DOCUMENT_ARTIFACT_ROOT DOCUMENT_ARTIFACT_CONTENT DOCUMENT_ARTIFACT_META_YAML DOCUMENT_ARTIFACT_META
     local TYPE URI ABSPATH DOCUMENT_OUTPUT_REL STATE_TEXT STATE_VALUE RECORD_REST
     local -a DOCUMENT_RECORDS_IN STATE
 
@@ -10033,7 +10001,7 @@ function marsh_write_target_archive_manifest {  # marsh_write_target_archive_man
                 rm -f "${MANIFEST_TEMP}"
                 return 1
             fi
-            marsh_get_document_artifacts "${BUILD_CONTEXT_OUTPUT_ROOT}" "${DOCUMENT_ID}" "DOCUMENT_ARTIFACT_ROOT" "DOCUMENT_ARTIFACT_CONTENT" "DOCUMENT_ARTIFACT_META_YAML" "DOCUMENT_ARTIFACT_META" "DOCUMENT_ARTIFACT_ARCHIVE_META" || {
+            marsh_get_document_artifacts "${BUILD_CONTEXT_OUTPUT_ROOT}" "${DOCUMENT_ID}" "DOCUMENT_ARTIFACT_ROOT" "DOCUMENT_ARTIFACT_CONTENT" "DOCUMENT_ARTIFACT_META_YAML" "DOCUMENT_ARTIFACT_META" || {
                 rm -f "${MANIFEST_TEMP}"
                 return 1
             }

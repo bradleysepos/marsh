@@ -2283,7 +2283,7 @@ function marsh_test {
             TEST_NAME+=":builds_queue_record"
             DOCUMENT_RECORD=$(printf '%s\037%s\037%s\037%s\n' 'news/index.markdown' 'news/index.markdown' '.' '/site/source')
             ACTUAL=$(marsh_build_target_archive_queue_record '/tmp/archive-plan' "${DOCUMENT_RECORD}")
-            EXPECTED=$(printf '%q\t%q\t%q\t%q\t%q\n' 'news/index.markdown' 'news/index.markdown' '.' '/site/source' '/tmp/archive-plan')
+            EXPECTED=$(printf '%s\037%s\037%s\037%s\037%s\n' 'news/index.markdown' 'news/index.markdown' '.' '/site/source' '/tmp/archive-plan')
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -2303,7 +2303,7 @@ function marsh_test {
             marsh_write_document_artifacts "${TARGET_OUTPUT_ROOT}" 'news/item.markdown' "${SOURCE_ROOT}/news/item.markdown"
             marsh_test_write_archive_manifest "${TARGET_OUTPUT_ROOT}" "${MANIFEST_FILE}" 'news/item.markdown'
             ARCHIVE_PLAN_ROOT=$(marsh_plan_archive_pages "${TARGET_OUTPUT_ROOT}" 'html' 'news/index.markdown' 'News' 'English' 'en' '' '10' '1' 'post' '0' "${MANIFEST_FILE}" '' "${TEMPLATE_DIR}" 'sample' '' false 0 '' '.' "${SOURCE_ROOT}")
-            QUEUE_RECORD=$(printf '%q\t%q\t%q\t%q\t%q\n' 'news/index.markdown' 'news/index.markdown' '.' "${SOURCE_ROOT}" "${ARCHIVE_PLAN_ROOT}")
+            QUEUE_RECORD=$(printf '%s\037%s\037%s\037%s\037%s\n' 'news/index.markdown' 'news/index.markdown' '.' "${SOURCE_ROOT}" "${ARCHIVE_PLAN_ROOT}")
             marsh_copy_template_assets "${TARGET_OUTPUT_ROOT}" '.' "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "${TEMPLATE_DIR}" 'sample' 0 '' >/dev/null 2>&1
             marsh_build_target_archive_queue_record_document "${TARGET_OUTPUT_ROOT}" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" 'marsh_test_markdown_command' '' 'markdown,md' true "${QUEUE_RECORD}" >/dev/null 2>&1
             ACTUAL=$?
@@ -2326,7 +2326,7 @@ function marsh_test {
         marsh_build_target_archive_queue_record_document:1)
             TEST_NAME+=":malformed_queue_record_rejected"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
-            BAD_QUEUE_RECORD=$(printf '%q\t%q\n' 'news/index.markdown' 'news/index.markdown')
+            BAD_QUEUE_RECORD=$(printf '%s\037%s\n' 'news/index.markdown' 'news/index.markdown')
             marsh_build_target_archive_queue_record_document "${TARGET_OUTPUT_ROOT}" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" 'marsh_test_markdown_command' '' 'markdown,md' true "${BAD_QUEUE_RECORD}" >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=1
@@ -7366,7 +7366,7 @@ function marsh_test {
             ;;
         marsh_parse_target_archive_queue_record:0)
             TEST_NAME+=":parses_queue_record"
-            RECORD=$(printf '%q\t%q\t%q\t%q\t%q\n' 'news/index.markdown' 'news/index.markdown' '.' '/site/source' '/tmp/archive-plan')
+            RECORD=$(printf '%s\037%s\037%s\037%s\037%s\n' 'news/index.markdown' 'news/index.markdown' '.' '/site/source' '/tmp/archive-plan')
             ACTUAL=$(marsh_parse_target_archive_queue_record "${RECORD}")
             EXPECTED=$(printf '%s\n' \
                 'DOCUMENT_ID=news/index.markdown' \
@@ -7813,7 +7813,7 @@ function marsh_test {
                 QUEUE_RECORDS_FILE=$(marsh_get_target_archive_queue_records_path "${TARGET_PLAN_ROOT}")
                 ARCHIVE_PLAN_ROOT=$(<"${TARGET_PLAN_ROOT}/archive-plans")
                 ACTUAL=$(marsh_read_target_archive_queue_records "${TARGET_PLAN_ROOT}")
-                EXPECTED=$(printf '%q\t%q\t%q\t%q\t%q\n%q\t%q\t%q\t%q\t%q\n' \
+                EXPECTED=$(printf '%s\037%s\037%s\037%s\037%s\n%s\037%s\037%s\037%s\037%s\n' \
                     'news/index.markdown' \
                     'news/index.markdown' \
                     '.' \
@@ -10833,7 +10833,7 @@ function marsh_test {
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 ACTUAL=$(marsh_read_target_archive_queue_records "${TARGET_PLAN_ROOT}")
-                EXPECTED=$(printf '%q\t%q\t%q\t%q\t%q\n%q\t%q\t%q\t%q\t%q\n' \
+                EXPECTED=$(printf '%s\037%s\037%s\037%s\037%s\n%s\037%s\037%s\037%s\037%s\n' \
                     'news/index.markdown' 'news/index.markdown' '.' '/site/source' "${ARCHIVE_PLAN_ROOT_ONE}" \
                     'news/feed.xml' 'news/feed.xml' '.' '/site/source' "${ARCHIVE_PLAN_ROOT_TWO}")
                 ASSERTION="equals"
@@ -10846,8 +10846,8 @@ function marsh_test {
         marsh_write_target_archive_queue_records:0)
             TEST_NAME+=":writes_queue_records"
             TARGET_PLAN_ROOT="${TEST_TEMP_PREFIX}.target-plan"
-            RECORD_ONE=$(printf '%q\t%q\t%q\t%q\t%q\n' 'news/index.markdown' 'news/index.markdown' '.' '/site/source' '/tmp/archive-plan-1')
-            RECORD_TWO=$(printf '%q\t%q\t%q\t%q\t%q\n' 'news/feed.xml' 'news/feed.xml' '.' '/site/source' '/tmp/archive-plan-2')
+            RECORD_ONE=$(printf '%s\037%s\037%s\037%s\037%s\n' 'news/index.markdown' 'news/index.markdown' '.' '/site/source' '/tmp/archive-plan-1')
+            RECORD_TWO=$(printf '%s\037%s\037%s\037%s\037%s\n' 'news/feed.xml' 'news/feed.xml' '.' '/site/source' '/tmp/archive-plan-2')
             mkdir -p "${TARGET_PLAN_ROOT}"
             marsh_write_target_archive_queue_records "${TARGET_PLAN_ROOT}" "${RECORD_ONE}" "${RECORD_TWO}" >/dev/null 2>&1
             ACTUAL=$?

@@ -10082,7 +10082,7 @@ function marsh_write_target_archive_manifest {  # marsh_write_target_archive_man
 function marsh_build_target_archive_queue {  # marsh_build_target_archive_queue site_output_root log_level log_levels_csv jobs markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links target_plan_root
     local SITE_OUTPUT_ROOT LOG_LEVEL LOG_LEVELS_CSV JOBS MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_REWRITE_LINKS TARGET_PLAN_ROOT
     local TARGET_ARCHIVE_QUEUE_RECORDS_FILE QUEUE_RECORD DOCUMENT_RECORD
-    local QUEUE_DOCUMENT_ID_ESC QUEUE_ARCHIVE_PLAN_ROOT_ESC QUEUE_DOCUMENT_ID QUEUE_ARCHIVE_PLAN_ROOT
+    local QUEUE_DOCUMENT_ID QUEUE_SOURCE_RELPATH QUEUE_TARGET_OUTPUT_REL QUEUE_SOURCE_ROOT QUEUE_ARCHIVE_PLAN_ROOT QUEUE_RECORD_REST
     local CURRENT_DOCUMENT_ID CURRENT_DOCUMENT_SOURCE_RELPATH CURRENT_DOCUMENT_TARGET_OUTPUT_REL CURRENT_DOCUMENT_SOURCE_ROOT CURRENT_DOCUMENT_RECORD_REST
     local CURRENT_ARCHIVE_PLAN_ROOT TARGET_OUTPUT_REL TARGET_SITEMAP TARGET_SITEMAP_SEARCH TEMPLATES_DIR TEMPLATE TEMPLATE_ASSETS_PATH
     local BUILD_CONTEXT_TARGET_OUTPUT_REL BUILD_CONTEXT_SOURCE_ROOT DOCUMENTS_FILE CURRENT_DOCUMENT_INDEX TEMPLATE_OVERRIDE TEMPLATE_OVERRIDES_TEXT
@@ -10123,9 +10123,9 @@ function marsh_build_target_archive_queue {  # marsh_build_target_archive_queue 
     if [[ "${#QUEUE_RECORDS[@]}" -gt 2 ]] && [[ "${JOBS:-1}" -gt 1 ]] && [[ "${PARALLEL:-}" != "" ]] && [[ "$(${PARALLEL} --version --no-notice 2>/dev/null | head -n 1 | grep -o 'GNU parallel')" == "GNU parallel" ]]; then
         CURRENT_ARCHIVE_PLAN_ROOT=""
         for QUEUE_RECORD in "${QUEUE_RECORDS[@]}"; do
-            IFS=$'\t' read -r _ _ _ _ QUEUE_ARCHIVE_PLAN_ROOT_ESC <<< "${QUEUE_RECORD}"
-            [[ "${QUEUE_ARCHIVE_PLAN_ROOT_ESC}" == "" ]] && return 1
-            eval "QUEUE_ARCHIVE_PLAN_ROOT=${QUEUE_ARCHIVE_PLAN_ROOT_ESC}"
+            IFS=$'\037' read -r _ _ _ _ QUEUE_ARCHIVE_PLAN_ROOT QUEUE_RECORD_REST <<< "${QUEUE_RECORD}"
+            [[ "${QUEUE_ARCHIVE_PLAN_ROOT}" != "" ]] || return 1
+            [[ "${QUEUE_RECORD_REST}" == "" ]] || return 1
             if [[ "${CURRENT_ARCHIVE_PLAN_ROOT}" == "${QUEUE_ARCHIVE_PLAN_ROOT}" ]]; then
                 continue
             fi
@@ -10164,11 +10164,13 @@ function marsh_build_target_archive_queue {  # marsh_build_target_archive_queue 
     CURRENT_DOCUMENT_INDEX=0
     CURRENT_DOCUMENT_RECORDS=()
     for QUEUE_RECORD in "${QUEUE_RECORDS[@]}"; do
-        IFS=$'\t' read -r QUEUE_DOCUMENT_ID_ESC _ _ _ QUEUE_ARCHIVE_PLAN_ROOT_ESC <<< "${QUEUE_RECORD}"
-        [[ "${QUEUE_DOCUMENT_ID_ESC}" == "" ]] && continue
-        [[ "${QUEUE_ARCHIVE_PLAN_ROOT_ESC}" == "" ]] && return 1
-        eval "QUEUE_DOCUMENT_ID=${QUEUE_DOCUMENT_ID_ESC}"
-        eval "QUEUE_ARCHIVE_PLAN_ROOT=${QUEUE_ARCHIVE_PLAN_ROOT_ESC}"
+        IFS=$'\037' read -r QUEUE_DOCUMENT_ID QUEUE_SOURCE_RELPATH QUEUE_TARGET_OUTPUT_REL QUEUE_SOURCE_ROOT QUEUE_ARCHIVE_PLAN_ROOT QUEUE_RECORD_REST <<< "${QUEUE_RECORD}"
+        [[ "${QUEUE_DOCUMENT_ID}" != "" ]] || continue
+        [[ "${QUEUE_SOURCE_RELPATH}" != "" ]] || return 1
+        [[ "${QUEUE_TARGET_OUTPUT_REL}" != "" ]] || return 1
+        [[ "${QUEUE_SOURCE_ROOT}" != "" ]] || return 1
+        [[ "${QUEUE_ARCHIVE_PLAN_ROOT}" != "" ]] || return 1
+        [[ "${QUEUE_RECORD_REST}" == "" ]] || return 1
 
         if [[ "${CURRENT_ARCHIVE_PLAN_ROOT}" != "${QUEUE_ARCHIVE_PLAN_ROOT}" ]]; then
             CURRENT_ARCHIVE_PLAN_ROOT="${QUEUE_ARCHIVE_PLAN_ROOT}"
@@ -10246,10 +10248,12 @@ function marsh_build_target_archive_queue_record {  # marsh_build_target_archive
     [[ "${DOCUMENT_ID}" == "" ]] && return 1
     [[ "${SOURCE_RELPATH}" != "" ]] || return 1
     [[ "${TARGET_OUTPUT_REL}" != "" ]] || return 1
+    [[ "${SOURCE_ROOT}" != "" ]] || return 1
     [[ "${RECORD_REST}" == "" ]] || return 1
 
     # keep document identity and archive-plan context explicit in the queue record
-    printf '%q\t%q\t%q\t%q\t%q\n' \
+    marsh_validate_record_fields "queue record" "${DOCUMENT_ID}" "${SOURCE_RELPATH}" "${TARGET_OUTPUT_REL}" "${SOURCE_ROOT}" "${ARCHIVE_PLAN_ROOT}" || return 1
+    printf '%s\037%s\037%s\037%s\037%s\n' \
         "${DOCUMENT_ID}" \
         "${SOURCE_RELPATH}" \
         "${TARGET_OUTPUT_REL}" \
@@ -10260,8 +10264,7 @@ function marsh_build_target_archive_queue_record {  # marsh_build_target_archive
 # builds one archive queue record by loading its archive-plan context
 function marsh_build_target_archive_queue_record_document {  # marsh_build_target_archive_queue_record_document site_output_root log_level log_levels_csv markdown_command markdown_options_csv markdown_fileext_csv markdown_rewrite_links archive_queue_record
     local SITE_OUTPUT_ROOT LOG_LEVEL LOG_LEVELS_CSV MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_REWRITE_LINKS ARCHIVE_QUEUE_RECORD
-    local DOCUMENT_ID_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC ARCHIVE_PLAN_ROOT_ESC
-    local DOCUMENT_ID SOURCE_RELPATH TARGET_OUTPUT_REL SOURCE_ROOT ARCHIVE_PLAN_ROOT
+    local DOCUMENT_ID SOURCE_RELPATH TARGET_OUTPUT_REL SOURCE_ROOT ARCHIVE_PLAN_ROOT ARCHIVE_QUEUE_RECORD_REST
     local TARGET_SITEMAP TARGET_SITEMAP_SEARCH TEMPLATES_DIR TEMPLATE TEMPLATE_ASSETS_PATH
     local BUILD_CONTEXT_TARGET_OUTPUT_REL BUILD_CONTEXT_SOURCE_ROOT TEMPLATE_OVERRIDE TEMPLATE_OVERRIDES_TEXT
     local -a TEMPLATE_OVERRIDES
@@ -10280,14 +10283,13 @@ function marsh_build_target_archive_queue_record_document {  # marsh_build_targe
     [[ "${MARKDOWN_REWRITE_LINKS}" == "" ]] && return 1
     [[ "${ARCHIVE_QUEUE_RECORD}" == "" ]] && return 1
 
-    IFS=$'\t' read -r DOCUMENT_ID_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC ARCHIVE_PLAN_ROOT_ESC <<< "${ARCHIVE_QUEUE_RECORD}"
-    [[ "${DOCUMENT_ID_ESC}" == "" ]] && return 1
-    [[ "${ARCHIVE_PLAN_ROOT_ESC}" == "" ]] && return 1
-    eval "DOCUMENT_ID=${DOCUMENT_ID_ESC}"
-    eval "SOURCE_RELPATH=${SOURCE_RELPATH_ESC}"
-    eval "TARGET_OUTPUT_REL=${TARGET_OUTPUT_REL_ESC}"
-    eval "SOURCE_ROOT=${SOURCE_ROOT_ESC}"
-    eval "ARCHIVE_PLAN_ROOT=${ARCHIVE_PLAN_ROOT_ESC}"
+    IFS=$'\037' read -r DOCUMENT_ID SOURCE_RELPATH TARGET_OUTPUT_REL SOURCE_ROOT ARCHIVE_PLAN_ROOT ARCHIVE_QUEUE_RECORD_REST <<< "${ARCHIVE_QUEUE_RECORD}"
+    [[ "${DOCUMENT_ID}" != "" ]] || return 1
+    [[ "${SOURCE_RELPATH}" != "" ]] || return 1
+    [[ "${TARGET_OUTPUT_REL}" != "" ]] || return 1
+    [[ "${SOURCE_ROOT}" != "" ]] || return 1
+    [[ "${ARCHIVE_PLAN_ROOT}" != "" ]] || return 1
+    [[ "${ARCHIVE_QUEUE_RECORD_REST}" == "" ]] || return 1
 
     TEMPLATE_OVERRIDES=()
     marsh_load_archive_plan_build_context \
@@ -10457,21 +10459,25 @@ function marsh_load_archive_plan_build_context {  # marsh_load_archive_plan_buil
 # parses one aggregate archive-queue record into shell assignments
 function marsh_parse_target_archive_queue_record {  # marsh_parse_target_archive_queue_record archive_queue_record
     local ARCHIVE_QUEUE_RECORD
-    local DOCUMENT_ID_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC ARCHIVE_PLAN_ROOT_ESC
     local DOCUMENT_ID SOURCE_RELPATH TARGET_OUTPUT_REL SOURCE_ROOT ARCHIVE_PLAN_ROOT
+    local ARCHIVE_QUEUE_RECORD_REST
 
     ARCHIVE_QUEUE_RECORD="${1:-}"
     [[ "${ARCHIVE_QUEUE_RECORD}" == "" ]] && return 1
 
-    IFS=$'\t' read -r DOCUMENT_ID_ESC SOURCE_RELPATH_ESC TARGET_OUTPUT_REL_ESC SOURCE_ROOT_ESC ARCHIVE_PLAN_ROOT_ESC <<< "${ARCHIVE_QUEUE_RECORD}"
-    [[ "${DOCUMENT_ID_ESC}" == "" ]] && return 1
-    [[ "${ARCHIVE_PLAN_ROOT_ESC}" == "" ]] && return 1
+    IFS=$'\037' read -r DOCUMENT_ID SOURCE_RELPATH TARGET_OUTPUT_REL SOURCE_ROOT ARCHIVE_PLAN_ROOT ARCHIVE_QUEUE_RECORD_REST <<< "${ARCHIVE_QUEUE_RECORD}"
+    [[ "${DOCUMENT_ID}" != "" ]] || return 1
+    [[ "${SOURCE_RELPATH}" != "" ]] || return 1
+    [[ "${TARGET_OUTPUT_REL}" != "" ]] || return 1
+    [[ "${SOURCE_ROOT}" != "" ]] || return 1
+    [[ "${ARCHIVE_PLAN_ROOT}" != "" ]] || return 1
+    [[ "${ARCHIVE_QUEUE_RECORD_REST}" == "" ]] || return 1
 
-    printf 'DOCUMENT_ID=%q\n' "${DOCUMENT_ID_ESC}"
-    printf 'SOURCE_RELPATH=%q\n' "${SOURCE_RELPATH_ESC}"
-    printf 'TARGET_OUTPUT_REL=%q\n' "${TARGET_OUTPUT_REL_ESC}"
-    printf 'SOURCE_ROOT=%q\n' "${SOURCE_ROOT_ESC}"
-    printf 'ARCHIVE_PLAN_ROOT=%q\n' "${ARCHIVE_PLAN_ROOT_ESC}"
+    printf 'DOCUMENT_ID=%q\n' "${DOCUMENT_ID}"
+    printf 'SOURCE_RELPATH=%q\n' "${SOURCE_RELPATH}"
+    printf 'TARGET_OUTPUT_REL=%q\n' "${TARGET_OUTPUT_REL}"
+    printf 'SOURCE_ROOT=%q\n' "${SOURCE_ROOT}"
+    printf 'ARCHIVE_PLAN_ROOT=%q\n' "${ARCHIVE_PLAN_ROOT}"
 }
 
 # reads aggregate archive-queue records from the target plan root

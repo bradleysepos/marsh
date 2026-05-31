@@ -4,6 +4,7 @@
   "home_page_url": "{{ site.abspath }}",
   "feed_url": "{{ document.uri }}",
   "icon": "{{ site.abspath }}icon.png",
+  "date_modified": "{{ document.date | date-type:rfc3339 }}",
   "items": [
     {{ subdocuments }}
   ]

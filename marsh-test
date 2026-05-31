@@ -7423,21 +7423,6 @@ function marsh_test {
                 fi
             fi
             ;;
-        marsh_parse_target_archive_queue_record:0)
-            TEST_NAME+=":parses_queue_record"
-            RECORD=$(printf '%s\037%s\037%s\037%s\037%s\n' 'news/index.markdown' 'news/index.markdown' '.' '/site/source' '/tmp/archive-plan')
-            ACTUAL=$(marsh_parse_target_archive_queue_record "${RECORD}")
-            EXPECTED=$(printf '%s\n' \
-                'DOCUMENT_ID=news/index.markdown' \
-                'SOURCE_RELPATH=news/index.markdown' \
-                'TARGET_OUTPUT_REL=.' \
-                'SOURCE_ROOT=/site/source' \
-                'ARCHIVE_PLAN_ROOT=/tmp/archive-plan')
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                RES="[PASS]"
-            fi
-            ;;
         marsh_parse_template_metadata:0)
             TEST_NAME+=":normal"
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.template"
@@ -11099,7 +11084,6 @@ KNOWN_FUNCTIONS=(
     marsh_normalize_path
     marsh_parse_document_metadata_assignment
     marsh_parse_internal_assignment
-    marsh_parse_target_archive_queue_record
     marsh_parse_template_metadata
     marsh_parse_template_metadata_assignment
     marsh_parse_template_tag

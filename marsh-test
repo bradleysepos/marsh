@@ -1350,12 +1350,14 @@ function marsh_test {
             EXPECTED=0
             ASSERTION="equals"
             CONTENT_FILE=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "index.markdown" "content")
+            IS_RENDERED_FILE=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "index.markdown" "is-rendered")
             META_FILE=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "index.markdown" "meta-yaml")
             CACHE_FILE=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "index.markdown" "meta")
             INDEX_FILE=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "index.markdown" "archive-meta")
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 {
                     [[ -f "${CONTENT_FILE}" ]] \
+                        && [[ -f "${IS_RENDERED_FILE}" ]] \
                         && [[ -f "${META_FILE}" ]] \
                         && [[ -f "${CACHE_FILE}" ]] \
                         && [[ -f "${INDEX_FILE}" ]] \
@@ -1561,6 +1563,52 @@ function marsh_test {
                     ASSERTION="equals"
                     if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                         RES="[PASS]"
+                    fi
+                fi
+            fi
+            rm -rf "${TARGET_OUTPUT_ROOT}" "${SOURCE_ROOT}"
+            ;;
+        marsh_build_document:5)
+            TEST_NAME+=":renders_existing_unrendered_markdown_artifact"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
+            mkdir -p "${SOURCE_ROOT}"
+            printf '%s\n' \
+                '---' \
+                'Type: page' \
+                'Title: Example' \
+                '...' \
+                '' \
+                '[About](about.markdown)' > "${SOURCE_ROOT}/index.markdown"
+            marsh_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "index.markdown" "${SOURCE_ROOT}/index.markdown" >/dev/null 2>&1
+            ACTUAL=$?
+            EXPECTED=0
+            ASSERTION="equals"
+            CONTENT_FILE=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "index.markdown" "content")
+            IS_RENDERED_FILE=$(marsh_get_document_temp_path "${TARGET_OUTPUT_ROOT}" "index.markdown" "is-rendered")
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                [[ ! -e "${IS_RENDERED_FILE}" ]]
+                ACTUAL=$?
+                EXPECTED=0
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    marsh_build_document "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" "." "${SOURCE_ROOT}" >/dev/null 2>&1
+                    ACTUAL=$?
+                    EXPECTED=0
+                    ASSERTION="equals"
+                    if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                        ACTUAL=$(<"${CONTENT_FILE}")
+                        EXPECTED=$'\n''[About](about.html)'
+                        ASSERTION="equals"
+                        if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                            [[ -f "${IS_RENDERED_FILE}" ]]
+                            ACTUAL=$?
+                            EXPECTED=0
+                            ASSERTION="equals"
+                            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                                RES="[PASS]"
+                            fi
+                        fi
                     fi
                 fi
             fi

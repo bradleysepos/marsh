@@ -1556,13 +1556,23 @@ function marsh_text_transform {  # marsh_text_transform transform [transform...]
     case "${TRANSFORM}" in
         append:*)
             APPEND="${OPTIONS[0]:-}"
-            APPEND=$(printf '%s' "${APPEND}" | marsh_escape_substitution)
-            sed -e '$ s/$/'"${APPEND}"'/'
+            if [[ "${APPEND}" != "" ]]; then
+                APPEND="${APPEND//\\/\\\\}"
+                awk -v APPEND="${APPEND}" 'NR > 1 { printf("%s\n", PREV) } { PREV = $0 } END { printf("%s%s\n", PREV, APPEND) }'
+            else
+                cat
+            fi
             ;;
         append-type:block:*)
             APPEND="${OPTIONS[1]:-}"
-            APPEND="${APPEND//\\/\\\\}"
-            awk -v APPEND="${APPEND}" '{ print } END { print APPEND }'
+            if [[ "${APPEND}" != "" ]]; then
+                while IFS= read -r LINE || [[ -n "${LINE:-}" ]]; do
+                    printf '%s\n' "${LINE}"
+                done
+                printf "%s\n" "${APPEND}"
+            else
+                cat
+            fi
             ;;
         case:lower)
             awk '{ print tolower($0) }'
@@ -1889,8 +1899,13 @@ function marsh_text_transform {  # marsh_text_transform transform [transform...]
             ;;
         items:append:*)
             APPEND="${OPTIONS[1]:-}"
-            APPEND="${APPEND//\\/\\\\}"
-            awk -v APPEND="${APPEND}" '{ print $0 APPEND }'
+            if [[ "${APPEND}" != "" ]]; then
+                while IFS= read -r LINE || [[ -n "${LINE:-}" ]]; do
+                    printf '%s%s\n' "${LINE}" "${APPEND}"
+                done
+            else
+                cat
+            fi
             ;;
         items:count)
             awk -v RS='\n' 'END { print NR }'
@@ -2023,8 +2038,13 @@ function marsh_text_transform {  # marsh_text_transform transform [transform...]
             ;;
         items:prepend:*)
             PREPEND="${OPTIONS[1]:-}"
-            PREPEND="${PREPEND//\\/\\\\}"
-            awk -v PREPEND="${PREPEND}" '{ print PREPEND $0 }'
+            if [[ "${PREPEND}" != "" ]]; then
+                while IFS= read -r LINE || [[ -n "${LINE:-}" ]]; do
+                    printf '%s%s\n' "${PREPEND}" "${LINE}"
+                done
+            else
+                cat
+            fi
             ;;
         items:slice:*)
             START="${OPTIONS[1]:-0}"
@@ -2085,10 +2105,14 @@ function marsh_text_transform {  # marsh_text_transform transform [transform...]
             ;;
         items:wrap:*)
             WRAP_START="${OPTIONS[1]:-}"
-            WRAP_END="${OPTIONS[2]:-${WRAP_START}}"
-            WRAP_START="${WRAP_START//\\/\\\\}"
-            WRAP_END="${WRAP_END//\\/\\\\}"
-            awk -v WRAP_START="${WRAP_START}" -v WRAP_END="${WRAP_END}" '{ print WRAP_START $0 WRAP_END }'
+            if [[ "${WRAP_START}" != "" ]]; then
+                WRAP_END="${OPTIONS[2]:-${WRAP_START}}"
+                while IFS= read -r LINE || [[ -n "${LINE:-}" ]]; do
+                    printf '%s%s%s\n' "${WRAP_START}" "${LINE}" "${WRAP_END}"
+                done
+            else
+                cat
+            fi
             ;;
         items:wrap-type:html-script-src)
             awk '
@@ -2235,13 +2259,23 @@ function marsh_text_transform {  # marsh_text_transform transform [transform...]
             ;;
         prepend:*)
             PREPEND="${OPTIONS[0]:-}"
-            PREPEND=$(printf '%s' "${PREPEND}" | marsh_escape_substitution)
-            sed -e '1 s/^/'"${PREPEND}"'/'
+            if [[ "${PREPEND}" != "" ]]; then
+                PREPEND="${PREPEND//\\/\\\\}"
+                awk -v PREPEND="${PREPEND}" 'BEGIN { printf("%s", PREPEND) } { print }'
+            else
+                cat
+            fi
             ;;
         prepend-type:block:*)
             PREPEND="${OPTIONS[1]:-}"
-            PREPEND="${PREPEND//\\/\\\\}"
-            awk -v PREPEND="${PREPEND}" 'NR==1 { print PREPEND } { print }'
+            if [[ "${PREPEND}" != "" ]]; then
+                printf "%s\n" "${PREPEND}"
+                while IFS= read -r LINE || [[ -n "${LINE:-}" ]]; do
+                    printf '%s\n' "${LINE}"
+                done
+            else
+                cat
+            fi
             ;;
         slug)
             head -n 1 | LC_ALL=C sed -E -e 's/[ _]+/-/g' -e 's/[^-a-zA-Z0-9.]//g' -e 's/(^-+)|(-+$)//' | awk '{ print tolower($0) }'
@@ -2251,33 +2285,36 @@ function marsh_text_transform {  # marsh_text_transform transform [transform...]
             ;;
         wrap:*)
             WRAP_START="${OPTIONS[0]:-}"
-            WRAP_END="${OPTIONS[1]:-${WRAP_START}}"
-            WRAP_START=$(printf '%s' "${WRAP_START}" | marsh_escape_substitution)
-            WRAP_END=$(printf '%s' "${WRAP_END}" | marsh_escape_substitution)
             if [[ "${WRAP_START}" != "" ]]; then
-                sed -e '1 s/^/'"${WRAP_START}"'/' -e '$ s/$/'"${WRAP_END}"'/'
+                WRAP_END="${OPTIONS[1]:-${WRAP_START}}"
+                WRAP_START="${WRAP_START//\\/\\\\}"
+                WRAP_END="${WRAP_END//\\/\\\\}"
+                awk -v WRAP_START="${WRAP_START}" -v WRAP_END="${WRAP_END}" \
+                'BEGIN { printf("%s", WRAP_START) } NR > 1 { printf("%s\n", PREV) } { PREV = $0 } END { printf("%s%s\n", PREV, WRAP_END) }'
             else
                 cat
             fi
             ;;
         wrap-type:block:*)
             WRAP_START="${OPTIONS[1]:-}"
-            WRAP_END="${OPTIONS[2]:-${WRAP_START}}"
-            WRAP_START="${WRAP_START//\\/\\\\}"
-            WRAP_END="${WRAP_END//\\/\\\\}"
             if [[ "${WRAP_START}" != "" ]]; then
-                awk -v WRAP_START="${WRAP_START}" -v WRAP_END="${WRAP_END}" 'NR==1 { print WRAP_START; printf "\n" } { print $0 } END { printf "\n"; print WRAP_END }'
+                WRAP_END="${OPTIONS[2]:-${WRAP_START}}"
+                WRAP_START="${WRAP_START//\\/\\\\}"
+                WRAP_END="${WRAP_END//\\/\\\\}"
+                awk -v WRAP_START="${WRAP_START}" -v WRAP_END="${WRAP_END}" \
+                'NR==1 { printf("%s\n\n", WRAP_START) } { print $0 } END { printf("\n%s\n", WRAP_END) }'
             else
                 cat
             fi
             ;;
         wrap-type:special-comment:*)
             WRAP_START="${OPTIONS[1]:-}"
-            WRAP_END="${WRAP_START}"
-            WRAP_START="${WRAP_START//\\/\\\\}"
-            WRAP_END="${WRAP_END//\\/\\\\}"
             if [[ "${WRAP_START}" != "" ]]; then
-                awk -v WRAP_START="<!-- ${WRAP_START} -->" -v WRAP_END="<!-- /${WRAP_END} -->" 'NR==1 { print WRAP_START; printf "\n" } { print $0 } END { printf "\n"; print WRAP_END }'
+                WRAP_END="${WRAP_START}"
+                WRAP_START="${WRAP_START//\\/\\\\}"
+                WRAP_END="${WRAP_END//\\/\\\\}"
+                awk -v WRAP_START="<!-- ${WRAP_START} -->" -v WRAP_END="<!-- /${WRAP_END} -->" \
+                'NR==1 { printf("%s\n\n", WRAP_START) } { print $0 } END { printf("\n%s", WRAP_END) }'
             else
                 cat
             fi

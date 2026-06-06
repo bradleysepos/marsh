@@ -9047,8 +9047,8 @@ function marsh_test {
             ;;
         marsh_text_transform:1)
             TEST_NAME+=":append_type_block"
-            ACTUAL=$(printf '%s' "Some text"$'\n'"More text" | marsh_text_transform append-type:block:after)
-            EXPECTED="Some text"$'\n'"More text"$'\n'"after"
+            ACTUAL=$(printf '%s' "Some text"$'\n\n'"More text" | marsh_text_transform append-type:block:after)
+            EXPECTED="Some text"$'\n\n'"More text"$'\n\n'"after"
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -10048,8 +10048,8 @@ function marsh_test {
             ;;
         marsh_text_transform:96)
             TEST_NAME+=":prepend_type_block"
-            ACTUAL=$(printf '%s' "Some text"$'\n'"More text" | marsh_text_transform prepend-type:block:before)
-            EXPECTED="before"$'\n'"Some text"$'\n'"More text"
+            ACTUAL=$(printf '%s' "Some text"$'\n\n'"More text" | marsh_text_transform prepend-type:block:before)
+            EXPECTED="before"$'\n\n'"Some text"$'\n\n'"More text"
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"

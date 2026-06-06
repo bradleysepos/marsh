@@ -1569,7 +1569,7 @@ function marsh_text_transform {  # marsh_text_transform transform [transform...]
                 while IFS= read -r LINE || [[ -n "${LINE:-}" ]]; do
                     printf '%s\n' "${LINE}"
                 done
-                printf "%s\n" "${APPEND}"
+                printf "\n%s\n" "${APPEND}"
             else
                 cat
             fi
@@ -2269,7 +2269,7 @@ function marsh_text_transform {  # marsh_text_transform transform [transform...]
         prepend-type:block:*)
             PREPEND="${OPTIONS[1]:-}"
             if [[ "${PREPEND}" != "" ]]; then
-                printf "%s\n" "${PREPEND}"
+                printf "%s\n\n" "${PREPEND}"
                 while IFS= read -r LINE || [[ -n "${LINE:-}" ]]; do
                     printf '%s\n' "${LINE}"
                 done

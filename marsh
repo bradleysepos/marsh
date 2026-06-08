@@ -14,7 +14,8 @@ function marsh_env_cli {
     NAME="marsh"
     VERSION="1.0.0-alpha.1"
     SELF="${BASH_SOURCE[0]}"
-    SELF_DIR=$(cd $(dirname "${BASH_SOURCE[0]}") && pwd -P)
+    SELF_DIR=$(dirname "${BASH_SOURCE[0]}")
+    SELF_DIR=$(cd "${SELF_DIR}" && pwd -P)
     SELF_DIR="${SELF_DIR:-$(pwd)}"
     SELF_NAME=$(basename "${SELF}")
     SYS_NAME=$(uname | awk '{ print tolower($0)}')

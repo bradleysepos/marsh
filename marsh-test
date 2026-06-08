@@ -9171,6 +9171,7 @@ function marsh_test {
                 'Basic numeric: [&#38;][&#60;][&#62;][&#34;][&#39;]' \
                 'Named extended: [A&nbsp;B][&iexcl;][&euro;][&hearts;][&rarr;][&OElig;]' \
                 'Numeric extended: [A&#160;B][&#161;][&#8364;][&#9829;][&#8594;][&#338;]' \
+                'Named and numeric ampersand mix: [&#38;&amp;&amp;&#38;]' \
                 'Unknown: [&madeup;]' \
                 'Malformed: [&amp][&bogus][&#999999]' \
                 'Mixed line: Fish &amp; chips &madeup; &lt;tag&gt; hearts &#9829;' \
@@ -9201,6 +9202,7 @@ function marsh_test {
                 'Basic numeric: [&][<][>]["]['"'"']' \
                 'Named extended: [A B][¡][€][♥][→][Œ]' \
                 'Numeric extended: [A B][¡][€][♥][→][Œ]' \
+                'Named and numeric ampersand mix: [&&&&]' \
                 'Unknown: [&madeup;]' \
                 'Malformed: [&amp][&bogus][&#999999]' \
                 'Mixed line: Fish & chips &madeup; <tag> hearts ♥' \

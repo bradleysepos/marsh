@@ -5652,6 +5652,42 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
+        marsh_get_site_output_inventory:0)
+            TEST_NAME+=":cached_within_target"
+            SITE_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.site"
+            TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
+            mkdir -p "${SITE_OUTPUT_ROOT}/news"
+            printf '%s\n' '# first' > "${SITE_OUTPUT_ROOT}/news/first.markdown"
+            ACTUAL=$(marsh_get_site_output_inventory "${SITE_OUTPUT_ROOT}" "${TARGET_OUTPUT_ROOT}")
+            printf '%s\n' '# second' > "${SITE_OUTPUT_ROOT}/news/second.markdown"
+            ACTUAL_SECOND=$(marsh_get_site_output_inventory "${SITE_OUTPUT_ROOT}" "${TARGET_OUTPUT_ROOT}")
+            EXPECTED='news/first.markdown'
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]] && [[ "${ACTUAL_SECOND}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            rm -rf "${SITE_OUTPUT_ROOT}" "${TARGET_OUTPUT_ROOT}"
+            ;;
+        marsh_get_site_output_inventory:1)
+            TEST_NAME+=":cached_separate_targets"
+            SITE_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.site"
+            FIRST_TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.first.target"
+            SECOND_TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.second.target"
+            mkdir -p "${SITE_OUTPUT_ROOT}/news"
+            printf '%s\n' '# first' > "${SITE_OUTPUT_ROOT}/news/first.markdown"
+            ACTUAL=$(marsh_get_site_output_inventory "${SITE_OUTPUT_ROOT}" "${FIRST_TARGET_OUTPUT_ROOT}")
+            EXPECTED='news/first.markdown'
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                printf '%s\n' '# second' > "${SITE_OUTPUT_ROOT}/news/second.markdown"
+                ACTUAL=$(marsh_get_site_output_inventory "${SITE_OUTPUT_ROOT}" "${SECOND_TARGET_OUTPUT_ROOT}" | sort)
+                EXPECTED="${EXPECTED}"$'\n''news/second.markdown'
+                ASSERTION="equals"
+                if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                    RES="[PASS]"
+                fi
+            fi
+            rm -rf "${SITE_OUTPUT_ROOT}" "${FIRST_TARGET_OUTPUT_ROOT}" "${SECOND_TARGET_OUTPUT_ROOT}"
+            ;;
         marsh_get_site_source_root_path:0)
             TEST_NAME+=":common_root"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
@@ -11130,6 +11166,7 @@ KNOWN_FUNCTIONS=(
     marsh_get_processed_sitemap
     marsh_get_relative_path
     marsh_get_render_temp_path
+    marsh_get_site_output_inventory
     marsh_get_site_source_root_path
     marsh_get_sitemap_lookup_path
     marsh_get_sitemap_render_path

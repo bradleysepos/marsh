@@ -3114,6 +3114,43 @@ function marsh_get_source_root_path {  # marsh_get_source_root_path source_path
     printf '%s\n' "${SOURCE_ROOT}"
 }
 
+# returns a cached output inventory for a site root optionally keyed by target output root, building it on miss
+function marsh_get_site_output_inventory {  # marsh_get_site_output_inventory site_output_root [target_output_root] [skip_links]
+    local SITE_OUTPUT_ROOT TARGET_OUTPUT_ROOT SKIP_LINKS INVENTORY_CACHE_DIR INVENTORY_KEY INVENTORY_FILE
+
+    SITE_OUTPUT_ROOT="${1:-}"
+    TARGET_OUTPUT_ROOT="${2:-}"
+    SKIP_LINKS="${3:-false}"
+    [[ "${SITE_OUTPUT_ROOT}" == "" ]] && return 1
+    [[ "${SKIP_LINKS}" == true || "${SKIP_LINKS}" == false ]] || return 1
+
+    # validate site and target directories
+    marsh_get_target_directory_path "${SITE_OUTPUT_ROOT}" >/dev/null || return 1
+    marsh_get_target_directory_path "${TARGET_OUTPUT_ROOT}" >/dev/null || return 1
+
+    # share one output inventory cache per target, or if empty, across targets within the same build
+    INVENTORY_CACHE_DIR="${MARSH_TEMP}/output-inventory"
+    INVENTORY_KEY=$(printf '%s\n' "${SITE_OUTPUT_ROOT}" "${TARGET_OUTPUT_ROOT}" "${SKIP_LINKS}" | marsh_text_transform hash:md5) || return 1
+    INVENTORY_FILE="${INVENTORY_CACHE_DIR}/${INVENTORY_KEY}.inventory"
+
+    if [[ ! -f "${INVENTORY_FILE}" ]]; then
+        mkdir -p "${INVENTORY_CACHE_DIR}" >/dev/null 2>&1 || {
+            echo "Unable to create output inventory path: ${INVENTORY_CACHE_DIR}" >&2
+            return 1
+        }
+        marsh_get_directory_inventory "${SITE_OUTPUT_ROOT}" "${SKIP_LINKS}" > "${INVENTORY_FILE}" || {
+            rm -f "${INVENTORY_FILE}"
+            echo "Unable to generate output inventory: ${SITE_OUTPUT_ROOT}" >&2
+            return 1
+        }
+    fi
+
+    cat "${INVENTORY_FILE}" || {
+        echo "Unable to read output inventory file: ${INVENTORY_FILE}" >&2
+        return 1
+    }
+}
+
 # returns a cached source inventory for a target source root, building it on miss
 function marsh_get_target_source_inventory {  # marsh_get_target_source_inventory target_output_root source_root [skip_links]
     local TARGET_OUTPUT_ROOT SOURCE_ROOT SKIP_LINKS INVENTORY_CACHE_DIR INVENTORY_KEY INVENTORY_FILE

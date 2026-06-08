@@ -1550,7 +1550,7 @@ function marsh_text_transform {  # marsh_text_transform transform [transform...]
         OPTIONS+=("${OPTION_CURRENT}")
     fi
     IFS="${OIFS}"
-    local TRAILING_PUNCTUATION APPEND DATE_FORMAT MAX_CHARS MAX_PARAS MD_EXT_REGEX PROTOCOL_SEP WRAP_START WRAP_END
+    local TRAILING_PUNCTUATION APPEND DATE_FORMAT MAX_CHARS MAX_PARAS MARKDOWN_EXTS PROTOCOL_SEP WRAP_START WRAP_END
     local COUNT DELIM1 DELIM2 DELIM3 END I ITEM_KEY PREPEND REPLACE_EXT START XML_TAG XML_TAG_CLOSE XML_TAG_OPEN
     TRAILING_PUNCTUATION=',.:;?!'
     case "${TRANSFORM}" in
@@ -1673,12 +1673,16 @@ function marsh_text_transform {  # marsh_text_transform transform [transform...]
         excerpt|excerpt:*)
             MAX_CHARS="${OPTIONS[0]:-300}"
             MAX_PARAS="${OPTIONS[1]:-2}"
+            [[ "${MAX_CHARS}" =~ ^[0-9]+$ ]] || MAX_CHARS=300
+            [[ "${MAX_PARAS}" =~ ^[0-9]+$ ]] || MAX_PARAS=2
             MAX_CHARS=$((MAX_CHARS - 1))
             marsh_text_transform headings:remove plaintext | awk -v RS='' -v MAX_PARAS="${MAX_PARAS}" 'NR<=MAX_PARAS { print $0 }' | marsh_text_transform newlines:tospaces | cut -c1-"${MAX_CHARS}" | sed -E -e 's/[ '"${TRAILING_PUNCTUATION}"']+$//' | marsh_text_transform append:…
             ;;
         excerpt-type:html|excerpt-type:html:*)
             MAX_CHARS="${OPTIONS[1]:-300}"
             MAX_PARAS="${OPTIONS[2]:-2}"
+            [[ "${MAX_CHARS}" =~ ^[0-9]+$ ]] || MAX_CHARS=300
+            [[ "${MAX_PARAS}" =~ ^[0-9]+$ ]] || MAX_PARAS=2
             MAX_CHARS=$((MAX_CHARS - 1))
             awk -v MAX_CHARS="${MAX_CHARS}" -v MAX_PARAS="${MAX_PARAS}" -v TRAILING_PUNCTUATION="${TRAILING_PUNCTUATION}" '
             function is_void_tag(tag_name) {
@@ -2001,7 +2005,8 @@ function marsh_text_transform {  # marsh_text_transform transform [transform...]
             ;;
         items:json-array|items:json-array:*)
             ITEM_KEY="${OPTIONS[1]:-}"
-            awk -v ITEM_KEY="${ITEM_KEY//\\/\\\\}" -v TAB=$'\t' '
+            ITEM_KEY="${ITEM_KEY//\\/\\\\}"
+            awk -v ITEM_KEY="${ITEM_KEY}" -v TAB=$'\t' '
             function json_escape(value) {
                 gsub(/\\/, "\\\\", value)
                 gsub(/"/, "\\\"", value)
@@ -2049,6 +2054,8 @@ function marsh_text_transform {  # marsh_text_transform transform [transform...]
         items:slice:*)
             START="${OPTIONS[1]:-0}"
             END="${OPTIONS[2]:-}"
+            [[ "${START}" =~ ^-?[0-9]+$ ]] || START=0
+            [[ "${END}" =~ ^-?[0-9]+$ ]] || END=
             awk -v RS='\n' -v SLICE_START="${START}" -v SLICE_END="${END}" '
             {
                 lines[NR] = $0
@@ -2174,6 +2181,9 @@ function marsh_text_transform {  # marsh_text_transform transform [transform...]
                 XML_TAG_OPEN="<${OPTIONS[$I]}>${XML_TAG_OPEN}"
                 XML_TAG_CLOSE+="</${OPTIONS[$I]}>"
             done
+            XML_TAG="${XML_TAG//\\/\\\\}"
+            XML_TAG_OPEN="${XML_TAG_OPEN//\\/\\\\}"
+            XML_TAG_CLOSE="${XML_TAG_CLOSE//\\/\\\\}"
             awk -v XML_TAG="${XML_TAG}" -v XML_TAG_OPEN="${XML_TAG_OPEN}" -v XML_TAG_CLOSE="${XML_TAG_CLOSE}" '
             function xml_escape(value) {
                 gsub(/&/, "\\&amp;", value)
@@ -2210,20 +2220,24 @@ function marsh_text_transform {  # marsh_text_transform transform [transform...]
             # [![image](image.jpg) "title"](imagepage.md "title")  ->  [![image](image.jpg) "title"](imagepage.html "title")
             # [1]: reference1.md          ->  [1]: reference1.html
             # [1]: reference1.md "title"  ->  [1]: reference1.html "title"
-            MD_EXT_REGEX="${OPTIONS[1]:-}"
-            REPLACE_EXT="${OPTIONS[2]:-}"
-            REPLACE_EXT="${REPLACE_EXT:+.${REPLACE_EXT}}"
-            REPLACE_EXT=$(printf '%s' "${REPLACE_EXT}" | marsh_escape_substitution)
-            PROTOCOL_SEP=':'  # to avoid matching protocol in absolute URLs, e.g. https://example.com/foo.md
-            if [[ "${MD_EXT_REGEX}" != "" ]]; then
-                MD_EXT_REGEX="\\.${MD_EXT_REGEX//,/|\\.}"
-                sed -E -e 's~(\[[^][]+\]|\[!\[[^][]+\]\([^)(]+\)([^]]+)?\])(\([^ #?:]+)('"${MD_EXT_REGEX}"')([#?][^ )]+)?([^]]+)?(\))~\1\3'"${REPLACE_EXT}"'\5\6\7~g' | sed -E -e 's~^( *\[[^][]+\]: +<?[^ #?'"${PROTOCOL_SEP}"']+)('"${MD_EXT_REGEX}"')(>)?([#?][^ ]+)?(.*)$~\1'"${REPLACE_EXT}"'\3\4\5~g'
+            MARKDOWN_EXTS="${OPTIONS[1]:-}"
+            if [[ "${MARKDOWN_EXTS}" != "" ]] && [[ "${MARKDOWN_EXTS}" =~ ^[A-Za-z0-9.,_-]+$ ]]; then
+                MARKDOWN_EXTS=$(printf '%s' "${MARKDOWN_EXTS}" | tr -s ',')  # collapse repeat separators
+                MARKDOWN_EXTS=".${MARKDOWN_EXTS//,/|.}"  # csv to regex and add extension leading dots
+                MARKDOWN_EXTS="${MARKDOWN_EXTS//-/\\-}"  # escape for regex match
+                MARKDOWN_EXTS="${MARKDOWN_EXTS//./\\.}"  # escape for regex match
+                REPLACE_EXT="${OPTIONS[2]:-}"
+                REPLACE_EXT="${REPLACE_EXT:+.${REPLACE_EXT}}"  # add extension leading dot
+                REPLACE_EXT=$(printf '%s' "${REPLACE_EXT}" | marsh_escape_substitution)
+                PROTOCOL_SEP=':'  # to avoid matching protocol in absolute URLs, e.g. https://example.com/foo.md
+                sed -E -e 's~(\[[^][]+\]|\[!\[[^][]+\]\([^)(]+\)([^]]+)?\])(\([^ #?:]+)('"${MARKDOWN_EXTS}"')([#?][^ )]+)?([^]]+)?(\))~\1\3'"${REPLACE_EXT}"'\5\6\7~g' | sed -E -e 's~^( *\[[^][]+\]: +<?[^ #?'"${PROTOCOL_SEP}"']+)('"${MARKDOWN_EXTS}"')(>)?([#?][^ ]+)?(.*)$~\1'"${REPLACE_EXT}"'\3\4\5~g'
             else
                 cat
             fi
             ;;
         newlines:reduce:*)
             COUNT="${OPTIONS[1]:-2}"
+            [[ "${COUNT}" =~ ^[0-9]+$ ]] || COUNT=2
             awk -v COUNT="${COUNT}" '
             {
                 if ($0 == "") {

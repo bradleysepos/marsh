@@ -2191,12 +2191,6 @@ function marsh_text_transform {  # marsh_text_transform transform [transform...]
             XML_TAG_OPEN="${XML_TAG_OPEN//\\/\\\\}"
             XML_TAG_CLOSE="${XML_TAG_CLOSE//\\/\\\\}"
             awk -v XML_TAG="${XML_TAG}" -v XML_TAG_OPEN="${XML_TAG_OPEN}" -v XML_TAG_CLOSE="${XML_TAG_CLOSE}" '
-            function xml_escape(value) {
-                gsub(/&/, "\\&amp;", value)
-                gsub(/</, "\\&lt;", value)
-                gsub(/>/, "\\&gt;", value)
-                return value
-            }
             BEGIN {
                 tag = XML_TAG
             }
@@ -2204,8 +2198,7 @@ function marsh_text_transform {  # marsh_text_transform transform [transform...]
                 if ($0 == "") {
                     next
                 }
-                value_escaped = xml_escape($0)
-                printf "%s<%s>%s</%s>%s", XML_TAG_OPEN, tag, value_escaped, tag, XML_TAG_CLOSE
+                printf "%s<%s>%s</%s>%s", XML_TAG_OPEN, tag, $0, tag, XML_TAG_CLOSE
                 emitted = 1
             }
             END {

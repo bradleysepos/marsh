@@ -9929,8 +9929,9 @@ function marsh_test {
             ;;
         marsh_text_transform:83)
             TEST_NAME+=":items_wrap_type_xml"
+            # does not perform escaping directly; use marsh_text_transform escape:xml
             ACTUAL=$(printf '%s' "Jack & Jill <friends>" | marsh_text_transform items:wrap-type:xml:person)
-            EXPECTED='<person>Jack &amp; Jill &lt;friends&gt;</person>'
+            EXPECTED='<person>Jack & Jill <friends></person>'
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"

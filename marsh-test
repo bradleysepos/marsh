@@ -7694,6 +7694,15 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
+        marsh_parse_yaml:8)
+            TEST_NAME+=":no_prefix"
+            ACTUAL=$(marsh_parse_yaml "FOO: foo"$'\n'"BAR: bar" "")
+            EXPECTED='FOO="foo"'$'\n''BAR="bar"'
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
         marsh_parse_template_tag:0)
             TEST_NAME+=":name_only"
             TAG_NAME=""

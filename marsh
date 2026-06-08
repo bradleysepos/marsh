@@ -925,15 +925,13 @@ function marsh_get_variables {  # marsh_get_variables [occurrence_order]
 
     # captures variable name from simple assignments, e.g., VAR=value becomes VAR
     VARIABLE_NAMES_CAPTURE_REGEX='s/^([^=]+[^+])[+]?=.*/\1/'
-    # normalize root-level names emitted as _NAME where no prefix was provided to the yaml parser
-    VARIABLE_NAMES_NORMALIZE_REGEX='s/^_([^_].*)$/\1/'
 
     # deduplicate variable names, keeping either first or last occurrence
     if [[ "${OCCURRENCE_ORDER}" == "first" ]]; then
-        sed -E -e "${VARIABLE_NAMES_CAPTURE_REGEX}" -e "${VARIABLE_NAMES_NORMALIZE_REGEX}" | awk '!seen[$0]++'
+        sed -E -e "${VARIABLE_NAMES_CAPTURE_REGEX}" | awk '!seen[$0]++'
         return 0
     fi
-    sed -E -e "${VARIABLE_NAMES_CAPTURE_REGEX}" -e "${VARIABLE_NAMES_NORMALIZE_REGEX}" | awk '
+    sed -E -e "${VARIABLE_NAMES_CAPTURE_REGEX}" | awk '
     {
         if (!($0 in first_index)) {
             ordered_names[++ordered_count] = $0
@@ -1346,11 +1344,12 @@ function marsh_parse_yaml {  # marsh_parse_yaml yaml_string_or_file variables_pr
                 if (i > (level)) { vname[i] = ""; }
             }
             for (i = 0; i < level; i++) {
+                if (out != "") { out = out "_" }
                 if (vname[i] != "") {
-                    out = out "_" vname[i];
-                    if (adepth[i] > -1 && adepth[i+1] > -1) { out = out "_" adepth[i+1]; }
+                    out = out vname[i];
+                    if (adepth[i] > -1 && adepth[i+1] > -1) { out = out adepth[i+1]; }
                 } else {
-                    out = out "_" adepth[i+1];
+                    out = out adepth[i+1];
                 }
             }
             if (substr(val,1,1) == "[" && substr(val,length(val),1) == "]") {
@@ -1374,8 +1373,13 @@ function marsh_parse_yaml {  # marsh_parse_yaml yaml_string_or_file variables_pr
                     vals[0] = val;
                 }
             }
-            if (key != "") { out = out "_" key; }
-            out = prefix out;
+            if (key != "") {
+                if (out != "") { out = out "_" }
+                out = out key;
+            }
+            if (prefix != "") {
+                out = prefix "_" out;
+            }
             gsub(/__/, "_", out);
             gsub(/_=/, "", out);
             for (i = 0; i < num_vals; i++) {

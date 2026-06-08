@@ -3081,17 +3081,17 @@ function marsh_get_site_source_root_path {  # marsh_get_site_source_root_path co
 }
 
 # returns a normalized relative source inventory for a source root
-function marsh_get_source_inventory {  # marsh_get_source_inventory source_root [skip_links]
-    local SOURCE_ROOT SKIP_LINKS
+function marsh_get_directory_inventory {  # marsh_get_directory_inventory directory [skip_links]
+    local DIRECTORY SKIP_LINKS
 
-    SOURCE_ROOT="${1:-}"
+    DIRECTORY="${1:-}"
     SKIP_LINKS="${2:-false}"
-    [[ "${SOURCE_ROOT}" == "" ]] || [[ ! -d "${SOURCE_ROOT}" ]] && return 1
+    [[ "${DIRECTORY}" == "" ]] || [[ ! -d "${DIRECTORY}" ]] && return 1
 
     if [[ "${SKIP_LINKS}" == true ]]; then
-        cd "${SOURCE_ROOT}" >/dev/null 2>&1 && find . -type f 2>/dev/null | sed -e 's/^\.\///' -e 's/^\.$//'
+        cd "${DIRECTORY}" >/dev/null 2>&1 && find . -type f 2>/dev/null | sed -e 's/^\.\///' -e 's/^\.$//'
     elif [[ "${SKIP_LINKS}" == false ]]; then
-        cd "${SOURCE_ROOT}" >/dev/null 2>&1 && find . \( -type f -o -type l \) 2>/dev/null | sed -e 's/^\.\///' -e 's/^\.$//'
+        cd "${DIRECTORY}" >/dev/null 2>&1 && find . \( -type f -o -type l \) 2>/dev/null | sed -e 's/^\.\///' -e 's/^\.$//'
     else
         return 1
     fi
@@ -3140,7 +3140,7 @@ function marsh_get_target_source_inventory {  # marsh_get_target_source_inventor
             echo "Unable to create source inventory path: ${INVENTORY_CACHE_DIR}" >&2
             return 1
         }
-        marsh_get_source_inventory "${SOURCE_ROOT}" "${SKIP_LINKS}" > "${INVENTORY_FILE}" || {
+        marsh_get_directory_inventory "${SOURCE_ROOT}" "${SKIP_LINKS}" > "${INVENTORY_FILE}" || {
             rm -f "${INVENTORY_FILE}"
             echo "Unable to generate source inventory: ${SOURCE_ROOT}" >&2
             return 1

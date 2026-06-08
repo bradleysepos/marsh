@@ -5248,6 +5248,43 @@ function marsh_test {
                 fi
             fi
             ;;
+        marsh_get_directory_inventory:0)
+            TEST_NAME+=":defaults_include_links"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
+            mkdir -p "${SOURCE_ROOT}/nested"
+            printf '%s\n' 'alpha' > "${SOURCE_ROOT}/index.markdown"
+            printf '%s\n' 'beta' > "${SOURCE_ROOT}/nested/page.markdown"
+            ln -s "${SOURCE_ROOT}/index.markdown" "${SOURCE_ROOT}/index-link.markdown"
+            ACTUAL=$(marsh_get_directory_inventory "${SOURCE_ROOT}")
+            EXPECTED=$(printf '%s\n' \
+                'nested/page.markdown' \
+                'index.markdown' \
+                'index-link.markdown' | sort)
+            ACTUAL=$(printf '%s\n' "${ACTUAL}" | sed '/^$/d' | sort)
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            rm -rf "${SOURCE_ROOT}"
+            ;;
+        marsh_get_directory_inventory:1)
+            TEST_NAME+=":skip_links_true"
+            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
+            mkdir -p "${SOURCE_ROOT}/nested"
+            printf '%s\n' 'alpha' > "${SOURCE_ROOT}/index.markdown"
+            printf '%s\n' 'beta' > "${SOURCE_ROOT}/nested/page.markdown"
+            ln -s "${SOURCE_ROOT}/index.markdown" "${SOURCE_ROOT}/index-link.markdown"
+            ACTUAL=$(marsh_get_directory_inventory "${SOURCE_ROOT}" true)
+            EXPECTED=$(printf '%s\n' \
+                'nested/page.markdown' \
+                'index.markdown' | sort)
+            ACTUAL=$(printf '%s\n' "${ACTUAL}" | sed '/^$/d' | sort)
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            rm -rf "${SOURCE_ROOT}"
+            ;;
         marsh_get_document_artifacts:0)
             TEST_NAME+=":nested_target"
             MARSH_CONFIG_PATH="/site/public"
@@ -5785,43 +5822,6 @@ function marsh_test {
             if [[ "${ACTUAL}" -eq "${EXPECTED}" ]]; then
                 RES="[PASS]"
             fi
-            ;;
-        marsh_get_source_inventory:0)
-            TEST_NAME+=":defaults_include_links"
-            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
-            mkdir -p "${SOURCE_ROOT}/nested"
-            printf '%s\n' 'alpha' > "${SOURCE_ROOT}/index.markdown"
-            printf '%s\n' 'beta' > "${SOURCE_ROOT}/nested/page.markdown"
-            ln -s "${SOURCE_ROOT}/index.markdown" "${SOURCE_ROOT}/index-link.markdown"
-            ACTUAL=$(marsh_get_source_inventory "${SOURCE_ROOT}")
-            EXPECTED=$(printf '%s\n' \
-                'nested/page.markdown' \
-                'index.markdown' \
-                'index-link.markdown' | sort)
-            ACTUAL=$(printf '%s\n' "${ACTUAL}" | sed '/^$/d' | sort)
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                RES="[PASS]"
-            fi
-            rm -rf "${SOURCE_ROOT}"
-            ;;
-        marsh_get_source_inventory:1)
-            TEST_NAME+=":skip_links_true"
-            SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
-            mkdir -p "${SOURCE_ROOT}/nested"
-            printf '%s\n' 'alpha' > "${SOURCE_ROOT}/index.markdown"
-            printf '%s\n' 'beta' > "${SOURCE_ROOT}/nested/page.markdown"
-            ln -s "${SOURCE_ROOT}/index.markdown" "${SOURCE_ROOT}/index-link.markdown"
-            ACTUAL=$(marsh_get_source_inventory "${SOURCE_ROOT}" true)
-            EXPECTED=$(printf '%s\n' \
-                'nested/page.markdown' \
-                'index.markdown' | sort)
-            ACTUAL=$(printf '%s\n' "${ACTUAL}" | sed '/^$/d' | sort)
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                RES="[PASS]"
-            fi
-            rm -rf "${SOURCE_ROOT}"
             ;;
         marsh_get_source_root_path:0)
             TEST_NAME+=":glob_parent"
@@ -11120,6 +11120,7 @@ KNOWN_FUNCTIONS=(
     marsh_get_archive_temp_path
     marsh_get_cache_path
     marsh_get_common_directory
+    marsh_get_directory_inventory
     marsh_get_document_artifacts
     marsh_get_document_metadata
     marsh_get_document_temp_path
@@ -11133,7 +11134,6 @@ KNOWN_FUNCTIONS=(
     marsh_get_sitemap_lookup_path
     marsh_get_sitemap_render_path
     marsh_get_sitemap_temp_path
-    marsh_get_source_inventory
     marsh_get_source_root_path
     marsh_get_target_archive_queue_records_path
     marsh_get_target_archive_records

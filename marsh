@@ -4691,9 +4691,7 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
     BUILD_CONTEXT_OUTPUT_ROOT=$(marsh_get_target_directory_path "${SITE_OUTPUT_ROOT}/${BUILD_CONTEXT_TARGET_OUTPUT_REL}") || return 1
 
     # document destination
-    DEST="${DOCUMENT}"
-    DEST="${SITE_OUTPUT_ROOT}/${DOCUMENT_OUTPUT_REL}"
-    DEST_FINAL="${DEST}"
+    DEST_FINAL="${SITE_OUTPUT_ROOT}/${DOCUMENT_OUTPUT_REL}"
     DOCUMENT_SOURCE_FILE=""
     # prefer source tree for ordinary documents
     TARGET_SOURCE_ROOT="${BUILD_CONTEXT_SOURCE_ROOT}"
@@ -4708,8 +4706,7 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
     fi
 
     # destination for verbose path output
-    DEST_PRINT="${DEST#${SITE_OUTPUT_ROOT}/}"
-    DEST_PRINT="${DEST_PRINT#./}"
+    DEST_PRINT="${DOCUMENT_OUTPUT_REL#./}"
 
     # absolute path to document directory
     DOCUMENT_ABSPATH=$(marsh_get_absolute_output_path "${DOCUMENT_BASE_REL}" "directory") || return 1

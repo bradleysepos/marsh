@@ -1496,11 +1496,12 @@ function marsh_test {
             TEST_NAME+=":srcset_uses_source_root_image_variants"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
-            mkdir -p "${SOURCE_ROOT}/images"
+            mkdir -p "${SOURCE_ROOT}"
             printf '%s\n' '<img src="images/example.png" />' > "${SOURCE_ROOT}/index.markdown"
-            printf '%s\n' 'base' > "${SOURCE_ROOT}/images/example.png"
-            printf '%s\n' '2x' > "${SOURCE_ROOT}/images/example@2x.png"
-            printf '%s\n' '3x' > "${SOURCE_ROOT}/images/example@3x.png"
+            mkdir -p "${TARGET_OUTPUT_ROOT}/images"
+            printf '%s\n' 'base' > "${TARGET_OUTPUT_ROOT}/images/example.png"
+            printf '%s\n' '2x' > "${TARGET_OUTPUT_ROOT}/images/example@2x.png"
+            printf '%s\n' '3x' > "${TARGET_OUTPUT_ROOT}/images/example@3x.png"
             marsh_build_document "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" "." "${SOURCE_ROOT}" >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0

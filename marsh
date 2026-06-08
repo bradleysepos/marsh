@@ -918,7 +918,7 @@ function marsh_get_shell_timestamp {  # marsh_get_shell_timestamp
 
 # prints a unique list of variables given assignment commands, defaulting to last-occurrence order
 function marsh_get_variables {  # marsh_get_variables [occurrence_order]
-    local OCCURRENCE_ORDER VARIABLE_NAMES_REGEX
+    local OCCURRENCE_ORDER VARIABLE_NAMES_CAPTURE_REGEX
 
     OCCURRENCE_ORDER="${1:-last}"
     [[ "${OCCURRENCE_ORDER}" != "first" ]] && [[ "${OCCURRENCE_ORDER}" != "last" ]] && return 1

@@ -2187,26 +2187,30 @@ function marsh_text_transform {  # marsh_text_transform transform [transform...]
                 XML_TAG_OPEN="<${OPTIONS[$I]}>${XML_TAG_OPEN}"
                 XML_TAG_CLOSE+="</${OPTIONS[$I]}>"
             done
-            XML_TAG="${XML_TAG//\\/\\\\}"
-            XML_TAG_OPEN="${XML_TAG_OPEN//\\/\\\\}"
-            XML_TAG_CLOSE="${XML_TAG_CLOSE//\\/\\\\}"
-            awk -v XML_TAG="${XML_TAG}" -v XML_TAG_OPEN="${XML_TAG_OPEN}" -v XML_TAG_CLOSE="${XML_TAG_CLOSE}" '
-            BEGIN {
-                tag = XML_TAG
-            }
-            {
-                if ($0 == "") {
-                    next
+            if [[ "${XML_TAG}" =~ ^[A-Za-z_][A-Za-z0-9._-]* ]]; then
+                XML_TAG="${XML_TAG//\\/\\\\}"
+                XML_TAG_OPEN="${XML_TAG_OPEN//\\/\\\\}"
+                XML_TAG_CLOSE="${XML_TAG_CLOSE//\\/\\\\}"
+                awk -v XML_TAG="${XML_TAG}" -v XML_TAG_OPEN="${XML_TAG_OPEN}" -v XML_TAG_CLOSE="${XML_TAG_CLOSE}" '
+                BEGIN {
+                    tag = XML_TAG
                 }
-                printf "%s<%s>%s</%s>%s", XML_TAG_OPEN, tag, $0, tag, XML_TAG_CLOSE
-                emitted = 1
-            }
-            END {
-                if (emitted) {
-                    printf "\n"
+                {
+                    if ($0 == "") {
+                        next
+                    }
+                    printf "%s<%s>%s</%s>%s", XML_TAG_OPEN, tag, $0, tag, XML_TAG_CLOSE
+                    emitted = 1
                 }
-            }
-            '
+                END {
+                    if (emitted) {
+                        printf "\n"
+                    }
+                }
+                '
+            else
+                cat
+            fi
             ;;
         links:replace-ext:*)
             # convert relative links with markdown file extensions to html

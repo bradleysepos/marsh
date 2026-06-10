@@ -542,7 +542,8 @@ function marsh_cli {
         sleep 2
         rm -rf "${MARSH_TEMP}" || echo "Temporary files may still remain at: ${MARSH_TEMP}" >&2
         sleep 1
-        trap - TERM && kill -- -$$
+        trap - TERM
+        kill -- -$$ 2>/dev/null || true
     }
 
     # work

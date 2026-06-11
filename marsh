@@ -8808,7 +8808,7 @@ function marsh_process_responsive_images_tags {  # marsh_process_responsive_imag
             }
 
             # extract variant
-            match(rp_base, /@[0-9]+((\.[0-9]+)?x|w)$/);
+            match(rp_base, /[@_-][0-9]+((\.[0-9]+)?x|w)$/);
             if (RSTART <= 0) continue;  # skip paths without variant
             rp_variant = substr(rp_base, RSTART + 1);
             rp_base = substr(rp_base, 1, RSTART - 1);
@@ -8856,7 +8856,7 @@ function marsh_process_responsive_images_tags {  # marsh_process_responsive_imag
                 if (RSTART > 0) {
                     base = substr(source, 1, RSTART - 1);
                 }
-                match(base, /@[0-9]+((\.[0-9]+)?x|w)$/);
+                match(base, /[@_-][0-9]+((\.[0-9]+)?x|w)$/);
                 if (RSTART > 0) {
                     variant = substr(base, RSTART + 1);
                     base = substr(base, 1, RSTART - 1);

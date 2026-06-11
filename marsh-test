@@ -8562,7 +8562,7 @@ function marsh_test {
         marsh_process_responsive_images_tags:0)
             TEST_NAME+=":density_variants"
             ACTUAL=$(printf '%s\n' '<img src="image.jpg" alt="Image"><img src="image2@1x.jpg" alt="Image2" />' | \
-                marsh_process_responsive_images_tags 'image@2x.jpg'$'\034''image@4x.jpg'$'\034''image2@2x.jpg'$'\034''image2-nope.jpg')
+                marsh_process_responsive_images_tags 'image@2x.jpg'$'\034''image@4x.jpg'$'\034''image2@2x.jpg'$'\034''image2@nope.jpg')
             EXPECTED=$(printf '%s' '<img src="image.jpg" srcset="image.jpg 1x, image@2x.jpg 2x, image@4x.jpg 4x" alt="Image">' \
                 '<img src="image2@1x.jpg" srcset="image2@1x.jpg 1x, image2@2x.jpg 2x" alt="Image2" />')
             ASSERTION="equals"
@@ -8573,7 +8573,7 @@ function marsh_test {
         marsh_process_responsive_images_tags:1)
             TEST_NAME+=":width_variants"
             ACTUAL=$(printf '%s\n' '<img src="image@200w.jpg" alt="Image"><img src="image2@200w.jpg" alt="Image2" />' | \
-                marsh_process_responsive_images_tags 'image@400w.jpg'$'\034''image@800w.jpg'$'\034''image2@400w.jpg'$'\034''image2-nope.jpg')
+                marsh_process_responsive_images_tags 'image@400w.jpg'$'\034''image@800w.jpg'$'\034''image2@400w.jpg'$'\034''image2@nope.jpg')
             EXPECTED=$(printf '%s' '<img src="image@200w.jpg" srcset="image@200w.jpg 200w, image@400w.jpg 400w, image@800w.jpg 800w" alt="Image">' \
                 '<img src="image2@200w.jpg" srcset="image2@200w.jpg 200w, image2@400w.jpg 400w" alt="Image2" />')
             ASSERTION="equals"
@@ -8581,10 +8581,21 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_process_responsive_images_tags:2)
+        marsh_process_responsive_images_tags:3)
+            TEST_NAME+=":delimiters"
+            ACTUAL=$(printf '%s\n' '<img src="image-200w.jpg" alt="Image"><img src="image2_200w.jpg" alt="Image2" />' | \
+                marsh_process_responsive_images_tags 'image-400w.jpg'$'\034''image-800w.jpg'$'\034''image2_400w.jpg'$'\034''image2_nope.jpg')
+            EXPECTED=$(printf '%s' '<img src="image-200w.jpg" srcset="image-200w.jpg 200w, image-400w.jpg 400w, image-800w.jpg 800w" alt="Image">' \
+                '<img src="image2_200w.jpg" srcset="image2_200w.jpg 200w, image2_400w.jpg 400w" alt="Image2" />')
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_process_responsive_images_tags:4)
             TEST_NAME+=":mixed_variants_density_priority"
             ACTUAL=$(printf '%s\n' '<img src="image.jpg" alt="Image"><img src="image2@1x.jpg" alt="Image2" />' | \
-                marsh_process_responsive_images_tags 'image@2x.jpg'$'\034''image@800w.jpg'$'\034''image2@400w.jpg'$'\034''image2-nope.jpg')
+                marsh_process_responsive_images_tags 'image@2x.jpg'$'\034''image@800w.jpg'$'\034''image2@400w.jpg'$'\034''image2@nope.jpg')
             EXPECTED=$(printf '%s' '<img src="image.jpg" srcset="image.jpg 1x, image@2x.jpg 2x" alt="Image">' \
                 '<img src="image2@1x.jpg" alt="Image2" />')
             ASSERTION="equals"
@@ -8592,10 +8603,10 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_process_responsive_images_tags:3)
+        marsh_process_responsive_images_tags:5)
             TEST_NAME+=":mixed_variants_width_priority"
             ACTUAL=$(printf '%s\n' '<img src="image@200w.jpg" alt="Image"><img src="image2@200w.jpg" alt="Image2" />' | \
-                marsh_process_responsive_images_tags 'image@400w.jpg'$'\034''image@4x.jpg'$'\034''image2@2x.jpg'$'\034''image2-nope.jpg')
+                marsh_process_responsive_images_tags 'image@400w.jpg'$'\034''image@4x.jpg'$'\034''image2@2x.jpg'$'\034''image2@nope.jpg')
             EXPECTED=$(printf '%s' '<img src="image@200w.jpg" srcset="image@200w.jpg 200w, image@400w.jpg 400w" alt="Image">' \
                 '<img src="image2@200w.jpg" alt="Image2" />')
             ASSERTION="equals"

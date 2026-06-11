@@ -7997,128 +7997,7 @@ function marsh_build_document {  # marsh_build_document site_output_root target_
         sed -E \
         -e 's|<p><figure>|<figure>|' \
         -e 's|</figure></p>|</figure>|' |
-        awk -v responsive_paths="${RESPONSIVE_PATHS//\\/\\\\}" \
-        '
-        BEGIN {
-            # build hash index of responsive paths rp_index[]
-            # track which base names exist in rp_bases[]
-            # track variants per base name in rp_variant_list[]
-            n_rp = split(responsive_paths, rp_lines, "\034");
-            for (i = 1; i <= n_rp; i++) {
-                rp_path = rp_lines[i];
-                if (rp_path == "") continue;
-
-                # extract base name without extension from path
-                match(rp_path, /\.[^.]+$/);
-                if (RSTART > 0) {
-                    rp_base = substr(rp_path, 1, RSTART - 1);
-                } else {
-                    rp_base = rp_path;
-                }
-
-                # extract variant
-                match(rp_base, /@[0-9]+((\.[0-9]+)?x|w)$/);
-                if (RSTART <= 0) continue;  # skip paths without variant
-                rp_variant = substr(rp_base, RSTART + 1);
-                rp_base = substr(rp_base, 1, RSTART - 1);
-
-                # store in hash index
-                rp_index[rp_base, rp_variant] = rp_path;
-
-                # track variants for iteration
-                if (rp_base in rp_variant_list) {
-                    rp_variant_list[rp_base] = rp_variant_list[rp_base] "\n" rp_variant;
-                } else {
-                    rp_variant_list[rp_base] = rp_variant;
-                }
-                rp_bases[rp_base] = 1;
-            }
-        }
-        {
-            # process lines containing img tags with src attributes
-            if ($0 ~ /<img [^>]*src="[^"]*"[^>]*>/)
-            {
-                result = "";
-                rest_of_line = $0;
-
-                # process img tags on the same line sequentially
-                while (match(rest_of_line, /<img [^>]*src="[^"]*"[^>]*>/)) {
-                    # extract img tag
-                    result = result substr(rest_of_line, 1, RSTART - 1);
-                    img_tag = substr(rest_of_line, RSTART, RLENGTH);
-                    rest_of_line = substr(rest_of_line, RSTART + RLENGTH);
-
-                    # do not process img tags that already have srcset attribute
-                    if (img_tag ~ /srcset=/) {
-                        result = result img_tag;
-                        continue;
-                    }
-
-                    # extract source path from img tag
-                    match(img_tag, /src="[^"]*"/);
-                    source = substr(img_tag, RSTART + 5, RLENGTH - 6);
-                    rest_of_tag = substr(img_tag, RSTART + RLENGTH);
-
-                    # extract base name, variant, and variant type from source path
-                    base = source;
-                    match(source, /\.[^.]+$/);
-                    if (RSTART > 0) {
-                        base = substr(source, 1, RSTART - 1);
-                    }
-                    match(base, /@[0-9]+((\.[0-9]+)?x|w)$/);
-                    if (RSTART > 0) {
-                        variant = substr(base, RSTART + 1);
-                        base = substr(base, 1, RSTART - 1);
-                    } else {
-                        variant = "1x";
-                    }
-                    variant_type = substr(variant, length(variant), 1);
-
-                    # build srcset starting with original source
-                    srcset_count = 0;
-                    #delete srcset_parts;  # count logic makes clearing the array unnecessary
-                    srcset_parts[++srcset_count] = source " " variant;
-
-                    # look up candidates in hash index
-                    if (base in rp_bases) {
-                        # iterate through newline-separated variant list
-                        n_variants = split(rp_variant_list[base], variants_array, "\n");
-                        for (i = 1; i <= n_variants; i++) {
-                            candidate_variant = variants_array[i];
-
-                            # only include candidate variants that differ from the original image variant
-                            if (candidate_variant == variant) continue;
-
-                            # do not mix density (x) and width (w) variants in the same srcset
-                            candidate_variant_type = substr(candidate_variant, length(candidate_variant), 1);
-                            if (variant_type != candidate_variant_type) continue;
-
-                            # add valid candidate to srcset
-                            # rp_index[base, candidate_variant] is the full path
-                            srcset_parts[++srcset_count] = rp_index[base, candidate_variant] " " candidate_variant;
-                        }
-                    }
-
-                    # only add srcset to img tag if valid variants were found
-                    if (srcset_count > 1) {
-                        # join srcset parts
-                        srcset = srcset_parts[1];  # original source is always first in srcset
-                        for (i = 2; i <= srcset_count; i++) {
-                            srcset = srcset ", " srcset_parts[i];
-                        }
-
-                        # build new img tag with srcset attribute
-                        result = result "<img src=\"" source "\" srcset=\"" srcset "\"" rest_of_tag;
-                    } else {
-                        # only the original source is valid, keep img tag unchanged
-                        result = result img_tag;
-                    }
-                }
-                print result rest_of_line;
-            } else {
-                print $0;
-            }
-        }' > "${DOCUMENT_CONTENT}" || {
+        marsh_process_responsive_images_tags "${RESPONSIVE_PATHS}" > "${DOCUMENT_CONTENT}" || {
             echo "Unable to process document markdown: ${DOCUMENT_SOURCE_FILE}" >&2
             rm -f "${DOCUMENT_CONTENT}.temp"
             return 1
@@ -8897,6 +8776,139 @@ function marsh_plan_target_documents_from_inventory {  # marsh_plan_target_docum
         marsh_validate_record_fields "document record" "${DOCUMENT_ID}" "${DOCUMENT_ID}" "${TARGET_OUTPUT_REL}" "${TARGET_SOURCE_ROOT}" || return 1
         printf '%s\037%s\037%s\037%s\n' "${DOCUMENT_ID}" "${DOCUMENT_ID}" "${TARGET_OUTPUT_REL}" "${TARGET_SOURCE_ROOT}"
     done
+}
+
+# adds multi-resolution srcset attributes for responsive images to img tags in html content
+# based on a provided list of responsive image paths separated by ASCII file record separator (\034)
+# img tags must not span multiple lines, img tags with existing srcset attributes are passed through unmodified
+function marsh_process_responsive_images_tags {  # marsh_process_responsive_images_tags responsive_paths_frsv
+    local RESPONSIVE_PATHS_FRSV
+
+    RESPONSIVE_PATHS_FRSV="${1:-}"
+    [[ "${RESPONSIVE_PATHS_FRSV}" != "" ]] || cat
+
+    awk -v responsive_paths="${RESPONSIVE_PATHS_FRSV//\\/\\\\}" \
+    '
+    BEGIN {
+        # build hash index of responsive paths rp_index[]
+        # track which base names exist in rp_bases[]
+        # track variants per base name in rp_variant_list[]
+        n_rp = split(responsive_paths, rp_lines, "\034");
+        for (i = 1; i <= n_rp; i++) {
+            rp_path = rp_lines[i];
+            if (rp_path == "") continue;
+
+            # extract base name without extension from path
+            match(rp_path, /\.[^.]+$/);
+            if (RSTART > 0) {
+                rp_base = substr(rp_path, 1, RSTART - 1);
+            } else {
+                rp_base = rp_path;
+            }
+
+            # extract variant
+            match(rp_base, /@[0-9]+((\.[0-9]+)?x|w)$/);
+            if (RSTART <= 0) continue;  # skip paths without variant
+            rp_variant = substr(rp_base, RSTART + 1);
+            rp_base = substr(rp_base, 1, RSTART - 1);
+
+            # store in hash index
+            rp_index[rp_base, rp_variant] = rp_path;
+
+            # track variants for iteration
+            if (rp_base in rp_variant_list) {
+                rp_variant_list[rp_base] = rp_variant_list[rp_base] "\n" rp_variant;
+            } else {
+                rp_variant_list[rp_base] = rp_variant;
+            }
+            rp_bases[rp_base] = 1;
+        }
+    }
+    {
+        # process lines containing img tags with src attributes
+        if ($0 ~ /<img [^>]*src="[^"]*"[^>]*>/)
+        {
+            result = "";
+            rest_of_line = $0;
+
+            # process img tags on the same line sequentially
+            while (match(rest_of_line, /<img [^>]*src="[^"]*"[^>]*>/)) {
+                # extract img tag
+                result = result substr(rest_of_line, 1, RSTART - 1);
+                img_tag = substr(rest_of_line, RSTART, RLENGTH);
+                rest_of_line = substr(rest_of_line, RSTART + RLENGTH);
+
+                # do not process img tags that already have srcset attribute
+                if (img_tag ~ /srcset=/) {
+                    result = result img_tag;
+                    continue;
+                }
+
+                # extract source path from img tag
+                match(img_tag, /src="[^"]*"/);
+                source = substr(img_tag, RSTART + 5, RLENGTH - 6);
+                rest_of_tag = substr(img_tag, RSTART + RLENGTH);
+
+                # extract base name, variant, and variant type from source path
+                base = source;
+                match(source, /\.[^.]+$/);
+                if (RSTART > 0) {
+                    base = substr(source, 1, RSTART - 1);
+                }
+                match(base, /@[0-9]+((\.[0-9]+)?x|w)$/);
+                if (RSTART > 0) {
+                    variant = substr(base, RSTART + 1);
+                    base = substr(base, 1, RSTART - 1);
+                } else {
+                    variant = "1x";
+                }
+                variant_type = substr(variant, length(variant), 1);
+
+                # build srcset starting with original source
+                srcset_count = 0;
+                #delete srcset_parts;  # count logic makes clearing the array unnecessary
+                srcset_parts[++srcset_count] = source " " variant;
+
+                # look up candidates in hash index
+                if (base in rp_bases) {
+                    # iterate through newline-separated variant list
+                    n_variants = split(rp_variant_list[base], variants_array, "\n");
+                    for (i = 1; i <= n_variants; i++) {
+                        candidate_variant = variants_array[i];
+
+                        # only include candidate variants that differ from the original image variant
+                        if (candidate_variant == variant) continue;
+
+                        # do not mix density (x) and width (w) variants in the same srcset
+                        candidate_variant_type = substr(candidate_variant, length(candidate_variant), 1);
+                        if (variant_type != candidate_variant_type) continue;
+
+                        # add valid candidate to srcset
+                        # rp_index[base, candidate_variant] is the full path
+                        srcset_parts[++srcset_count] = rp_index[base, candidate_variant] " " candidate_variant;
+                    }
+                }
+
+                # only add srcset to img tag if valid variants were found
+                if (srcset_count > 1) {
+                    # join srcset parts
+                    srcset = srcset_parts[1];  # original source is always first in srcset
+                    for (i = 2; i <= srcset_count; i++) {
+                        srcset = srcset ", " srcset_parts[i];
+                    }
+
+                    # build new img tag with srcset attribute
+                    result = result "<img src=\"" source "\" srcset=\"" srcset "\"" rest_of_tag;
+                } else {
+                    # only the original source is valid, keep img tag unchanged
+                    result = result img_tag;
+                }
+            }
+            print result rest_of_line;
+        } else {
+            print $0;
+        }
+    }'
 }
 
 # publishes a completed processed output file to its final destination

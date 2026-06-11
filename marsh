@@ -451,7 +451,7 @@ function marsh_cli {
             [[ "${MARSH_CONFIG_FILE}" != "" ]] && MARSH_CONFIG_FILE="${MARSH_CONFIG_FILE%/}/marsh-config.yaml"
         fi
         if [[ -f "${MARSH_CONFIG_FILE}" ]] && [[ -r "${MARSH_CONFIG_FILE}" ]]; then
-            CONFIG_ASSIGNMENTS=$(marsh_parse_yaml "${MARSH_CONFIG_FILE}" "CONFIG_") || {
+            CONFIG_ASSIGNMENTS=$(marsh_parse_yaml "CONFIG" < "${MARSH_CONFIG_FILE}") || {
                 echo "Unable to parse yaml file: ${MARSH_CONFIG_FILE}" >&2
                 return 1
             }
@@ -1176,24 +1176,20 @@ function marsh_parse_internal_assignment {  # marsh_parse_internal_assignment as
 # creates bash variables from yaml records
 # extended to support arrays, empty values, and more
 # https://gist.github.com/DinoChiesa/3e3c3866b51290f31243
-# https://gist.github.com/epiloque/8cf512c6d64641bde388
 # https://gist.github.com/pkuczynski/8665367
-function marsh_parse_yaml {  # marsh_parse_yaml yaml_string_or_file variables_prefix spaces_per_indentation
-    local INPUT PREFIX INDENT S W FS
-    INPUT="${1:-}"
-    [[ "${INPUT}" == "" ]] && return 0
-    if [[ -f "${INPUT}" ]] && [[ -r "${INPUT}" ]]; then
-        INPUT=$(<"${INPUT}")
+function marsh_parse_yaml {  # marsh_parse_yaml variables_prefix spaces_per_indentation
+    local PREFIX INDENT S W FS
+    PREFIX="${1:-}"
+    INDENT="${2:-}"
+    if [[ "${PREFIX}" != "" ]] && [[ ! "${PREFIX}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
+        return 1
     fi
-    PREFIX="${2:-}"
-    INDENT="${3:-}"
     if [[ ! "${INDENT}" =~ ^[0-9]+$ ]] || [[ "${INDENT}" -eq 0 ]]; then
         INDENT=2
     fi
     S='[[:space:]]*'
     W='[a-zA-Z0-9_]*'
     FS=$(echo @|tr @ '\034')
-    echo "${INPUT}" |
     sed -n \
         -e "s|^\(\(${S}\)\(-\) \)\{1\}\(${S}\)\(${W}\)${S}:${S}\(\".*\"\)\${S}\$|\3${FS}\2  \4${FS}\5${FS}\6|p" \
         -e "s|^\(\(${S}\)\(-\) \)\{1\}\(${S}\)\(${W}\)${S}:${S}\(.*\)${S}\$|\3${FS}\2  \4${FS}\5${FS}\6|p" \
@@ -6641,7 +6637,7 @@ function marsh_parse_template_metadata {  # marsh_parse_template_metadata prefix
 
     # load config
     if [[ -f "${TEMPLATE_DIR}/template.yaml" ]] && [[ -r "${TEMPLATE_DIR}/template.yaml" ]]; then
-        TEMPLATE_META=$(marsh_parse_yaml "${TEMPLATE_DIR}/template.yaml" "MARSH_TEMPLATE_")
+        TEMPLATE_META=$(marsh_parse_yaml "MARSH_TEMPLATE" < "${TEMPLATE_DIR}/template.yaml")
         [[ $? -ne 0 ]] && echo "Unable to parse yaml file: ${TEMPLATE_DIR}/template.yaml" >&2 && return 1
     else
         echo "Template configuration file not found: ${TEMPLATE_DIR}/template.yaml" >&2
@@ -6650,7 +6646,7 @@ function marsh_parse_template_metadata {  # marsh_parse_template_metadata prefix
     for TEMPLATE_OVERRIDE in "${TEMPLATE_OVERRIDES[@]}"; do
         [[ "${TEMPLATE_OVERRIDE}" == "" ]] && continue
         if [[ -f "${TEMPLATE_OVERRIDE}" ]] && [[ -r "${TEMPLATE_OVERRIDE}" ]]; then
-            TEMPLATE_LOOKUP_VALUE=$(marsh_parse_yaml "${TEMPLATE_OVERRIDE}" "MARSH_TEMPLATE_")
+            TEMPLATE_LOOKUP_VALUE=$(marsh_parse_yaml "MARSH_TEMPLATE" < "${TEMPLATE_OVERRIDE}")
             [[ $? -ne 0 ]] && echo "Unable to parse yaml file: ${TEMPLATE_OVERRIDE}" >&2 && return 1
             [[ "${TEMPLATE_META}" == "" ]] || TEMPLATE_META+=$'\n'
             TEMPLATE_META+="${TEMPLATE_LOOKUP_VALUE}"
@@ -8359,7 +8355,7 @@ function marsh_get_document_metadata {  # marsh_get_document_metadata meta_file 
                 marsh_lock_release "${CACHE_FILE}"
                 return 1
             }
-            META_ASSIGNMENTS=$(marsh_parse_yaml "${META_FILE}" "")
+            META_ASSIGNMENTS=$(marsh_parse_yaml < "${META_FILE}")
             [[ $? -ne 0 ]] && {
                 echo "Unable to parse document metadata for cache generation: ${META_FILE}" >&2
                 rm -f "${CACHE_TEMP}"

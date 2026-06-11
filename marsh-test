@@ -6394,7 +6394,7 @@ function marsh_test {
             ;;
         marsh_get_variables:6)
             TEST_NAME+=":first_occurrence_keeps_metadata_order"
-            ACTUAL=$(marsh_parse_yaml "Title: Example"$'\n'"State:"$'\n'"  - draft"$'\n'"Project: Site" "" | marsh_get_variables first)
+            ACTUAL=$(printf "%s\n" "Title: Example"$'\n'"State:"$'\n'"  - draft"$'\n'"Project: Site" "" | marsh_parse_yaml | marsh_get_variables first)
             EXPECTED='Title'$'\n''State'$'\n''State_0'$'\n''Project'
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -6771,7 +6771,8 @@ function marsh_test {
             ;;
         marsh_load_parsed_yaml_assignments:0)
             TEST_NAME+=":bootstrap_shape"
-            ASSIGNMENTS=$(marsh_parse_yaml "Build:"$'\n'"  Path: public"$'\n'"  URL: https://example.test"$'\n'"  Name: Example Site"$'\n'"  Targets:"$'\n'"    - Path: ."$'\n'"      Source: source/*"$'\n'"      Force: false" "MARSH_TEST_PARSED_YAML_")
+            ASSIGNMENTS=$(printf '%s\n' "Build:"$'\n'"  Path: public"$'\n'"  URL: https://example.test"$'\n'"  Name: Example Site"$'\n' \
+                "  Targets:"$'\n'"    - Path: ."$'\n'"      Source: source/*"$'\n'"      Force: false" | marsh_parse_yaml "MARSH_TEST_PARSED_YAML")
             ACTUAL=$(marsh_test_capture_parsed_yaml_assignments "${ASSIGNMENTS}")
             EXPECTED=$(printf '%s\n' \
                 'BUILD_PATH=public' \
@@ -7661,7 +7662,7 @@ function marsh_test {
             ;;
         marsh_parse_yaml:0)
             TEST_NAME+=":map"
-            ACTUAL=$(marsh_parse_yaml "FOO: foo" "PREFIX")
+            ACTUAL=$(printf '%s\n' "FOO: foo" | marsh_parse_yaml "PREFIX")
             EXPECTED="PREFIX_FOO=\"foo\""
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -7670,7 +7671,7 @@ function marsh_test {
             ;;
         marsh_parse_yaml:1)
             TEST_NAME+=":map"
-            ACTUAL=$(marsh_parse_yaml "FOO: foo"$'\n'"BAR: bar" "PREFIX")
+            ACTUAL=$(printf '%s\n' "FOO: foo"$'\n'"BAR: bar" | marsh_parse_yaml "PREFIX")
             EXPECTED='PREFIX_FOO="foo"'$'\n''PREFIX_BAR="bar"'
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -7679,7 +7680,7 @@ function marsh_test {
             ;;
         marsh_parse_yaml:2)
             TEST_NAME+=":map_sequence"
-            ACTUAL=$(marsh_parse_yaml "EMPTY: []" "PREFIX")
+            ACTUAL=$(printf '%s\n' "EMPTY: []" | marsh_parse_yaml "PREFIX")
             EXPECTED=""
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -7688,7 +7689,7 @@ function marsh_test {
             ;;
         marsh_parse_yaml:3)
             TEST_NAME+=":map_sequence"
-            ACTUAL=$(marsh_parse_yaml "FOOBAR: [foo, bar]" "PREFIX")
+            ACTUAL=$(printf '%s\n' "FOOBAR: [foo, bar]" | marsh_parse_yaml "PREFIX")
             EXPECTED='PREFIX_FOOBAR_0="foo"'$'\n''PREFIX_FOOBAR_1="bar"'
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -7697,7 +7698,7 @@ function marsh_test {
             ;;
         marsh_parse_yaml:4)
             TEST_NAME+=":map_sequence"
-            ACTUAL=$(marsh_parse_yaml "FOOBAR:"$'\n'"  - foo"$'\n'"  - bar" "PREFIX")
+            ACTUAL=$(printf '%s\n' "FOOBAR:"$'\n'"  - foo"$'\n'"  - bar" | marsh_parse_yaml "PREFIX")
             EXPECTED='PREFIX_FOOBAR=""'$'\n''PREFIX_FOOBAR_0="foo"'$'\n''PREFIX_FOOBAR_1="bar"'
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -7706,7 +7707,7 @@ function marsh_test {
             ;;
         marsh_parse_yaml:5)
             TEST_NAME+=":map_sequence"
-            ACTUAL=$(marsh_parse_yaml "FOOBAR:"$'\n'"  - foo"$'\n'"  - bar: [baz]" "PREFIX")
+            ACTUAL=$(printf '%s\n' "FOOBAR:"$'\n'"  - foo"$'\n'"  - bar: [baz]" | marsh_parse_yaml "PREFIX")
             EXPECTED='PREFIX_FOOBAR=""'$'\n''PREFIX_FOOBAR_0="foo"'$'\n''PREFIX_FOOBAR_1_bar_0="baz"'
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -7715,7 +7716,7 @@ function marsh_test {
             ;;
         marsh_parse_yaml:6)
             TEST_NAME+=":quoted"
-            ACTUAL=$(marsh_parse_yaml "FOO: \"foo bar\"" "PREFIX")
+            ACTUAL=$(printf '%s\n' "FOO: \"foo bar\"" | marsh_parse_yaml "PREFIX")
             EXPECTED="PREFIX_FOO=\"foo bar\""
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -7724,7 +7725,7 @@ function marsh_test {
             ;;
         marsh_parse_yaml:7)
             TEST_NAME+=":indent"
-            ACTUAL=$(marsh_parse_yaml "FOO:"$'\n'"    BAR: baz" "PREFIX" 4)
+            ACTUAL=$(printf '%s\n' "FOO:"$'\n'"    BAR: baz" | marsh_parse_yaml "PREFIX" 4)
             EXPECTED='PREFIX_FOO=""'$'\n''PREFIX_FOO_BAR="baz"'
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -7733,7 +7734,7 @@ function marsh_test {
             ;;
         marsh_parse_yaml:8)
             TEST_NAME+=":no_prefix"
-            ACTUAL=$(marsh_parse_yaml "FOO: foo"$'\n'"BAR: bar" "")
+            ACTUAL=$(printf '%s\n' "FOO: foo"$'\n'"BAR: bar" | marsh_parse_yaml)
             EXPECTED='FOO="foo"'$'\n''BAR="bar"'
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then

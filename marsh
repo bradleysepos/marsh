@@ -4116,7 +4116,7 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
                 supported["does not equal"] = 1;
                 supported["contains"] = 1;
                 supported["does not contain"] = 1;
-                re_if = "^[ ]*\\{%[ ]*if[ ]+(.+)[ ]+\"([^\"]+)\"[ ]*%\\}[ ]*$";
+                re_if = "^[ ]*\\{%[ ]*if[ ]+(.+)[ ]+\"([^\"]*)\"[ ]*%\\}[ ]*$";
                 re_any_if = "^[ ]*\\{%[ ]*if[ ]+.+[ ]*%\\}[ ]*$";
                 re_else = "^[ ]*\\{%[ ]*else[ ]*%\\}[ ]*$";
                 re_endif = "^[ ]*\\{%[ ]*endif[ ]*%\\}[ ]*$";
@@ -4148,7 +4148,7 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
                     sub(/^[^"]*"/, "", cond_value);
                     sub(/".*$/, "", cond_value);
                     condition = condition_line;
-                    sub(/[ ]+"[^"]+"[ ]*$/, "", condition);
+                    sub(/[ ]+"[^"]*"[ ]*$/, "", condition);
                     sub(/[ ]+$/, "", condition);
                     line_tag = condition;
                     sub(/[ ].*$/, "", line_tag);

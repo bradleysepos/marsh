@@ -1343,7 +1343,7 @@ function marsh_test {
                 '...' \
                 '' \
                 '# Example' > "${SOURCE_ROOT}/index.markdown"
-            marsh_build_document "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" "." "${SOURCE_ROOT}" >/dev/null 2>&1
+            marsh_build_document "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "marsh_test_markdown_command" "" "markdown,md" "html" "." "${SOURCE_ROOT}" >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
             ASSERTION="equals"
@@ -1384,7 +1384,7 @@ function marsh_test {
             SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
             mkdir -p "${SOURCE_ROOT}"
             printf '%s\n' '# Example' > "${SOURCE_ROOT}/index.markdown"
-            marsh_build_document "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" "." "${SOURCE_ROOT}" >/dev/null 2>&1
+            marsh_build_document "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "marsh_test_markdown_command" "" "markdown,md" "html" "." "${SOURCE_ROOT}" >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
             ASSERTION="equals"
@@ -1429,7 +1429,7 @@ function marsh_test {
                 '...' \
                 '' \
                 '# Example' > "${EXPLICIT_SOURCE_ROOT}/index.markdown"
-            marsh_build_document "${EXPLICIT_TARGET_OUTPUT_ROOT}" "." "index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" "." "${EXPLICIT_SOURCE_ROOT}" >/dev/null 2>&1
+            marsh_build_document "${EXPLICIT_TARGET_OUTPUT_ROOT}" "." "index.markdown" "marsh_test_markdown_command" "" "markdown,md" "html" "." "${EXPLICIT_SOURCE_ROOT}" >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
             ASSERTION="equals"
@@ -1453,7 +1453,7 @@ function marsh_test {
                         mkdir -p "${PREFERRED_TARGET_OUTPUT_ROOT}" "${PREFERRED_SOURCE_ROOT}"
                         printf '%s\n' '---' 'Title: Stale' '...' '' '# Stale' > "${PREFERRED_TARGET_OUTPUT_ROOT}/index.markdown"
                         printf '%s\n' '---' 'Title: Fresh' '...' '' '# Fresh' > "${PREFERRED_SOURCE_ROOT}/index.markdown"
-                        marsh_build_document "${PREFERRED_TARGET_OUTPUT_ROOT}" "." "index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" "." "${PREFERRED_SOURCE_ROOT}" >/dev/null 2>&1
+                        marsh_build_document "${PREFERRED_TARGET_OUTPUT_ROOT}" "." "index.markdown" "marsh_test_markdown_command" "" "markdown,md" "html" "." "${PREFERRED_SOURCE_ROOT}" >/dev/null 2>&1
                         ACTUAL=$?
                         EXPECTED=0
                         ASSERTION="equals"
@@ -1470,7 +1470,7 @@ function marsh_test {
                                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                                     mkdir -p "${MISSING_TARGET_OUTPUT_ROOT}"
                                     printf '%s\n' '---' 'Title: Example' '...' '' '# Example' > "${MISSING_TARGET_OUTPUT_ROOT}/index.markdown"
-                                    marsh_build_document "${MISSING_TARGET_OUTPUT_ROOT}" "." "index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" "." "" >/dev/null 2>&1
+                                    marsh_build_document "${MISSING_TARGET_OUTPUT_ROOT}" "." "index.markdown" "marsh_test_markdown_command" "" "markdown,md" "html" "." "" >/dev/null 2>&1
                                     ACTUAL=$?
                                     EXPECTED=1
                                     ASSERTION="equals"
@@ -1502,7 +1502,7 @@ function marsh_test {
             printf '%s\n' 'base' > "${TARGET_OUTPUT_ROOT}/images/example.png"
             printf '%s\n' '2x' > "${TARGET_OUTPUT_ROOT}/images/example@2x.png"
             printf '%s\n' '3x' > "${TARGET_OUTPUT_ROOT}/images/example@3x.png"
-            marsh_build_document "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" "." "${SOURCE_ROOT}" >/dev/null 2>&1
+            marsh_build_document "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "marsh_test_markdown_command" "" "markdown,md" "html" "." "${SOURCE_ROOT}" >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
             ASSERTION="equals"
@@ -1531,7 +1531,7 @@ function marsh_test {
                 '...' \
                 '' \
                 '# First' > "${SOURCE_ROOT}/index.markdown"
-            marsh_build_document "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" "." "${SOURCE_ROOT}" >/dev/null 2>&1
+            marsh_build_document "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "marsh_test_markdown_command" "" "markdown,md" "html" "." "${SOURCE_ROOT}" >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
             ASSERTION="equals"
@@ -1548,7 +1548,7 @@ function marsh_test {
                     '...' \
                     '' \
                     '# Second' > "${SOURCE_ROOT}/index.markdown"
-                marsh_build_document "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" "." "${SOURCE_ROOT}" >/dev/null 2>&1
+                marsh_build_document "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "marsh_test_markdown_command" "" "markdown,md" "html" "." "${SOURCE_ROOT}" >/dev/null 2>&1
                 ACTUAL=$?
                 EXPECTED=0
                 ASSERTION="equals"
@@ -1587,7 +1587,7 @@ function marsh_test {
                 EXPECTED=0
                 ASSERTION="equals"
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    marsh_build_document "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" "." "${SOURCE_ROOT}" >/dev/null 2>&1
+                    marsh_build_document "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "marsh_test_markdown_command" "" "markdown,md" "html" "." "${SOURCE_ROOT}" >/dev/null 2>&1
                     ACTUAL=$?
                     EXPECTED=0
                     ASSERTION="equals"
@@ -1622,7 +1622,7 @@ function marsh_test {
                 '...' \
                 '' \
                 '# Example' > "${SOURCE_ROOT}/index.markdown"
-            marsh_build_document_and_template "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "true" 0 "" "." "${SOURCE_ROOT}" >/dev/null 2>&1
+            marsh_build_document_and_template "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "html" 0 "" "." "${SOURCE_ROOT}" >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
             ASSERTION="equals"
@@ -1661,7 +1661,7 @@ function marsh_test {
                 '...' \
                 '' \
                 '# Example' > "${SOURCE_ROOT}/index.markdown"
-            marsh_build_document_and_template "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "" false "" "" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "true" 0 "" "." "${SOURCE_ROOT}" >/dev/null 2>&1
+            marsh_build_document_and_template "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "" false "" "" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "html" 0 "" "." "${SOURCE_ROOT}" >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
             ASSERTION="equals"
@@ -1693,7 +1693,7 @@ function marsh_test {
             TEST_NAME+=":document_failure"
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             mkdir -p "${TARGET_OUTPUT_ROOT}"
-            marsh_build_document_and_template "${TARGET_OUTPUT_ROOT}" "." "missing.markdown" "" false "" "" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "true" 0 "" "." "" >/dev/null 2>&1
+            marsh_build_document_and_template "${TARGET_OUTPUT_ROOT}" "." "missing.markdown" "" false "" "" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "html" 0 "" "." "" >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=1
             ASSERTION="equals"
@@ -1726,7 +1726,7 @@ function marsh_test {
                 '...' \
                 '' \
                 '# Example' > "${SOURCE_ROOT}/index.markdown"
-            marsh_build_document_and_template "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "" false "${TEMPLATE_DIR}" "missing" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "true" 0 "" "." "${SOURCE_ROOT}" >/dev/null 2>&1
+            marsh_build_document_and_template "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "" false "${TEMPLATE_DIR}" "missing" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "html" 0 "" "." "${SOURCE_ROOT}" >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=1
             ASSERTION="equals"
@@ -1759,7 +1759,7 @@ function marsh_test {
                 '...' \
                 '' \
                 '# Example' > "${SOURCE_ROOT}/about/index.markdown"
-            marsh_build_document_and_template "${TARGET_OUTPUT_ROOT}" "." "about/index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "true" 0 "" "." "${SOURCE_ROOT}" >/dev/null 2>&1
+            marsh_build_document_and_template "${TARGET_OUTPUT_ROOT}" "." "about/index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "html" 0 "" "." "${SOURCE_ROOT}" >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
             ASSERTION="equals"
@@ -1795,7 +1795,7 @@ function marsh_test {
                 [[ "${TARGET_SITEMAP_RECORD}" == "" ]] && continue
                 TARGET_SITEMAP_RECORDS+=("${TARGET_SITEMAP_RECORD}")
             done < <(marsh_plan_target_sitemaps "${SITE_SOURCE_ROOT}" "${TARGET_SOURCE_ROOT}" "site-map.markdown" true "${TARGET_OUTPUT_ROOT}")
-            marsh_build_planned_target_sitemaps "${TARGET_OUTPUT_ROOT}" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" true "${TARGET_SITEMAP_RECORDS[@]}" >/dev/null 2>&1
+            marsh_build_planned_target_sitemaps "${TARGET_OUTPUT_ROOT}" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "html" "${TARGET_SITEMAP_RECORDS[@]}" >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
             ASSERTION="equals"
@@ -1826,7 +1826,7 @@ function marsh_test {
             printf '%s\n' '---'$'\n''Title: Example'$'\n''...'$'\n'''$'\n''# Example' > "${SOURCE_ROOT}/index.markdown"
             TARGET_PLAN_ROOT=$(marsh_plan_target "${SOURCE_ROOT}" "${TARGET_OUTPUT_ROOT}" "." false "" "" false "${TEMPLATE_DIR}" "sample" 0 "" "${SOURCE_ROOT}" "markdown,md")
             marsh_write_target_plan_context "${TARGET_PLAN_ROOT}" "." false true "" false "${TEMPLATE_DIR}" "sample" 0 "" "." "${SOURCE_ROOT}" >/dev/null 2>&1
-            marsh_build_planned_target "${TARGET_OUTPUT_ROOT}" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "1" "marsh_test_markdown_command" "" "markdown,md" true "${TARGET_PLAN_ROOT}" >/dev/null 2>&1
+            marsh_build_planned_target "${TARGET_OUTPUT_ROOT}" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "1" "marsh_test_markdown_command" "" "markdown,md" "html" "${TARGET_PLAN_ROOT}" >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
             ASSERTION="equals"
@@ -1860,7 +1860,7 @@ function marsh_test {
             printf '%s\n' '{{ template.assets.styles }}'$'\n''{{ template.assets.scripts }}'$'\n''{{ document.content }}' > "${TEMPLATE_DIR}/sample/partials/body.html"
             printf '%s\n' '---'$'\n''Title: Example'$'\n''...'$'\n'''$'\n''# Example' > "${SOURCE_ROOT}/index.markdown"
             TARGET_PLAN_ROOT=$(marsh_plan_target "${SOURCE_ROOT}" "${TARGET_OUTPUT_ROOT}" "." false "" "" false "${TEMPLATE_DIR}" "sample" 0 "assets/site" "${SOURCE_ROOT}" "markdown,md")
-            marsh_build_planned_target "${TARGET_OUTPUT_ROOT}" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "1" "marsh_test_markdown_command" "" "markdown,md" true "${TARGET_PLAN_ROOT}" >/dev/null 2>&1
+            marsh_build_planned_target "${TARGET_OUTPUT_ROOT}" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "1" "marsh_test_markdown_command" "" "markdown,md" "html" "${TARGET_PLAN_ROOT}" >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
             ASSERTION="equals"
@@ -1908,7 +1908,7 @@ function marsh_test {
                 '...' > "${TEMPLATE_OVERRIDE_FILE}"
             printf '%s\n' '---'$'\n''Title: Example'$'\n''...'$'\n'''$'\n''# Example' > "${SOURCE_ROOT}/index.markdown"
             TARGET_PLAN_ROOT=$(marsh_plan_target "${SOURCE_ROOT}" "${TARGET_OUTPUT_ROOT}" "." false "" "" false "${TEMPLATE_DIR}" "sample" 1 "${TEMPLATE_OVERRIDE_FILE}" "" "${SOURCE_ROOT}" "markdown,md")
-            marsh_build_planned_target "${TARGET_OUTPUT_ROOT}" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "1" "marsh_test_markdown_command" "" "markdown,md" true "${TARGET_PLAN_ROOT}" >/dev/null 2>&1
+            marsh_build_planned_target "${TARGET_OUTPUT_ROOT}" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "1" "marsh_test_markdown_command" "" "markdown,md" "html" "${TARGET_PLAN_ROOT}" >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
             ASSERTION="equals"
@@ -1934,7 +1934,7 @@ function marsh_test {
             marsh_write_target_plan_records "${TARGET_PLAN_ROOT}" "documents" >/dev/null 2>&1
             marsh_write_target_plan_records "${TARGET_PLAN_ROOT}" "source-assets" >/dev/null 2>&1
             marsh_write_target_plan_records "${TARGET_PLAN_ROOT}" "sitemaps" >/dev/null 2>&1
-            ACTUAL=$(marsh_build_planned_target "${TARGET_OUTPUT_ROOT}" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "1" "marsh_test_markdown_command" "" "markdown,md" true "${TARGET_PLAN_ROOT}" 2>&1 >/dev/null)
+            ACTUAL=$(marsh_build_planned_target "${TARGET_OUTPUT_ROOT}" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "1" "marsh_test_markdown_command" "" "markdown,md" "html" "${TARGET_PLAN_ROOT}" 2>&1 >/dev/null)
             STATUS=$?
             EXPECTED=1
             ASSERTION="equals"
@@ -1962,7 +1962,7 @@ function marsh_test {
             printf '%s\n' '# Site Map' > "${SOURCE_ROOT}/site-map.markdown"
             printf '%s\n' 'download' > "${SOURCE_SCOPE}/assets/manual.txt"
             TARGET_PLAN_ROOT=$(marsh_plan_target "${SOURCE_ROOT}" "${TARGET_OUTPUT_ROOT}" "." false "${SOURCE_SCOPE}" "../site-map.markdown" false "${TEMPLATE_DIR}" "sample" 0 "" "${SOURCE_SCOPE}" "markdown,md")
-            marsh_build_planned_target "${TARGET_OUTPUT_ROOT}" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "1" "marsh_test_markdown_command" "" "markdown,md" true "${TARGET_PLAN_ROOT}" >/dev/null 2>&1
+            marsh_build_planned_target "${TARGET_OUTPUT_ROOT}" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "1" "marsh_test_markdown_command" "" "markdown,md" "html" "${TARGET_PLAN_ROOT}" >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
             ASSERTION="equals"
@@ -1988,7 +1988,7 @@ function marsh_test {
             TARGET_OUTPUT_ROOT="${TEST_TEMP_PREFIX}.target"
             TARGET_PLAN_ROOT="${TEST_TEMP_PREFIX}.plan"
             mkdir -p "${TARGET_PLAN_ROOT}"
-            ACTUAL=$(marsh_build_planned_target "${TARGET_OUTPUT_ROOT}" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "1" "marsh_test_markdown_command" "" "markdown,md" true "${TARGET_PLAN_ROOT}" 2>&1 >/dev/null)
+            ACTUAL=$(marsh_build_planned_target "${TARGET_OUTPUT_ROOT}" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "1" "marsh_test_markdown_command" "" "markdown,md" "html" "${TARGET_PLAN_ROOT}" 2>&1 >/dev/null)
             STATUS=$?
             EXPECTED=1
             ASSERTION="equals"
@@ -2007,7 +2007,7 @@ function marsh_test {
             TARGET_PLAN_ROOT="${TEST_TEMP_PREFIX}.plan"
             mkdir -p "${TARGET_PLAN_ROOT}"
             printf '%s\n' 'bad-name=value' > "${TARGET_PLAN_ROOT}/context"
-            ACTUAL=$(marsh_build_planned_target "${TARGET_OUTPUT_ROOT}" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "1" "marsh_test_markdown_command" "" "markdown,md" true "${TARGET_PLAN_ROOT}" 2>&1 >/dev/null)
+            ACTUAL=$(marsh_build_planned_target "${TARGET_OUTPUT_ROOT}" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "1" "marsh_test_markdown_command" "" "markdown,md" "html" "${TARGET_PLAN_ROOT}" 2>&1 >/dev/null)
             STATUS=$?
             EXPECTED=1
             ASSERTION="equals"
@@ -2031,7 +2031,7 @@ function marsh_test {
             marsh_write_target_plan_records "${TARGET_PLAN_ROOT}" "source-assets" >/dev/null 2>&1
             marsh_write_target_plan_records "${TARGET_PLAN_ROOT}" "sitemaps" >/dev/null 2>&1
             marsh_write_target_plan_records "${TARGET_PLAN_ROOT}" "archive-plans" '/tmp/archive-plan' >/dev/null 2>&1
-            ACTUAL=$(marsh_build_planned_target "${TARGET_OUTPUT_ROOT}" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "1" "marsh_test_markdown_command" "" "markdown,md" true "${TARGET_PLAN_ROOT}" 2>&1 >/dev/null)
+            ACTUAL=$(marsh_build_planned_target "${TARGET_OUTPUT_ROOT}" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "1" "marsh_test_markdown_command" "" "markdown,md" "html" "${TARGET_PLAN_ROOT}" 2>&1 >/dev/null)
             STATUS=$?
             EXPECTED=1
             ASSERTION="equals"
@@ -2058,7 +2058,7 @@ function marsh_test {
                 [[ "${DOCUMENT_RECORD}" == "" ]] && continue
                 DOCUMENT_RECORDS+=("${DOCUMENT_RECORD}")
             done < <(marsh_plan_target_documents "${TARGET_OUTPUT_ROOT}" "." "." "${SOURCE_ROOT}" "markdown,md")
-            marsh_build_planned_target_documents "${TARGET_OUTPUT_ROOT}" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "1" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" true 0 "" "${DOCUMENT_RECORDS[@]}" >/dev/null 2>&1
+            marsh_build_planned_target_documents "${TARGET_OUTPUT_ROOT}" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "1" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "html" 0 "" "${DOCUMENT_RECORDS[@]}" >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
             ASSERTION="equals"
@@ -2082,7 +2082,7 @@ function marsh_test {
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.templates"
             mkdir -p "${TARGET_OUTPUT_ROOT}"
             marsh_test_create_archive_template "${TEMPLATE_DIR}" "sample" "html" true
-            marsh_build_planned_target_documents "${TARGET_OUTPUT_ROOT}" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "1" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" true 0 "" >/dev/null 2>&1
+            marsh_build_planned_target_documents "${TARGET_OUTPUT_ROOT}" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "1" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "html" 0 "" >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
             ASSERTION="equals"
@@ -2104,7 +2104,7 @@ function marsh_test {
             mkdir -p "${TARGET_OUTPUT_ROOT}"
             marsh_test_create_archive_template "${TEMPLATE_DIR}" "sample" "html" true
             BAD_DOCUMENT_RECORD=$(printf '%s\037%s\n' 'index.markdown' 'index.markdown')
-            marsh_build_planned_target_documents "${TARGET_OUTPUT_ROOT}" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "1" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" true 0 "" "${BAD_DOCUMENT_RECORD}" >/dev/null 2>&1
+            marsh_build_planned_target_documents "${TARGET_OUTPUT_ROOT}" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "1" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "html" 0 "" "${BAD_DOCUMENT_RECORD}" >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=1
             ASSERTION="equals"
@@ -2124,7 +2124,7 @@ function marsh_test {
                 [[ "${TARGET_SITEMAP_RECORD}" == "" ]] && continue
                 TARGET_SITEMAP_RECORDS+=("${TARGET_SITEMAP_RECORD}")
             done < <(marsh_plan_target_sitemaps "${SITE_SOURCE_ROOT}" "${SITE_SOURCE_ROOT}" "site-map/index.markdown" false "${TARGET_OUTPUT_ROOT}")
-            marsh_build_planned_target_sitemaps "${TARGET_OUTPUT_ROOT}" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" true "${TARGET_SITEMAP_RECORDS[@]}" >/dev/null 2>&1
+            marsh_build_planned_target_sitemaps "${TARGET_OUTPUT_ROOT}" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "html" "${TARGET_SITEMAP_RECORDS[@]}" >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
             ASSERTION="equals"
@@ -2170,8 +2170,8 @@ function marsh_test {
             marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "news/2026/index.markdown" "content" 'Example'
             marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "news/2026/index.markdown" "meta-yaml" '---' 'Title: News' '...'
             {
-                marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "about/index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1 \
-                    && marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "news/2026/index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+                marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "about/index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "html" 0 >/dev/null 2>&1 \
+                    && marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "news/2026/index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "html" 0 >/dev/null 2>&1
             }
             ACTUAL=$?
             EXPECTED=0
@@ -2213,7 +2213,7 @@ function marsh_test {
             TARGET_SITEMAP_RECORD=$(printf '%s\t%s\n' 'site-map/index.markdown' "${SOURCE_ROOT}/site-map/index.markdown")
             rm -f "${STDERR_FILE}"
             set -o pipefail
-            marsh_build_planned_target_sitemaps "${TARGET_OUTPUT_ROOT}" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_fail_command" "" "markdown,md" true "${TARGET_SITEMAP_RECORD}" >/dev/null 2>"${STDERR_FILE}"
+            marsh_build_planned_target_sitemaps "${TARGET_OUTPUT_ROOT}" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_fail_command" "" "markdown,md" "html" "${TARGET_SITEMAP_RECORD}" >/dev/null 2>"${STDERR_FILE}"
             STATUS=$?
             set +o pipefail
             ACTUAL=""
@@ -2246,7 +2246,7 @@ function marsh_test {
             TARGET_PLAN_ROOT=$(marsh_plan_target "${SOURCE_ROOT}" "${TARGET_OUTPUT_ROOT}" "." false "${SOURCE_ROOT}" "" false "${TEMPLATE_DIR}" "sample" 0 "" "${SOURCE_ROOT}" "markdown,md" "${TEST_TEMP_PREFIX}.config" "News" "" "${#TARGET_ARCHIVE_RECORDS[@]}" "${TARGET_ARCHIVE_RECORDS[@]}")
             ARCHIVE_PLAN_ROOT=$(<"${TARGET_PLAN_ROOT}/archive-plans")
             ARCHIVE_MANIFEST=$(<"${TARGET_PLAN_ROOT}/archive-manifest")
-            marsh_build_planned_target "${TARGET_OUTPUT_ROOT}" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "1" "marsh_test_markdown_command" "" "markdown,md" true "${TARGET_PLAN_ROOT}" >/dev/null 2>&1
+            marsh_build_planned_target "${TARGET_OUTPUT_ROOT}" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "1" "marsh_test_markdown_command" "" "markdown,md" "html" "${TARGET_PLAN_ROOT}" >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
             ASSERTION="equals"
@@ -2279,7 +2279,7 @@ function marsh_test {
             printf '%s\n' '# Site Map' > "${SOURCE_ROOT}/site-map/index.markdown"
             rm -f "${STDERR_FILE}"
             set -o pipefail
-            marsh_build_sitemap "${TARGET_OUTPUT_ROOT}" "site-map/index.markdown" "${SOURCE_ROOT}/site-map/index.markdown" "marsh_test_fail_command" "" "markdown,md" true >/dev/null 2>"${STDERR_FILE}"
+            marsh_build_sitemap "${TARGET_OUTPUT_ROOT}" "site-map/index.markdown" "${SOURCE_ROOT}/site-map/index.markdown" "marsh_test_fail_command" "" "markdown,md" "html" >/dev/null 2>"${STDERR_FILE}"
             STATUS=$?
             set +o pipefail
             ACTUAL=""
@@ -2428,7 +2428,7 @@ function marsh_test {
             marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
             printf '%s\n' '---'$'\n''Title: Home'$'\n''...'$'\n'''$'\n''# Home' > "${SOURCE_ROOT}/index.markdown"
             printf '%s\n' '---'$'\n''Title: About'$'\n''...'$'\n'''$'\n''# About' > "${SOURCE_ROOT}/about/index.markdown"
-            marsh_build_target_documents "${TARGET_OUTPUT_ROOT}" "." "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "1" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" true 0 "" "." "${SOURCE_ROOT}" "index.markdown" "about/index.markdown" >/dev/null 2>&1
+            marsh_build_target_documents "${TARGET_OUTPUT_ROOT}" "." "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "1" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "html" 0 "" "." "${SOURCE_ROOT}" "index.markdown" "about/index.markdown" >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
             ASSERTION="equals"
@@ -2453,7 +2453,7 @@ function marsh_test {
             SOURCE_ROOT="${TEST_TEMP_PREFIX}.source"
             mkdir -p "${SOURCE_ROOT}"
             marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
-            marsh_build_target_documents "${TARGET_OUTPUT_ROOT}" "." "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "1" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" true 0 "" "." "${SOURCE_ROOT}" "missing.markdown" >/dev/null 2>&1
+            marsh_build_target_documents "${TARGET_OUTPUT_ROOT}" "." "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "1" "" false "${TEMPLATE_DIR}" "sample" "marsh_test_markdown_command" "" "markdown,md" "html" 0 "" "." "${SOURCE_ROOT}" "missing.markdown" >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=1
             ASSERTION="equals"
@@ -2496,7 +2496,7 @@ function marsh_test {
                 'Title: Home' \
                 'Project: Example Site' \
                 '...'
-            marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "true" 0 "" "." "" >/dev/null 2>&1
+            marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "html" 0 "" "." "" >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
             ASSERTION="equals"
@@ -2539,12 +2539,12 @@ function marsh_test {
             EXPECTED='index.markdown'$'\n''page/1/index.markdown'
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                marsh_build_document "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" >/dev/null 2>&1
+                marsh_build_document "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "marsh_test_markdown_command" "" "markdown,md" "html" >/dev/null 2>&1
                 ACTUAL=$?
                 EXPECTED=0
                 ASSERTION="equals"
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+                    marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "html" 0 >/dev/null 2>&1
                     ACTUAL=$?
                     EXPECTED=0
                     ASSERTION="equals"
@@ -2606,12 +2606,12 @@ function marsh_test {
             EXPECTED='index.markdown'$'\n''page/1/index.markdown'
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                marsh_build_document "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" >/dev/null 2>&1
+                marsh_build_document "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "marsh_test_markdown_command" "" "markdown,md" "html" >/dev/null 2>&1
                 ACTUAL=$?
                 EXPECTED=0
                 ASSERTION="equals"
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+                    marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "html" 0 >/dev/null 2>&1
                     ACTUAL=$?
                     EXPECTED=0
                     ASSERTION="equals"
@@ -2687,7 +2687,7 @@ function marsh_test {
             EXPECTED='feed.xml'
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "feed.xml" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+                marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "feed.xml" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "html" 0 >/dev/null 2>&1
                 ACTUAL=$?
                 EXPECTED=0
                 ASSERTION="equals"
@@ -2720,7 +2720,7 @@ function marsh_test {
             EXPECTED='feed.json'
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "feed.json" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+                marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "feed.json" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "html" 0 >/dev/null 2>&1
                 ACTUAL=$?
                 EXPECTED=0
                 ASSERTION="equals"
@@ -2756,9 +2756,9 @@ function marsh_test {
             marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "news/2026/index.markdown" "content" 'Example'
             marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "news/2026/index.markdown" "meta-yaml" '---' 'Title: Example' '...'
             {
-                marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "about.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1 \
-                    && marsh_build_template "${TARGET_OUTPUT_ROOT}" "news" "index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1 \
-                    && marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "news/2026/index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+                marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "about.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "html" 0 >/dev/null 2>&1 \
+                    && marsh_build_template "${TARGET_OUTPUT_ROOT}" "news" "index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "html" 0 >/dev/null 2>&1 \
+                    && marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "news/2026/index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "html" 0 >/dev/null 2>&1
             }
             ACTUAL=$?
             EXPECTED=0
@@ -2800,12 +2800,12 @@ function marsh_test {
             EXPECTED='news/index.markdown'$'\n''news/page/1/index.markdown'$'\n''news/page/2/index.markdown'
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                marsh_build_document "${TARGET_OUTPUT_ROOT}" "." "news/page/1/index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" >/dev/null 2>&1
+                marsh_build_document "${TARGET_OUTPUT_ROOT}" "." "news/page/1/index.markdown" "marsh_test_markdown_command" "" "markdown,md" "html" >/dev/null 2>&1
                 ACTUAL=$?
                 EXPECTED=0
                 ASSERTION="equals"
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "news/page/1/index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+                    marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "news/page/1/index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "html" 0 >/dev/null 2>&1
                     ACTUAL=$?
                     EXPECTED=0
                     ASSERTION="equals"
@@ -2862,7 +2862,7 @@ function marsh_test {
             printf '%s\n' '@media print { body { color: black; } }' > "${TEMPLATE_DIR}/sample/css/print.css"
             marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "news/2026/index.markdown" "content" 'Example'
             marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "news/2026/index.markdown" "meta-yaml" '---' 'Title: Example' '...'
-            marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "news/2026/index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+            marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "news/2026/index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "html" 0 >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
             ASSERTION="equals"
@@ -2896,12 +2896,12 @@ function marsh_test {
             EXPECTED='news/index.markdown'$'\n''news/page/1/index.markdown'
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                marsh_build_document "${TARGET_OUTPUT_ROOT}" "." "news/page/1/index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" >/dev/null 2>&1
+                marsh_build_document "${TARGET_OUTPUT_ROOT}" "." "news/page/1/index.markdown" "marsh_test_markdown_command" "" "markdown,md" "html" >/dev/null 2>&1
                 ACTUAL=$?
                 EXPECTED=0
                 ASSERTION="equals"
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "news/page/1/index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+                    marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "news/page/1/index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "html" 0 >/dev/null 2>&1
                     ACTUAL=$?
                     EXPECTED=0
                     ASSERTION="equals"
@@ -2949,7 +2949,7 @@ function marsh_test {
                 '...' > "${TEMPLATE_DIR}/sample/template.yaml"
             marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "news/2026/index.markdown" "content" 'Example'
             marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "news/2026/index.markdown" "meta-yaml" '---' 'Title: Example' '...'
-            marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "news/2026/index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+            marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "news/2026/index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "html" 0 >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
             ASSERTION="equals"
@@ -3012,12 +3012,12 @@ function marsh_test {
             EXPECTED='news/index.markdown'$'\n''news/page/1/index.markdown'
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                marsh_build_document "${TARGET_OUTPUT_ROOT}" "." "news/page/1/index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" >/dev/null 2>&1
+                marsh_build_document "${TARGET_OUTPUT_ROOT}" "." "news/page/1/index.markdown" "marsh_test_markdown_command" "" "markdown,md" "html" >/dev/null 2>&1
                 ACTUAL=$?
                 EXPECTED=0
                 ASSERTION="equals"
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "news/page/1/index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+                    marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "news/page/1/index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "html" 0 >/dev/null 2>&1
                     ACTUAL=$?
                     EXPECTED=0
                     ASSERTION="equals"
@@ -3086,12 +3086,12 @@ function marsh_test {
             EXPECTED='news/index.markdown'$'\n''news/page/1/index.markdown'
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                marsh_build_document "${TARGET_OUTPUT_ROOT}" "news" "page/1/index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" "." >/dev/null 2>&1
+                marsh_build_document "${TARGET_OUTPUT_ROOT}" "news" "page/1/index.markdown" "marsh_test_markdown_command" "" "markdown,md" "html" "." >/dev/null 2>&1
                 ACTUAL=$?
                 EXPECTED=0
                 ASSERTION="equals"
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    marsh_build_template "${TARGET_OUTPUT_ROOT}" "news" "page/1/index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "true" 0 "" "." >/dev/null 2>&1
+                    marsh_build_template "${TARGET_OUTPUT_ROOT}" "news" "page/1/index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "html" 0 "" "." >/dev/null 2>&1
                     ACTUAL=$?
                     EXPECTED=0
                     ASSERTION="equals"
@@ -3165,12 +3165,12 @@ function marsh_test {
                 EXPECTED=0
                 ASSERTION="equals"
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    marsh_build_document "${TARGET_OUTPUT_ROOT}" "news" "page/1/index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" "." >/dev/null 2>&1
+                    marsh_build_document "${TARGET_OUTPUT_ROOT}" "news" "page/1/index.markdown" "marsh_test_markdown_command" "" "markdown,md" "html" "." >/dev/null 2>&1
                     ACTUAL=$?
                     EXPECTED=0
                     ASSERTION="equals"
                     if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                        marsh_build_template "${TARGET_OUTPUT_ROOT}" "news" "page/1/index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "true" 0 "assets/archive" "." >/dev/null 2>&1
+                        marsh_build_template "${TARGET_OUTPUT_ROOT}" "news" "page/1/index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "html" 0 "assets/archive" "." >/dev/null 2>&1
                         ACTUAL=$?
                         EXPECTED=0
                         ASSERTION="equals"
@@ -3210,12 +3210,12 @@ function marsh_test {
             printf '%s\n' '<h1>Site Map</h1>' '<p><a href="../">Home</a></p>' > "${SOURCE_DIR}/site-map/index.markdown"
             marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}/about" "index.markdown" "content" 'Example'
             marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}/about" "index.markdown" "meta-yaml" '---' 'Title: Example' '...'
-            marsh_build_sitemap "${TARGET_OUTPUT_ROOT}/about" "../site-map/index.markdown" "${SOURCE_DIR}/site-map/index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" >/dev/null 2>&1
+            marsh_build_sitemap "${TARGET_OUTPUT_ROOT}/about" "../site-map/index.markdown" "${SOURCE_DIR}/site-map/index.markdown" "marsh_test_markdown_command" "" "markdown,md" "html" >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                marsh_build_template "${TARGET_OUTPUT_ROOT}" "about" "index.markdown" "../site-map/index.markdown" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+                marsh_build_template "${TARGET_OUTPUT_ROOT}" "about" "index.markdown" "../site-map/index.markdown" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "html" 0 >/dev/null 2>&1
                 ACTUAL=$?
                 EXPECTED=0
                 ASSERTION="equals"
@@ -3251,12 +3251,12 @@ function marsh_test {
             EXPECTED='news/all/index.markdown'
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                marsh_build_document "${TARGET_OUTPUT_ROOT}" "." "news/all/index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" >/dev/null 2>&1
+                marsh_build_document "${TARGET_OUTPUT_ROOT}" "." "news/all/index.markdown" "marsh_test_markdown_command" "" "markdown,md" "html" >/dev/null 2>&1
                 ACTUAL=$?
                 EXPECTED=0
                 ASSERTION="equals"
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "news/all/index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+                    marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "news/all/index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "html" 0 >/dev/null 2>&1
                     ACTUAL=$?
                     EXPECTED=0
                     ASSERTION="equals"
@@ -3282,12 +3282,12 @@ function marsh_test {
             printf '%s\n' '<h1>Site Map</h1>' '<p><a href="../news/">News</a></p>' > "${SOURCE_DIR}/site-map/index.markdown"
             marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "index.markdown" "content" 'Example'
             marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "index.markdown" "meta-yaml" '---' 'Title: Example' '...'
-            marsh_build_sitemap "${TARGET_OUTPUT_ROOT}" "site-map/index.markdown" "${SOURCE_DIR}/site-map/index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" >/dev/null 2>&1
+            marsh_build_sitemap "${TARGET_OUTPUT_ROOT}" "site-map/index.markdown" "${SOURCE_DIR}/site-map/index.markdown" "marsh_test_markdown_command" "" "markdown,md" "html" >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "site-map/index.markdown" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+                marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "site-map/index.markdown" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "html" 0 >/dev/null 2>&1
                 ACTUAL=$?
                 EXPECTED=0
                 ASSERTION="equals"
@@ -3324,17 +3324,17 @@ function marsh_test {
             EXPECTED='news/index.markdown'$'\n''news/page/1/index.markdown'
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                marsh_build_sitemap "${TARGET_OUTPUT_ROOT}" "site-map/index.markdown" "${SOURCE_DIR}/site-map/index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" >/dev/null 2>&1
+                marsh_build_sitemap "${TARGET_OUTPUT_ROOT}" "site-map/index.markdown" "${SOURCE_DIR}/site-map/index.markdown" "marsh_test_markdown_command" "" "markdown,md" "html" >/dev/null 2>&1
                 ACTUAL=$?
                 EXPECTED=0
                 ASSERTION="equals"
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    marsh_build_document "${TARGET_OUTPUT_ROOT}" "." "news/page/1/index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" >/dev/null 2>&1
+                    marsh_build_document "${TARGET_OUTPUT_ROOT}" "." "news/page/1/index.markdown" "marsh_test_markdown_command" "" "markdown,md" "html" >/dev/null 2>&1
                     ACTUAL=$?
                     EXPECTED=0
                     ASSERTION="equals"
                     if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                        marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "news/page/1/index.markdown" "site-map/index.markdown" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+                        marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "news/page/1/index.markdown" "site-map/index.markdown" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "html" 0 >/dev/null 2>&1
                         ACTUAL=$?
                         EXPECTED=0
                         ASSERTION="equals"
@@ -3365,12 +3365,12 @@ function marsh_test {
             printf '%s\n' '<h1>Site Map</h1>' '<p><a href="../">Section Home</a></p>' > "${SOURCE_DIR}/subdir1/sitemap.markdown"
             marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}/www" "subdir1/index.markdown" "content" 'Example'
             marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}/www" "subdir1/index.markdown" "meta-yaml" '---' 'Title: Example' '...'
-            marsh_build_sitemap "${TARGET_OUTPUT_ROOT}/www" "subdir1/sitemap.markdown" "${SOURCE_DIR}/subdir1/sitemap.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" >/dev/null 2>&1
+            marsh_build_sitemap "${TARGET_OUTPUT_ROOT}/www" "subdir1/sitemap.markdown" "${SOURCE_DIR}/subdir1/sitemap.markdown" "marsh_test_markdown_command" "" "markdown,md" "html" >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                marsh_build_template "${TARGET_OUTPUT_ROOT}" "www" "subdir1/index.markdown" "sitemap.markdown" true "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+                marsh_build_template "${TARGET_OUTPUT_ROOT}" "www" "subdir1/index.markdown" "sitemap.markdown" true "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "html" 0 >/dev/null 2>&1
                 ACTUAL=$?
                 EXPECTED=0
                 ASSERTION="equals"
@@ -3407,7 +3407,7 @@ function marsh_test {
             EXPECTED=0
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                marsh_build_template "${TARGET_OUTPUT_ROOT}" "docs" "guides/index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "true" 0 "../shared" >/dev/null 2>&1
+                marsh_build_template "${TARGET_OUTPUT_ROOT}" "docs" "guides/index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "html" 0 "../shared" >/dev/null 2>&1
                 ACTUAL=$?
                 EXPECTED=0
                 ASSERTION="equals"
@@ -3447,7 +3447,7 @@ function marsh_test {
             EXPECTED=1
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                marsh_build_template "${TARGET_OUTPUT_ROOT}" "docs" "guides/index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "true" 0 "../../shared" >/dev/null 2>&1
+                marsh_build_template "${TARGET_OUTPUT_ROOT}" "docs" "guides/index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "html" 0 "../../shared" >/dev/null 2>&1
                 ACTUAL=$?
                 EXPECTED=1
                 ASSERTION="equals"
@@ -3479,7 +3479,7 @@ function marsh_test {
                 '...' \
                 '' \
                 '# Example' > "${SOURCE_ROOT}/index.markdown"
-            marsh_build_document "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" "." "${SOURCE_ROOT}" >/dev/null 2>&1
+            marsh_build_document "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "marsh_test_markdown_command" "" "markdown,md" "html" "." "${SOURCE_ROOT}" >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
             ASSERTION="equals"
@@ -3491,7 +3491,7 @@ function marsh_test {
                 ASSERTION="equals"
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                     marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "index.markdown" "meta-yaml" '---' 'Title: Broken Title' '...'
-                    marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+                    marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "html" 0 >/dev/null 2>&1
                     ACTUAL=$?
                     EXPECTED=0
                     ASSERTION="equals"
@@ -3524,7 +3524,7 @@ function marsh_test {
                 '...' \
                 '' \
                 '# Cached Item' > "${SOURCE_ROOT}/news/item.markdown"
-            marsh_build_document "${TARGET_OUTPUT_ROOT}" "." "news/item.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" "." "${SOURCE_ROOT}" >/dev/null 2>&1
+            marsh_build_document "${TARGET_OUTPUT_ROOT}" "." "news/item.markdown" "marsh_test_markdown_command" "" "markdown,md" "html" "." "${SOURCE_ROOT}" >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
             ASSERTION="equals"
@@ -3536,12 +3536,12 @@ function marsh_test {
                 EXPECTED='index.markdown'
                 ASSERTION="equals"
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    marsh_build_document "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" >/dev/null 2>&1
+                    marsh_build_document "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "marsh_test_markdown_command" "" "markdown,md" "html" >/dev/null 2>&1
                     ACTUAL=$?
                     EXPECTED=0
                     ASSERTION="equals"
                     if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                        marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+                        marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "html" 0 >/dev/null 2>&1
                         ACTUAL=$?
                         EXPECTED=0
                         ASSERTION="equals"
@@ -3585,7 +3585,7 @@ function marsh_test {
                 '...' \
                 '' \
                 '[About](about.markdown)' > "${SOURCE_ROOT}/news/item.markdown"
-            marsh_build_document "${TARGET_OUTPUT_ROOT}" "." "news/item.markdown" "marsh_test_archive_rendered_markdown_command" "" "markdown,md" "true" "." "${SOURCE_ROOT}" >/dev/null 2>&1
+            marsh_build_document "${TARGET_OUTPUT_ROOT}" "." "news/item.markdown" "marsh_test_archive_rendered_markdown_command" "" "markdown,md" "html" "." "${SOURCE_ROOT}" >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
             ASSERTION="equals"
@@ -3604,12 +3604,12 @@ function marsh_test {
                 EXPECTED='index.markdown'
                 ASSERTION="equals"
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    marsh_build_document "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" >/dev/null 2>&1
+                    marsh_build_document "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "marsh_test_markdown_command" "" "markdown,md" "html" >/dev/null 2>&1
                     ACTUAL=$?
                     EXPECTED=0
                     ASSERTION="equals"
                     if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                        marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_archive_reprocess_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+                        marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_archive_reprocess_markdown_command" "" "markdown,md" "html" 0 >/dev/null 2>&1
                         ACTUAL=$?
                         EXPECTED=0
                         ASSERTION="equals"
@@ -3660,8 +3660,8 @@ function marsh_test {
             marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "beta.markdown" "content" 'Beta'
             marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "beta.markdown" "meta-yaml" '---' 'Type: page' 'Title: Beta' '...'
             {
-                marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "alpha.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1 \
-                    && marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "beta.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+                marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "alpha.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "html" 0 >/dev/null 2>&1 \
+                    && marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "beta.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "html" 0 >/dev/null 2>&1
             }
             ACTUAL=$?
             EXPECTED=0
@@ -3711,8 +3711,8 @@ function marsh_test {
             marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "beta.markdown" "content" 'Beta'
             marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "beta.markdown" "meta-yaml" '---' 'Type: post' 'Title: Beta' '...'
             {
-                marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "alpha.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1 \
-                    && marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "beta.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+                marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "alpha.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "html" 0 >/dev/null 2>&1 \
+                    && marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "beta.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "html" 0 >/dev/null 2>&1
             }
             ACTUAL=$?
             EXPECTED=0
@@ -3752,14 +3752,14 @@ function marsh_test {
             marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "docs/one.markdown" "meta-yaml" '---' 'Title: One' '...'
             marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "docs/two.markdown" "content" 'Example'
             marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "docs/two.markdown" "meta-yaml" '---' 'Title: Two' '...'
-            marsh_build_sitemap "${TARGET_OUTPUT_ROOT}" "site-map/index.markdown" "${SOURCE_DIR}/site-map/index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" >/dev/null 2>&1
+            marsh_build_sitemap "${TARGET_OUTPUT_ROOT}" "site-map/index.markdown" "${SOURCE_DIR}/site-map/index.markdown" "marsh_test_markdown_command" "" "markdown,md" "html" >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 {
-                    marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "docs/one.markdown" "site-map/index.markdown" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1 \
-                        && marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "docs/two.markdown" "site-map/index.markdown" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+                    marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "docs/one.markdown" "site-map/index.markdown" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "html" 0 >/dev/null 2>&1 \
+                        && marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "docs/two.markdown" "site-map/index.markdown" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "html" 0 >/dev/null 2>&1
                 }
                 ACTUAL=$?
                 EXPECTED=0
@@ -3808,12 +3808,12 @@ function marsh_test {
             EXPECTED='news/index.markdown'$'\n''news/page/1/index.markdown'
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                marsh_build_document "${TARGET_OUTPUT_ROOT}" "." "news/page/1/index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" >/dev/null 2>&1
+                marsh_build_document "${TARGET_OUTPUT_ROOT}" "." "news/page/1/index.markdown" "marsh_test_markdown_command" "" "markdown,md" "html" >/dev/null 2>&1
                 ACTUAL=$?
                 EXPECTED=0
                 ASSERTION="equals"
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "news/page/1/index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+                    marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "news/page/1/index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "html" 0 >/dev/null 2>&1
                     ACTUAL=$?
                     EXPECTED=0
                     ASSERTION="equals"
@@ -3857,7 +3857,7 @@ function marsh_test {
             EXPECTED='feed.json'
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "feed.json" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+                marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "feed.json" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "html" 0 >/dev/null 2>&1
                 ACTUAL=$?
                 EXPECTED=0
                 ASSERTION="equals"
@@ -3901,7 +3901,7 @@ function marsh_test {
                 'Type: page' \
                 'Title: Example' \
                 '...'
-            marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "news/2026/index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+            marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "news/2026/index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "html" 0 >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
             ASSERTION="equals"
@@ -3940,7 +3940,7 @@ function marsh_test {
                 'Type: page' \
                 'Title: Example' \
                 '...'
-            marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "" false "" "" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+            marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "" false "" "" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "html" 0 >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
             ASSERTION="equals"
@@ -3991,14 +3991,14 @@ function marsh_test {
             EXPECTED='news/index.markdown'$'\n''news/page/1/index.markdown'
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                marsh_build_document "${TARGET_OUTPUT_ROOT}" "." "news/page/1/index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" >/dev/null 2>&1
+                marsh_build_document "${TARGET_OUTPUT_ROOT}" "." "news/page/1/index.markdown" "marsh_test_markdown_command" "" "markdown,md" "html" >/dev/null 2>&1
                 ACTUAL=$?
                 EXPECTED=0
                 ASSERTION="equals"
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                     {
-                        marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1 \
-                            && marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "news/page/1/index.markdown" "" false "${TEMPLATE_DIR}" "archive-sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+                        marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "html" 0 >/dev/null 2>&1 \
+                            && marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "news/page/1/index.markdown" "" false "${TEMPLATE_DIR}" "archive-sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "html" 0 >/dev/null 2>&1
                     }
                     ACTUAL=$?
                     EXPECTED=0
@@ -4025,7 +4025,7 @@ function marsh_test {
             marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
             printf '%s\n' 'old raw source' > "${TARGET_OUTPUT_ROOT}/index.markdown"
             printf '%s\n' '---' 'Title: Fresh' '...' '' '# Fresh' > "${SOURCE_ROOT}/index.markdown"
-            marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "true" 0 "" "." "${SOURCE_ROOT}" >/dev/null 2>&1
+            marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "html" 0 "" "." "${SOURCE_ROOT}" >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
             ASSERTION="equals"
@@ -4057,7 +4057,7 @@ function marsh_test {
             printf '%s\n' '<!DOCTYPE html>' '<html><body>{{ template.body }}</body></html>' > "${TEMPLATE_DIR}/sample/partials/base.html"
             printf '%s\n' '{{ document.content }}' > "${TEMPLATE_DIR}/sample/partials/body.html"
             printf '%s\n' '---' 'Title: Example' '...' '' '# Example' > "${TARGET_OUTPUT_ROOT}/index.markdown"
-            marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "true" 0 "" "." "" >/dev/null 2>&1
+            marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "html" 0 "" "." "" >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=1
             ASSERTION="equals"
@@ -4084,7 +4084,7 @@ function marsh_test {
                 '' \
                 '<h1>Site Map</h1>' \
                 '<p><a href="../news/">News</a></p>' > "${SOURCE_DIR}/site-map/index.markdown"
-            marsh_build_sitemap "${TARGET_OUTPUT_ROOT}" "site-map/index.markdown" "${SOURCE_DIR}/site-map/index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" >/dev/null 2>&1
+            marsh_build_sitemap "${TARGET_OUTPUT_ROOT}" "site-map/index.markdown" "${SOURCE_DIR}/site-map/index.markdown" "marsh_test_markdown_command" "" "markdown,md" "html" >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
             ASSERTION="equals"
@@ -4113,7 +4113,7 @@ function marsh_test {
             marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
             marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "index.markdown" "content" 'Example'
             marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "index.markdown" "meta-yaml" '---' 'Title: Example' '...'
-            ACTUAL=$(marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "site-map/index.markdown" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "true" 0 2>&1 >/dev/null)
+            ACTUAL=$(marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "site-map/index.markdown" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "html" 0 2>&1 >/dev/null)
             STATUS=$?
             EXPECTED=1
             ASSERTION="equals"
@@ -4133,7 +4133,7 @@ function marsh_test {
             marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
             marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "docs/index.markdown" "content" 'Example'
             marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "docs/index.markdown" "meta-yaml" '---' 'Title: Example' '...'
-            ACTUAL=$(marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "docs/index.markdown" "site-map.markdown" true "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "true" 0 2>&1 >/dev/null)
+            ACTUAL=$(marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "docs/index.markdown" "site-map.markdown" true "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "html" 0 2>&1 >/dev/null)
             STATUS=$?
             EXPECTED=0
             ASSERTION="equals"
@@ -4162,7 +4162,7 @@ function marsh_test {
             printf '%s\n' '<h1>Site Map</h1>' > "${SOURCE_DIR}/site-map/index.markdown"
             marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "index.markdown" "content" 'Example'
             marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "index.markdown" "meta-yaml" '---' 'Title: Example' '...'
-            marsh_build_sitemap "${TARGET_OUTPUT_ROOT}" "site-map/index.markdown" "${SOURCE_DIR}/site-map/index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" >/dev/null 2>&1
+            marsh_build_sitemap "${TARGET_OUTPUT_ROOT}" "site-map/index.markdown" "${SOURCE_DIR}/site-map/index.markdown" "marsh_test_markdown_command" "" "markdown,md" "html" >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
             ASSERTION="equals"
@@ -4171,7 +4171,7 @@ function marsh_test {
                     function marsh_get_processed_sitemap {
                         return 1
                     }
-                    marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "site-map/index.markdown" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "true" 0 2>&1 >/dev/null
+                    marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "site-map/index.markdown" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "html" 0 2>&1 >/dev/null
                 )
                 STATUS=$?
                 EXPECTED=1
@@ -4199,7 +4199,7 @@ function marsh_test {
                 'Authors: [ Alice, Bob ]' \
                 'State: [ draft, featured ]' \
                 '...'
-            marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+            marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "html" 0 >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
             ASSERTION="equals"
@@ -4233,7 +4233,7 @@ function marsh_test {
                 'URI: https://invalid.example.test/fake' \
                 'Page_Next_Href: fake-next' \
                 '...'
-            ACTUAL=$(marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "true" 0 2>&1 >/dev/null)
+            ACTUAL=$(marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "html" 0 2>&1 >/dev/null)
             STATUS=$?
             EXPECTED=0
             ASSERTION="equals"
@@ -4269,7 +4269,7 @@ function marsh_test {
                 'Title: Example' \
                 'Summary: Short intro' \
                 '...'
-            marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+            marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "html" 0 >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
             ASSERTION="equals"
@@ -4295,7 +4295,7 @@ function marsh_test {
                 'Title: Example' \
                 'Topics: [ alpha, beta ]' \
                 '...'
-            marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+            marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "html" 0 >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
             ASSERTION="equals"
@@ -4321,7 +4321,7 @@ function marsh_test {
                 'Title: Example' \
                 'Summary: Short intro' \
                 '...'
-            marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+            marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "html" 0 >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
             ASSERTION="equals"
@@ -4354,7 +4354,7 @@ function marsh_test {
                 '...' \
                 '' \
                 '# Tagged Item' > "${SOURCE_ROOT}/news/item.markdown"
-            marsh_build_document "${TARGET_OUTPUT_ROOT}" "." "news/item.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" "." "${SOURCE_ROOT}" >/dev/null 2>&1
+            marsh_build_document "${TARGET_OUTPUT_ROOT}" "." "news/item.markdown" "marsh_test_markdown_command" "" "markdown,md" "html" "." "${SOURCE_ROOT}" >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=0
             ASSERTION="equals"
@@ -4365,12 +4365,12 @@ function marsh_test {
                 EXPECTED='index.markdown'
                 ASSERTION="equals"
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    marsh_build_document "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" >/dev/null 2>&1
+                    marsh_build_document "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "marsh_test_markdown_command" "" "markdown,md" "html" >/dev/null 2>&1
                     ACTUAL=$?
                     EXPECTED=0
                     ASSERTION="equals"
                     if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                        marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+                        marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "html" 0 >/dev/null 2>&1
                         ACTUAL=$?
                         EXPECTED=0
                         ASSERTION="equals"
@@ -4415,8 +4415,8 @@ function marsh_test {
                 '' \
                 '# Second Item' > "${SOURCE_ROOT}/news/2026/01/02-second.markdown"
             {
-                marsh_build_document "${TARGET_OUTPUT_ROOT}" "." "news/2026/01/01-first.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" "." "${SOURCE_ROOT}" >/dev/null 2>&1 \
-                    && marsh_build_document "${TARGET_OUTPUT_ROOT}" "." "news/2026/01/02-second.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" "." "${SOURCE_ROOT}" >/dev/null 2>&1
+                marsh_build_document "${TARGET_OUTPUT_ROOT}" "." "news/2026/01/01-first.markdown" "marsh_test_markdown_command" "" "markdown,md" "html" "." "${SOURCE_ROOT}" >/dev/null 2>&1 \
+                    && marsh_build_document "${TARGET_OUTPUT_ROOT}" "." "news/2026/01/02-second.markdown" "marsh_test_markdown_command" "" "markdown,md" "html" "." "${SOURCE_ROOT}" >/dev/null 2>&1
             }
             ACTUAL=$?
             EXPECTED=0
@@ -4430,12 +4430,12 @@ function marsh_test {
                 EXPECTED='index.markdown'
                 ASSERTION="equals"
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    marsh_build_document "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" >/dev/null 2>&1
+                    marsh_build_document "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "marsh_test_markdown_command" "" "markdown,md" "html" >/dev/null 2>&1
                     ACTUAL=$?
                     EXPECTED=0
                     ASSERTION="equals"
                     if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                        marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+                        marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "html" 0 >/dev/null 2>&1
                         ACTUAL=$?
                         EXPECTED=0
                         ASSERTION="equals"
@@ -4471,7 +4471,7 @@ function marsh_test {
             SUBDOCUMENTS_MANIFEST=$(marsh_get_archive_temp_path "${TARGET_OUTPUT_ROOT}" "index.markdown" "subdocuments-manifest")
             mkdir -p "${SUBDOCUMENTS_MANIFEST%/*}"
             printf '/invalid\037\037\n' > "${SUBDOCUMENTS_MANIFEST}"
-            ACTUAL=$(marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "true" 0 2>&1 >/dev/null)
+            ACTUAL=$(marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "html" 0 2>&1 >/dev/null)
             STATUS=$?
             EXPECTED=1
             ASSERTION="equals"
@@ -4495,7 +4495,7 @@ function marsh_test {
             SUBDOCUMENTS_MANIFEST=$(marsh_get_archive_temp_path "${TARGET_OUTPUT_ROOT}" "index.markdown" "subdocuments-manifest")
             mkdir -p "${SUBDOCUMENTS_MANIFEST%/*}"
             printf 'news/item.markdown\037https://example.test/news/item.html\037https://example.test/news\037extra\n' > "${SUBDOCUMENTS_MANIFEST}"
-            marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "true" 0 >/dev/null 2>&1
+            marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" "markdown,md" "html" 0 >/dev/null 2>&1
             ACTUAL=$?
             EXPECTED=1
             ASSERTION="equals"
@@ -7901,7 +7901,7 @@ function marsh_test {
                 EXPECTED=0
                 ASSERTION="equals"
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                    marsh_build_document "${SITE_OUTPUT_ROOT}" "." "index.markdown" "marsh_test_markdown_command" "" "markdown,md" "true" "." "${SOURCE_ROOT}" >/dev/null 2>&1
+                    marsh_build_document "${SITE_OUTPUT_ROOT}" "." "index.markdown" "marsh_test_markdown_command" "" "markdown,md" "html" "." "${SOURCE_ROOT}" >/dev/null 2>&1
                     ACTUAL=$?
                     EXPECTED=0
                     ASSERTION="equals"
@@ -7933,7 +7933,7 @@ function marsh_test {
             marsh_test_create_archive_template "${TEMPLATE_DIR}" "sample" "html" true
             printf '%s\n' '---'$'\n''Type: post'$'\n''Date: 2026-01-01'$'\n''Title: Item'$'\n''...'$'\n'''$'\n''# Item' > "${SOURCE_ROOT}/news/item.markdown"
             TARGET_ARCHIVE_RECORDS+=("$(marsh_test_get_target_archive_record 'news/index.markdown' 'html' 'News' 'English' 'en' '' '' '10' '' 'post' '' '' '' '' 'sample')")
-            TARGET_PLAN_ROOT=$(marsh_plan_target "${SOURCE_ROOT}" "${SITE_OUTPUT_ROOT}" "." false "${SOURCE_ROOT}" "" false "${TEMPLATE_DIR}" "sample" 0 "" "${SOURCE_ROOT}" "markdown,md" "" "" "" "${#TARGET_ARCHIVE_RECORDS[@]}" "${TARGET_ARCHIVE_RECORDS[@]}")
+            TARGET_PLAN_ROOT=$(marsh_plan_target "${SOURCE_ROOT}" "${SITE_OUTPUT_ROOT}" "." false "${SOURCE_ROOT}" "" false "${TEMPLATE_DIR}" "sample" 0 "" "${SOURCE_ROOT}" "markdown,md" "html" "" "" "${#TARGET_ARCHIVE_RECORDS[@]}" "${TARGET_ARCHIVE_RECORDS[@]}")
             ACTUAL=$?
             EXPECTED=0
             ASSERTION="equals"

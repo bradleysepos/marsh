@@ -1178,7 +1178,7 @@ function marsh_parse_internal_assignment {  # marsh_parse_internal_assignment as
 # https://gist.github.com/DinoChiesa/3e3c3866b51290f31243
 # https://gist.github.com/pkuczynski/8665367
 function marsh_parse_yaml {  # marsh_parse_yaml variables_prefix spaces_per_indentation
-    local PREFIX INDENT S W FS
+    local PREFIX INDENT
     PREFIX="${1:-}"
     INDENT="${2:-}"
     if [[ "${PREFIX}" != "" ]] && [[ ! "${PREFIX}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
@@ -1187,17 +1187,14 @@ function marsh_parse_yaml {  # marsh_parse_yaml variables_prefix spaces_per_inde
     if [[ ! "${INDENT}" =~ ^[0-9]+$ ]] || [[ "${INDENT}" -eq 0 ]]; then
         INDENT=2
     fi
-    S='[[:space:]]*'
-    W='[a-zA-Z0-9_]*'
-    FS=$(echo @|tr @ '\034')
-    sed -n \
-        -e "s|^\(\(${S}\)\(-\) \)\{1\}\(${S}\)\(${W}\)${S}:${S}\(\".*\"\)\${S}\$|\3${FS}\2  \4${FS}\5${FS}\6|p" \
-        -e "s|^\(\(${S}\)\(-\) \)\{1\}\(${S}\)\(${W}\)${S}:${S}\(.*\)${S}\$|\3${FS}\2  \4${FS}\5${FS}\6|p" \
-        -e "s|^\(\(${S}\)\(-\) \)\{1\}\(${S}\)\(\".*\"\)${S}\$|\3${FS}\2  \4${FS}${FS}\5|p" \
-        -e "s|^\(\(${S}\)\(-\) \)\{1\}\(${S}\)\([^:].*\)${S}\$|\3${FS}\2  \4${FS}${FS}\5|p" \
-        -e "s|^\(${S}\)\(${W}\)${S}:${S}\(\".*\"\)${S}\$|${FS}\1${FS}\2${FS}\3|p" \
-        -e "s|^\(${S}\)\(${W}\)${S}:${S}\(.*\)${S}\$|${FS}\1${FS}\2${FS}\3|p" |
-    awk -F"${FS}" -v prefix="${PREFIX}" -v indent="${INDENT}" -v field_sep="${FS}" \
+    sed -En \
+        -e 's|^(([[:space:]]*)(-) ){1}([[:space:]]*)([a-zA-Z0-9_]*)[[:space:]]*:[[:space:]]*(".*")[[:space:]]*$|\3\x1f\2  \4\x1f\5\x1f\6|p' \
+        -e 's|^(([[:space:]]*)(-) ){1}([[:space:]]*)([a-zA-Z0-9_]*)[[:space:]]*:[[:space:]]*(.*)[[:space:]]*$|\3\x1f\2  \4\x1f\5\x1f\6|p' \
+        -e 's|^(([[:space:]]*)(-) ){1}([[:space:]]*)(".*")[[:space:]]*$|\3\x1f\2  \4\x1f\x1f\5|p' \
+        -e 's|^(([[:space:]]*)(-) ){1}([[:space:]]*)([^:].*)[[:space:]]*$|\3\x1f\2  \4\x1f\x1f\5|p' \
+        -e 's|^([[:space:]]*)([a-zA-Z0-9_]*)[[:space:]]*:[[:space:]]*(".*")[[:space:]]*$|\x1f\1\x1f\2\x1f\3|p' \
+        -e 's|^([[:space:]]*)([a-zA-Z0-9_]*)[[:space:]]*:[[:space:]]*(.*)[[:space:]]*$|\x1f\1\x1f\2\x1f\3|p' |
+    awk -F$'\x1f' -v field_sep=$'\x1f' -v prefix="${PREFIX}" -v indent="${INDENT}" \
         '#
         # parse_csv, public domain, http://lorance.freeshell.org/csv/
         #**************************************************************************

@@ -1,3 +1,17 @@
 <article class="{{ document.type }}" lang="{{ document.language-code }}">
-{{ document.content }}
+<h1>{{ document.title }}</h1>
+{% if document.type is "news" %}
+    <div class="metadata">
+        {% if document.date is not "" %}
+            <span class="date">{{ document.date }}</span>
+        {% endif %}
+        {% if document.authors is not "" %}
+            {% if document.date is not "" %}
+                <span class="separator"> &middot; </span>
+            {% endif %}
+            <span class="authors">{{ document.authors | email:remove-angle-addr | escape:nbsp | items:join-type:oxford }}</span>
+        {% endif %}
+    </div><!-- end div.metadata -->
+{% endif %}
+{{ document.content | headings:shift | headings:push }}
 </article><!-- end article.{{ document.type }} -->

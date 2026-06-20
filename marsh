@@ -2197,16 +2197,7 @@ function marsh_text_transform {  # marsh_text_transform transform [transform...]
             fi
             ;;
         links:replace-ext:*)
-            # convert relative links with markdown file extensions to html
-            # examples:
-            # [foo](foo.md)               ->  [foo](foo.html)
-            # [foo](foo.md "title")       ->  [foo](foo.html "title")
-            # [![image](image.jpg)](imagepage.md)                  ->  [![image](image.jpg)](imagepage.html)
-            # [![image](image.jpg) "title"](imagepage.md)          ->  [![image](image.jpg) "title"](imagepage.html)
-            # [![image](image.jpg)](imagepage.md "title")          ->  [![image](image.jpg)](imagepage.html "title")
-            # [![image](image.jpg) "title"](imagepage.md "title")  ->  [![image](image.jpg) "title"](imagepage.html "title")
-            # [1]: reference1.md          ->  [1]: reference1.html
-            # [1]: reference1.md "title"  ->  [1]: reference1.html "title"
+            # replace file extensions in relative markdown links
             MARKDOWN_EXTS="${OPTIONS[1]:-}"
             if [[ "${MARKDOWN_EXTS}" != "" ]] && [[ "${MARKDOWN_EXTS}" =~ ^[A-Za-z0-9.,_-]+$ ]]; then
                 MARKDOWN_EXTS=$(printf '%s' "${MARKDOWN_EXTS}" | tr -s ',')  # collapse repeat separators
@@ -2217,7 +2208,8 @@ function marsh_text_transform {  # marsh_text_transform transform [transform...]
                 REPLACE_EXT="${REPLACE_EXT:+.${REPLACE_EXT}}"  # add extension leading dot
                 REPLACE_EXT=$(printf '%s' "${REPLACE_EXT}" | marsh_escape_substitution)
                 PROTOCOL_SEP=':'  # to avoid matching protocol in absolute URLs, e.g. https://example.com/foo.md
-                sed -E -e 's~(\[[^][]+\]|\[!\[[^][]+\]\([^)(]+\)([^]]+)?\])(\([^ #?:]+)('"${MARKDOWN_EXTS}"')([#?][^ )]+)?([^]]+)?(\))~\1\3'"${REPLACE_EXT}"'\5\6\7~g' | sed -E -e 's~^( *\[[^][]+\]: +<?[^ #?'"${PROTOCOL_SEP}"']+)('"${MARKDOWN_EXTS}"')(>)?([#?][^ ]+)?(.*)$~\1'"${REPLACE_EXT}"'\3\4\5~g'
+                sed -E -e 's~\[(([^][]+)|(!\[[^][]+\]\([^)(]+\))( +[^]]+)?)\]\(([^ #?:)]+)('"${MARKDOWN_EXTS}"')([#?][^ )]+)?( +"[^"]+")?\)~[\2\3\4](\5'"${REPLACE_EXT}"'\7\8)~g' \
+                    -e 's~^ *\[([^][]+)\]: +(<)?(([^ #?'"${PROTOCOL_SEP}"']+)('"${MARKDOWN_EXTS}"'))([#?][^ >]+)?(>)?( +("[^"]+"|'"'"'[^'"'"']+'"'"'|\([^)]+\)))? *$~[\1]: \2\4'"${REPLACE_EXT}"'\6\7\8~g'
             else
                 cat
             fi

@@ -10051,14 +10051,154 @@ function marsh_test {
         marsh_text_transform:86)
             TEST_NAME+=":links_replace_ext"
             ACTUAL=$(printf '%s\n' \
-                '[foo](foo.markdown) [foo](foo.md) [foo](foo.text) [foo](foo.md "title") [![image](image.jpg)](imagepage.md) [![image](image.jpg) "title"](imagepage.md) [![image](image.jpg)](imagepage.md "title") [![image](image.jpg) "title"](imagepage.md "title")' \
+                '[foo](foo.markdown) [foo](foo.md) [foo](foo.mdown) [foo](foo.markdown "title") [foo](foo.md "title") [foo](foo.mdown "title")' \
+                '[foo](path/foo.markdown) [foo](path/foo.md) [foo](path/foo.mdown) [foo](path/foo.markdown "title") [foo](path/foo.md "title") [foo](path/foo.mdown "title")' \
                 '' \
-                '[1]: reference1.md' \
-                '[2]: reference2.md "title"' \
-                '[3]: reference3.md#anchor "title"' \
-                "[4label]: reference4.md?qs=qs&qs2=qs2#anchor 'title'" \
-                '[label5]: <reference5.md?qs=qs&qs2=qs2#anchor> (title)' | marsh_text_transform links:replace-ext:md,markdown:html)
-            EXPECTED="[foo](foo.html) [foo](foo.html) [foo](foo.text) [foo](foo.html \"title\") [![image](image.jpg)](imagepage.html) [![image](image.jpg) \"title\"](imagepage.html) [![image](image.jpg)](imagepage.html \"title\") [![image](image.jpg) \"title\"](imagepage.html \"title\")"$'\n\n'"[1]: reference1.html"$'\n'"[2]: reference2.html \"title\""$'\n'"[3]: reference3.html#anchor \"title\""$'\n'"[4label]: reference4.html?qs=qs&qs2=qs2#anchor 'title'"$'\n'"[label5]: <reference5.html?qs=qs&qs2=qs2#anchor> (title)"
+                '[foo](foo.markdown)' \
+                '[foo](foo.md)' \
+                '[foo](foo.mdown)' \
+                '[foo](foo.markdown "title")' \
+                '[foo](foo.md "title")' \
+                '[foo](foo.mdown "title")' \
+                '[foo](path/foo.markdown)' \
+                '[foo](path/foo.md)' \
+                '[foo](path/foo.mdown)' \
+                '[foo](path/foo.markdown "title")' \
+                '[foo](path/foo.md "title")' \
+                '[foo](path/foo.mdown "title")' \
+                '' \
+                '[![image](image.jpg)](imagepage.markdown)' \
+                '[![image](image.jpg)](imagepage.md)' \
+                '[![image](image.jpg)](imagepage.mdown)' \
+                '[![image](image.jpg) "title"](imagepage.markdown)' \
+                '[![image](image.jpg) "title"](imagepage.md)' \
+                '[![image](image.jpg) "title"](imagepage.mdown)' \
+                '[![image](image.jpg)](imagepage.markdown "title")' \
+                '[![image](image.jpg)](imagepage.md "title")' \
+                '[![image](image.jpg)](imagepage.mdown "title")' \
+                '[![image](image.jpg) "title"](imagepage.markdown "title")' \
+                '[![image](image.jpg) "title"](imagepage.md "title")' \
+                '[![image](image.jpg) "title"](imagepage.mdown "title")' \
+                '[![image](image.jpg)](path/imagepage.markdown)' \
+                '[![image](image.jpg)](path/imagepage.md)' \
+                '[![image](image.jpg)](path/imagepage.mdown)' \
+                '[![image](image.jpg) "title"](path/imagepage.markdown)' \
+                '[![image](image.jpg) "title"](path/imagepage.md)' \
+                '[![image](image.jpg) "title"](path/imagepage.mdown)' \
+                '[![image](image.jpg)](path/imagepage.markdown "title")' \
+                '[![image](image.jpg)](path/imagepage.md "title")' \
+                '[![image](image.jpg)](path/imagepage.mdown "title")' \
+                '[![image](image.jpg) "title"](path/imagepage.markdown "title")' \
+                '[![image](image.jpg) "title"](path/imagepage.md "title")' \
+                '[![image](image.jpg) "title"](path/imagepage.mdown "title")' \
+                '' \
+                '[label]: reference.markdown' \
+                '[1]: reference.markdown' \
+                '[1]: reference.md' \
+                '[1]: reference.mdown' \
+                '[1]: reference.markdown "title"' \
+                '[1]: reference.md "title"' \
+                '[1]: reference.mdown "title"' \
+                '[1]: reference.markdown#anchor "title"' \
+                '[1]: reference.md#anchor "title"' \
+                '[1]: reference.mdown#anchor "title"' \
+                "[1]: reference.markdown?qs=qs&qs2=qs2#anchor 'title'" \
+                "[1]: reference.md?qs=qs&qs2=qs2#anchor 'title'" \
+                "[1]: reference.mdown?qs=qs&qs2=qs2#anchor 'title'" \
+                '[1]: <reference.markdown?qs=qs&qs2=qs2#anchor> (title)' \
+                '[1]: <reference.md?qs=qs&qs2=qs2#anchor> (title)' \
+                '[1]: <reference.mdown?qs=qs&qs2=qs2#anchor> (title)' \
+                '[label]: path/reference.markdown' \
+                '[1]: path/reference.markdown' \
+                '[1]: path/reference.md' \
+                '[1]: path/reference.mdown' \
+                '[1]: path/reference.markdown "title"' \
+                '[1]: path/reference.md "title"' \
+                '[1]: path/reference.mdown "title"' \
+                '[1]: path/reference.markdown#anchor "title"' \
+                '[1]: path/reference.md#anchor "title"' \
+                '[1]: path/reference.mdown#anchor "title"' \
+                "[1]: path/reference.markdown?qs=qs&qs2=qs2#anchor 'title'" \
+                "[1]: path/reference.md?qs=qs&qs2=qs2#anchor 'title'" \
+                "[1]: path/reference.mdown?qs=qs&qs2=qs2#anchor 'title'" \
+                '[1]: <path/reference.markdown?qs=qs&qs2=qs2#anchor> (title)' \
+                '[1]: <path/reference.md?qs=qs&qs2=qs2#anchor> (title)' \
+                '[1]: <path/reference.mdown?qs=qs&qs2=qs2#anchor> (title)' \
+                    | marsh_text_transform links:replace-ext:md,markdown:html)
+            EXPECTED=$(printf '%s\n' \
+                '[foo](foo.html) [foo](foo.html) [foo](foo.mdown) [foo](foo.html "title") [foo](foo.html "title") [foo](foo.mdown "title")' \
+                '[foo](path/foo.html) [foo](path/foo.html) [foo](path/foo.mdown) [foo](path/foo.html "title") [foo](path/foo.html "title") [foo](path/foo.mdown "title")' \
+                '' \
+                '[foo](foo.html)' \
+                '[foo](foo.html)' \
+                '[foo](foo.mdown)' \
+                '[foo](foo.html "title")' \
+                '[foo](foo.html "title")' \
+                '[foo](foo.mdown "title")' \
+                '[foo](path/foo.html)' \
+                '[foo](path/foo.html)' \
+                '[foo](path/foo.mdown)' \
+                '[foo](path/foo.html "title")' \
+                '[foo](path/foo.html "title")' \
+                '[foo](path/foo.mdown "title")' \
+                '' \
+                '[![image](image.jpg)](imagepage.html)' \
+                '[![image](image.jpg)](imagepage.html)' \
+                '[![image](image.jpg)](imagepage.mdown)' \
+                '[![image](image.jpg) "title"](imagepage.html)' \
+                '[![image](image.jpg) "title"](imagepage.html)' \
+                '[![image](image.jpg) "title"](imagepage.mdown)' \
+                '[![image](image.jpg)](imagepage.html "title")' \
+                '[![image](image.jpg)](imagepage.html "title")' \
+                '[![image](image.jpg)](imagepage.mdown "title")' \
+                '[![image](image.jpg) "title"](imagepage.html "title")' \
+                '[![image](image.jpg) "title"](imagepage.html "title")' \
+                '[![image](image.jpg) "title"](imagepage.mdown "title")' \
+                '[![image](image.jpg)](path/imagepage.html)' \
+                '[![image](image.jpg)](path/imagepage.html)' \
+                '[![image](image.jpg)](path/imagepage.mdown)' \
+                '[![image](image.jpg) "title"](path/imagepage.html)' \
+                '[![image](image.jpg) "title"](path/imagepage.html)' \
+                '[![image](image.jpg) "title"](path/imagepage.mdown)' \
+                '[![image](image.jpg)](path/imagepage.html "title")' \
+                '[![image](image.jpg)](path/imagepage.html "title")' \
+                '[![image](image.jpg)](path/imagepage.mdown "title")' \
+                '[![image](image.jpg) "title"](path/imagepage.html "title")' \
+                '[![image](image.jpg) "title"](path/imagepage.html "title")' \
+                '[![image](image.jpg) "title"](path/imagepage.mdown "title")' \
+                '' \
+                '[label]: reference.html' \
+                '[1]: reference.html' \
+                '[1]: reference.html' \
+                '[1]: reference.mdown' \
+                '[1]: reference.html "title"' \
+                '[1]: reference.html "title"' \
+                '[1]: reference.mdown "title"' \
+                '[1]: reference.html#anchor "title"' \
+                '[1]: reference.html#anchor "title"' \
+                '[1]: reference.mdown#anchor "title"' \
+                "[1]: reference.html?qs=qs&qs2=qs2#anchor 'title'" \
+                "[1]: reference.html?qs=qs&qs2=qs2#anchor 'title'" \
+                "[1]: reference.mdown?qs=qs&qs2=qs2#anchor 'title'" \
+                '[1]: <reference.html?qs=qs&qs2=qs2#anchor> (title)' \
+                '[1]: <reference.html?qs=qs&qs2=qs2#anchor> (title)' \
+                '[1]: <reference.mdown?qs=qs&qs2=qs2#anchor> (title)' \
+                '[label]: path/reference.html' \
+                '[1]: path/reference.html' \
+                '[1]: path/reference.html' \
+                '[1]: path/reference.mdown' \
+                '[1]: path/reference.html "title"' \
+                '[1]: path/reference.html "title"' \
+                '[1]: path/reference.mdown "title"' \
+                '[1]: path/reference.html#anchor "title"' \
+                '[1]: path/reference.html#anchor "title"' \
+                '[1]: path/reference.mdown#anchor "title"' \
+                "[1]: path/reference.html?qs=qs&qs2=qs2#anchor 'title'" \
+                "[1]: path/reference.html?qs=qs&qs2=qs2#anchor 'title'" \
+                "[1]: path/reference.mdown?qs=qs&qs2=qs2#anchor 'title'" \
+                '[1]: <path/reference.html?qs=qs&qs2=qs2#anchor> (title)' \
+                '[1]: <path/reference.html?qs=qs&qs2=qs2#anchor> (title)' \
+                '[1]: <path/reference.mdown?qs=qs&qs2=qs2#anchor> (title)')
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -10066,8 +10206,8 @@ function marsh_test {
             ;;
         marsh_text_transform:87)
             TEST_NAME+=":links_replace_ext"
-            ACTUAL=$(printf '%s' "[foo](foo.markdown) [foo](foo.md) [foo](foo.text)" | marsh_text_transform links:replace-ext:md,markdown)
-            EXPECTED="[foo](foo) [foo](foo) [foo](foo.text)"
+            ACTUAL=$(printf '%s' "[foo](foo.markdown) [foo](foo.md) [foo](foo.mdown)" | marsh_text_transform links:replace-ext:md,markdown)
+            EXPECTED="[foo](foo) [foo](foo) [foo](foo.mdown)"
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -10075,8 +10215,8 @@ function marsh_test {
             ;;
         marsh_text_transform:88)
             TEST_NAME+=":links_replace_ext"
-            ACTUAL=$(printf '%s' "[foo](foo.markdown-supreme) [foo](foo.txt.md) [foo](foo.text)" | marsh_text_transform links:replace-ext:txt.md,markdown-supreme)
-            EXPECTED="[foo](foo) [foo](foo) [foo](foo.text)"
+            ACTUAL=$(printf '%s' "[foo](foo.markdown-supreme) [foo](foo.txt.md) [foo](foo.mdown)" | marsh_text_transform links:replace-ext:txt.md,markdown-supreme)
+            EXPECTED="[foo](foo) [foo](foo) [foo](foo.mdown)"
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"
@@ -10084,8 +10224,8 @@ function marsh_test {
             ;;
         marsh_text_transform:89)
             TEST_NAME+=":links_replace_ext_repeat_separators"
-            ACTUAL=$(printf '%s' "[foo](foo.markdown) [foo](foo.md) [foo](foo.text)" | marsh_text_transform links:replace-ext:md,,,,markdown)
-            EXPECTED="[foo](foo) [foo](foo) [foo](foo.text)"
+            ACTUAL=$(printf '%s' "[foo](foo.markdown) [foo](foo.md) [foo](foo.mdown)" | marsh_text_transform links:replace-ext:md,,,,markdown)
+            EXPECTED="[foo](foo) [foo](foo) [foo](foo.mdown)"
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"

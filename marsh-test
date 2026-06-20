@@ -10049,6 +10049,162 @@ function marsh_test {
             fi
             ;;
         marsh_text_transform:86)
+            TEST_NAME+=":links_remove_filenames"
+            ACTUAL=$(printf '%s\n' \
+                '[foo](foo.htm) [foo](foo.html) [foo](foo.mdown) [foo](foo.htm "title") [foo](foo.html "title") [foo](foo.mdown "title")' \
+                '[foo](path/foo.htm) [foo](path/foo.html) [foo](path/foo.mdown) [foo](path/foo.htm "title") [foo](path/foo.html "title") [foo](path/foo.mdown "title")' \
+                '' \
+                '[foo](foo.htm)' \
+                '[foo](foo.html)' \
+                '[foo](foo.mdown)' \
+                '[foo](foo.htm "title")' \
+                '[foo](foo.html "title")' \
+                '[foo](foo.mdown "title")' \
+                '[foo](path/foo.htm)' \
+                '[foo](path/foo.html)' \
+                '[foo](path/foo.mdown)' \
+                '[foo](path/foo.htm "title")' \
+                '[foo](path/foo.html "title")' \
+                '[foo](path/foo.mdown "title")' \
+                '' \
+                '[![image](image.jpg)](imagepage.htm)' \
+                '[![image](image.jpg)](imagepage.html)' \
+                '[![image](image.jpg)](imagepage.mdown)' \
+                '[![image](image.jpg) "title"](imagepage.htm)' \
+                '[![image](image.jpg) "title"](imagepage.html)' \
+                '[![image](image.jpg) "title"](imagepage.mdown)' \
+                '[![image](image.jpg)](imagepage.htm "title")' \
+                '[![image](image.jpg)](imagepage.html "title")' \
+                '[![image](image.jpg)](imagepage.mdown "title")' \
+                '[![image](image.jpg) "title"](imagepage.htm "title")' \
+                '[![image](image.jpg) "title"](imagepage.html "title")' \
+                '[![image](image.jpg) "title"](imagepage.mdown "title")' \
+                '[![image](image.jpg)](path/imagepage.htm)' \
+                '[![image](image.jpg)](path/imagepage.html)' \
+                '[![image](image.jpg)](path/imagepage.mdown)' \
+                '[![image](image.jpg) "title"](path/imagepage.htm)' \
+                '[![image](image.jpg) "title"](path/imagepage.html)' \
+                '[![image](image.jpg) "title"](path/imagepage.mdown)' \
+                '[![image](image.jpg)](path/imagepage.htm "title")' \
+                '[![image](image.jpg)](path/imagepage.html "title")' \
+                '[![image](image.jpg)](path/imagepage.mdown "title")' \
+                '[![image](image.jpg) "title"](path/imagepage.htm "title")' \
+                '[![image](image.jpg) "title"](path/imagepage.html "title")' \
+                '[![image](image.jpg) "title"](path/imagepage.mdown "title")' \
+                '' \
+                '[label]: reference.htm' \
+                '[1]: reference.htm' \
+                '[1]: reference.html' \
+                '[1]: reference.mdown' \
+                '[1]: reference.htm "title"' \
+                '[1]: reference.html "title"' \
+                '[1]: reference.mdown "title"' \
+                '[1]: reference.htm#anchor "title"' \
+                '[1]: reference.html#anchor "title"' \
+                '[1]: reference.mdown#anchor "title"' \
+                "[1]: reference.htm?qs=qs&qs2=qs2#anchor 'title'" \
+                "[1]: reference.html?qs=qs&qs2=qs2#anchor 'title'" \
+                "[1]: reference.mdown?qs=qs&qs2=qs2#anchor 'title'" \
+                '[1]: <reference.htm?qs=qs&qs2=qs2#anchor> (title)' \
+                '[1]: <reference.html?qs=qs&qs2=qs2#anchor> (title)' \
+                '[1]: <reference.mdown?qs=qs&qs2=qs2#anchor> (title)' \
+                '[label]: path/reference.htm' \
+                '[1]: path/reference.htm' \
+                '[1]: path/reference.html' \
+                '[1]: path/reference.mdown' \
+                '[1]: path/reference.htm "title"' \
+                '[1]: path/reference.html "title"' \
+                '[1]: path/reference.mdown "title"' \
+                '[1]: path/reference.htm#anchor "title"' \
+                '[1]: path/reference.html#anchor "title"' \
+                '[1]: path/reference.mdown#anchor "title"' \
+                "[1]: path/reference.htm?qs=qs&qs2=qs2#anchor 'title'" \
+                "[1]: path/reference.html?qs=qs&qs2=qs2#anchor 'title'" \
+                "[1]: path/reference.mdown?qs=qs&qs2=qs2#anchor 'title'" \
+                '[1]: <path/reference.htm?qs=qs&qs2=qs2#anchor> (title)' \
+                '[1]: <path/reference.html?qs=qs&qs2=qs2#anchor> (title)' \
+                '[1]: <path/reference.mdown?qs=qs&qs2=qs2#anchor> (title)' \
+                    | marsh_text_transform links:remove-filenames:foo.htm,foo.html,imagepage.htm,imagepage.html,reference.htm,reference.html)
+            EXPECTED=$(printf '%s\n' \
+                '[foo](./) [foo](./) [foo](foo.mdown) [foo](./ "title") [foo](./ "title") [foo](foo.mdown "title")' \
+                '[foo](path/) [foo](path/) [foo](path/foo.mdown) [foo](path/ "title") [foo](path/ "title") [foo](path/foo.mdown "title")' \
+                '' \
+                '[foo](./)' \
+                '[foo](./)' \
+                '[foo](foo.mdown)' \
+                '[foo](./ "title")' \
+                '[foo](./ "title")' \
+                '[foo](foo.mdown "title")' \
+                '[foo](path/)' \
+                '[foo](path/)' \
+                '[foo](path/foo.mdown)' \
+                '[foo](path/ "title")' \
+                '[foo](path/ "title")' \
+                '[foo](path/foo.mdown "title")' \
+                '' \
+                '[![image](image.jpg)](./)' \
+                '[![image](image.jpg)](./)' \
+                '[![image](image.jpg)](imagepage.mdown)' \
+                '[![image](image.jpg) "title"](./)' \
+                '[![image](image.jpg) "title"](./)' \
+                '[![image](image.jpg) "title"](imagepage.mdown)' \
+                '[![image](image.jpg)](./ "title")' \
+                '[![image](image.jpg)](./ "title")' \
+                '[![image](image.jpg)](imagepage.mdown "title")' \
+                '[![image](image.jpg) "title"](./ "title")' \
+                '[![image](image.jpg) "title"](./ "title")' \
+                '[![image](image.jpg) "title"](imagepage.mdown "title")' \
+                '[![image](image.jpg)](path/)' \
+                '[![image](image.jpg)](path/)' \
+                '[![image](image.jpg)](path/imagepage.mdown)' \
+                '[![image](image.jpg) "title"](path/)' \
+                '[![image](image.jpg) "title"](path/)' \
+                '[![image](image.jpg) "title"](path/imagepage.mdown)' \
+                '[![image](image.jpg)](path/ "title")' \
+                '[![image](image.jpg)](path/ "title")' \
+                '[![image](image.jpg)](path/imagepage.mdown "title")' \
+                '[![image](image.jpg) "title"](path/ "title")' \
+                '[![image](image.jpg) "title"](path/ "title")' \
+                '[![image](image.jpg) "title"](path/imagepage.mdown "title")' \
+                '' \
+                '[label]: ./' \
+                '[1]: ./' \
+                '[1]: ./' \
+                '[1]: reference.mdown' \
+                '[1]: ./ "title"' \
+                '[1]: ./ "title"' \
+                '[1]: reference.mdown "title"' \
+                '[1]: ./#anchor "title"' \
+                '[1]: ./#anchor "title"' \
+                '[1]: reference.mdown#anchor "title"' \
+                "[1]: ./?qs=qs&qs2=qs2#anchor 'title'" \
+                "[1]: ./?qs=qs&qs2=qs2#anchor 'title'" \
+                "[1]: reference.mdown?qs=qs&qs2=qs2#anchor 'title'" \
+                '[1]: <./?qs=qs&qs2=qs2#anchor> (title)' \
+                '[1]: <./?qs=qs&qs2=qs2#anchor> (title)' \
+                '[1]: <reference.mdown?qs=qs&qs2=qs2#anchor> (title)' \
+                '[label]: path/' \
+                '[1]: path/' \
+                '[1]: path/' \
+                '[1]: path/reference.mdown' \
+                '[1]: path/ "title"' \
+                '[1]: path/ "title"' \
+                '[1]: path/reference.mdown "title"' \
+                '[1]: path/#anchor "title"' \
+                '[1]: path/#anchor "title"' \
+                '[1]: path/reference.mdown#anchor "title"' \
+                "[1]: path/?qs=qs&qs2=qs2#anchor 'title'" \
+                "[1]: path/?qs=qs&qs2=qs2#anchor 'title'" \
+                "[1]: path/reference.mdown?qs=qs&qs2=qs2#anchor 'title'" \
+                '[1]: <path/?qs=qs&qs2=qs2#anchor> (title)' \
+                '[1]: <path/?qs=qs&qs2=qs2#anchor> (title)' \
+                '[1]: <path/reference.mdown?qs=qs&qs2=qs2#anchor> (title)')
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_text_transform:87)
             TEST_NAME+=":links_replace_ext"
             ACTUAL=$(printf '%s\n' \
                 '[foo](foo.markdown) [foo](foo.md) [foo](foo.mdown) [foo](foo.markdown "title") [foo](foo.md "title") [foo](foo.mdown "title")' \
@@ -10199,15 +10355,6 @@ function marsh_test {
                 '[1]: <path/reference.html?qs=qs&qs2=qs2#anchor> (title)' \
                 '[1]: <path/reference.html?qs=qs&qs2=qs2#anchor> (title)' \
                 '[1]: <path/reference.mdown?qs=qs&qs2=qs2#anchor> (title)')
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                RES="[PASS]"
-            fi
-            ;;
-        marsh_text_transform:87)
-            TEST_NAME+=":links_replace_ext"
-            ACTUAL=$(printf '%s' "[foo](foo.markdown) [foo](foo.md) [foo](foo.mdown)" | marsh_text_transform links:replace-ext:md,markdown)
-            EXPECTED="[foo](foo) [foo](foo) [foo](foo.mdown)"
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 RES="[PASS]"

@@ -2196,6 +2196,24 @@ function marsh_text_transform {  # marsh_text_transform transform [transform...]
                 cat
             fi
             ;;
+        links:remove-filenames:*)
+            # remove filenames from relative links
+            FILENAMES="${OPTIONS[1]:-}"
+            if [[ "${FILENAMES}" != "" ]] && [[ "${FILENAMES}" =~ ^[A-Za-z0-9.,_-]+$ ]]; then
+                FILENAMES=$(printf '%s' "${FILENAMES}" | tr -s ',')  # collapse repeat separators
+                FILENAMES="${FILENAMES//,/|}"    # csv to regex
+                FILENAMES="${FILENAMES//-/\\-}"  # escape for regex match
+                FILENAMES="${FILENAMES//./\\.}"  # escape for regex match
+                REPLACE_STR="./"  # replace with current directory to preserve relative link structure while removing filenames
+                PROTOCOL_SEP=':'  # to avoid matching protocol in absolute URLs, e.g. https://example.com/foo.md
+                sed -E -e 's~\[(([^][]+)|(!\[[^][]+\]\([^)(]+\))( +[^]]+)?)\]\(([^ #?:)]*)('"${FILENAMES}"')([#?][^ )]+)?( +"[^"]+")?\)~[\2\3\4](\5'"${REPLACE_STR}"'\7\8)~g' \
+                    -e 's~^ *\[([^][]+)\]: +(<)?(([^ #?'"${PROTOCOL_SEP}"']*)('"${FILENAMES}"'))([#?][^ >]+)?(>)?( +("[^"]+"|'"'"'[^'"'"']+'"'"'|\([^)]+\)))? *$~[\1]: \2\4'"${REPLACE_STR}"'\6\7\8~g' \
+                        | sed -E -e 's~\[(([^][]+)|(!\[[^][]+\]\([^)(]+\))( +[^]]+)?)\]\(([^ #?:)]*)(/\./)([#?][^ )]+)?( +"[^"]+")?\)~[\2\3\4](\5/\7\8)~g' \
+                        -e 's~^ *\[([^][]+)\]: +(<)?(([^ #?'"${PROTOCOL_SEP}"']*)(/\./))([#?][^ >]+)?(>)?( +("[^"]+"|'"'"'[^'"'"']+'"'"'|\([^)]+\)))? *$~[\1]: \2\4/\6\7\8~g'
+            else
+                cat
+            fi
+            ;;
         links:replace-ext:*)
             # replace file extensions in relative markdown links
             MARKDOWN_EXTS="${OPTIONS[1]:-}"

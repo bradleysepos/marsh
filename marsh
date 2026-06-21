@@ -871,6 +871,23 @@ function marsh_get_cache_path {  # marsh_get_cache_path cache_root suffix key_pa
     printf '%s\n' "${CACHE_ROOT}/${KEY}${SUFFIX}"
 }
 
+# returns the extension for a given file path or url including the leading dot
+# only returns the last extension where multiple exist, e.g., "archive.tar.gz" returns ".gz"
+function marsh_get_extension {  # marsh_get_extension path_or_url
+    local PATH_OR_URL NAME EXT
+
+    # init
+    PATH_OR_URL="${1:-}"
+    [[ "${PATH_OR_URL}" == "" ]] && return 1
+
+    NAME="${PATH_OR_URL##*/}"
+    if [[ "${NAME}" == *.* ]]; then
+        EXT="${NAME##*.}"
+        printf '%s\n' ".${EXT}"
+    fi
+    return 0
+}
+
 # emits values from flat indexed variables one per line
 # TEST_0="foo"; TEST_1="bar"; TEST_2="baz"
 # marsh_get_flatarray_values "TEST_"  # loops over TEST_{0..2} and prints foo\nbar\nbaz

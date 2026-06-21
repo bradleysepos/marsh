@@ -5395,6 +5395,33 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
+        marsh_get_extension:0)
+            TEST_NAME+=":one_extension"
+            ACTUAL=$(marsh_get_extension "index.markdown")
+            EXPECTED=".markdown"
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_get_extension:1)
+            TEST_NAME+=":multiple_extensions"
+            ACTUAL=$(marsh_get_extension "archive.tar.gz")
+            EXPECTED=".gz"
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_get_extension:2)
+            TEST_NAME+=":no_extension"
+            ACTUAL=$(marsh_get_extension "index")
+            EXPECTED=""
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
         marsh_get_flatarray_values:0)
             TEST_NAME+=":nested"
             ACTUAL=$(FOOBAR_0="foo" FOOBAR_1="bar" FOOBAR_X="x" marsh_get_flatarray_values "FOOBAR_")
@@ -11504,6 +11531,7 @@ KNOWN_FUNCTIONS=(
     marsh_get_document_artifacts
     marsh_get_document_metadata
     marsh_get_document_temp_path
+    marsh_get_extension
     marsh_get_flatarray_values
     marsh_get_internal_parent_directory
     marsh_get_local_declarations

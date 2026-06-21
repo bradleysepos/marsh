@@ -24,7 +24,7 @@ usage: ${SELF_NAME} [-h | --help]
        ${SELF_NAME} [-v | --version]
        ${SELF_NAME} build [--log-level level]
          [--force] [-j # | --jobs #]
-         [--markdown markdown] [--markdown-options opt1,opt2]
+         [--markdown command] [--markdown-options opt1,opt2]
          [--markdown-document-extensions ext1,ext2]
          [--markdown-document-extensions-replacement ext] [config_file]
 where:
@@ -42,13 +42,14 @@ where:
         number of concurrent jobs to run using GNU Parallel
         default: automatically chosen by GNU Parallel, if available
   --markdown
-        path to discount markdown application
+        path to discount markdown command
+        default: system markdown command found in PATH
   --markdown-options
-        discount markdown translation options (comma delimited)
+        discount markdown translation options, comma delimited
         default: $(echo ${MARKDOWN_OPTIONS[@]:-} | sed 's/ /,/g')
   --markdown-document-extensions
         markdown document file extensions, comma delimited
-        regardless of this setting, .markdown is always included
+        .markdown is always included regardless of this setting
         default: $(echo ${MARKDOWN_DOCUMENT_EXTENSIONS[@]:-} | sed 's/ /,/g')
   --markdown-document-extensions-replacement
         replace markdown document file extensions with this

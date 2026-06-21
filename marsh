@@ -47,11 +47,11 @@ where:
         discount markdown translation options (comma delimited)
         default: $(echo ${MARKDOWN_OPTIONS[@]:-} | sed 's/ /,/g')
   --markdown-file-extensions
-        markdown file extensions (without leading dot, comma delimited)
-        regardless of this setting, 'markdown' is always included
+        markdown file extensions, comma delimited
+        regardless of this setting, .markdown is always included
         default: $(echo ${MARKDOWN_FILEEXT[@]:-} | sed 's/ /,/g')
   --markdown-link-extension
-        rewrite markdown syntax relative link extensions to this (without leading dot)
+        replace markdown syntax relative link extensions with this
         default: ${MARKDOWN_LINK_EXTENSION:-}"
 }
 
@@ -82,8 +82,8 @@ function marsh_cli {
     LOG_LEVELS_CSV=$(IFS=, ; echo "${LOG_LEVELS[*]}")
     LOG_LEVEL_DEFAULT='info'
     MARKDOWN_OPTIONS=(-1.0 +alphalist -autolink -cdata +definitionlist -divquote -dldiscount +dlextra +ext +fencedcode +footnote +githubtags -header +html +image -latex +links -safelink +smarty +strikethrough +style +superscript +tables -tabstop -toc)
-    MARKDOWN_FILEEXT=('markdown' 'md' 'mkd' 'mkdn' 'mdown' 'mdtxt' 'mdtext' 'text')
-    MARKDOWN_LINK_EXTENSION="html"
+    MARKDOWN_FILEEXT=('.markdown' '.md' '.mkd' '.mkdn' '.mdown' '.mdtxt' '.mdtext' '.text')
+    MARKDOWN_LINK_EXTENSION=".html"
 
     # env vars
     marsh_env_cli
@@ -477,8 +477,8 @@ function marsh_cli {
     for I in "${!MARKDOWN_FILEEXT[@]}"; do
         MARKDOWN_FILEEXT[$I]=$(printf '%s' "${MARKDOWN_FILEEXT[$I]}" | awk '{ print tolower($0) }')
     done
-    if ! marsh_in_array "markdown" "${MARKDOWN_FILEEXT[@]}"; then
-        MARKDOWN_FILEEXT+=("markdown")
+    if ! marsh_in_array ".markdown" "${MARKDOWN_FILEEXT[@]}"; then
+        MARKDOWN_FILEEXT+=(".markdown")
     fi
     MARKDOWN_FILEEXT_CSV=$(echo ${MARKDOWN_FILEEXT[@]} | sed 's/ /,/g')
 
@@ -878,7 +878,7 @@ function marsh_get_extension {  # marsh_get_extension path_or_url
 
     # init
     PATH_OR_URL="${1:-}"
-    [[ "${PATH_OR_URL}" == "" ]] && return 1
+    [[ "${PATH_OR_URL}" == "" ]] && return 0
 
     NAME="${PATH_OR_URL##*/}"
     if [[ "${NAME}" == *.* ]]; then
@@ -2236,11 +2236,10 @@ function marsh_text_transform {  # marsh_text_transform transform [transform...]
             MARKDOWN_EXTS="${OPTIONS[1]:-}"
             if [[ "${MARKDOWN_EXTS}" != "" ]] && [[ "${MARKDOWN_EXTS}" =~ ^[A-Za-z0-9.,_-]+$ ]]; then
                 MARKDOWN_EXTS=$(printf '%s' "${MARKDOWN_EXTS}" | tr -s ',')  # collapse repeat separators
-                MARKDOWN_EXTS=".${MARKDOWN_EXTS//,/|.}"  # csv to regex and add extension leading dots
+                MARKDOWN_EXTS="${MARKDOWN_EXTS//,/|}"   # csv to regex
                 MARKDOWN_EXTS="${MARKDOWN_EXTS//-/\\-}"  # escape for regex match
                 MARKDOWN_EXTS="${MARKDOWN_EXTS//./\\.}"  # escape for regex match
                 REPLACE_EXT="${OPTIONS[2]:-}"
-                REPLACE_EXT="${REPLACE_EXT:+.${REPLACE_EXT}}"  # add extension leading dot
                 REPLACE_EXT=$(printf '%s' "${REPLACE_EXT}" | marsh_escape_substitution)
                 PROTOCOL_SEP=':'  # to avoid matching protocol in absolute URLs, e.g. https://example.com/foo.md
                 sed -E -e 's~\[(([^][]+)|(!\[[^][]+\]\([^)(]+\))( +[^]]+)?)\]\(([^ #?:)]+)('"${MARKDOWN_EXTS}"')([#?][^ )]+)?( +"[^"]+")?\)~[\2\3\4](\5'"${REPLACE_EXT}"'\7\8)~g' \
@@ -3229,7 +3228,7 @@ function marsh_plan_target_source_assets {  # marsh_plan_target_source_assets so
 # creates a plan for direct copy of source assets for a target based on provided inventory records
 function marsh_plan_target_source_assets_from_inventory {  # marsh_plan_target_source_assets_from_inventory source target_output_rel source_root markdown_fileext_csv inventory_records[@]
     local SOURCE TARGET_OUTPUT_REL SOURCE_ROOT MARKDOWN_FILEEXT_CSV
-    local SOURCE_PATH_PATTERN REL_PATH MATCH_REL_PATH
+    local SOURCE_PATH_PATTERN REL_PATH REL_PATH_EXT MATCH_REL_PATH
 
     SOURCE="${1:-}"
     TARGET_OUTPUT_REL="${2:-}"
@@ -3256,7 +3255,8 @@ function marsh_plan_target_source_assets_from_inventory {  # marsh_plan_target_s
             [[ "${MATCH_REL_PATH}" == ${SOURCE_PATH_PATTERN} ]] || continue
         fi
         # markdown files are rendered instead of copied directly
-        if marsh_is_markdown_extension "${REL_PATH##*.}" "${MARKDOWN_FILEEXT_CSV}"; then
+        REL_PATH_EXT=$(marsh_get_extension "${REL_PATH}")
+        if marsh_is_markdown_extension "${REL_PATH_EXT}" "${MARKDOWN_FILEEXT_CSV}"; then
             continue
         fi
         marsh_validate_record_fields "source asset record" "${REL_PATH}" "${REL_PATH}" "${TARGET_OUTPUT_REL}" "${SOURCE_ROOT}" || return 1
@@ -3506,7 +3506,7 @@ function marsh_get_target_document_paths {  # marsh_get_target_document_paths do
     TARGET_OUTPUT_ROOT_VALUE="${SITE_OUTPUT_ROOT}/${TARGET_OUTPUT_REL}"
     TARGET_OUTPUT_ROOT_VALUE="${TARGET_OUTPUT_ROOT_VALUE%/.}"
 
-    DOCUMENT_EXT_VALUE="${DOCUMENT##*.}"
+    DOCUMENT_EXT_VALUE=$(marsh_get_extension "${DOCUMENT}")
     DOCUMENT_DIR_VALUE=$(marsh_get_internal_parent_directory "${DOCUMENT}") || return 1
 
     DOCUMENT_OUTPUT_REL_VALUE="${DOCUMENT}"
@@ -4676,7 +4676,7 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
     local DEST_SCRATCH
     local TEXT_TRANSFORM UTIL_JSON_SEPARATOR I J ASSET_INDEX
     local SUBDOCUMENT_CONTENT_IS_RENDERED SUBDOCUMENT_CONTENT_USE_ONCE
-    local SITEMAP SITEMAP_DIR SITEMAP_NAME SITEMAP_OUTPUT_PATH SITEMAP_HREF SITEMAP_RENDER_PATH PROCESSED_SITEMAP_PATH SITEMAP_LOOKUP_PATH
+    local SITEMAP SITEMAP_DIR SITEMAP_NAME SITEMAP_OUTPUT_PATH SITEMAP_OUTPUT_PATH_EXT SITEMAP_HREF SITEMAP_RENDER_PATH PROCESSED_SITEMAP_PATH SITEMAP_LOOKUP_PATH
     local DOCUMENT_HREF_ESC
     local SUBDOCUMENT_META_ASSIGNMENT SUBDOCUMENT_META_ENTRY_NAME SUBDOCUMENT_META_ENTRY_TYPE SUBDOCUMENT_META_ENTRY_VALUE SUBDOCUMENT_META_ENTRY_INDEX
     local SUBDOCUMENT_META_VAR_NAME SUBDOCUMENT_META_NORMALIZED_KEY SUBDOCUMENT_META_ALLOW_RESERVED_PAGE_TAGS
@@ -5292,7 +5292,8 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
                     return 1
                 fi
                 SITEMAP_OUTPUT_PATH=$(marsh_normalize_internal_path "${TARGET_OUTPUT_REL}/${SITEMAP_LOOKUP_PATH}") || return 1
-                if marsh_is_markdown_extension "${SITEMAP_OUTPUT_PATH##*.}" "${MARKDOWN_FILEEXT_CSV}"; then
+                SITEMAP_OUTPUT_PATH_EXT=$(marsh_get_extension "${SITEMAP_OUTPUT_PATH}")
+                if marsh_is_markdown_extension "${SITEMAP_OUTPUT_PATH_EXT}" "${MARKDOWN_FILEEXT_CSV}"; then
                     SITEMAP_OUTPUT_PATH="${SITEMAP_OUTPUT_PATH%.*}.html"
                 fi
                 SITEMAP_NAME="${SITEMAP_OUTPUT_PATH##*/}"
@@ -5544,7 +5545,7 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
                 [[ "${SUBDOCUMENT_URI_FROM_MANIFEST:-}" != "" ]] && SUBDOCUMENT_URI="${SUBDOCUMENT_URI_FROM_MANIFEST}"
                 [[ "${SUBDOCUMENT_ABSPATH_FROM_MANIFEST:-}" != "" ]] && SUBDOCUMENT_ABSPATH="${SUBDOCUMENT_ABSPATH_FROM_MANIFEST}"
                 SUBDOCUMENT_OUTPUT_PATH="${SUBDOCUMENT_REL_TO_SITE}"
-                SUBDOCUMENT_OUTPUT_EXT="${SUBDOCUMENT_OUTPUT_PATH##*.}"
+                SUBDOCUMENT_OUTPUT_EXT=$(marsh_get_extension "${SUBDOCUMENT_OUTPUT_PATH}")
                 if marsh_is_markdown_extension "${SUBDOCUMENT_OUTPUT_EXT}" "${MARKDOWN_FILEEXT_CSV}"; then
                     SUBDOCUMENT_OUTPUT_PATH="${SUBDOCUMENT_OUTPUT_PATH%.*}.html"
                     if [[ -f "${SUBDOCUMENT_IS_RENDERED_FILE}" ]] && [[ -r "${SUBDOCUMENT_IS_RENDERED_FILE}" ]]; then
@@ -7325,7 +7326,7 @@ function marsh_resolve_template_tag_metadata {  # marsh_resolve_template_tag_met
 # builds planned sitemap records for a target
 function marsh_build_planned_target_sitemaps {  # marsh_build_planned_target_sitemaps target_output_root log_level log_levels_csv markdown_command markdown_options_csv markdown_fileext_csv markdown_link_extension sitemap_records[@]
     local TARGET_OUTPUT_ROOT LOG_LEVEL LOG_LEVELS_CSV MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_FILEEXT_CSV MARKDOWN_LINK_EXTENSION TARGET_OUTPUT_REL
-    local SITEMAP_RECORD TARGET_SITEMAP_FILE TARGET_SITEMAP_SOURCE TARGET_SITEMAP_FOUND TARGET_SITEMAP_OUTPUT_PATH
+    local SITEMAP_RECORD TARGET_SITEMAP_FILE TARGET_SITEMAP_SOURCE TARGET_SITEMAP_FOUND TARGET_SITEMAP_OUTPUT_PATH TARGET_SITEMAP_OUTPUT_PATH_EXT
 
     TARGET_OUTPUT_ROOT="${1:-}"
     LOG_LEVEL="${2:-}"
@@ -7367,7 +7368,8 @@ function marsh_build_planned_target_sitemaps {  # marsh_build_planned_target_sit
         if marsh_should_log "verbose" "${LOG_LEVEL}" "${LOG_LEVELS_CSV}"; then
             TARGET_SITEMAP_OUTPUT_PATH="${TARGET_OUTPUT_REL}/${TARGET_SITEMAP_FILE}"
             TARGET_SITEMAP_OUTPUT_PATH=$(marsh_normalize_internal_path "${TARGET_SITEMAP_OUTPUT_PATH}") || return 1
-            if marsh_is_markdown_extension "${TARGET_SITEMAP_OUTPUT_PATH##*.}" "${MARKDOWN_FILEEXT_CSV}"; then
+            TARGET_SITEMAP_OUTPUT_PATH_EXT=$(marsh_get_extension "${TARGET_SITEMAP_OUTPUT_PATH}")
+            if marsh_is_markdown_extension "${TARGET_SITEMAP_OUTPUT_PATH_EXT}" "${MARKDOWN_FILEEXT_CSV}"; then
                 TARGET_SITEMAP_OUTPUT_PATH="${TARGET_SITEMAP_OUTPUT_PATH%.*}.html"
             fi
             marsh_print_verbose_output_path "${TARGET_SITEMAP_OUTPUT_PATH}"
@@ -7959,12 +7961,12 @@ function marsh_build_document {  # marsh_build_document site_output_root target_
 
     # normalize extensions
     if marsh_is_markdown_extension "${DOCUMENT_EXT}" "${MARKDOWN_FILEEXT_CSV}"; then
-        DOCUMENT_EXT="markdown"
+        DOCUMENT_EXT=".markdown"
     fi
 
     DOCUMENT_CONTENT_READY=false
     if [[ -f "${DOCUMENT_CONTENT}" ]] && [[ -r "${DOCUMENT_CONTENT}" ]]; then
-        if [[ "${DOCUMENT_EXT}" == "markdown" ]]; then
+        if [[ "${DOCUMENT_EXT}" == ".markdown" ]]; then
             [[ -f "${DOCUMENT_IS_RENDERED_FILE}" ]] && [[ -r "${DOCUMENT_IS_RENDERED_FILE}" ]] && DOCUMENT_CONTENT_READY=true
         else
             DOCUMENT_CONTENT_READY=true
@@ -7976,7 +7978,7 @@ function marsh_build_document {  # marsh_build_document site_output_root target_
         return 1
     }
 
-    if [[ "${DOCUMENT_EXT}" == "markdown" ]] && [[ "${DOCUMENT_CONTENT_READY}" != true ]]; then
+    if [[ "${DOCUMENT_EXT}" == ".markdown" ]] && [[ "${DOCUMENT_CONTENT_READY}" != true ]]; then
         # preprocess markdown to convert markdown links to html
         # preprocess markdown to add implicit figures
         # convert preprocessed markdown to html
@@ -8774,7 +8776,7 @@ function marsh_plan_target_documents_from_inventory {  # marsh_plan_target_docum
             fi
             [[ "${SOURCE_MATCHES_TARGET}" == true ]] || continue
         fi
-        [[ "${DOCUMENT_ID}" =~ \.(${MARKDOWN_FILEEXT_REGEX})$ ]] || continue
+        [[ "${DOCUMENT_ID}" =~ (${MARKDOWN_FILEEXT_REGEX})$ ]] || continue
         marsh_validate_record_fields "document record" "${DOCUMENT_ID}" "${DOCUMENT_ID}" "${TARGET_OUTPUT_REL}" "${TARGET_SOURCE_ROOT}" || return 1
         printf '%s\037%s\037%s\037%s\n' "${DOCUMENT_ID}" "${DOCUMENT_ID}" "${TARGET_OUTPUT_REL}" "${TARGET_SOURCE_ROOT}"
     done

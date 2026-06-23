@@ -26,7 +26,9 @@ usage: ${SELF_NAME} [-h | --help]
          [--force] [-j # | --jobs #]
          [--markdown command] [--markdown-options opt1,opt2]
          [--markdown-document-extensions ext1,ext2]
-         [--markdown-document-extensions-replacement ext] [config_file]
+         [--markdown-document-extensions-replacement ext]
+         [--remove-link-filenames name1,name2]
+         [config_file]
 where:
   -h, --help
         display this help text
@@ -54,7 +56,10 @@ where:
   --markdown-document-extensions-replacement
         replace markdown document file extensions with this
         affects source documents and markdown syntax relative links
-        default: ${MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT:-}"
+        default: ${MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT:-}
+  --remove-link-filenames
+        filenames to remove from normalized relative paths, comma delimited
+        default: ${REMOVE_LINK_FILENAMES_CSV:-}"
 }
 
 # main function, entry point for command line interface
@@ -63,7 +68,7 @@ function marsh_cli {
 
     local COMMAND OPTSPEC UNKNOWN TEMP_DIR TEMPLATES_DIR LOG_LEVEL LOG_LEVELS LOG_LEVELS_CSV LOG_LEVEL_DEFAULT FORCE JOBS
     local MARKDOWN_COMMAND MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT
-    local MARKDOWN_OPTIONS_CSV MARKDOWN_DOCUMENT_EXTENSIONS_CSV
+    local MARKDOWN_OPTIONS_CSV MARKDOWN_DOCUMENT_EXTENSIONS_CSV REMOVE_LINK_FILENAMES_CSV
     local INDEX PREFIX CONFIG_ASSIGNMENTS OIFS I J
     local TARGET_COUNT TARGET_COUNT_INDEX TARGET_COUNT_PREFIX TARGET_NUMBER
     local BUILD_START_TIME BUILD_END_TIME BUILD_ELAPSED
@@ -76,7 +81,7 @@ function marsh_cli {
     local BUILD_TEMPLATES_DIR BUILD_TEMPLATE BUILD_NUM_TEMPLATE_OVERRIDES BUILD_TEMPLATE_ASSETS_PATH BUILD_QUEUE_RECORD
     local BUILD_TEMPLATE_OVERRIDE_INDEX
     local COMMAND_STATUS
-    local -a COMMANDS OPTARRAY DEPS MARKDOWN_OPTIONS MARKDOWN_DOCUMENT_EXTENSIONS MARKDOWN_OPTIONS_CLIARGS MARKDOWN_UNKNOWN
+    local -a COMMANDS OPTARRAY DEPS MARKDOWN_OPTIONS MARKDOWN_DOCUMENT_EXTENSIONS REMOVE_LINK_FILENAMES MARKDOWN_OPTIONS_CLIARGS MARKDOWN_UNKNOWN
     local -a TARGET_ARCHIVE_RECORDS TARGET_ARCHIVE_TYPES TARGET_ARCHIVE_EXCLUDED_STATES TARGET_ARCHIVE_TEMPLATE_OVERRIDES BUILD_TEMPLATE_OVERRIDES
 
     # args with help
@@ -86,6 +91,7 @@ function marsh_cli {
     MARKDOWN_OPTIONS=(-1.0 +alphalist -autolink -cdata +definitionlist -divquote -dldiscount +dlextra +ext +fencedcode +footnote +githubtags -header +html +image -latex +links -safelink +smarty +strikethrough +style +superscript +tables -tabstop -toc)
     MARKDOWN_DOCUMENT_EXTENSIONS=('.markdown' '.md' '.mkd' '.mkdn' '.mdown' '.mdtxt' '.mdtext' '.text')
     MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT=".html"
+    REMOVE_LINK_FILENAMES=('index.html')
 
     # env vars
     marsh_env_cli
@@ -127,7 +133,7 @@ function marsh_cli {
     MARKDOWN_COMMAND=""
     OPTIND=1
     OPTSPEC=":-:hvj:"
-    OPTARRAY=('-h' '--help' '-v' '--version' '--log-level' '--force' '-j' '--jobs' '--markdown' '--markdown-options' '--markdown-document-extensions' '--markdown-document-extensions-replacement')  # all short and long options
+    OPTARRAY=('-h' '--help' '-v' '--version' '--log-level' '--force' '-j' '--jobs' '--markdown' '--markdown-options' '--markdown-document-extensions' '--markdown-document-extensions-replacement' '--remove-link-filenames')  # all short and long options
     OPTARRAY+=('marsh-temp' 'marsh-config-file' 'marsh-config-file-dir' 'marsh-config-path' 'marsh-config-url' 'marsh-build-context-target-output-rel' 'marsh-build-context-source-root')  # all private options
     while getopts "${OPTSPEC}" OPT; do
         case "${OPT}" in
@@ -235,6 +241,20 @@ function marsh_cli {
                         ;;
                     markdown-document-extensions-replacement=*)
                         MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT="${OPTARG#*=}"
+                        ;;
+                    remove-link-filenames)
+                        if [[ -z ${!OPTIND+isset} ]] || marsh_in_array "${!OPTIND}" "${OPTARRAY[@]}"; then
+                            # Option without required argument
+                            echo "Option --${OPTARG} requires a value" >&2
+                            echo -e "${HELP}"
+                            return 1
+                        fi
+                        REMOVE_LINK_FILENAMES=(${!OPTIND//,/ })
+                        OPTIND=$((OPTIND + 1))
+                        ;;
+                    remove-link-filenames=*)
+                        REMOVE_LINK_FILENAMES="${OPTARG#*=}"
+                        REMOVE_LINK_FILENAMES=(${REMOVE_LINK_FILENAMES//,/ })
                         ;;
                     log-level)
                         if [[ -z ${!OPTIND+isset} ]] || marsh_in_array "${!OPTIND}" "${OPTARRAY[@]}"; then
@@ -484,6 +504,12 @@ function marsh_cli {
     fi
     MARKDOWN_DOCUMENT_EXTENSIONS_CSV=$(echo ${MARKDOWN_DOCUMENT_EXTENSIONS[@]} | sed 's/ /,/g')
 
+    # remove link filenames
+    for I in "${!REMOVE_LINK_FILENAMES[@]}"; do
+        REMOVE_LINK_FILENAMES[$I]=$(printf '%s' "${REMOVE_LINK_FILENAMES[$I]}" | sed 's/^\///' | awk '{ print tolower($0) }')
+    done
+    REMOVE_LINK_FILENAMES_CSV=$(echo ${REMOVE_LINK_FILENAMES[@]} | sed 's/ /,/g')
+
     # discount markdown options
     MARKDOWN_OPTIONS_CSV=$(echo ${MARKDOWN_OPTIONS[@]} | sed 's/ /,/g')
     MARKDOWN_OPTIONS_CLIARGS=()
@@ -657,6 +683,7 @@ function marsh_cli {
                         "${BUILD_CONTEXT_SOURCE_ROOT}" \
                         "${MARKDOWN_DOCUMENT_EXTENSIONS_CSV}" \
                         "${MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT}" \
+                        "${REMOVE_LINK_FILENAMES_CSV}" \
                         "${MARSH_CONFIG_FILE_DIR}" \
                         "${TARGET_NAME}" \
                         "${TARGET_TEMPLATE_SOURCE:-}" \
@@ -672,6 +699,7 @@ function marsh_cli {
                         "${MARKDOWN_OPTIONS_CSV}" \
                         "${MARKDOWN_DOCUMENT_EXTENSIONS_CSV}" \
                         "${MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT}" \
+                        "${REMOVE_LINK_FILENAMES_CSV}" \
                         "${TARGET_PLAN_ROOT}" \
                         "${TARGET_NUMBER}" || die_gracefully
 
@@ -711,22 +739,22 @@ function marsh_cli {
     if [[ "${COMMAND}" == "build-document" ]]; then
         # build single document
         COMMAND_STATUS=0
-        marsh_build_document "${BUILD_SITE_OUTPUT_ROOT}" "${BUILD_TARGET_OUTPUT_REL}" "${BUILD_DOCUMENT}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_DOCUMENT_EXTENSIONS_CSV}" "${MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT}" "${BUILD_CONTEXT_TARGET_OUTPUT_REL}" "${BUILD_CONTEXT_SOURCE_ROOT}"
+        marsh_build_document "${BUILD_SITE_OUTPUT_ROOT}" "${BUILD_TARGET_OUTPUT_REL}" "${BUILD_DOCUMENT}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_DOCUMENT_EXTENSIONS_CSV}" "${MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT}" "${REMOVE_LINK_FILENAMES_CSV}"  "${BUILD_CONTEXT_TARGET_OUTPUT_REL}" "${BUILD_CONTEXT_SOURCE_ROOT}"
         COMMAND_STATUS=$?
     elif [[ "${COMMAND}" == "build-document-and-template" ]]; then
         # build single document and apply template where configured
         COMMAND_STATUS=0
-        marsh_build_document_and_template "${BUILD_SITE_OUTPUT_ROOT}" "${BUILD_TARGET_OUTPUT_REL}" "${BUILD_DOCUMENT}" "${BUILD_SITEMAP}" "${BUILD_SITEMAP_SEARCH}" "${BUILD_TEMPLATES_DIR}" "${BUILD_TEMPLATE}" "${LOG_LEVEL}" "${LOG_LEVELS_CSV}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_DOCUMENT_EXTENSIONS_CSV}" "${MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT}" "${#BUILD_TEMPLATE_OVERRIDES[@]}" "${BUILD_TEMPLATE_OVERRIDES[@]}" "${BUILD_TEMPLATE_ASSETS_PATH}" "${BUILD_CONTEXT_TARGET_OUTPUT_REL}" "${BUILD_CONTEXT_SOURCE_ROOT}"
+        marsh_build_document_and_template "${BUILD_SITE_OUTPUT_ROOT}" "${BUILD_TARGET_OUTPUT_REL}" "${BUILD_DOCUMENT}" "${BUILD_SITEMAP}" "${BUILD_SITEMAP_SEARCH}" "${BUILD_TEMPLATES_DIR}" "${BUILD_TEMPLATE}" "${LOG_LEVEL}" "${LOG_LEVELS_CSV}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_DOCUMENT_EXTENSIONS_CSV}" "${MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT}" "${REMOVE_LINK_FILENAMES_CSV}" "${#BUILD_TEMPLATE_OVERRIDES[@]}" "${BUILD_TEMPLATE_OVERRIDES[@]}" "${BUILD_TEMPLATE_ASSETS_PATH}" "${BUILD_CONTEXT_TARGET_OUTPUT_REL}" "${BUILD_CONTEXT_SOURCE_ROOT}"
         COMMAND_STATUS=$?
     elif [[ "${COMMAND}" == "build-target-archive-queue-record" ]]; then
         # build one queued archive document using persisted archive-plan context
         COMMAND_STATUS=0
-        marsh_build_target_archive_queue_record_document "${BUILD_SITE_OUTPUT_ROOT}" "${LOG_LEVEL}" "${LOG_LEVELS_CSV}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_DOCUMENT_EXTENSIONS_CSV}" "${MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT}" "${BUILD_QUEUE_RECORD}"
+        marsh_build_target_archive_queue_record_document "${BUILD_SITE_OUTPUT_ROOT}" "${LOG_LEVEL}" "${LOG_LEVELS_CSV}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_DOCUMENT_EXTENSIONS_CSV}" "${MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT}" "${REMOVE_LINK_FILENAMES_CSV}" "${BUILD_QUEUE_RECORD}"
         COMMAND_STATUS=$?
     elif [[ "${COMMAND}" == "build-template" ]]; then
         # build template for document
         COMMAND_STATUS=0
-        marsh_build_template "${BUILD_SITE_OUTPUT_ROOT}" "${BUILD_TARGET_OUTPUT_REL}" "${BUILD_DOCUMENT}" "${BUILD_SITEMAP}" "${BUILD_SITEMAP_SEARCH}" "${BUILD_TEMPLATES_DIR}" "${BUILD_TEMPLATE}" "${LOG_LEVEL}" "${LOG_LEVELS_CSV}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_DOCUMENT_EXTENSIONS_CSV}" "${MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT}" "${#BUILD_TEMPLATE_OVERRIDES[@]}" "${BUILD_TEMPLATE_OVERRIDES[@]}" "${BUILD_TEMPLATE_ASSETS_PATH}" "${BUILD_CONTEXT_TARGET_OUTPUT_REL}" "${BUILD_CONTEXT_SOURCE_ROOT}"
+        marsh_build_template "${BUILD_SITE_OUTPUT_ROOT}" "${BUILD_TARGET_OUTPUT_REL}" "${BUILD_DOCUMENT}" "${BUILD_SITEMAP}" "${BUILD_SITEMAP_SEARCH}" "${BUILD_TEMPLATES_DIR}" "${BUILD_TEMPLATE}" "${LOG_LEVEL}" "${LOG_LEVELS_CSV}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_DOCUMENT_EXTENSIONS_CSV}" "${MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT}" "${REMOVE_LINK_FILENAMES_CSV}" "${#BUILD_TEMPLATE_OVERRIDES[@]}" "${BUILD_TEMPLATE_OVERRIDES[@]}" "${BUILD_TEMPLATE_ASSETS_PATH}" "${BUILD_CONTEXT_TARGET_OUTPUT_REL}" "${BUILD_CONTEXT_SOURCE_ROOT}"
         COMMAND_STATUS=$?
     fi
 
@@ -2600,15 +2628,16 @@ function marsh_validate_record_field_count {  # marsh_validate_record_field_coun
 #
 
 # returns a site-relative output path as either an absolute public URL or a normalized relative path
-function marsh_get_absolute_output_path {  # marsh_get_absolute_output_path output_path [path_kind]
-    local OUTPUT_PATH PATH_KIND NORMALIZED_PATH RELATIVE_PATH ABSOLUTE_PATH
+function marsh_get_absolute_output_path {  # marsh_get_absolute_output_path output_path [path_kind] [remove_link_filenames_csv]
+    local OUTPUT_PATH PATH_KIND REMOVE_LINK_FILENAMES_CSV NORMALIZED_PATH RELATIVE_PATH ABSOLUTE_PATH
 
     OUTPUT_PATH="${1:-}"
     PATH_KIND="${2:-path}"
+    REMOVE_LINK_FILENAMES_CSV="${3:-}"
     [[ "${OUTPUT_PATH}" == "" ]] && return 1
     [[ "${PATH_KIND}" == "path" || "${PATH_KIND}" == "directory" || "${PATH_KIND}" == "document" ]] || return 1
 
-    NORMALIZED_PATH=$(marsh_normalize_path "${OUTPUT_PATH}" "${PATH_KIND}") || return 1
+    NORMALIZED_PATH=$(marsh_normalize_path "${OUTPUT_PATH}" "${PATH_KIND}" "${REMOVE_LINK_FILENAMES_CSV}") || return 1
     if [[ "${MARSH_CONFIG_URL:-}" == "" ]]; then
         printf '%s\n' "${NORMALIZED_PATH}"
         return 0
@@ -2625,7 +2654,7 @@ function marsh_get_absolute_output_path {  # marsh_get_absolute_output_path outp
         ABSOLUTE_PATH="${ABSOLUTE_PATH}/"
     fi
 
-    marsh_normalize_path "${ABSOLUTE_PATH}" "${PATH_KIND}"
+    marsh_normalize_path "${ABSOLUTE_PATH}" "${PATH_KIND}" "${REMOVE_LINK_FILENAMES_CSV}"
 }
 
 # returns the common directory for a list of paths
@@ -2672,19 +2701,20 @@ function marsh_get_internal_parent_directory {  # marsh_get_internal_parent_dire
 }
 
 # calculates a relative link from one rendered page directory to a target document path
-function marsh_get_relative_path {  # marsh_get_relative_path base_dir target_path
-    local BASE_DIR TARGET_PATH BASE_DIR_NORM TARGET_PATH_NORM
+function marsh_get_relative_path {  # marsh_get_relative_path base_dir target_path [remove_link_filenames_csv]
+    local BASE_DIR TARGET_PATH REMOVE_LINK_FILENAMES_CSV BASE_DIR_NORM TARGET_PATH_NORM
     local BASE_PATH TARGET_PATH_VALUE TARGET_IS_DIR
     local RESULT I J COMMON_PREFIX
     local -a BASE_PARTS TARGET_PARTS
 
     BASE_DIR="${1:-}"
     TARGET_PATH="${2:-}"
+    REMOVE_LINK_FILENAMES_CSV="${3:-}"
     [[ "${BASE_DIR}" == "" ]] && return 1
     [[ "${TARGET_PATH}" == "" ]] && return 1
 
     BASE_DIR_NORM=$(marsh_normalize_path "${BASE_DIR}" "directory") || return 1
-    TARGET_PATH_NORM=$(marsh_normalize_path "${TARGET_PATH}" "document") || return 1
+    TARGET_PATH_NORM=$(marsh_normalize_path "${TARGET_PATH}" "document" "${REMOVE_LINK_FILENAMES_CSV}") || return 1
 
     BASE_PATH="${BASE_DIR_NORM#./}"
     BASE_PATH="${BASE_PATH%/}"
@@ -2815,21 +2845,29 @@ function marsh_normalize_internal_path {  # marsh_normalize_internal_path path [
 }
 
 # normalizes a path for directory or document semantics
-function marsh_normalize_path {  # marsh_normalize_path path [path_kind]
-    local PATH_VALUE PATH_KIND LEADING_DOT_SLASH
+function marsh_normalize_path {  # marsh_normalize_path path [path_kind] [remove_link_filenames_csv]
+    local PATH_VALUE PATH_KIND REMOVE_LINK_FILENAMES_CSV LEADING_DOT_SLASH
+    local -a REMOVE_LINK_FILENAMES
 
     PATH_VALUE="${1:-}"
     PATH_KIND="${2:-path}"
+    REMOVE_LINK_FILENAMES_CSV="${3:-}"
+    shift 3
+
     [[ "${PATH_VALUE}" == "" ]] && return 1
     [[ "${PATH_KIND}" == "path" || "${PATH_KIND}" == "directory" || "${PATH_KIND}" == "document" ]] || return 1
+    REMOVE_LINK_FILENAMES=()
+    if [[ "${REMOVE_LINK_FILENAMES_CSV}" != "" ]]; then
+        REMOVE_LINK_FILENAMES=("${REMOVE_LINK_FILENAMES_CSV//,/ }")
+    fi
 
     if [[ "${PATH_KIND}" == "document" ]]; then
         LEADING_DOT_SLASH=false
         [[ "${PATH_VALUE}" == ./* ]] && LEADING_DOT_SLASH=true
-        if [[ "${PATH_VALUE}" == "index.html" ]]; then
+        if marsh_in_array "${PATH_VALUE}" "${REMOVE_LINK_FILENAMES[@]}"; then
             PATH_VALUE=$(marsh_normalize_internal_path "." "directory") || return 1
-        elif [[ "${PATH_VALUE}" == */index.html ]]; then
-            PATH_VALUE=$(marsh_normalize_internal_path "${PATH_VALUE%/index.html}" "directory") || return 1
+        elif [[ "${PATH_VALUE}" == */* ]] && marsh_in_array "${PATH_VALUE##*/}" "${REMOVE_LINK_FILENAMES[@]}"; then
+            PATH_VALUE=$(marsh_normalize_internal_path "${PATH_VALUE%/*}" "directory") || return 1
             if [[ "${LEADING_DOT_SLASH}" == true ]] && [[ "${PATH_VALUE}" != "./" ]]; then
                 PATH_VALUE="./${PATH_VALUE}"
             fi
@@ -2866,13 +2904,14 @@ function marsh_resolve_config_path {  # marsh_resolve_config_path config_file_di
 }
 
 # resolves a relative path against a base directory path without touching the filesystem
-function marsh_resolve_relative_path {  # marsh_resolve_relative_path base_dir target_path
-    local BASE_DIR TARGET_PATH BASE_DIR_NORM BASE_PATH TARGET_IS_DIR
+function marsh_resolve_relative_path {  # marsh_resolve_relative_path base_dir target_path [remove_link_filenames_csv]
+    local BASE_DIR TARGET_PATH REMOVE_LINK_FILENAMES_CSV BASE_DIR_NORM BASE_PATH TARGET_IS_DIR
     local PART RESULT LAST_INDEX
     local -a RESULT_PARTS INPUT_PARTS
 
     BASE_DIR="${1:-}"
     TARGET_PATH="${2:-}"
+    REMOVE_LINK_FILENAMES_CSV="${3:-}"
     [[ "${BASE_DIR}" == "" ]] && return 1
     [[ "${TARGET_PATH}" == "" ]] && return 1
 
@@ -2911,7 +2950,7 @@ function marsh_resolve_relative_path {  # marsh_resolve_relative_path base_dir t
     if [[ "${TARGET_IS_DIR}" == true ]]; then
         RESULT=$(marsh_normalize_path "${RESULT}" "directory") || return 1
     else
-        RESULT=$(marsh_normalize_path "${RESULT}" "document") || return 1
+        RESULT=$(marsh_normalize_path "${RESULT}" "document" "${REMOVE_LINK_FILENAMES_CSV}") || return 1
     fi
     if [[ "${RESULT}" != "./" ]]; then
         RESULT="${RESULT#./}"
@@ -3272,8 +3311,8 @@ function marsh_plan_target_source_assets_from_inventory {  # marsh_plan_target_s
 #
 
 # builds a planned target
-function marsh_build_planned_target {  # marsh_build_planned_target site_output_root log_level log_levels_csv jobs markdown_command markdown_options_csv markdown_document_extensions_csv markdown_document_extensions_replacement target_plan_root [target_number]
-    local SITE_OUTPUT_ROOT LOG_LEVEL LOG_LEVELS_CSV JOBS MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_DOCUMENT_EXTENSIONS_CSV MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT TARGET_PLAN_ROOT TARGET_NUMBER
+function marsh_build_planned_target {  # marsh_build_planned_target site_output_root log_level log_levels_csv jobs markdown_command markdown_options_csv markdown_document_extensions_csv markdown_document_extensions_replacement remove_link_filenames_csv target_plan_root [target_number]
+    local SITE_OUTPUT_ROOT LOG_LEVEL LOG_LEVELS_CSV JOBS MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_DOCUMENT_EXTENSIONS_CSV MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT REMOVE_LINK_FILENAMES_CSV TARGET_PLAN_ROOT TARGET_NUMBER
     local TARGET_OUTPUT_REL TARGET_FORCE TARGET_SKIP_TEMPLATE_ASSETS TARGET_SITEMAP TARGET_SITEMAP_SEARCH
     local TEMPLATES_DIR TEMPLATE TEMPLATE_ASSETS_PATH BUILD_CONTEXT_TARGET_OUTPUT_REL BUILD_CONTEXT_SOURCE_ROOT
     local CONFIG_FILE_DIR TARGET_NAME TARGET_TEMPLATE_SOURCE TEMPLATE_OVERRIDE TEMPLATE_OVERRIDES_TEXT
@@ -3290,8 +3329,9 @@ function marsh_build_planned_target {  # marsh_build_planned_target site_output_
     MARKDOWN_OPTIONS_CSV="${6:-}"
     MARKDOWN_DOCUMENT_EXTENSIONS_CSV="${7:-}"
     MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT="${8:-}"
-    TARGET_PLAN_ROOT="${9:-}"
-    TARGET_NUMBER="${10:-}"
+    REMOVE_LINK_FILENAMES_CSV="${9:-}"
+    TARGET_PLAN_ROOT="${10:-}"
+    TARGET_NUMBER="${11:-}"
     [[ "${SITE_OUTPUT_ROOT}" == "" ]] && return 1
     [[ "${MARKDOWN_COMMAND}" == "" ]] && return 1
     [[ "${MARKDOWN_DOCUMENT_EXTENSIONS_CSV}" == "" ]] && return 1
@@ -3386,7 +3426,7 @@ function marsh_build_planned_target {  # marsh_build_planned_target site_output_
         if marsh_should_log "info" "${LOG_LEVEL}" "${LOG_LEVELS_CSV}" && [[ "${TARGET_NUMBER}" != "" ]]; then
             echo "Target ${TARGET_NUMBER}: building $(marsh_inflect 'sitemap' "${#SITEMAP_RECORDS[@]}")"
         fi
-        if ! marsh_build_planned_target_sitemaps "${TARGET_OUTPUT_ROOT}" "${LOG_LEVEL}" "${LOG_LEVELS_CSV}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_DOCUMENT_EXTENSIONS_CSV}" "${MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT}" "${SITEMAP_RECORDS[@]}"; then
+        if ! marsh_build_planned_target_sitemaps "${TARGET_OUTPUT_ROOT}" "${LOG_LEVEL}" "${LOG_LEVELS_CSV}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_DOCUMENT_EXTENSIONS_CSV}" "${MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT}" "${REMOVE_LINK_FILENAMES_CSV}" "${SITEMAP_RECORDS[@]}"; then
             echo "Unable to build one or more configured sitemaps in target: ${TARGET_OUTPUT_REL}" >&2
             return 1
         fi
@@ -3400,7 +3440,7 @@ function marsh_build_planned_target {  # marsh_build_planned_target site_output_
         if marsh_should_log "info" "${LOG_LEVEL}" "${LOG_LEVELS_CSV}" && [[ "${TARGET_NUMBER}" != "" ]]; then
             echo "Target ${TARGET_NUMBER}: building $(marsh_inflect 'document' "${#DOCUMENT_RECORDS[@]}")"
         fi
-        if ! marsh_build_planned_target_documents "${SITE_OUTPUT_ROOT}" "${LOG_LEVEL}" "${LOG_LEVELS_CSV}" "${JOBS}" "${TARGET_SITEMAP}" "${TARGET_SITEMAP_SEARCH}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_DOCUMENT_EXTENSIONS_CSV}" "${MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_ASSETS_PATH}" "${DOCUMENT_RECORDS[@]}"; then
+        if ! marsh_build_planned_target_documents "${SITE_OUTPUT_ROOT}" "${LOG_LEVEL}" "${LOG_LEVELS_CSV}" "${JOBS}" "${TARGET_SITEMAP}" "${TARGET_SITEMAP_SEARCH}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_DOCUMENT_EXTENSIONS_CSV}" "${MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT}" "${REMOVE_LINK_FILENAMES_CSV}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_ASSETS_PATH}" "${DOCUMENT_RECORDS[@]}"; then
             echo "Unable to build one or more documents in target: ${TARGET_OUTPUT_REL}" >&2
             return 1
         fi
@@ -3433,6 +3473,7 @@ function marsh_build_planned_target {  # marsh_build_planned_target site_output_
             "${MARKDOWN_OPTIONS_CSV}" \
             "${MARKDOWN_DOCUMENT_EXTENSIONS_CSV}" \
             "${MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT}" \
+            "${REMOVE_LINK_FILENAMES_CSV}" \
             "${TARGET_PLAN_ROOT}" || return 1
     fi
 }
@@ -3846,9 +3887,9 @@ function marsh_load_target_source_value {  # marsh_load_target_source_value sour
 }
 
 # aggregates planner-owned target work under a target-local plan root
-function marsh_plan_target {  # marsh_plan_target site_source_root site_output_root target force source sitemap sitemap_search templates_dir template #template_overrides[@] template_overrides[@] template_assets_path build_context_source_root markdown_document_extensions_csv markdown_document_extensions_replacement [config_file_dir] [target_name] [target_template_source] [#target_archive_records[@]] [target_archive_records[@]]
+function marsh_plan_target {  # marsh_plan_target site_source_root site_output_root target force source sitemap sitemap_search templates_dir template #template_overrides[@] template_overrides[@] template_assets_path build_context_source_root markdown_document_extensions_csv markdown_document_extensions_replacement remove_link_filenames_csv [config_file_dir] [target_name] [target_template_source] [#target_archive_records[@]] [target_archive_records[@]]
     local SITE_SOURCE_ROOT SITE_OUTPUT_ROOT TARGET FORCE SOURCE SITEMAP SITEMAP_SEARCH TEMPLATES_DIR TEMPLATE
-    local NUM_TEMPLATE_OVERRIDES NUM_TARGET_ARCHIVE_RECORDS TEMPLATE_ASSETS_PATH BUILD_CONTEXT_SOURCE_ROOT MARKDOWN_DOCUMENT_EXTENSIONS_CSV MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT
+    local NUM_TEMPLATE_OVERRIDES NUM_TARGET_ARCHIVE_RECORDS TEMPLATE_ASSETS_PATH BUILD_CONTEXT_SOURCE_ROOT MARKDOWN_DOCUMENT_EXTENSIONS_CSV MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT REMOVE_LINK_FILENAMES_CSV
     local CONFIG_FILE_DIR TARGET_NAME TARGET_TEMPLATE_SOURCE
     local TARGET_OUTPUT_REL TARGET_OUTPUT_ROOT TARGET_PLAN_ROOT
     local PLAN_RECORD TARGET_ARCHIVE_PLAN_ROOT
@@ -3879,13 +3920,14 @@ function marsh_plan_target {  # marsh_plan_target site_source_root site_output_r
     BUILD_CONTEXT_SOURCE_ROOT="${2:-}"
     MARKDOWN_DOCUMENT_EXTENSIONS_CSV="${3:-}"
     MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT="${4:-}"
-    CONFIG_FILE_DIR="${5:-}"
-    TARGET_NAME="${6:-}"
-    TARGET_TEMPLATE_SOURCE="${7:-}"
+    REMOVE_LINK_FILENAMES_CSV="${5:-}"
+    CONFIG_FILE_DIR="${6:-}"
+    TARGET_NAME="${7:-}"
+    TARGET_TEMPLATE_SOURCE="${8:-}"
     NUM_TARGET_ARCHIVE_RECORDS=0
-    if [[ "${#@}" -gt 7 ]]; then
-        NUM_TARGET_ARCHIVE_RECORDS="${8:-0}"
-        shift 8
+    if [[ "${#@}" -gt 8 ]]; then
+        NUM_TARGET_ARCHIVE_RECORDS="${9:-0}"
+        shift 9
     else
         shift "${#@}"
     fi
@@ -3974,6 +4016,7 @@ function marsh_plan_target {  # marsh_plan_target site_source_root site_output_r
         "${SITE_OUTPUT_ROOT}" \
         "${MARKDOWN_DOCUMENT_EXTENSIONS_CSV}" \
         "${MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT}" \
+        "${REMOVE_LINK_FILENAMES_CSV}" \
         "${TARGET_PLAN_ROOT}" \
         "${TARGET_OUTPUT_REL}" \
         "${CONFIG_FILE_DIR}" \
@@ -4107,7 +4150,7 @@ function marsh_write_target_plan_records {  # marsh_write_target_plan_records ta
 #
 
 # builds a template and applies it to a document
-function marsh_build_template {  # marsh_build_template site_output_root target_output_rel document sitemap_source sitemap_search templates_dir template log_level log_levels_csv markdown_command markdown_options_csv markdown_document_extensions_csv markdown_document_extensions_replacement #template_overrides[@] template_overrides[@] template_assets_path build_context_target_output_rel build_context_source_root
+function marsh_build_template {  # marsh_build_template site_output_root target_output_rel document sitemap_source sitemap_search templates_dir template log_level log_levels_csv markdown_command markdown_options_csv markdown_document_extensions_csv markdown_document_extensions_replacement remove_link_filenames_csv #template_overrides[@] template_overrides[@] template_assets_path build_context_target_output_rel build_context_source_root
     function process_conditionals {  # process_conditionals file tag list[@]
         local FILE TAG LIST_SEP LIST_RAW
         local FILE_TEMP
@@ -4711,10 +4754,11 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
     MARKDOWN_OPTIONS_CSV="${11:-}"
     MARKDOWN_DOCUMENT_EXTENSIONS_CSV="${12:-}"
     MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT="${13:-}"
+    REMOVE_LINK_FILENAMES_CSV="${14:-}"
     [[ "${DOCUMENT}" == "" ]] && return 1
     [[ "${MARKDOWN_COMMAND}" == "" ]] && return 1
     [[ "${MARKDOWN_DOCUMENT_EXTENSIONS_CSV}" == "" ]] && return 1
-    shift 13
+    shift 14
     NUM_TEMPLATE_OVERRIDES="${1:-0}"
     shift 1
     TEMPLATE_OVERRIDES=()
@@ -4772,8 +4816,8 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
     SITE_ABSPATH=$(marsh_get_absolute_output_path "." "directory") || return 1
 
     # document uri (absolute link) and href (relative link)
-    DOCUMENT_URI=$(marsh_get_absolute_output_path "${DOCUMENT_OUTPUT_REL}" "document") || return 1
-    DOCUMENT_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_REL}" "${DOCUMENT_OUTPUT_REL}") || return 1
+    DOCUMENT_URI=$(marsh_get_absolute_output_path "${DOCUMENT_OUTPUT_REL}" "document" "${REMOVE_LINK_FILENAMES_CSV}") || return 1
+    DOCUMENT_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_REL}" "${DOCUMENT_OUTPUT_REL}" "${REMOVE_LINK_FILENAMES_CSV}") || return 1
 
     # markdown file extension regex
     MARKDOWN_DOCUMENT_EXTENSIONS_REGEX="${MARKDOWN_DOCUMENT_EXTENSIONS_CSV//,/|}"
@@ -5304,8 +5348,8 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
                 fi
                 SITEMAP_NAME="${SITEMAP_OUTPUT_PATH##*/}"
                 SITEMAP_DIR=$(marsh_normalize_internal_path "${SITEMAP_OUTPUT_PATH%/*}") || return 1
-                SITEMAP_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_REL}" "${SITEMAP_OUTPUT_PATH}") || return 1
-                PROCESSED_SITEMAP_PATH=$(marsh_get_processed_sitemap "${SITEMAP_RENDER_PATH}" "${SITEMAP_DIR}" "${DOCUMENT_BASE_REL}") || {
+                SITEMAP_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_REL}" "${SITEMAP_OUTPUT_PATH}" "${REMOVE_LINK_FILENAMES_CSV}") || return 1
+                PROCESSED_SITEMAP_PATH=$(marsh_get_processed_sitemap "${SITEMAP_RENDER_PATH}" "${SITEMAP_DIR}" "${DOCUMENT_BASE_REL}" "${REMOVE_LINK_FILENAMES_CSV}") || {
                     echo "Unable to process configured sitemap for document: ${DOCUMENT_SITE_REL} (${SITEMAP_LOOKUP_PATH})" >&2
                     return 1
                 }
@@ -5562,10 +5606,10 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
                 SUBDOCUMENT_OUTPUT_PATH="${SUBDOCUMENT_OUTPUT_PATH#./}"
                 SUBDOCUMENT_OUTPUT_PATH="${SUBDOCUMENT_OUTPUT_PATH#/}"
                 if [[ "${SUBDOCUMENT_URI:-}" == "" ]]; then
-                    SUBDOCUMENT_URI=$(marsh_get_absolute_output_path "${SUBDOCUMENT_OUTPUT_PATH}" "document") || return 1
+                    SUBDOCUMENT_URI=$(marsh_get_absolute_output_path "${SUBDOCUMENT_OUTPUT_PATH}" "document" "${REMOVE_LINK_FILENAMES_CSV}") || return 1
                 fi
-                SUBDOCUMENT_URI=$(marsh_normalize_path "${SUBDOCUMENT_URI}" "document") || return 1
-                SUBDOCUMENT_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_REL}" "${SUBDOCUMENT_OUTPUT_PATH}") || return 1
+                SUBDOCUMENT_URI=$(marsh_normalize_path "${SUBDOCUMENT_URI}" "document" "${REMOVE_LINK_FILENAMES_CSV}") || return 1
+                SUBDOCUMENT_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_REL}" "${SUBDOCUMENT_OUTPUT_PATH}" "${REMOVE_LINK_FILENAMES_CSV}") || return 1
                 # state
                 # collect subdocument state values from flat metadata
                 SUBDOCUMENT_State=()
@@ -5585,6 +5629,10 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
                         TEXT_TRANSFORM=
                         if [[ "${MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT}" != "" ]]; then
                             TEXT_TRANSFORM="links:replace-ext:${MARKDOWN_DOCUMENT_EXTENSIONS_CSV}:${MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT}"
+                        fi
+                        if [[ "${REMOVE_LINK_FILENAMES_CSV}" != "" ]]; then
+                            [[ "${TEXT_TRANSFORM}" != "" ]] && TEXT_TRANSFORM+=" "
+                            TEXT_TRANSFORM+="links:remove-filenames:${REMOVE_LINK_FILENAMES_CSV}"
                         fi
                         SUBDOCUMENT_CONTENT=$(mktemp "${MARSH_TEMP}/subdocument-content-XXXXXX") || {
                             echo "Unable to create subdocument render file: ${MARSH_TEMP}/subdocument-content-XXXXXX" >&2
@@ -7330,8 +7378,8 @@ function marsh_resolve_template_tag_metadata {  # marsh_resolve_template_tag_met
 #
 
 # builds planned sitemap records for a target
-function marsh_build_planned_target_sitemaps {  # marsh_build_planned_target_sitemaps target_output_root log_level log_levels_csv markdown_command markdown_options_csv markdown_document_extensions_csv markdown_document_extensions_replacement sitemap_records[@]
-    local TARGET_OUTPUT_ROOT LOG_LEVEL LOG_LEVELS_CSV MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_DOCUMENT_EXTENSIONS_CSV MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT TARGET_OUTPUT_REL
+function marsh_build_planned_target_sitemaps {  # marsh_build_planned_target_sitemaps target_output_root log_level log_levels_csv markdown_command markdown_options_csv markdown_document_extensions_csv markdown_document_extensions_replacement remove_link_filenames_csv sitemap_records[@]
+    local TARGET_OUTPUT_ROOT LOG_LEVEL LOG_LEVELS_CSV MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_DOCUMENT_EXTENSIONS_CSV MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT REMOVE_LINK_FILENAMES_CSV TARGET_OUTPUT_REL
     local SITEMAP_RECORD TARGET_SITEMAP_FILE TARGET_SITEMAP_SOURCE TARGET_SITEMAP_FOUND TARGET_SITEMAP_OUTPUT_PATH TARGET_SITEMAP_OUTPUT_PATH_EXT
 
     TARGET_OUTPUT_ROOT="${1:-}"
@@ -7341,7 +7389,8 @@ function marsh_build_planned_target_sitemaps {  # marsh_build_planned_target_sit
     MARKDOWN_OPTIONS_CSV="${5:-}"
     MARKDOWN_DOCUMENT_EXTENSIONS_CSV="${6:-}"
     MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT="${7:-}"
-    shift 7
+    REMOVE_LINK_FILENAMES_CSV="${8:-}"
+    shift 8
     [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
     [[ "${MARKDOWN_COMMAND}" == "" ]] && return 1
     [[ "${MARKDOWN_DOCUMENT_EXTENSIONS_CSV}" == "" ]] && return 1
@@ -7365,7 +7414,8 @@ function marsh_build_planned_target_sitemaps {  # marsh_build_planned_target_sit
             "${MARKDOWN_COMMAND}" \
             "${MARKDOWN_OPTIONS_CSV}" \
             "${MARKDOWN_DOCUMENT_EXTENSIONS_CSV}" \
-            "${MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT}" 2>/dev/null || {
+            "${MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT}" \
+            "${REMOVE_LINK_FILENAMES_CSV}" >/dev/null 2>&1 || {
                 echo "Unable to build sitemap: ${TARGET_SITEMAP_FILE} (${TARGET_SITEMAP_SOURCE})" >&2
                 return 1
             }
@@ -7385,8 +7435,8 @@ function marsh_build_planned_target_sitemaps {  # marsh_build_planned_target_sit
 }
 
 # builds a sitemap
-function marsh_build_sitemap {  # marsh_build_sitemap target_output_root sitemap_file sitemap_source markdown_command markdown_options_csv markdown_document_extensions_csv markdown_document_extensions_replacement
-    local TARGET_OUTPUT_ROOT SITEMAP_FILE SITEMAP_SOURCE MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_DOCUMENT_EXTENSIONS_CSV MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT
+function marsh_build_sitemap {  # marsh_build_sitemap target_output_root sitemap_file sitemap_source markdown_command markdown_options_csv markdown_document_extensions_csv markdown_document_extensions_replacement [remove_link_filenames_csv]
+    local TARGET_OUTPUT_ROOT SITEMAP_FILE SITEMAP_SOURCE MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_DOCUMENT_EXTENSIONS_CSV MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT REMOVE_LINK_FILENAMES_CSV
     local SITEMAP_RENDER_FILE TEXT_TRANSFORM SITEMAP_CONTENT_FILE SITEMAP_META_FILE
 
     # init
@@ -7397,6 +7447,7 @@ function marsh_build_sitemap {  # marsh_build_sitemap target_output_root sitemap
     MARKDOWN_OPTIONS_CSV="${5:-}"
     MARKDOWN_DOCUMENT_EXTENSIONS_CSV="${6:-}"
     MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT="${7:-}"
+    REMOVE_LINK_FILENAMES_CSV="${8:-}"
     [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
     [[ "${SITEMAP_FILE}" == "" ]]   && return 1
     [[ "${SITEMAP_SOURCE}" == "" ]] && return 1
@@ -7427,6 +7478,10 @@ function marsh_build_sitemap {  # marsh_build_sitemap target_output_root sitemap
     if [[ "${MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT}" != "" ]]; then
         TEXT_TRANSFORM="links:replace-ext:${MARKDOWN_DOCUMENT_EXTENSIONS_CSV}:${MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT}"
     fi
+    if [[ "${REMOVE_LINK_FILENAMES_CSV}" != "" ]]; then
+        [[ "${TEXT_TRANSFORM}" != "" ]] && TEXT_TRANSFORM+=" "
+        TEXT_TRANSFORM+="links:remove-filenames:${REMOVE_LINK_FILENAMES_CSV}"
+    fi
     <"${SITEMAP_CONTENT_FILE}" marsh_text_transform ${TEXT_TRANSFORM} | marsh_process_markdown "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" > "${SITEMAP_RENDER_FILE}" || {
         rm -f "${SITEMAP_META_FILE}" "${SITEMAP_CONTENT_FILE}"
         echo "Unable to render sitemap markdown: ${SITEMAP_SOURCE}" >&2
@@ -7436,13 +7491,14 @@ function marsh_build_sitemap {  # marsh_build_sitemap target_output_root sitemap
 }
 
 # returns a cached processed sitemap for a document base path, building it on miss
-function marsh_get_processed_sitemap {  # marsh_get_processed_sitemap sitemap_render_path sitemap_dir document_base_path
-    local SITEMAP_RENDER_PATH SITEMAP_DIR DOCUMENT_BASE_PATH
+function marsh_get_processed_sitemap {  # marsh_get_processed_sitemap sitemap_render_path sitemap_dir document_base_path [remove_link_filenames_csv]
+    local SITEMAP_RENDER_PATH SITEMAP_DIR DOCUMENT_BASE_PATH REMOVE_LINK_FILENAMES_CSV
     local CACHE_DIR CACHE_KEY CACHE_FILE CACHE_TEMP RENDER_DIR
 
     SITEMAP_RENDER_PATH="${1:-}"
     SITEMAP_DIR="${2:-}"
     DOCUMENT_BASE_PATH="${3:-}"
+    REMOVE_LINK_FILENAMES_CSV="${4:-}"
     [[ "${SITEMAP_RENDER_PATH}" == "" ]] && return 1
     [[ "${SITEMAP_DIR}" == "" ]] && return 1
     [[ "${DOCUMENT_BASE_PATH}" == "" ]] && return 1
@@ -7503,7 +7559,7 @@ function marsh_get_processed_sitemap {  # marsh_get_processed_sitemap sitemap_re
         }
 
         # rewrite relative href values in the rendered sitemap for the destination document
-        marsh_rewrite_sitemap_links "${CACHE_TEMP}" "${SITEMAP_DIR}" "${DOCUMENT_BASE_PATH}" || {
+        marsh_rewrite_sitemap_links "${CACHE_TEMP}" "${SITEMAP_DIR}" "${DOCUMENT_BASE_PATH}" "${REMOVE_LINK_FILENAMES_CSV}" || {
             echo "Unable to rewrite processed sitemap links: ${SITEMAP_RENDER_PATH}" >&2
             rm -f "${CACHE_TEMP}"
             marsh_lock_release "${CACHE_FILE}"
@@ -7832,8 +7888,8 @@ function marsh_resolve_sitemap_source_path {  # marsh_resolve_sitemap_source_pat
 }
 
 # rewrites relative href values in a rendered sitemap for the destination document
-function marsh_rewrite_sitemap_links {  # marsh_rewrite_sitemap_links sitemap_file sitemap_dir document_base_path
-    local SITEMAP_FILE SITEMAP_DIR DOCUMENT_BASE_PATH
+function marsh_rewrite_sitemap_links {  # marsh_rewrite_sitemap_links sitemap_file sitemap_dir document_base_path [remove_link_filenames_csv]
+    local SITEMAP_FILE SITEMAP_DIR DOCUMENT_BASE_PATH REMOVE_LINK_FILENAMES_CSV
     local HREF HREF_TARGET HREF_SUFFIX RESOLVED_HREF REWRITTEN_HREF
     local SEARCH_ESC REPLACEMENT_ESC REPLACEMENTS SCRATCH_FILE
     local -a HREFS
@@ -7841,6 +7897,7 @@ function marsh_rewrite_sitemap_links {  # marsh_rewrite_sitemap_links sitemap_fi
     SITEMAP_FILE="${1:-}"
     SITEMAP_DIR="${2:-}"
     DOCUMENT_BASE_PATH="${3:-}"
+    REMOVE_LINK_FILENAMES_CSV="${4:-}"
     [[ "${SITEMAP_FILE}" == "" ]] && return 1
     [[ "${SITEMAP_DIR}" == "" ]] && return 1
     [[ "${DOCUMENT_BASE_PATH}" == "" ]] && return 1
@@ -7865,11 +7922,11 @@ function marsh_rewrite_sitemap_links {  # marsh_rewrite_sitemap_links sitemap_fi
         HREF_TARGET="${HREF%%\#*}"
         HREF_TARGET="${HREF_TARGET%%\?*}"
         HREF_SUFFIX="${HREF#${HREF_TARGET}}"
-        RESOLVED_HREF=$(marsh_resolve_relative_path "${SITEMAP_DIR}" "${HREF_TARGET}") || {
+        RESOLVED_HREF=$(marsh_resolve_relative_path "${SITEMAP_DIR}" "${HREF_TARGET}" "${REMOVE_LINK_FILENAMES_CSV}") || {
             rm -f "${REPLACEMENTS}"
             return 1
         }
-        REWRITTEN_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "${RESOLVED_HREF}") || {
+        REWRITTEN_HREF=$(marsh_get_relative_path "${DOCUMENT_BASE_PATH}" "${RESOLVED_HREF}" "${REMOVE_LINK_FILENAMES_CSV}") || {
             rm -f "${REPLACEMENTS}"
             return 1
         }
@@ -7905,9 +7962,9 @@ function marsh_rewrite_sitemap_links {  # marsh_rewrite_sitemap_links sitemap_fi
 #
 
 # builds a document from a single file
-function marsh_build_document {  # marsh_build_document site_output_root target_output_rel document markdown_command markdown_options_csv markdown_document_extensions_csv markdown_document_extensions_replacement build_context_target_output_rel build_context_source_root
+function marsh_build_document {  # marsh_build_document site_output_root target_output_rel document markdown_command markdown_options_csv markdown_document_extensions_csv markdown_document_extensions_replacement remove_link_filenames_csv build_context_target_output_rel build_context_source_root
     local SITE_OUTPUT_ROOT TARGET_OUTPUT_REL DOCUMENT DOCUMENT_EXT DOCUMENT_DIR TEXT_TRANSFORM
-    local MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_DOCUMENT_EXTENSIONS_CSV MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT
+    local MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_DOCUMENT_EXTENSIONS_CSV MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT REMOVE_LINK_FILENAMES_CSV
     local TARGET_OUTPUT_ROOT DOCUMENT_SOURCE_FILE DOCUMENT_SOURCE_DIR TARGET_SOURCE_ROOT ARCHIVE_SOURCE_FILE DOCUMENT_SITE_REL DOCUMENT_TEMP_ROOT DOCUMENT_META DOCUMENT_META_CACHE DOCUMENT_CONTENT DOCUMENT_IS_RENDERED_FILE DOCUMENT_OUTPUT_REL DOCUMENT_BASE_REL
     local DOCUMENT_ARTIFACT_ROOT DOCUMENT_ARTIFACT_CONTENT DOCUMENT_ARTIFACT_META_YAML DOCUMENT_ARTIFACT_META
     local DOCUMENT_CONTENT_READY
@@ -7924,8 +7981,9 @@ function marsh_build_document {  # marsh_build_document site_output_root target_
     MARKDOWN_OPTIONS_CSV="${5:-}"
     MARKDOWN_DOCUMENT_EXTENSIONS_CSV="${6:-}"
     MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT="${7:-}"
-    BUILD_CONTEXT_TARGET_OUTPUT_REL="${8:-${TARGET_OUTPUT_REL}}"
-    BUILD_CONTEXT_SOURCE_ROOT="${9:-}"
+    REMOVE_LINK_FILENAMES_CSV="${8:-}"
+    BUILD_CONTEXT_TARGET_OUTPUT_REL="${9:-${TARGET_OUTPUT_REL}}"
+    BUILD_CONTEXT_SOURCE_ROOT="${10:-}"
     [[ "${DOCUMENT}" == "" ]] && return 1
     [[ "${MARKDOWN_COMMAND}" == "" ]] && return 1
     [[ "${MARKDOWN_DOCUMENT_EXTENSIONS_CSV}" == "" ]] && return 1
@@ -7998,6 +8056,10 @@ function marsh_build_document {  # marsh_build_document site_output_root target_
         if [[ "${MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT}" != "" ]]; then
             TEXT_TRANSFORM="links:replace-ext:${MARKDOWN_DOCUMENT_EXTENSIONS_CSV}:${MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT}"
         fi
+        if [[ "${REMOVE_LINK_FILENAMES_CSV}" != "" ]]; then
+            [[ "${TEXT_TRANSFORM}" != "" ]] && TEXT_TRANSFORM+=" "
+            TEXT_TRANSFORM+="links:remove-filenames:${REMOVE_LINK_FILENAMES_CSV}"
+        fi
         RESPONSIVE_PATHS=$(
             while IFS= read -r RESPONSIVE_PATH; do
                 RESPONSIVE_PATH=$(marsh_get_relative_path "${DOCUMENT_BASE_REL}" "${RESPONSIVE_PATH#${SITE_OUTPUT_ROOT}/}") || continue
@@ -8027,9 +8089,9 @@ function marsh_build_document {  # marsh_build_document site_output_root target_
 }
 
 # builds a single document end-to-end, including template output where configured
-function marsh_build_document_and_template {  # marsh_build_document_and_template site_output_root target_output_rel document sitemap sitemap_search templates_dir template log_level log_levels_csv markdown_command markdown_options_csv markdown_document_extensions_csv markdown_document_extensions_replacement #template_overrides[@] template_overrides[@] template_assets_path build_context_target_output_rel build_context_source_root
+function marsh_build_document_and_template {  # marsh_build_document_and_template site_output_root target_output_rel document sitemap sitemap_search templates_dir template log_level log_levels_csv markdown_command markdown_options_csv markdown_document_extensions_csv markdown_document_extensions_replacement remove_link_filenames_csv #template_overrides[@] template_overrides[@] template_assets_path build_context_target_output_rel build_context_source_root
     local SITE_OUTPUT_ROOT TARGET_OUTPUT_REL DOCUMENT SITEMAP SITEMAP_SEARCH TEMPLATES_DIR TEMPLATE LOG_LEVEL LOG_LEVELS_CSV
-    local MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_DOCUMENT_EXTENSIONS_CSV MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT
+    local MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_DOCUMENT_EXTENSIONS_CSV MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT REMOVE_LINK_FILENAMES_CSV
     local NUM_TEMPLATE_OVERRIDES TEMPLATE_ASSETS_PATH BUILD_CONTEXT_TARGET_OUTPUT_REL BUILD_CONTEXT_SOURCE_ROOT
     local -a TEMPLATE_OVERRIDES
 
@@ -8046,10 +8108,11 @@ function marsh_build_document_and_template {  # marsh_build_document_and_templat
     MARKDOWN_OPTIONS_CSV="${11:-}"
     MARKDOWN_DOCUMENT_EXTENSIONS_CSV="${12:-}"
     MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT="${13:-}"
+    REMOVE_LINK_FILENAMES_CSV="${14:-}"
     [[ "${DOCUMENT}" == "" ]] && return 1
     [[ "${MARKDOWN_COMMAND}" == "" ]] && return 1
     [[ "${MARKDOWN_DOCUMENT_EXTENSIONS_CSV}" == "" ]] && return 1
-    shift 13
+    shift 14
     NUM_TEMPLATE_OVERRIDES="${1:-0}"
     shift 1
     TEMPLATE_OVERRIDES=()
@@ -8065,13 +8128,13 @@ function marsh_build_document_and_template {  # marsh_build_document_and_templat
     BUILD_CONTEXT_TARGET_OUTPUT_REL="${BUILD_CONTEXT_TARGET_OUTPUT_REL%/}"
     BUILD_CONTEXT_TARGET_OUTPUT_REL="${BUILD_CONTEXT_TARGET_OUTPUT_REL:-.}"
 
-    if ! marsh_build_document "${SITE_OUTPUT_ROOT}" "${TARGET_OUTPUT_REL}" "${DOCUMENT}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_DOCUMENT_EXTENSIONS_CSV}" "${MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT}" "${BUILD_CONTEXT_TARGET_OUTPUT_REL}" "${BUILD_CONTEXT_SOURCE_ROOT}"; then
+    if ! marsh_build_document "${SITE_OUTPUT_ROOT}" "${TARGET_OUTPUT_REL}" "${DOCUMENT}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_DOCUMENT_EXTENSIONS_CSV}" "${MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT}" "${REMOVE_LINK_FILENAMES_CSV}" "${BUILD_CONTEXT_TARGET_OUTPUT_REL}" "${BUILD_CONTEXT_SOURCE_ROOT}"; then
         echo "Unable to build document: ${DOCUMENT}" >&2
         return 1
     fi
 
     if [[ "${TEMPLATES_DIR}" != "" ]] && [[ "${TEMPLATE}" != "" ]]; then
-        if ! marsh_build_template "${SITE_OUTPUT_ROOT}" "${TARGET_OUTPUT_REL}" "${DOCUMENT}" "${SITEMAP}" "${SITEMAP_SEARCH}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${LOG_LEVEL}" "${LOG_LEVELS_CSV}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_DOCUMENT_EXTENSIONS_CSV}" "${MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_ASSETS_PATH}" "${BUILD_CONTEXT_TARGET_OUTPUT_REL}" "${BUILD_CONTEXT_SOURCE_ROOT}"; then
+        if ! marsh_build_template "${SITE_OUTPUT_ROOT}" "${TARGET_OUTPUT_REL}" "${DOCUMENT}" "${SITEMAP}" "${SITEMAP_SEARCH}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${LOG_LEVEL}" "${LOG_LEVELS_CSV}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_DOCUMENT_EXTENSIONS_CSV}" "${MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT}" "${REMOVE_LINK_FILENAMES_CSV}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_ASSETS_PATH}" "${BUILD_CONTEXT_TARGET_OUTPUT_REL}" "${BUILD_CONTEXT_SOURCE_ROOT}"; then
             echo "Unable to build template: ${TEMPLATE}" >&2
             return 1
         fi
@@ -8081,9 +8144,9 @@ function marsh_build_document_and_template {  # marsh_build_document_and_templat
 }
 
 # builds planned documents for a target from a provided list of document records
-function marsh_build_planned_target_documents {  # marsh_build_planned_target_documents site_output_root log_level log_levels_csv jobs sitemap sitemap_search templates_dir template markdown_command markdown_options_csv markdown_document_extensions_csv markdown_document_extensions_replacement #template_overrides[@] template_overrides[@] template_assets_path document_records[@]
+function marsh_build_planned_target_documents {  # marsh_build_planned_target_documents site_output_root log_level log_levels_csv jobs sitemap sitemap_search templates_dir template markdown_command markdown_options_csv markdown_document_extensions_csv markdown_document_extensions_replacement remove_link_filenames_csv #template_overrides[@] template_overrides[@] template_assets_path document_records[@]
     local SITE_OUTPUT_ROOT LOG_LEVEL LOG_LEVELS_CSV JOBS SITEMAP SITEMAP_SEARCH TEMPLATES_DIR TEMPLATE
-    local MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_DOCUMENT_EXTENSIONS_CSV MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT
+    local MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_DOCUMENT_EXTENSIONS_CSV MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT REMOVE_LINK_FILENAMES_CSV
     local NUM_TEMPLATE_OVERRIDES TEMPLATE_ASSETS_PATH
     local DOCUMENT_RECORD DOCUMENT_ID SOURCE_RELPATH TARGET_OUTPUT_REL SOURCE_ROOT
     local RECORD_REST
@@ -8102,7 +8165,8 @@ function marsh_build_planned_target_documents {  # marsh_build_planned_target_do
     MARKDOWN_OPTIONS_CSV="${10:-}"
     MARKDOWN_DOCUMENT_EXTENSIONS_CSV="${11:-}"
     MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT="${12:-}"
-    shift 12
+    REMOVE_LINK_FILENAMES_CSV="${13:-}"
+    shift 13
     [[ "${MARKDOWN_COMMAND}" == "" ]] && return 1
     [[ "${MARKDOWN_DOCUMENT_EXTENSIONS_CSV}" == "" ]] && return 1
     NUM_TEMPLATE_OVERRIDES="${1:-0}"
@@ -8148,13 +8212,13 @@ function marsh_build_planned_target_documents {  # marsh_build_planned_target_do
     done
 
     [[ "${#DOCUMENTS[@]}" -gt 0 ]] || return 0
-    marsh_build_target_documents "${SITE_OUTPUT_ROOT}" "${PLAN_TARGET_OUTPUT_REL}" "${LOG_LEVEL}" "${LOG_LEVELS_CSV}" "${JOBS}" "${SITEMAP}" "${SITEMAP_SEARCH}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_DOCUMENT_EXTENSIONS_CSV}" "${MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_ASSETS_PATH}" "${PLAN_TARGET_OUTPUT_REL}" "${PLAN_SOURCE_ROOT}" "${DOCUMENTS[@]}"
+    marsh_build_target_documents "${SITE_OUTPUT_ROOT}" "${PLAN_TARGET_OUTPUT_REL}" "${LOG_LEVEL}" "${LOG_LEVELS_CSV}" "${JOBS}" "${SITEMAP}" "${SITEMAP_SEARCH}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_DOCUMENT_EXTENSIONS_CSV}" "${MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT}" "${REMOVE_LINK_FILENAMES_CSV}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_ASSETS_PATH}" "${PLAN_TARGET_OUTPUT_REL}" "${PLAN_SOURCE_ROOT}" "${DOCUMENTS[@]}"
 }
 
 # builds a provided document list for a target, in parallel if possible
-function marsh_build_target_documents {  # marsh_build_target_documents site_output_root target_output_rel log_level log_levels_csv jobs sitemap sitemap_search templates_dir template markdown_command markdown_options_csv markdown_document_extensions_csv markdown_document_extensions_replacement #template_overrides[@] template_overrides[@] template_assets_path build_context_target_output_rel build_context_source_root documents[@]
+function marsh_build_target_documents {  # marsh_build_target_documents site_output_root target_output_rel log_level log_levels_csv jobs sitemap sitemap_search templates_dir template markdown_command markdown_options_csv markdown_document_extensions_csv markdown_document_extensions_replacement remove_link_filenames_csv #template_overrides[@] template_overrides[@] template_assets_path build_context_target_output_rel build_context_source_root documents[@]
     local SITE_OUTPUT_ROOT TARGET_OUTPUT_REL LOG_LEVEL LOG_LEVELS_CSV JOBS SITEMAP SITEMAP_SEARCH TEMPLATES_DIR TEMPLATE
-    local MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_DOCUMENT_EXTENSIONS_CSV MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT
+    local MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_DOCUMENT_EXTENSIONS_CSV MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT REMOVE_LINK_FILENAMES_CSV
     local NUM_TEMPLATE_OVERRIDES TEMPLATE_ASSETS_PATH
     local BUILD_CONTEXT_TARGET_OUTPUT_REL BUILD_CONTEXT_SOURCE_ROOT
     local DOCUMENT
@@ -8175,7 +8239,8 @@ function marsh_build_target_documents {  # marsh_build_target_documents site_out
     MARKDOWN_OPTIONS_CSV="${11:-}"
     MARKDOWN_DOCUMENT_EXTENSIONS_CSV="${12:-}"
     MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT="${13:-}"
-    shift 13
+    REMOVE_LINK_FILENAMES_CSV="${14:-}"
+    shift 14
     [[ "${MARKDOWN_COMMAND}" == "" ]] && return 1
     [[ "${MARKDOWN_DOCUMENT_EXTENSIONS_CSV}" == "" ]] && return 1
     NUM_TEMPLATE_OVERRIDES="${1:-0}"
@@ -8202,12 +8267,12 @@ function marsh_build_target_documents {  # marsh_build_target_documents site_out
     [[ "${MARKDOWN_COMMAND}" != "markdown" ]] && PARALLEL_MARKDOWN="${MARKDOWN_COMMAND}"
     if [[ "${JOBS:-1}" -gt 1 ]] && [[ "${PARALLEL:-}" != "" ]] && [[ "$("${PARALLEL}" --version --no-notice 2>/dev/null | head -n 1 | grep -o 'GNU parallel')" == "GNU parallel" ]]; then
         export -f marsh_build_document_and_template
-        if ! "${PARALLEL}" --halt now,fail=1 --quote --no-notice --env marsh_build_document_and_template --jobs="${JOBS:-1}" "${SELF_DIR}/${SELF_NAME}" build-document-and-template --log-level="${LOG_LEVEL}" --markdown="${PARALLEL_MARKDOWN}" --markdown-options="${MARKDOWN_OPTIONS_CSV}" --markdown-document-extensions="${MARKDOWN_DOCUMENT_EXTENSIONS_CSV}" --markdown-document-extensions-replacement="${MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT}" --marsh-temp="${MARSH_TEMP}" --marsh-config-file="${MARSH_CONFIG_FILE}" --marsh-config-file-dir="${MARSH_CONFIG_FILE_DIR}" --marsh-config-path="${MARSH_CONFIG_PATH}" --marsh-config-url="${MARSH_CONFIG_URL}" --marsh-build-context-target-output-rel="${BUILD_CONTEXT_TARGET_OUTPUT_REL}" --marsh-build-context-source-root="${BUILD_CONTEXT_SOURCE_ROOT}" "${SITE_OUTPUT_ROOT}" "${TARGET_OUTPUT_REL}" {} "${SITEMAP}" "${SITEMAP_SEARCH}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_ASSETS_PATH}" ::: "${DOCUMENTS[@]}"; then
+        if ! "${PARALLEL}" --halt now,fail=1 --quote --no-notice --env marsh_build_document_and_template --jobs="${JOBS:-1}" "${SELF_DIR}/${SELF_NAME}" build-document-and-template --log-level="${LOG_LEVEL}" --markdown="${PARALLEL_MARKDOWN}" --markdown-options="${MARKDOWN_OPTIONS_CSV}" --markdown-document-extensions="${MARKDOWN_DOCUMENT_EXTENSIONS_CSV}" --markdown-document-extensions-replacement="${MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT}" --remove-link-filenames="${REMOVE_LINK_FILENAMES_CSV}" --marsh-temp="${MARSH_TEMP}" --marsh-config-file="${MARSH_CONFIG_FILE}" --marsh-config-file-dir="${MARSH_CONFIG_FILE_DIR}" --marsh-config-path="${MARSH_CONFIG_PATH}" --marsh-config-url="${MARSH_CONFIG_URL}" --marsh-build-context-target-output-rel="${BUILD_CONTEXT_TARGET_OUTPUT_REL}" --marsh-build-context-source-root="${BUILD_CONTEXT_SOURCE_ROOT}" "${SITE_OUTPUT_ROOT}" "${TARGET_OUTPUT_REL}" {} "${SITEMAP}" "${SITEMAP_SEARCH}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_ASSETS_PATH}" ::: "${DOCUMENTS[@]}"; then
             return 1
         fi
     else
         for DOCUMENT in "${DOCUMENTS[@]}"; do
-            if ! marsh_build_document_and_template "${SITE_OUTPUT_ROOT}" "${TARGET_OUTPUT_REL}" "${DOCUMENT}" "${SITEMAP}" "${SITEMAP_SEARCH}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${LOG_LEVEL}" "${LOG_LEVELS_CSV}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_DOCUMENT_EXTENSIONS_CSV}" "${MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_ASSETS_PATH}" "${BUILD_CONTEXT_TARGET_OUTPUT_REL}" "${BUILD_CONTEXT_SOURCE_ROOT}"; then
+            if ! marsh_build_document_and_template "${SITE_OUTPUT_ROOT}" "${TARGET_OUTPUT_REL}" "${DOCUMENT}" "${SITEMAP}" "${SITEMAP_SEARCH}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${LOG_LEVEL}" "${LOG_LEVELS_CSV}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_DOCUMENT_EXTENSIONS_CSV}" "${MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT}" "${REMOVE_LINK_FILENAMES_CSV}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_ASSETS_PATH}" "${BUILD_CONTEXT_TARGET_OUTPUT_REL}" "${BUILD_CONTEXT_SOURCE_ROOT}"; then
                 return 1
             fi
         done
@@ -9045,8 +9110,8 @@ function marsh_write_document_metadata_artifacts {  # marsh_write_document_metad
 #
 
 # builds an archive of directory contents from a prepared manifest, sorted by descending date
-function marsh_build_archive {  # marsh_build_archive target_output_root markdown_document_extensions_replacement encoding archive_source archive_title language langcode count page_size #types[@] types[@] #excluded_states[@] excluded_states[@] archive_manifest archive_root_path
-    local ENCODING TARGET_OUTPUT_ROOT MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT ARCHIVE_SOURCE_REL ARCHIVE_TITLE LANGUAGE LANGCODE
+function marsh_build_archive {  # marsh_build_archive target_output_root markdown_document_extensions_replacement remove_link_filenames_csv encoding archive_source archive_title language langcode count page_size #types[@] types[@] #excluded_states[@] excluded_states[@] archive_manifest archive_root_path
+    local ENCODING TARGET_OUTPUT_ROOT MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT REMOVE_LINK_FILENAMES_CSV ARCHIVE_SOURCE_REL ARCHIVE_TITLE LANGUAGE LANGCODE
     local COUNT PAGE_SIZE NUM_TYPES NUM_EXCLUDED_STATES
     local VALID DOCUMENT TYPE E
     local ARCHIVE_MANIFEST MANIFEST_RECORD MANIFEST_FIELD_COUNT MANIFEST_STATE_COUNT EXPECTED_MANIFEST_FIELD_COUNT MANIFEST_STATE_INDEX
@@ -9065,15 +9130,16 @@ function marsh_build_archive {  # marsh_build_archive target_output_root markdow
     # init
     TARGET_OUTPUT_ROOT="${1:-}"
     MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT="${2:-}"
-    ENCODING="${3:-}"
-    ARCHIVE_SOURCE_REL="${4:-}"
+    REMOVE_LINK_FILENAMES_CSV="${3:-}"
+    ENCODING="${4:-}"
+    ARCHIVE_SOURCE_REL="${5:-}"
     [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
     [[ "${ENCODING}" != "html" ]] && [[ "${ENCODING}" != "json" ]] && [[ "${ENCODING}" != "atom" ]] && {
         echo "Unsupported archive encoding: ${ENCODING}" >&2
         return 1
     }
     [[ "${ARCHIVE_SOURCE_REL}" == "" ]] && return 1
-    shift 4
+    shift 5
     ARCHIVE_TITLE="${1:-}"
     LANGUAGE="${2:-}"
     LANGCODE="${3:-}"
@@ -9195,13 +9261,13 @@ function marsh_build_archive {  # marsh_build_archive target_output_root markdow
         PAGE_TOTAL=$(( (ARCHIVE_SUBDOCUMENTS_TOTAL + PAGE_SIZE - 1) / PAGE_SIZE ))
         [[ "${PAGE_TOTAL}" -lt 1 ]] && PAGE_TOTAL=1
     fi
-    PAGE_CANONICAL_URI=$(marsh_get_archive_page_uri "${TARGET_OUTPUT_ROOT}" "${ARCHIVE_SOURCE_REL}") || return 1
+    PAGE_CANONICAL_URI=$(marsh_get_archive_page_uri "${TARGET_OUTPUT_ROOT}" "${ARCHIVE_SOURCE_REL}" "${MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT}" "${REMOVE_LINK_FILENAMES_CSV}") || return 1
     PAGE_FIRST_URI="${PAGE_CANONICAL_URI}"
     PAGE_CANONICAL_OUTPUT_PATH="${ARCHIVE_SOURCE_REL%.*}${MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT}"
     PAGE_FIRST_OUTPUT_PATH="${PAGE_CANONICAL_OUTPUT_PATH}"
     if [[ "${PAGINATED}" == true ]] && [[ "${PAGE_TOTAL}" -gt 1 ]]; then
-        PAGE_LAST_ARCHIVE_SOURCE_REL=$(marsh_get_archive_page_source "${ARCHIVE_SOURCE_REL}" "${PAGE_TOTAL}") || return 1
-        PAGE_LAST_URI=$(marsh_get_archive_page_uri "${TARGET_OUTPUT_ROOT}" "${PAGE_LAST_ARCHIVE_SOURCE_REL}") || return 1
+        PAGE_LAST_ARCHIVE_SOURCE_REL=$(marsh_get_archive_page_source "${ARCHIVE_SOURCE_REL}" "${PAGE_TOTAL}" "${REMOVE_LINK_FILENAMES_CSV}") || return 1
+        PAGE_LAST_URI=$(marsh_get_archive_page_uri "${TARGET_OUTPUT_ROOT}" "${PAGE_LAST_ARCHIVE_SOURCE_REL}" "${MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT}" "${REMOVE_LINK_FILENAMES_CSV}") || return 1
         PAGE_LAST_OUTPUT_PATH="${PAGE_LAST_ARCHIVE_SOURCE_REL%.*}${MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT}"
     else
         PAGE_LAST_URI="${PAGE_CANONICAL_URI}"
@@ -9229,11 +9295,11 @@ function marsh_build_archive {  # marsh_build_archive target_output_root markdow
         PAGE_SUBDOCUMENTS_TOTAL="${#PAGE_DOCUMENTS[@]}"
 
         if [[ "${PAGINATED}" == true ]] && [[ "${PAGE}" -gt 1 ]]; then
-            PAGE_ARCHIVE_SOURCE_REL=$(marsh_get_archive_page_source "${ARCHIVE_SOURCE_REL}" "${PAGE}") || return 1
+            PAGE_ARCHIVE_SOURCE_REL=$(marsh_get_archive_page_source "${ARCHIVE_SOURCE_REL}" "${PAGE}" "${REMOVE_LINK_FILENAMES_CSV}") || return 1
         else
             PAGE_ARCHIVE_SOURCE_REL="${ARCHIVE_SOURCE_REL}"
         fi
-        PAGE_URI=$(marsh_get_archive_page_uri "${TARGET_OUTPUT_ROOT}" "${PAGE_ARCHIVE_SOURCE_REL}") || return 1
+        PAGE_URI=$(marsh_get_archive_page_uri "${TARGET_OUTPUT_ROOT}" "${PAGE_ARCHIVE_SOURCE_REL}" "${MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT}" "${REMOVE_LINK_FILENAMES_CSV}") || return 1
         PAGE_OUTPUT_PATH="${PAGE_ARCHIVE_SOURCE_REL%.*}${MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT}"
         PAGE_BASE_PATH="./${PAGE_OUTPUT_PATH}"
         PAGE_BASE_PATH="${PAGE_BASE_PATH%/*}"
@@ -9248,25 +9314,25 @@ function marsh_build_archive {  # marsh_build_archive target_output_root markdow
             if [[ "${PAGE}" -eq 2 ]]; then
                 PAGE_PREV_ARCHIVE_SOURCE_REL="${ARCHIVE_SOURCE_REL}"
             else
-                PAGE_PREV_ARCHIVE_SOURCE_REL=$(marsh_get_archive_page_source "${ARCHIVE_SOURCE_REL}" "$((PAGE - 1))") || return 1
+                PAGE_PREV_ARCHIVE_SOURCE_REL=$(marsh_get_archive_page_source "${ARCHIVE_SOURCE_REL}" "$((PAGE - 1))" "${REMOVE_LINK_FILENAMES_CSV}") || return 1
             fi
-            PAGE_PREV_URI=$(marsh_get_archive_page_uri "${TARGET_OUTPUT_ROOT}" "${PAGE_PREV_ARCHIVE_SOURCE_REL}") || return 1
+            PAGE_PREV_URI=$(marsh_get_archive_page_uri "${TARGET_OUTPUT_ROOT}" "${PAGE_PREV_ARCHIVE_SOURCE_REL}" "${MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT}" "${REMOVE_LINK_FILENAMES_CSV}") || return 1
             PAGE_PREV_OUTPUT_PATH="${PAGE_PREV_ARCHIVE_SOURCE_REL%.*}${MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT}"
         fi
         if [[ "${PAGE}" -lt "${PAGE_TOTAL}" ]]; then
-            PAGE_NEXT_ARCHIVE_SOURCE_REL=$(marsh_get_archive_page_source "${ARCHIVE_SOURCE_REL}" "$((PAGE + 1))") || return 1
-            PAGE_NEXT_URI=$(marsh_get_archive_page_uri "${TARGET_OUTPUT_ROOT}" "${PAGE_NEXT_ARCHIVE_SOURCE_REL}") || return 1
+            PAGE_NEXT_ARCHIVE_SOURCE_REL=$(marsh_get_archive_page_source "${ARCHIVE_SOURCE_REL}" "$((PAGE + 1))" "${REMOVE_LINK_FILENAMES_CSV}") || return 1
+            PAGE_NEXT_URI=$(marsh_get_archive_page_uri "${TARGET_OUTPUT_ROOT}" "${PAGE_NEXT_ARCHIVE_SOURCE_REL}" "${MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT}" "${REMOVE_LINK_FILENAMES_CSV}") || return 1
             PAGE_NEXT_OUTPUT_PATH="${PAGE_NEXT_ARCHIVE_SOURCE_REL%.*}${MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT}"
         fi
-        PAGE_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${PAGE_OUTPUT_PATH}") || return 1
-        PAGE_CANONICAL_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${PAGE_CANONICAL_OUTPUT_PATH}") || return 1
-        PAGE_FIRST_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${PAGE_FIRST_OUTPUT_PATH}") || return 1
+        PAGE_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${PAGE_OUTPUT_PATH}" "${REMOVE_LINK_FILENAMES_CSV}") || return 1
+        PAGE_CANONICAL_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${PAGE_CANONICAL_OUTPUT_PATH}" "${REMOVE_LINK_FILENAMES_CSV}") || return 1
+        PAGE_FIRST_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${PAGE_FIRST_OUTPUT_PATH}" "${REMOVE_LINK_FILENAMES_CSV}") || return 1
         PAGE_PREV_HREF=""
-        [[ "${PAGE_PREV_OUTPUT_PATH}" != "" ]] && PAGE_PREV_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${PAGE_PREV_OUTPUT_PATH}") || true
+        [[ "${PAGE_PREV_OUTPUT_PATH}" != "" ]] && PAGE_PREV_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${PAGE_PREV_OUTPUT_PATH}" "${REMOVE_LINK_FILENAMES_CSV}") || true
         PAGE_NEXT_HREF=""
-        [[ "${PAGE_NEXT_OUTPUT_PATH}" != "" ]] && PAGE_NEXT_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${PAGE_NEXT_OUTPUT_PATH}") || true
-        PAGE_LAST_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${PAGE_LAST_OUTPUT_PATH}") || return 1
-        PAGE_ARCHIVE_ROOT_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${ARCHIVE_ROOT_PATH}") || return 1
+        [[ "${PAGE_NEXT_OUTPUT_PATH}" != "" ]] && PAGE_NEXT_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${PAGE_NEXT_OUTPUT_PATH}" "${REMOVE_LINK_FILENAMES_CSV}") || true
+        PAGE_LAST_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${PAGE_LAST_OUTPUT_PATH}" "${REMOVE_LINK_FILENAMES_CSV}") || return 1
+        PAGE_ARCHIVE_ROOT_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${ARCHIVE_ROOT_PATH}" "${REMOVE_LINK_FILENAMES_CSV}") || return 1
 
         marsh_write_archive_page \
             "${ENCODING}" \
@@ -9302,21 +9368,21 @@ function marsh_build_archive {  # marsh_build_archive target_output_root markdow
         ARCHIVE_PAGES+=("${PAGE_ARCHIVE_SOURCE_REL}")
 
         if [[ "${PAGINATED}" == true ]] && [[ "${PAGE}" -eq 1 ]]; then
-            PAGE_ALIAS_ARCHIVE_SOURCE_REL=$(marsh_get_archive_page_source "${ARCHIVE_SOURCE_REL}" '1') || return 1
-            PAGE_URI=$(marsh_get_archive_page_uri "${TARGET_OUTPUT_ROOT}" "${PAGE_ALIAS_ARCHIVE_SOURCE_REL}") || return 1
+            PAGE_ALIAS_ARCHIVE_SOURCE_REL=$(marsh_get_archive_page_source "${ARCHIVE_SOURCE_REL}" '1' "${REMOVE_LINK_FILENAMES_CSV}") || return 1
+            PAGE_URI=$(marsh_get_archive_page_uri "${TARGET_OUTPUT_ROOT}" "${PAGE_ALIAS_ARCHIVE_SOURCE_REL}" "${MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT}" "${REMOVE_LINK_FILENAMES_CSV}") || return 1
             PAGE_OUTPUT_PATH="${PAGE_ALIAS_ARCHIVE_SOURCE_REL%.*}${MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT}"
             PAGE_BASE_PATH="./${PAGE_OUTPUT_PATH}"
             PAGE_BASE_PATH="${PAGE_BASE_PATH%/*}"
             PAGE_BASE_PATH="${PAGE_BASE_PATH#./}"
             PAGE_BASE_PATH="${PAGE_BASE_PATH:-.}"
             PAGE_BASE_PATH=$(marsh_normalize_path "${PAGE_BASE_PATH}" "directory") || return 1
-            PAGE_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${PAGE_OUTPUT_PATH}") || return 1
-            PAGE_CANONICAL_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${PAGE_CANONICAL_OUTPUT_PATH}") || return 1
-            PAGE_FIRST_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${PAGE_FIRST_OUTPUT_PATH}") || return 1
+            PAGE_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${PAGE_OUTPUT_PATH}" "${REMOVE_LINK_FILENAMES_CSV}") || return 1
+            PAGE_CANONICAL_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${PAGE_CANONICAL_OUTPUT_PATH}" "${REMOVE_LINK_FILENAMES_CSV}") || return 1
+            PAGE_FIRST_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${PAGE_FIRST_OUTPUT_PATH}" "${REMOVE_LINK_FILENAMES_CSV}") || return 1
             PAGE_NEXT_HREF=""
-            [[ "${PAGE_NEXT_OUTPUT_PATH}" != "" ]] && PAGE_NEXT_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${PAGE_NEXT_OUTPUT_PATH}") || true
-            PAGE_LAST_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${PAGE_LAST_OUTPUT_PATH}") || return 1
-            PAGE_ARCHIVE_ROOT_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${ARCHIVE_ROOT_PATH}") || return 1
+            [[ "${PAGE_NEXT_OUTPUT_PATH}" != "" ]] && PAGE_NEXT_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${PAGE_NEXT_OUTPUT_PATH}" "${REMOVE_LINK_FILENAMES_CSV}") || true
+            PAGE_LAST_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${PAGE_LAST_OUTPUT_PATH}" "${REMOVE_LINK_FILENAMES_CSV}") || return 1
+            PAGE_ARCHIVE_ROOT_HREF=$(marsh_get_relative_path "${PAGE_BASE_PATH}" "${ARCHIVE_ROOT_PATH}" "${REMOVE_LINK_FILENAMES_CSV}") || return 1
             marsh_write_archive_page \
                 "${ENCODING}" \
                 "${TARGET_OUTPUT_ROOT}" \
@@ -9357,8 +9423,8 @@ function marsh_build_archive {  # marsh_build_archive target_output_root markdow
 }
 
 # loads cached archive metadata for a document
-function marsh_get_archive_metadata {  # marsh_get_archive_metadata target_output_root document markdown_document_extensions_replacement
-    local TARGET_OUTPUT_ROOT DOCUMENT
+function marsh_get_archive_metadata {  # marsh_get_archive_metadata target_output_root document markdown_document_extensions_replacement [remove_link_filenames_csv]
+    local TARGET_OUTPUT_ROOT DOCUMENT MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT REMOVE_LINK_FILENAMES_CSV
     local META META_CACHE DOCUMENT_SITE_REL TARGET_OUTPUT_REL
     local TYPE URI ABSPATH STATE_TEXT STATE_VALUE
     local -a STATE
@@ -9367,6 +9433,7 @@ function marsh_get_archive_metadata {  # marsh_get_archive_metadata target_outpu
     TARGET_OUTPUT_ROOT="${1:-}"
     DOCUMENT="${2:-}"
     MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT="${3:-}"
+    REMOVE_LINK_FILENAMES_CSV="${4:-}"
     [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
     [[ "${DOCUMENT}" == "" ]] && return 1
     TARGET_OUTPUT_ROOT=$(marsh_get_target_directory_path "${TARGET_OUTPUT_ROOT}") || return 1
@@ -9391,7 +9458,7 @@ function marsh_get_archive_metadata {  # marsh_get_archive_metadata target_outpu
         URI="${TARGET_OUTPUT_REL}/${DOCUMENT_SITE_REL}"
     fi
     URI="${URI%.markdown}${MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT}"
-    URI=$(marsh_get_absolute_output_path "${URI}" "document") || return 1
+    URI=$(marsh_get_absolute_output_path "${URI}" "document" "${REMOVE_LINK_FILENAMES_CSV}") || return 1
     ABSPATH=""
     [[ "${URI}" =~ / ]] && ABSPATH="${URI%/*}"
 
@@ -9414,10 +9481,11 @@ function marsh_get_archive_metadata {  # marsh_get_archive_metadata target_outpu
 }
 
 # returns paginated archive root for an archive source path
-function marsh_get_archive_page_root {  # marsh_get_archive_page_root archive_source
-    local ARCHIVE_SOURCE ARCHIVE_DIR ARCHIVE_NAME PAGE_ROOT
+function marsh_get_archive_page_root {  # marsh_get_archive_page_root archive_source [remove_link_filenames_csv]
+    local ARCHIVE_SOURCE REMOVE_LINK_FILENAMES_CSV ARCHIVE_DIR ARCHIVE_NAME PAGE_ROOT
 
     ARCHIVE_SOURCE="${1:-}"
+    REMOVE_LINK_FILENAMES_CSV="${2:-}"
     [[ "${ARCHIVE_SOURCE}" == "" ]] && return 1
     ARCHIVE_DIR=$(marsh_get_internal_parent_directory "${ARCHIVE_SOURCE}") || return 1
     ARCHIVE_NAME="${ARCHIVE_SOURCE##*/}"
@@ -9430,24 +9498,27 @@ function marsh_get_archive_page_root {  # marsh_get_archive_page_root archive_so
 }
 
 # returns numbered paginated archive source path for a page
-function marsh_get_archive_page_source {  # marsh_get_archive_page_source archive_source page_num
-    local ARCHIVE_SOURCE PAGE_NUM PAGE_ROOT ARCHIVE_EXT
+function marsh_get_archive_page_source {  # marsh_get_archive_page_source archive_source page_num [remove_link_filenames_csv]
+    local ARCHIVE_SOURCE PAGE_NUM REMOVE_LINK_FILENAMES_CSV PAGE_ROOT ARCHIVE_EXT
 
     ARCHIVE_SOURCE="${1:-}"
     PAGE_NUM="${2:-}"
+    REMOVE_LINK_FILENAMES_CSV="${3:-}"
     [[ "${ARCHIVE_SOURCE}" == "" ]] && return 1
     [[ "${PAGE_NUM}" == "" ]] && return 1
-    PAGE_ROOT=$(marsh_get_archive_page_root "${ARCHIVE_SOURCE}") || return 1
+    PAGE_ROOT=$(marsh_get_archive_page_root "${ARCHIVE_SOURCE}" "${REMOVE_LINK_FILENAMES_CSV}") || return 1
     ARCHIVE_EXT="${ARCHIVE_SOURCE##*.}"
     printf '%s\n' "${PAGE_ROOT}/${PAGE_NUM}/index.${ARCHIVE_EXT}"
 }
 
 # returns output uri for an archive source path
-function marsh_get_archive_page_uri {  # marsh_get_archive_page_uri target_output_root archive_source_rel
-    local TARGET_OUTPUT_ROOT ARCHIVE_SOURCE_REL TARGET_OUTPUT_REL URI
+function marsh_get_archive_page_uri {  # marsh_get_archive_page_uri target_output_root archive_source_rel markdown_document_extensions_replacement [remove_link_filenames_csv]
+    local TARGET_OUTPUT_ROOT ARCHIVE_SOURCE_REL MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT REMOVE_LINK_FILENAMES_CSV TARGET_OUTPUT_REL URI
 
     TARGET_OUTPUT_ROOT="${1:-}"
     ARCHIVE_SOURCE_REL="${2:-}"
+    MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT="${3:-}"
+    REMOVE_LINK_FILENAMES_CSV="${4:-}"
     [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
     [[ "${ARCHIVE_SOURCE_REL}" == "" ]] && return 1
 
@@ -9457,8 +9528,8 @@ function marsh_get_archive_page_uri {  # marsh_get_archive_page_uri target_outpu
     else
         URI="${TARGET_OUTPUT_REL}/${ARCHIVE_SOURCE_REL}"
     fi
-    URI="${URI%.*}${MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT}"
-    marsh_get_absolute_output_path "${URI}" "document"
+    URI="${URI%.markdown}${MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT}"
+    marsh_get_absolute_output_path "${URI}" "document" "${REMOVE_LINK_FILENAMES_CSV}"
 }
 
 # returns the common archive root directory for a related set of archive outputs
@@ -9682,8 +9753,8 @@ function marsh_load_archive_document_metadata {  # marsh_load_archive_document_m
 }
 
 # plans target archive page generation
-function marsh_plan_archive_pages {  # marsh_plan_archive_pages target_output_root markdown_document_extensions_replacement encoding archive_source archive_title language langcode count page_size #types[@] types[@] #excluded_states[@] excluded_states[@] archive_manifest archive_root_path templates_dir template sitemap sitemap_search #template_overrides[@] template_overrides[@] template_assets_path build_context_target_output_rel build_context_source_root
-    local TARGET_OUTPUT_ROOT ENCODING ARCHIVE_SOURCE ARCHIVE_TITLE LANGUAGE LANGCODE COUNT PAGE_SIZE
+function marsh_plan_archive_pages {  # marsh_plan_archive_pages target_output_root markdown_document_extensions_replacement remove_link_filenames_csv encoding archive_source archive_title language langcode count page_size #types[@] types[@] #excluded_states[@] excluded_states[@] archive_manifest archive_root_path templates_dir template sitemap sitemap_search #template_overrides[@] template_overrides[@] template_assets_path build_context_target_output_rel build_context_source_root
+    local TARGET_OUTPUT_ROOT REMOVE_LINK_FILENAMES_CSV ENCODING ARCHIVE_SOURCE ARCHIVE_TITLE LANGUAGE LANGCODE COUNT PAGE_SIZE
     local NUM_TYPES NUM_EXCLUDED_STATES ARCHIVE_MANIFEST ARCHIVE_ROOT_PATH
     local TEMPLATES_DIR TEMPLATE TARGET_SITEMAP TARGET_SITEMAP_SEARCH
     local NUM_TEMPLATE_OVERRIDES TEMPLATE_ASSETS_PATH BUILD_CONTEXT_TARGET_OUTPUT_REL BUILD_CONTEXT_SOURCE_ROOT
@@ -9695,14 +9766,15 @@ function marsh_plan_archive_pages {  # marsh_plan_archive_pages target_output_ro
     # unpack archive selection, archive rendering, and archive template context
     TARGET_OUTPUT_ROOT="${1:-}"
     MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT="${2:-}"
-    ENCODING="${3:-}"
-    ARCHIVE_SOURCE="${4:-}"
-    ARCHIVE_TITLE="${5:-}"
-    LANGUAGE="${6:-}"
-    LANGCODE="${7:-}"
-    COUNT="${8:-}"
-    PAGE_SIZE="${9:-}"
-    shift 9
+    REMOVE_LINK_FILENAMES_CSV="${3:-}"
+    ENCODING="${4:-}"
+    ARCHIVE_SOURCE="${5:-}"
+    ARCHIVE_TITLE="${6:-}"
+    LANGUAGE="${7:-}"
+    LANGCODE="${8:-}"
+    COUNT="${9:-}"
+    PAGE_SIZE="${10:-}"
+    shift 10
     [[ "${TARGET_OUTPUT_ROOT}" == "" ]] && return 1
     [[ "${ARCHIVE_SOURCE}" == "" ]] && return 1
     NUM_TYPES="${1:-0}"
@@ -9758,6 +9830,7 @@ function marsh_plan_archive_pages {  # marsh_plan_archive_pages target_output_ro
     GENERATED_ARCHIVES=$(marsh_build_archive \
         "${TARGET_OUTPUT_ROOT}" \
         "${MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT}" \
+        "${REMOVE_LINK_FILENAMES_CSV}" \
         "${ENCODING}" \
         "${ARCHIVE_SOURCE}" \
         "${ARCHIVE_TITLE}" \
@@ -9770,7 +9843,8 @@ function marsh_plan_archive_pages {  # marsh_plan_archive_pages target_output_ro
         "${#EXCLUDED_STATES[@]}" \
         "${EXCLUDED_STATES[@]}" \
         "${ARCHIVE_MANIFEST}" \
-        "${ARCHIVE_ROOT_PATH}") || {
+        "${ARCHIVE_ROOT_PATH}" \
+        "${REMOVE_LINK_FILENAMES_CSV}") || {
             rm -rf "${ARCHIVE_PLAN_ROOT}"
             return 1
         }
@@ -9822,8 +9896,8 @@ function marsh_plan_archive_pages {  # marsh_plan_archive_pages target_output_ro
 }
 
 # plans all archives configured for one target
-function marsh_plan_target_archives {  # marsh_plan_target_archives site_output_root markdown_document_extensions_csv markdown_document_extensions_replacement target_plan_root target_output_rel config_file_dir templates_dir target_name sitemap sitemap_search template target_template_source template_assets_path build_context_target_output_rel build_context_source_root #target_archive_records[@] target_archive_records[@] #template_overrides[@] template_overrides[@] [document_records[@]]
-    local SITE_OUTPUT_ROOT MARKDOWN_DOCUMENT_EXTENSIONS_CSV MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT TARGET_PLAN_ROOT TARGET_OUTPUT_ROOT TARGET_OUTPUT_REL
+function marsh_plan_target_archives {  # marsh_plan_target_archives site_output_root markdown_document_extensions_csv markdown_document_extensions_replacement remove_link_filenames_csv target_plan_root target_output_rel config_file_dir templates_dir target_name sitemap sitemap_search template target_template_source template_assets_path build_context_target_output_rel build_context_source_root #target_archive_records[@] target_archive_records[@] #template_overrides[@] template_overrides[@] [document_records[@]]
+    local SITE_OUTPUT_ROOT MARKDOWN_DOCUMENT_EXTENSIONS_CSV MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT REMOVE_LINK_FILENAMES_CSV TARGET_PLAN_ROOT TARGET_OUTPUT_ROOT TARGET_OUTPUT_REL
     local CONFIG_FILE_DIR TEMPLATES_DIR TARGET_NAME TARGET_SITEMAP TARGET_SITEMAP_SEARCH TEMPLATE TARGET_TEMPLATE_SOURCE TEMPLATE_ASSETS_PATH BUILD_CONTEXT_TARGET_OUTPUT_REL BUILD_CONTEXT_SOURCE_ROOT
     local NUM_TARGET_ARCHIVE_RECORDS NUM_TEMPLATE_OVERRIDES
     local TARGET_ARCHIVE_MANIFEST TARGET_ARCHIVE_PLAN_ROOT
@@ -9838,24 +9912,25 @@ function marsh_plan_target_archives {  # marsh_plan_target_archives site_output_
     SITE_OUTPUT_ROOT="${1:-}"
     MARKDOWN_DOCUMENT_EXTENSIONS_CSV="${2:-}"
     MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT="${3:-}"
-    TARGET_PLAN_ROOT="${4:-}"
-    TARGET_OUTPUT_REL="${5:-}"
-    CONFIG_FILE_DIR="${6:-}"
-    TEMPLATES_DIR="${7:-}"
-    TARGET_NAME="${8:-}"
-    TARGET_SITEMAP="${9:-}"
-    TARGET_SITEMAP_SEARCH="${10:-false}"
-    TEMPLATE="${11:-}"
-    TARGET_TEMPLATE_SOURCE="${12:-}"
-    TEMPLATE_ASSETS_PATH="${13:-}"
-    BUILD_CONTEXT_TARGET_OUTPUT_REL="${14:-${TARGET_OUTPUT_REL}}"
-    BUILD_CONTEXT_SOURCE_ROOT="${15:-}"
-    NUM_TARGET_ARCHIVE_RECORDS="${16:-0}"
+    REMOVE_LINK_FILENAMES_CSV="${4:-}"
+    TARGET_PLAN_ROOT="${5:-}"
+    TARGET_OUTPUT_REL="${6:-}"
+    CONFIG_FILE_DIR="${7:-}"
+    TEMPLATES_DIR="${8:-}"
+    TARGET_NAME="${9:-}"
+    TARGET_SITEMAP="${10:-}"
+    TARGET_SITEMAP_SEARCH="${11:-false}"
+    TEMPLATE="${12:-}"
+    TARGET_TEMPLATE_SOURCE="${13:-}"
+    TEMPLATE_ASSETS_PATH="${14:-}"
+    BUILD_CONTEXT_TARGET_OUTPUT_REL="${15:-${TARGET_OUTPUT_REL}}"
+    BUILD_CONTEXT_SOURCE_ROOT="${16:-}"
+    NUM_TARGET_ARCHIVE_RECORDS="${17:-0}"
     [[ "${SITE_OUTPUT_ROOT}" == "" ]] && return 1
     [[ "${MARKDOWN_DOCUMENT_EXTENSIONS_CSV}" == "" ]] && return 1
     [[ "${TARGET_PLAN_ROOT}" == "" ]] && return 1
     [[ "${TARGET_OUTPUT_REL}" == "" ]] && return 1
-    shift 16
+    shift 17
     TARGET_ARCHIVE_RECORDS=()
     while [[ "${NUM_TARGET_ARCHIVE_RECORDS}" -gt 0 ]] && [[ "${#@}" -gt 0 ]]; do
         TARGET_ARCHIVE_RECORDS+=("${1}")
@@ -9880,7 +9955,10 @@ function marsh_plan_target_archives {  # marsh_plan_target_archives site_output_
 
     # keep archive manifest creation internal to archive planning while still allowing
     # the fast path to reuse in-memory document records instead of rereading from disk
-    marsh_write_target_archive_manifest "${SITE_OUTPUT_ROOT}" "${MARKDOWN_DOCUMENT_EXTENSIONS_CSV}" "${MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT}" "${TARGET_PLAN_ROOT}" "${DOCUMENT_RECORDS_IN[@]}" || return 1
+    marsh_write_target_archive_manifest "${SITE_OUTPUT_ROOT}" "${MARKDOWN_DOCUMENT_EXTENSIONS_CSV}" "${MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT}" "${REMOVE_LINK_FILENAMES_CSV}" "${TARGET_PLAN_ROOT}" "${DOCUMENT_RECORDS_IN[@]}" || {
+        echo "Unable to write target archive manifest: ${TARGET_PLAN_ROOT}" >&2
+        return 1
+    }
 
     # archives for the same target share the same manifest
     TARGET_ARCHIVE_MANIFEST="${TARGET_PLAN_ROOT}/archive-manifest"
@@ -9947,6 +10025,7 @@ function marsh_plan_target_archives {  # marsh_plan_target_archives site_output_
         TARGET_ARCHIVE_PLAN_ROOT=$(marsh_plan_archive_pages \
             "${TARGET_OUTPUT_ROOT}" \
             "${MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT}" \
+            "${REMOVE_LINK_FILENAMES_CSV}" \
             "${TARGET_ARCHIVE_ENCODING}" \
             "${TARGET_ARCHIVE_PATH}" \
             "${TARGET_ARCHIVE_NAME_VALUE:-$TARGET_NAME}" \
@@ -10145,8 +10224,8 @@ function marsh_write_archive_page {  # marsh_write_archive_page encoding target_
 }
 
 # writes an archive manifest under the target plan root from planned target documents
-function marsh_write_target_archive_manifest {  # marsh_write_target_archive_manifest site_output_root markdown_document_extensions_csv markdown_document_extensions_replacement target_plan_root [document_records[@]]
-    local SITE_OUTPUT_ROOT MARKDOWN_DOCUMENT_EXTENSIONS_CSV MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT TARGET_PLAN_ROOT MANIFEST_FILE MANIFEST_TEMP DOCUMENT_RECORD
+function marsh_write_target_archive_manifest {  # marsh_write_target_archive_manifest site_output_root markdown_document_extensions_csv markdown_document_extensions_replacement remove_link_filenames_csv target_plan_root [document_records[@]]
+    local SITE_OUTPUT_ROOT MARKDOWN_DOCUMENT_EXTENSIONS_CSV MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT REMOVE_LINK_FILENAMES_CSV TARGET_PLAN_ROOT MANIFEST_FILE MANIFEST_TEMP DOCUMENT_RECORD
     local DOCUMENT_ID SOURCE_RELPATH TARGET_OUTPUT_REL SOURCE_ROOT DOCUMENT_SOURCE_FILE BUILD_CONTEXT_OUTPUT_ROOT
     local DOCUMENT_ARTIFACT_ROOT DOCUMENT_ARTIFACT_CONTENT DOCUMENT_ARTIFACT_META_YAML DOCUMENT_ARTIFACT_META
     local TYPE URI ABSPATH DOCUMENT_OUTPUT_REL STATE_TEXT STATE_VALUE RECORD_REST
@@ -10155,11 +10234,12 @@ function marsh_write_target_archive_manifest {  # marsh_write_target_archive_man
     SITE_OUTPUT_ROOT="${1:-}"
     MARKDOWN_DOCUMENT_EXTENSIONS_CSV="${2:-}"
     MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT="${3:-}"
-    TARGET_PLAN_ROOT="${4:-}"
+    REMOVE_LINK_FILENAMES_CSV="${4:-}"
+    TARGET_PLAN_ROOT="${5:-}"
     [[ "${SITE_OUTPUT_ROOT}" == "" ]] && return 1
     [[ "${MARKDOWN_DOCUMENT_EXTENSIONS_CSV}" == "" ]] && return 1
     [[ "${TARGET_PLAN_ROOT}" == "" ]] && return 1
-    shift 4
+    shift 5
     DOCUMENT_RECORDS_IN=("$@")
 
     MANIFEST_FILE="${TARGET_PLAN_ROOT}/archive-manifest"
@@ -10271,8 +10351,8 @@ function marsh_write_target_archive_manifest {  # marsh_write_target_archive_man
 #
 
 # builds aggregate archive-queue records for a target
-function marsh_build_target_archive_queue {  # marsh_build_target_archive_queue site_output_root log_level log_levels_csv jobs markdown_command markdown_options_csv markdown_document_extensions_csv markdown_document_extensions_replacement target_plan_root
-    local SITE_OUTPUT_ROOT LOG_LEVEL LOG_LEVELS_CSV JOBS MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_DOCUMENT_EXTENSIONS_CSV MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT TARGET_PLAN_ROOT
+function marsh_build_target_archive_queue {  # marsh_build_target_archive_queue site_output_root log_level log_levels_csv jobs markdown_command markdown_options_csv markdown_document_extensions_csv markdown_document_extensions_replacement remove_link_filenames_csv target_plan_root
+    local SITE_OUTPUT_ROOT LOG_LEVEL LOG_LEVELS_CSV JOBS MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_DOCUMENT_EXTENSIONS_CSV MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT REMOVE_LINK_FILENAMES_CSV TARGET_PLAN_ROOT
     local TARGET_ARCHIVE_QUEUE_RECORDS_FILE QUEUE_RECORD DOCUMENT_RECORD
     local QUEUE_DOCUMENT_ID QUEUE_SOURCE_RELPATH QUEUE_TARGET_OUTPUT_REL QUEUE_SOURCE_ROOT QUEUE_ARCHIVE_PLAN_ROOT QUEUE_RECORD_REST
     local CURRENT_DOCUMENT_ID CURRENT_DOCUMENT_SOURCE_RELPATH CURRENT_DOCUMENT_TARGET_OUTPUT_REL CURRENT_DOCUMENT_SOURCE_ROOT CURRENT_DOCUMENT_RECORD_REST
@@ -10289,7 +10369,8 @@ function marsh_build_target_archive_queue {  # marsh_build_target_archive_queue 
     MARKDOWN_OPTIONS_CSV="${6:-}"
     MARKDOWN_DOCUMENT_EXTENSIONS_CSV="${7:-}"
     MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT="${8:-}"
-    TARGET_PLAN_ROOT="${9:-}"
+    REMOVE_LINK_FILENAMES_CSV="${9:-}"
+    TARGET_PLAN_ROOT="${10:-}"
     [[ "${SITE_OUTPUT_ROOT}" == "" ]] && return 1
     [[ "${MARKDOWN_COMMAND}" == "" ]] && return 1
     [[ "${MARKDOWN_DOCUMENT_EXTENSIONS_CSV}" == "" ]] && return 1
@@ -10345,7 +10426,7 @@ function marsh_build_target_archive_queue {  # marsh_build_target_archive_queue 
             fi
         done
 
-        if ! "${PARALLEL}" --halt now,fail=1 --quote --no-notice --jobs="${JOBS:-1}" "${SELF_DIR}/${SELF_NAME}" build-target-archive-queue-record --log-level="${LOG_LEVEL}" --markdown="${PARALLEL_MARKDOWN}" --markdown-options="${MARKDOWN_OPTIONS_CSV}" --markdown-document-extensions="${MARKDOWN_DOCUMENT_EXTENSIONS_CSV}" --markdown-document-extensions-replacement="${MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT}" --marsh-temp="${MARSH_TEMP}" --marsh-config-file="${MARSH_CONFIG_FILE}" --marsh-config-file-dir="${MARSH_CONFIG_FILE_DIR}" --marsh-config-path="${MARSH_CONFIG_PATH}" --marsh-config-url="${MARSH_CONFIG_URL}" "${SITE_OUTPUT_ROOT}" {} ::: "${QUEUE_RECORDS[@]}"; then
+        if ! "${PARALLEL}" --halt now,fail=1 --quote --no-notice --jobs="${JOBS:-1}" "${SELF_DIR}/${SELF_NAME}" build-target-archive-queue-record --log-level="${LOG_LEVEL}" --markdown="${PARALLEL_MARKDOWN}" --markdown-options="${MARKDOWN_OPTIONS_CSV}" --markdown-document-extensions="${MARKDOWN_DOCUMENT_EXTENSIONS_CSV}" --markdown-document-extensions-replacement="${MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT}" --remove-link-filenames="${REMOVE_LINK_FILENAMES_CSV}" --marsh-temp="${MARSH_TEMP}" --marsh-config-file="${MARSH_CONFIG_FILE}" --marsh-config-file-dir="${MARSH_CONFIG_FILE_DIR}" --marsh-config-path="${MARSH_CONFIG_PATH}" --marsh-config-url="${MARSH_CONFIG_URL}" "${SITE_OUTPUT_ROOT}" {} ::: "${QUEUE_RECORDS[@]}"; then
             return 1
         fi
         return 0
@@ -10419,7 +10500,7 @@ function marsh_build_target_archive_queue {  # marsh_build_target_archive_queue 
             return 1
         fi
 
-        marsh_build_planned_target_documents "${SITE_OUTPUT_ROOT}" "${LOG_LEVEL}" "${LOG_LEVELS_CSV}" '1' "${TARGET_SITEMAP}" "${TARGET_SITEMAP_SEARCH}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_DOCUMENT_EXTENSIONS_CSV}" "${MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_ASSETS_PATH}" "${DOCUMENT_RECORD}" || return 1
+        marsh_build_planned_target_documents "${SITE_OUTPUT_ROOT}" "${LOG_LEVEL}" "${LOG_LEVELS_CSV}" '1' "${TARGET_SITEMAP}" "${TARGET_SITEMAP_SEARCH}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_DOCUMENT_EXTENSIONS_CSV}" "${MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT}" "${REMOVE_LINK_FILENAMES_CSV}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_ASSETS_PATH}" "${DOCUMENT_RECORD}" || return 1
         CURRENT_DOCUMENT_INDEX=$((CURRENT_DOCUMENT_INDEX + 1))
     done
 }
@@ -10453,8 +10534,8 @@ function marsh_build_target_archive_queue_record {  # marsh_build_target_archive
 }
 
 # builds one archive queue record by loading its archive-plan context
-function marsh_build_target_archive_queue_record_document {  # marsh_build_target_archive_queue_record_document site_output_root log_level log_levels_csv markdown_command markdown_options_csv markdown_document_extensions_csv markdown_document_extensions_replacement archive_queue_record
-    local SITE_OUTPUT_ROOT LOG_LEVEL LOG_LEVELS_CSV MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_DOCUMENT_EXTENSIONS_CSV MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT ARCHIVE_QUEUE_RECORD
+function marsh_build_target_archive_queue_record_document {  # marsh_build_target_archive_queue_record_document site_output_root log_level log_levels_csv markdown_command markdown_options_csv markdown_document_extensions_csv markdown_document_extensions_replacement remove_link_filenames_csv archive_queue_record
+    local SITE_OUTPUT_ROOT LOG_LEVEL LOG_LEVELS_CSV MARKDOWN_COMMAND MARKDOWN_OPTIONS_CSV MARKDOWN_DOCUMENT_EXTENSIONS_CSV MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT REMOVE_LINK_FILENAMES_CSV ARCHIVE_QUEUE_RECORD
     local DOCUMENT_ID SOURCE_RELPATH TARGET_OUTPUT_REL SOURCE_ROOT ARCHIVE_PLAN_ROOT ARCHIVE_QUEUE_RECORD_REST
     local TARGET_SITEMAP TARGET_SITEMAP_SEARCH TEMPLATES_DIR TEMPLATE TEMPLATE_ASSETS_PATH
     local BUILD_CONTEXT_TARGET_OUTPUT_REL BUILD_CONTEXT_SOURCE_ROOT TEMPLATE_OVERRIDE TEMPLATE_OVERRIDES_TEXT
@@ -10467,7 +10548,8 @@ function marsh_build_target_archive_queue_record_document {  # marsh_build_targe
     MARKDOWN_OPTIONS_CSV="${5:-}"
     MARKDOWN_DOCUMENT_EXTENSIONS_CSV="${6:-}"
     MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT="${7:-}"
-    ARCHIVE_QUEUE_RECORD="${8:-}"
+    REMOVE_LINK_FILENAMES_CSV="${8:-}"
+    ARCHIVE_QUEUE_RECORD="${9:-}"
     [[ "${SITE_OUTPUT_ROOT}" == "" ]] && return 1
     [[ "${MARKDOWN_COMMAND}" == "" ]] && return 1
     [[ "${MARKDOWN_DOCUMENT_EXTENSIONS_CSV}" == "" ]] && return 1
@@ -10500,7 +10582,7 @@ function marsh_build_target_archive_queue_record_document {  # marsh_build_targe
     [[ "${TARGET_OUTPUT_REL}" == "${BUILD_CONTEXT_TARGET_OUTPUT_REL}" ]] || return 1
     [[ "${SOURCE_ROOT}" == "${BUILD_CONTEXT_SOURCE_ROOT}" ]] || return 1
 
-    marsh_build_document_and_template "${SITE_OUTPUT_ROOT}" "${TARGET_OUTPUT_REL}" "${DOCUMENT_ID}" "${TARGET_SITEMAP}" "${TARGET_SITEMAP_SEARCH}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${LOG_LEVEL}" "${LOG_LEVELS_CSV}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_DOCUMENT_EXTENSIONS_CSV}" "${MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_ASSETS_PATH}" "${BUILD_CONTEXT_TARGET_OUTPUT_REL}" "${BUILD_CONTEXT_SOURCE_ROOT}"
+    marsh_build_document_and_template "${SITE_OUTPUT_ROOT}" "${TARGET_OUTPUT_REL}" "${DOCUMENT_ID}" "${TARGET_SITEMAP}" "${TARGET_SITEMAP_SEARCH}" "${TEMPLATES_DIR}" "${TEMPLATE}" "${LOG_LEVEL}" "${LOG_LEVELS_CSV}" "${MARKDOWN_COMMAND}" "${MARKDOWN_OPTIONS_CSV}" "${MARKDOWN_DOCUMENT_EXTENSIONS_CSV}" "${MARKDOWN_DOCUMENT_EXTENSIONS_REPLACEMENT}" "${REMOVE_LINK_FILENAMES_CSV}" "${#TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_OVERRIDES[@]}" "${TEMPLATE_ASSETS_PATH}" "${BUILD_CONTEXT_TARGET_OUTPUT_REL}" "${BUILD_CONTEXT_SOURCE_ROOT}"
 }
 
 # returns the aggregate archive-queue records path under the target plan root

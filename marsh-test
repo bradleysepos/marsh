@@ -10655,6 +10655,21 @@ function marsh_test {
             fi
             ;;
         marsh_text_transform_headings:5)
+            TEST_NAME+=":remove_markdown"
+            ACTUAL=$(printf '%s\n' \
+                'Heading 2' \
+                '---------' \
+                '' \
+                '###### Heading 6' \
+                '' \
+                'Paragraph' | marsh_text_transform_headings remove)
+            EXPECTED=$'\n\n''Paragraph'
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_text_transform_headings:6)
             TEST_NAME+=":comprehensive"
             HEADING_INPUT=$(printf '%s\n' \
                 'Intro paragraph line 1  ' \
@@ -11335,21 +11350,6 @@ function marsh_test {
                 fi
             fi
             rm -rf "${SITE_OUTPUT_ROOT}" "${SOURCE_ROOT}"
-            ;;
-        marsh_write_target_archive_manifest:5)
-            TEST_NAME+=":remove_markdown"
-            ACTUAL=$(printf '%s\n' \
-                'Heading 2' \
-                '---------' \
-                '' \
-                '###### Heading 6' \
-                '' \
-                'Paragraph' | marsh_text_transform_headings remove)
-            EXPECTED=$'\n\n''Paragraph'
-            ASSERTION="equals"
-            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                RES="[PASS]"
-            fi
             ;;
         marsh_write_target_archive_queue_from_archive_plans:0)
             TEST_NAME+=":writes_aggregate_queue"

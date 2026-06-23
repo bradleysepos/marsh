@@ -541,11 +541,10 @@ function marsh_cli {
             echo "Unable to resolve temporary directory: ${TEMP_DIR}" >&2
             return 1
         }
-        MARSH_TEMP=$(mktemp -d "${TEMP_DIR}/marsh-XXXXXX" 2>/dev/null)
-        if [[ ! -d "${MARSH_TEMP}" ]]; then
+        MARSH_TEMP=$(mktemp -d "${TEMP_DIR}/marsh-XXXXXX" 2>/dev/null) || {
             echo "Unable to create temporary directory: ${TEMP_DIR}/marsh-XXXXXX" >&2
             return 1
-        fi
+        }
     fi
     TEMPLATES_DIR="${MARSH_TEMP}/templates"
     mkdir -p "${TEMPLATES_DIR}"
@@ -4271,7 +4270,7 @@ function marsh_build_template {  # marsh_build_template site_output_root target_
     function clean_conditionals {  # clean_conditionals file
         local FILE FILE_TEMP
         FILE="${1:-}"; [[ "${FILE}" == "" ]] && return 1
-        FILE_TEMP=$(mktemp "${MARSH_TEMP}/conditional-XXXXXX")
+        FILE_TEMP=$(mktemp "${MARSH_TEMP}/conditional-XXXXXX") || return 1
         # remove unsupported conditionals
         cp "${FILE}" "${FILE_TEMP}"
         <"${FILE_TEMP}" awk '

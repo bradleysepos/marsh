@@ -11710,8 +11710,15 @@ fi
 echo "Running tests: ${FUNCTIONS[*]}"
 ERRORS=false
 for FUNCTION in "${FUNCTIONS[@]}"; do
-    if [[ " ${KNOWN_FUNCTIONS[*]} " =~ " ${FUNCTION//:*/} " ]]; then
-        if [[ "${FUNCTION}" == "${FUNCTION//:*/}" ]]; then
+    FOUND=false
+    for KNOWN in "${KNOWN_FUNCTIONS[@]}"; do
+        if [[ "${FUNCTION//:*}" == "${KNOWN}" ]]; then
+            FOUND=true
+            break
+        fi
+    done
+    if [[ "${FOUND}" == true ]]; then
+        if [[ "${FUNCTION}" == "${FUNCTION//:*}" ]]; then
             marsh_test_group "${FUNCTION}" || ERRORS=true
         else
             marsh_test "${FUNCTION}" || ERRORS=true

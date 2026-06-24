@@ -502,16 +502,19 @@ function marsh_cli {
     if ! marsh_in_array ".markdown" "${MARKDOWN_DOCUMENT_EXTENSIONS[@]}"; then
         MARKDOWN_DOCUMENT_EXTENSIONS+=(".markdown")
     fi
-    MARKDOWN_DOCUMENT_EXTENSIONS_CSV=$(echo ${MARKDOWN_DOCUMENT_EXTENSIONS[@]} | sed 's/ /,/g')
+    MARKDOWN_DOCUMENT_EXTENSIONS_CSV="${MARKDOWN_DOCUMENT_EXTENSIONS[*]}"
+    MARKDOWN_DOCUMENT_EXTENSIONS_CSV="${MARKDOWN_DOCUMENT_EXTENSIONS_CSV// /,}"
 
     # remove link filenames
     for I in "${!REMOVE_LINK_FILENAMES[@]}"; do
         REMOVE_LINK_FILENAMES[$I]=$(printf '%s' "${REMOVE_LINK_FILENAMES[$I]}" | sed 's/^\///' | awk '{ print tolower($0) }')
     done
-    REMOVE_LINK_FILENAMES_CSV=$(echo ${REMOVE_LINK_FILENAMES[@]} | sed 's/ /,/g')
+    REMOVE_LINK_FILENAMES_CSV="${REMOVE_LINK_FILENAMES[*]}"
+    REMOVE_LINK_FILENAMES_CSV="${REMOVE_LINK_FILENAMES_CSV// /,}"
 
     # discount markdown options
-    MARKDOWN_OPTIONS_CSV=$(echo ${MARKDOWN_OPTIONS[@]} | sed 's/ /,/g')
+    MARKDOWN_OPTIONS_CSV="${MARKDOWN_OPTIONS[*]}"
+    MARKDOWN_OPTIONS_CSV="${MARKDOWN_OPTIONS_CSV// /,}"
     MARKDOWN_OPTIONS_CLIARGS=()
     for I in "${!MARKDOWN_OPTIONS[@]}"; do
         MARKDOWN_OPTIONS_CLIARGS+=("-f${MARKDOWN_OPTIONS[$I]}")
@@ -1019,13 +1022,15 @@ function marsh_in_array {  # marsh_in_array needle haystack[@]
 # returns success when file extension is a markdown file extension
 function marsh_is_markdown_extension {  # marsh_is_markdown_extension file_ext markdown_document_extensions_csv
     local FILE_EXT MARKDOWN_DOCUMENT_EXTENSIONS_CSV MD_EXT
+    local -a MD_EXTS
 
     FILE_EXT="${1:-}"
     MARKDOWN_DOCUMENT_EXTENSIONS_CSV="${2:-}"
     [[ "${FILE_EXT}" == "" ]] && return 1
     [[ "${MARKDOWN_DOCUMENT_EXTENSIONS_CSV}" == "" ]] && return 1
     FILE_EXT=$(printf '%s' "${FILE_EXT}" | awk '{ print tolower($0) }')
-    for MD_EXT in ${MARKDOWN_DOCUMENT_EXTENSIONS_CSV//,/ }; do
+    IFS=',' read -r -a MD_EXTS <<< "${MARKDOWN_DOCUMENT_EXTENSIONS_CSV}"
+    for MD_EXT in "${MD_EXTS[@]}"; do
         [[ "${FILE_EXT}" == "${MD_EXT}" ]] && return 0
     done
     return 1
@@ -1635,7 +1640,7 @@ function marsh_text_transform {  # marsh_text_transform transform [transform...]
             ;;
         date:*)
             DATE_FORMAT="${OPTIONS[0]:-}"
-            for ((I = 1; I < ${#OPTIONS[@]}; I++)); do
+            for ((I = 1; I < "${#OPTIONS[@]}"; I++)); do
                 DATE_FORMAT+=":${OPTIONS[$I]}"
             done
             if [[ "${DATE_FORMAT}" == "" ]]; then
@@ -2213,7 +2218,7 @@ function marsh_text_transform {  # marsh_text_transform transform [transform...]
             XML_TAG="${OPTIONS[2]:-tag}"
             XML_TAG_OPEN=""
             XML_TAG_CLOSE=""
-            for ((I = 3; I < ${#OPTIONS[@]}; I++)); do
+            for ((I = 3; I < "${#OPTIONS[@]}"; I++)); do
                 [[ "${OPTIONS[$I]:-}" == "" ]] && continue
                 XML_TAG_OPEN="<${OPTIONS[$I]}>${XML_TAG_OPEN}"
                 XML_TAG_CLOSE+="</${OPTIONS[$I]}>"
@@ -2737,10 +2742,10 @@ function marsh_get_relative_path {  # marsh_get_relative_path base_dir target_pa
     done
 
     RESULT=""
-    for ((I=COMMON_PREFIX; I<${#BASE_PARTS[@]}; I++)); do
+    for ((I=COMMON_PREFIX; I < "${#BASE_PARTS[@]}"; I++)); do
         RESULT="${RESULT}../"
     done
-    for ((J=COMMON_PREFIX; J<${#TARGET_PARTS[@]}; J++)); do
+    for ((J=COMMON_PREFIX; J < "${#TARGET_PARTS[@]}"; J++)); do
         RESULT="${RESULT}${TARGET_PARTS[$J]}"
         if [[ "${J}" -lt $(( ${#TARGET_PARTS[@]} - 1 )) ]]; then
             RESULT="${RESULT}/"
@@ -6950,7 +6955,7 @@ function marsh_parse_template_tag {  # marsh_parse_template_tag tag_string tag_n
     TAG_QUOTE=""
     TAG_ESCAPE=false
 
-    for (( TAG_INDEX=0; TAG_INDEX<${#TAG_BODY}; TAG_INDEX++ )); do
+    for (( TAG_INDEX=0; TAG_INDEX < "${#TAG_BODY}"; TAG_INDEX++ )); do
         TAG_CHAR="${TAG_BODY:${TAG_INDEX}:1}"
         if [[ "${TAG_ESCAPE}" == true ]]; then
             case "${TAG_CHAR}" in
@@ -7172,7 +7177,8 @@ function marsh_resolve_template_asset_output_path {  # marsh_resolve_template_as
 # resolves a template tag into caller-owned outputs
 function marsh_resolve_template_tag_metadata {  # marsh_resolve_template_tag_metadata tag_name prefix metadata_vars tag_var_out tag_type_out
     local TAG_NAME PREFIX METADATA_VARS TAG_VAR_OUTPUT TAG_TYPE_OUTPUT RESOLVED_TAG_VAR RESOLVED_TAG_TYPE
-    local OIFS META_VAR NORMALIZED_TAG NORMALIZED_META MATCH_VAR MATCH_COUNT
+    local META_VAR NORMALIZED_TAG NORMALIZED_META MATCH_VAR MATCH_COUNT
+    local -a META_VARS_ARRAY
 
     # init
     TAG_NAME="${1:-}"
@@ -7352,7 +7358,8 @@ function marsh_resolve_template_tag_metadata {  # marsh_resolve_template_tag_met
         MATCH_COUNT=0
         OIFS="${IFS}"
         IFS=$'\n'
-        for META_VAR in ${METADATA_VARS}; do
+        METADATA_VARS_ARRAY=(${METADATA_VARS})
+        for META_VAR in "${METADATA_VARS_ARRAY[@]}"; do
             [[ "${META_VAR}" == "${PREFIX}"* ]] || continue
             NORMALIZED_META="${META_VAR#${PREFIX}}"
             NORMALIZED_META=$(printf '%s' "${NORMALIZED_META}" | awk '{ print tolower($0) }')

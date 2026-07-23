@@ -624,6 +624,91 @@ Examples:
 
 Text transforms may be applied to recognized and custom document metadata tags, as well as rendered document content.
 
+### Examples
+
+Here are some practical examples of how conditional tags and text transforms are used in real templates.
+
+#### Conditional Content Based on Document Metadata
+
+Display different content based on document metadata such as date and authors:
+
+```html
+<!-- Only for documents with the type article -->
+{% if document.type is "article" %}
+    <p class="metadata">
+        <!-- Display publish date where available -->
+        <!-- using a text transform for formatting -->
+        {% if document.date is not "" %}
+            <span class="date">Published on {{ document.date | date-type:rfc3339 }}</span>
+        {% endif %}
+        <!-- Display authors list only for articles with authors -->
+        {% if document.authors is not "" %}
+            <span class="authors">by {{ document.authors | items:join-type:oxford }}</span>
+        {% endif %}
+    </p>
+{% endif %}
+```
+
+#### Conditional Asset Loading
+
+Conditionally load assets based on the current page context:
+
+```html
+<head>
+    <!-- Load stylesheets for all pages as defined in the template configuration -->
+    <!-- using a text transform to automatically create the appropriate link tags -->
+    {{ template.assets.styles | items:wrap-type:html-style-link }}
+
+    <!-- Load additional stylesheets for article documents -->
+    {% if document.type is "article" %}
+        <link rel="stylesheet" href="{{ site.rootpath }}css/articles.css">
+    {% else %}
+        <!-- Otherwise, load additional stylesheets for news documents -->
+        <link rel="stylesheet" href="{{ site.rootpath }}css/news.css">
+    {% endif %}
+</head>
+```
+
+#### Conditional Asset Loading
+
+Conditionally load assets based on the current page context:
+
+```html
+<head>
+    <!-- Load stylesheet for article documents -->
+    {% if document.type is "article" %}
+        <link rel="stylesheet" href="{{ site.rootpath }}css/articles.css">
+    {% else %}
+        <!-- Otherwise, load stylesheet for news documents -->
+        {% if document.type is "news" %}
+            <link rel="stylesheet" href="{{ site.rootpath }}css/news.css">
+        {% endif %}
+    {% endif %}
+</head>
+```
+
+#### Conditional Archive Navigation
+
+Conditionally display page navigation for paginated HTML archives:
+
+```html
+<!-- Only for paginated HTML archives -->
+{% if document.paginated is "true" %}
+<nav class="archive-pagination">
+    <!-- Display the current page number and total number of pages -->
+    <p>Page {{ document.page }} of {{ document.page-total }}.
+        <!-- Display links to the previous and next pages where available -->
+        {% if document.page-has-prev is "true" %}
+            <a href="{{ document.page-prev-href }}">&larr; Previous Page</a>
+        {% endif %}
+        {% if document.page-has-next is "true" %}
+            <a href="{{ document.page-next-href }}">Next Page &rarr;</a>
+        {% endif %}
+    </p>
+</nav>
+{% endif %}
+```
+
 
 Advanced template usage
 -----------------------

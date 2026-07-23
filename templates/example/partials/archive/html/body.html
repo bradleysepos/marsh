@@ -1,19 +1,30 @@
 <section class="page {{ document.type }}" lang="{{ document.language-code }}">
 {{ template.header }}
 <main>
-<h1>{{ document.title }}</h1>
 <div class="archive-intro">
     {% if document.paginated is "true" %}
     <p>This page shows the latest published example news entries in reverse chronological order.</p>
+    <div class="archive-links">
+        <p>Alternates:</p>
+        <ul>
+            <li>🗏 <a href="{{ archive.rootpath }}all/">Full HTML Archive</a></li>
+            <li>⚛️ <a href="{{ archive.rootpath }}feed.xml">Atom Feed</a></li>
+            <li>🟢 <a href="{{ archive.rootpath }}feed.json">JSON Feed</a></li>
+        </ul>
+    </div>
     {% else %}
     <p>This page shows all published example news entries in reverse chronological order.</p>
+    <div class="archive-links">
+        <p>Alternates:</p>
+            <ul>
+            <li>🗐 <a href="{{ archive.rootpath }}">Paginated HTML Archive</a></li>
+            <li>⚛️ <a href="{{ archive.rootpath }}feed.xml">Atom Feed</a></li>
+            <li>🟩 <a href="{{ archive.rootpath }}feed.json">JSON Feed</a></li>
+        </ul>
+    </div>
     {% endif %}
-    <ul class="archive-links">
-        <li><a href="{{ archive.rootpath }}feed.xml">Atom feed</a></li>
-        <li><a href="{{ archive.rootpath }}feed.json">JSON Feed</a></li>
-        <li><a href="{{ archive.rootpath }}all/">Full archive</a></li>
-    </ul>
 </div>
+<h1>{{ document.title }}</h1>
 
 {% if document.page-has-subdocuments is not "true" %}
 <p class="archive-empty">Nothing to see here.</p>

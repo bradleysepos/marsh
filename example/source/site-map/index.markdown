@@ -16,8 +16,8 @@ Site Map
 - [Home](../)
 - [About](../about/)
 - [News](../news/)
-  - [News Atom feed](../news/feed.xml)
-  - [News JSON feed](../news/feed.json)
+  - [News Atom Feed](../news/feed.xml)
+  - [News JSON Feed](../news/feed.json)
 - [Redirect Example](../redirect-example/)
 
-The site map is a normal document that can also be configured as an embeddable sitemap source for the site.
+The site map is a normal document that can also be configured as an embeddable section.

@@ -15,7 +15,7 @@ Build:
         #Overrides:
         #  - ../templates/example/template-overrides.yaml
       Archives:
-        - Name:      marsh paginated news archive
+        - Name:      News archive
           Path:      news/index.markdown
           Root_Path: news
           Encoding:  html
@@ -27,7 +27,7 @@ Build:
           #  Source: ../templates/example
           #  Overrides:
           #    - ../templates/example/template-overrides.yaml
-        - Name:      marsh full news archive
+        - Name:      Full news archive
           Path:      news/all/index.markdown
           Root_Path: news
           Encoding:  html

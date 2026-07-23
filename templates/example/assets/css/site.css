@@ -8,7 +8,7 @@ html {
 
 body {
     margin: 0;
-    background: #f6f8fb;
+    background: #f7fafc;
     color: #12161b;
     font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
     line-height: 1.65;
@@ -19,7 +19,11 @@ a {
 }
 
 a:hover {
-    color: #df713d;
+    color: #fb6d29;
+}
+
+code {
+    font-family: "Source Code Pro", Consolas, "Courier New", monospace;
 }
 
 img {
@@ -29,15 +33,16 @@ img {
 
 .page {
     width: 72rem;
-    width: calc(100% - 2rem);
+    width: calc(100% - 4rem);
     max-width: 72rem;
     margin: 0 auto;
-    padding: 1rem 0 3rem;
+    padding: 1rem 0 0.5rem;
 }
 
 header,
 main,
 footer {
+    padding: 1.5rem 2rem;
     background: #fdfefe;
     border: 1px solid #c8d4e3;
     box-shadow: 0 18px 36px rgba(18, 22, 27, 0.06);
@@ -52,8 +57,7 @@ main + footer {
 }
 
 header {
-    padding: 1.35rem;
-    background: #6a87b7;
+    background: #4a6fa5;
     overflow: hidden;
 }
 
@@ -82,7 +86,7 @@ header {
 .summary {
     max-width: 42rem;
     margin-top: 0.2rem;
-    color: rgba(247, 249, 252, 0.84);
+    color: rgba(255, 255, 255, 0.82);
     font-size: 0.9rem;
 }
 
@@ -140,14 +144,14 @@ header {
 .primary-nav > ul button:hover,
 .primary-nav > ul a.is-active,
 .primary-nav > ul button.is-active {
-    border-bottom-color: #df713d;
+    border-bottom-color: #fb6d29;
 }
 
 .primary-nav > ul a:focus,
 .primary-nav > ul a:focus-visible,
 .primary-nav > ul button:focus,
 .primary-nav > ul button:focus-visible {
-    outline: 3px solid #df713d;
+    outline: 3px solid #fb6d29;
     /*outline-offset: 3px;*/
 }
 
@@ -156,7 +160,8 @@ header {
     max-height: 0;
     margin-top: 0;
     padding: 0;
-    background: #e3ebf6;
+    background: #eff7ff;
+    background: linear-gradient(7.5deg,#eff7ff, #fdfefe);
     border-top: 0 solid #c8d4e3;
     opacity: 0;
     visibility: hidden;
@@ -176,7 +181,7 @@ header {
 .sitemap.is-expanded {
     margin-top: 1rem;
     max-height: 32rem;
-    padding: 1rem 1.05rem;
+    padding: 1rem 1.5rem;
     border-top-width: 1px;
     opacity: 1;
     visibility: visible;
@@ -199,10 +204,6 @@ header {
     margin-top: 0.3rem;
 }
 
-main {
-    padding: 1.5rem 1.35rem;
-}
-
 main > :first-child,
 main > article > :first-child,
 main > section > :first-child {
@@ -218,6 +219,7 @@ main > section > :last-child {
 main h1,
 main h2,
 main h3 {
+    color: #2a343f;
     line-height: 1.15;
 }
 
@@ -237,40 +239,50 @@ main blockquote {
 
 main blockquote,
 .ipsum {
-    margin: 1.4rem 0;
-    padding: 1rem 1.1rem;
+    margin: 1.5rem 0;
+    padding: 0.1rem 1.25rem;
     border-left: 0.3rem solid #305e99;
-    background: #e3ebf6;
+    background: #eff7ff;
 }
 
 main > article .metadata {
     display: inline-block;
-    padding: 0.075rem 0.4rem 0.125rem;
-    border: 1px solid #c8d4e3;
-    background: #e3ebf6;
+    padding-top: 0.2rem;
     color: #5e6975;
     font-size: 0.8rem;
     letter-spacing: 0.03em;
 }
 
-.archive-intro {
-    margin: 1rem 0 1.3rem;
-    padding: 1rem 1.1rem;
-    border: 1px solid #c8d4e3;
-    background: #e3ebf6;
+main > .archive-intro {
+    margin: -1.5rem -2rem 1.5rem;
+    padding: 0.5rem 2rem;
+    background: #eff7ff;
+    border-bottom: 1px solid #dee4eb;
 }
 
-.archive-intro p {
-    margin: 0;
+main > .archive-intro p {
+    line-height: 1.25;
+}
+
+main > .archive-intro p + .archive-links {
+    margin-top: -1rem;
 }
 
 .archive-links {
     display: flex;
     flex-wrap: wrap;
-    margin: 0.8rem 0 0;
+    gap: 0.5rem 0.5rem;
+    align-items: baseline;
+}
+
+.archive-links ul {
+    margin-top: 0;
     padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 0.5rem;
+    align-items: baseline;
     list-style: none;
-    gap: 0.8rem 1.2rem;
 }
 
 .archive-links li {
@@ -284,7 +296,7 @@ main > article .metadata {
 }
 
 .archive-pagination {
-    margin: 1.2rem 0 1.5rem;
+    margin: 1.25rem 0 2rem;
 }
 
 .archive-pagination-bottom {
@@ -318,7 +330,8 @@ main > article .metadata {
 }
 
 footer {
-    padding: 1rem 1.35rem 1.25rem;
+    padding-top: 1rem;
+    padding-bottom: 1.25rem;
     border-top: none;
     color: #5e6975;
     font-size: 0.95rem;
@@ -335,7 +348,7 @@ footer p {
         grid-template-areas:
             "title nav"
             "summary nav"
-            "advnav advnav";
+            "sitemap sitemap";
         column-gap: 1.5rem;
         align-items: start;
     }
@@ -363,23 +376,29 @@ footer p {
     }
 
     .sitemap {
-        grid-area: advnav;
+        grid-area: sitemap;
     }
 }
 
 @media (max-width: 760px) {
     .page {
         width: auto;
-        width: calc(100% - 1rem);
+        width: calc(100% - 2rem);
         max-width: 72rem;
-        padding-top: 0.5rem;
     }
 
     header,
     main,
     footer {
-        padding-left: 1rem;
-        padding-right: 1rem;
+        padding: 1rem 1.25rem;
+    }
+
+    main > .archive-intro {
+        margin: -1rem -1.25rem 1.5rem;
+    }
+
+    footer {
+        padding-top: 0.75rem;
     }
 
     .primary-nav > ul {

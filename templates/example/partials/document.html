@@ -3,7 +3,7 @@
 {% if document.type is "news" %}
     <div class="metadata">
         {% if document.date is not "" %}
-            <span class="date">{{ document.date }}</span>
+            <span class="date">📅 {{ document.date }}</span>
         {% endif %}
         {% if document.authors is not "" %}
             {% if document.date is not "" %}

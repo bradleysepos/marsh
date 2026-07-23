@@ -889,7 +889,7 @@ function marsh_format_elapsed_time {  # marsh_format_elapsed_time elapsed_second
     '
 }
 
-# builds a cache file path from one or more stable key parts, chunking long components into nested directories
+# builds a cache file path from one or more key parts
 function marsh_get_cache_path {  # marsh_get_cache_path cache_root suffix key_part [key_part...]
     local CACHE_ROOT SUFFIX KEY
 

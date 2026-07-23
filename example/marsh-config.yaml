@@ -19,7 +19,6 @@ Build:
           Path:      news/index.markdown
           Root_Path: news
           Encoding:  html
-          #Count:     10
           Page_Size: 10
           Types:     [ news ]
           Exclude_States: [ draft ]
@@ -31,7 +30,6 @@ Build:
           Path:      news/all/index.markdown
           Root_Path: news
           Encoding:  html
-          #Count:     10
           Types:     [ news ]
           Exclude_States:  [ draft ]
         - Name:      marsh News Feed

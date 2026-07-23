@@ -516,6 +516,63 @@ Makes these custom tags available for use in templates:
 
 Custom document metadata tags generally provide the same utility as recognized document metadata tags.
 
+### Conditional tags
+
+Conditional tags allow you to include or exclude content based on template tag values. They use a syntax similar to regular template tags but with additional operators for comparison and filtering.
+
+A conditional tag is composed of the name of the template tag whose value will be compared, a conditional operator, and the comparison value. Invalid conditional tag sections are not processed and instead are removed from the rendered output.
+
+#### Supported conditional operators
+
+- `is` or `equals`: Checks whether the tag value equals the condition value
+- `is not` or `does not equal`: Checks whether the tag value does not equal the condition value
+- `contains`: Checks whether the tag value contains the condition value
+- `does not contain`: Checks whether the tag value does not contain the condition value
+
+Examples:
+
+```html
+{% if document.type is "article" %}
+    <!-- Content for article documents -->
+{% endif %}
+
+{% if document.state contains "published" %}
+    <!-- Content for documents with published state -->
+{% endif %}
+
+{% if document.authors is not "" %}
+  <!-- Content for documents with authors -->
+{% endif %}
+
+{% if document.state does not contain "draft" %}
+    <!-- Content for documents without draft state -->
+{% endif %}
+```
+
+#### Nested conditionals
+
+Conditional tags can be nested within each other. Each nested conditional must have its own `if` and `endif` tags.
+
+```html
+{% if document.type is "article" %}
+    {% if document.state contains "published" %}
+        <!-- Content for published articles -->
+    {% endif %}
+{% endif %}
+```
+
+#### Else clauses
+
+You can use `else` to provide alternative content when the condition is false:
+
+```html
+{% if document.state contains "draft" %}
+    <!-- Content for draft documents -->
+{% else %}
+    <!-- Content for non-draft documents -->
+{% endif %}
+```
+
 ### Text transforms
 
 Text transforms modify template tag values during rendering. A transform is added after a tag name using the pipe character.

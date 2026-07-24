@@ -14,6 +14,7 @@ Sections in this document:
 - [Archives and Syndication](#archives-and-syndication)
 - [Templates](#templates)
 - [Advanced Template Usage](#advanced-template-usage)
+- [Upgrading From Earlier Versions](#upgrading-from-earlier-versions)
 - [License](#license)
 
 
@@ -1033,6 +1034,203 @@ Templates may also define a dedicated redirect partial. When a document provides
 The redirect destination is available in templates using the tag `document.redirect-url`.
 
 This is useful for placeholder pages, moved content, or preserving older URLs while sending readers to a new location.
+
+
+Upgrading From Earlier Versions
+-------------------------------
+
+This section describes how to keep your sites working when upgrading to newer versions of `marsh` from earlier versions. It does not cover all new features and functionality in newer versions, only changes in configuration and behavior that may require action on your part to ensure your site remains compatible.
+
+### Upgrading to marsh 1.0.0 from marsh 0.8.3
+
+#### Target build configuration
+
+Remote source tree fetching as previously configured by `Remote` and `Fetch` has been deemed no longer in scope and thus removed. Source trees must now be local.
+
+Old:
+
+```yaml
+Build:
+  Targets:
+    - Name: My Target
+      Source: source
+      Remote: https://github.com/.../my-repo.git
+      Fetch: true
+```
+
+New:
+
+```yaml
+Build:
+  Targets:
+    - Name: My Target
+      Source: source
+```
+
+#### Template build configuration
+
+The `Build.Targets[].Templates` mapping has been replaced by the singular `Build.Targets[].Template` mapping. `Config` has been replaced by a list of `Overrides`.
+
+Remote template fetching as previously configured using `Remote` and `Fetch` has been deemed no longer in scope and thus removed. Source trees must now be local.
+
+```yaml
+Build:
+  Targets:
+    - Name: My Target
+      Templates:
+        - Source: templates/my-template
+          Config: templates/my-template/template-overrides.yaml
+          Remote: https://github.com/.../my-repo.git
+          Fetch:  true
+```
+
+```yaml
+Build:
+  Targets:
+    - Name: My Target
+      Template:
+        Source: templates/my-template/template.yaml
+        Overrides:
+          - templates/my-template/template-overrides.yaml
+```
+
+#### Sitemap navigation build configuration
+
+The `Build.Targets.Navigation` configuration mapping has been replaced by the `Build.Targets[].Sitemap.Source` mapping. Setting `Search` to `true` replicates the previous behavior of treating the specified sitemap file name as a lookup key, where each found sitemap applies only to the its source subtree, and multiple sitemaps can coexist. Setting `Search` to `false` or omitting it entirely treats the specified sitemap as a single global sitemap for the target.
+
+Old:
+
+```yaml
+Build:
+  Targets:
+    - Name: My Target
+      Navigation: sitemap.markdown
+```
+
+New:
+
+```yaml
+Build:
+  Targets:
+    - Name: My Target
+      Sitemap:
+        Source: sitemap.markdown
+        Search: true
+```
+
+#### Archives build configuration
+
+The `Build.Targets.Navigation` configuration mapping has been revised. `Root_Path` must be provided where a nested path is specified. `Encoding` must now be explicitly provided. `Exclude` has been renamed `Exclude_States` to be explicit.
+
+Old:
+
+```yaml
+Build:
+  Targets:
+    - Name: My Target
+      Archives:
+        - Name:    My News Archive
+          Path:    news/index.markdown
+          Types:   [ news ]
+          Exclude: [ draft ]
+```
+
+New:
+
+```yaml
+Build:
+  Targets:
+    - Name: My Target
+      Archives:
+        - Name:      My archive
+          Path:      news/index.markdown
+          Root_Path: news
+          Encoding:  html
+          Types:     [ news ]
+          Exclude_States: [ draft ]
+```
+
+#### Document content template tag
+
+The `document` template tag has been replaced with `document.content` to explicitly reference the rendered content of the current page or archive subdocument for inclusion.
+
+Old:
+
+```text
+{{ document }}
+```
+
+New:
+
+```text
+{{ document.content }}
+```
+
+#### Document authors template tag
+
+Previously, the `document.authors` template tag automatically removed RFC 2822 email addresses from author names and replaced spaces with non-breaking space HTML entities, e.g., `John Doe <john@example.com>` would become `John Doe` and further `John&nbsp;Doe` to avoid line breaks in the middle of author names. Additionally, multiple author names were joined by Oxford commas. This internal magic behavior has been removed.
+
+This template tag now outputs the raw list of authors. Users must now use the text transforms `email:remove-angle-addr`, `escape:nbsp`, and `items:join-type:oxford` to produce the same result as before.
+
+Old:
+
+```text
+{{ document.authors }}
+```
+
+New:
+
+```text
+{{ document.authors | email:remove-angle-addr | escape:nbsp | items:join-type:oxford }}
+```
+
+#### Sitemap navigation template tag
+
+The `navigation` template tag has been replaced with `target.sitemap`. This includes the rendered sitemap markup for the current target, empty where no sitemap document is configured or found.
+
+Old:
+
+```text
+{{ navigation }}
+```
+
+New:
+
+```text
+{{ target.sitemap }}
+```
+
+#### Styles and scripts template tags
+
+Previously, the `template.assets.styles` and `template.assets.scripts` template tags were automatically wrapped in HTML. This internal magic behavior has been removed.
+
+These template tags now output the raw lists of paths. Users must now use the text transforms `items:wrap-type:html-style-link` and `items:wrap-type:html-script-src` to produce the same result as before.
+
+Old:
+
+```text
+{{ template.assets.styles }}
+{{ template.assets.scripts }}
+```
+
+New:
+
+```text
+{{ template.assets.styles | items:wrap-type:html-style-link }}
+{{ template.assets.scripts | items:wrap-type:html-script-src }}
+```
+
+#### CLI arguments and behavior
+
+Remote source tree fetching has been deemed no longer in scope and thus the `--fetch` argument has been removed. Source trees must now be local.
+
+The CLI terminal output has been revised and verbosity during building has been reduced. The new `--log-level` argument accepts the values `info` (default) and `verbose`, and the latter more closely mimics the previous behavior.
+
+The default list of extensions used for choosing which files to treat as Markdown documents has been revised and may be configured using the `--markdown-document-extensions` parameter. The extension `.markdown` is always included regardless of user configuration. See the CLI help for more information.
+
+The file extension for rendered HTML-from-Markdown documents is now configurable using the `--markdown-document-extensions-replacement` parameter, default `.html`. An important change is that this parameter now affects processing of Markdown-syntax relative links in documents. Relative links from your Markdown documents to other Markdown documents may now use the actual source document extension, e.g., `.markdown` or `.md`, instead of the rendered document extension, e.g., `.html`. In your documents, simply change your relative links from `[Some Markdown Document](markdown-document.html)` to `[Some Markdown Document](markdown-document.md)` where `.md` is the actual source document extension, and `marsh` will do the rest. Your built site will work as before, and the literal source references will also allow you to navigate between Markdown documents in supported applications such as GitHub's Web UI for browsing repository source trees.
+
+When generating relative links, `marsh` now removes the file name `index.html`, creating links like `about/` instead of `about/index.html`. The list of filenames to remove may be configured using the `--remove-link-filenames` parameter and specifying an empty string (`--remove-link-filenames=""`) disables this functionality. See the CLI help for more information.
 
 
 License

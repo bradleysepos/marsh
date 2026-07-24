@@ -295,7 +295,7 @@ Becomes this HTML:
 In addition to its own extensions, `marsh` supports the Markdown syntax extensions supported by [Discount](https://www.pell.portland.or.us/~orc/Code/discount/) such as tables and fenced code blocks, which are common across many implementations.
 
 
-Archives and syndication
+Archives and Syndication
 ------------------------
 
 `marsh` can automatically generate archives of collections of documents, such as chronological news and blog posts, in HTML format and the web syndication formats [Atom](https://en.wikipedia.org/wiki/Atom_%28web_standard%29) and [JSON Feed](https://en.wikipedia.org/wiki/JSON_Feed).
@@ -710,7 +710,7 @@ Conditionally display page navigation for paginated HTML archives:
 ```
 
 
-Advanced template usage
+Advanced Template Usage
 -----------------------
 
 The `Templates` section above covers the minimum structure needed to begin rendering pages. `marsh` also provides additional template features for more advanced customization of site output.

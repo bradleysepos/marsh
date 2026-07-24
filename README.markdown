@@ -3,6 +3,19 @@ marsh
 
 marsh is a Bash script for building static websites using Markdown.
 
+Sections in this document:
+
+- [Requirements](#requirements)
+- [Installation](#installation)
+- [Usage](#usage)
+- [Quick Start](#quick-start)
+- [Site Configuration](#site-configuration)
+- [Documents](#documents)
+- [Archives and Syndication](#archives-and-syndication)
+- [Templates](#templates)
+- [Advanced Template Usage](#advanced-template-usage)
+- [License](#license)
+
 
 Requirements
 ------------

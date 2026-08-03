@@ -22,10 +22,9 @@ Requirements
 ------------
 
 - BSD/Linux/macOS or similar
-- Bash shell
-- awk, grep, sed
+- Bash 3.2 or later (supports macOS Bash version out of the box)
 - [Discount](https://www.pell.portland.or.us/~orc/Code/discount/) Markdown processor
-- [GNU Parallel](https://www.gnu.org/software/parallel/) (optional)
+- [GNU Parallel](https://www.gnu.org/software/parallel/) (optional, highly recommended for performance)
 
 Installation
 ------------
@@ -147,19 +146,21 @@ All paths are relative to the configuration file directory. See the `example` di
 Documents
 ---------
 
-### Processing
+### Markdown documents
 
 The main document format is [Markdown](https://en.wikipedia.org/wiki/Markdown). `marsh` converts Markdown documents to HTML, with additional formatting defined by the configured template(s), and finally saves the rendered output to the paths specified in the build configuration.
 
-Within Markdown documents, relative path Markdown syntax links ending in the configured Markdown file extensions are by default rewritten to use the file extension `.html` (configurable via the `--markdown-rewrite-links` command line parameter). This allows Markdown documents to link directly to each other, useful for source documents on repository hosting, while ensuring rendered pages also link to each other.
+Within Markdown documents, relative path Markdown syntax links ending in the configured Markdown file extensions are by default rewritten to use the file extension `.html` (configurable via the `--markdown-document-extensions-replacement` command line parameter). This allows Markdown documents to link directly to each other, useful for source documents on repository hosting, while ensuring rendered pages also link to each other.
+
+### Other files
 
 Files of other types and file extensions are copied as-is to the paths specified in the build configuration.
 
 ### Markdown file types
 
-Markdown documents may use any of the following file extensions (configurable via the `--markdown-file-extensions` command line parameter):
+Markdown documents may use any of the following file extensions (configurable via the `--markdown-document-extensions` command line parameter):
 
-- `.markdown` (always set; not configurable)
+- `.markdown` (always included; not configurable)
 - `.md`
 - `.mkd`
 - `.mkdn`
@@ -199,7 +200,7 @@ convallis felis. Aenean id sodales est, sed aliquet lectus. Sed.
 
 See the `example` directory for additional document examples.
 
-Templates may include document metadata for display on rendered pages and embedding in syndicated feeds. See the `Templates` section for information on template tags.
+Templates may include document metadata for display on rendered pages and embedding in syndicated feeds. See the [Templates](#templates) section for information on using document metadata in templates via template tags.
 
 ### Markdown syntax
 
@@ -207,8 +208,9 @@ Templates may include document metadata for display on rendered pages and embedd
 
 Reference:
 
-- [Markdown syntax at Daring Fireball (original author)](https://daringfireball.net/projects/markdown/syntax)
-- [Markdown help at commonmark.org](https://commonmark.org/help/)
+- [Markdown Basic Syntax at Markdown Guide](https://www.markdownguide.org/basic-syntax/)
+- [Markdown Help at CommonMark](https://commonmark.org/help/)
+- [Markdown at Daring Fireball (original author)](https://daringfireball.net/projects/markdown/syntax)
 - [Markdown Wikipedia article](https://en.wikipedia.org/wiki/Markdown)
 
 ### Markdown syntax extensions
@@ -240,6 +242,8 @@ Becomes this HTML:
   images/image@2x.png 2x, images/image@3x.png 3x" alt="Alternate text" />
 ```
 
+You can also use pixel width variants with suffixes ending in `w`, e.g., `image@800w.png`. Width and resolution variants should not be used together for the same image.
+
 #### Implicit figures
 
 Markdown images with a title are treated as implicit figures. The title becomes the figure caption and the image is linked to itself:
@@ -255,7 +259,7 @@ Becomes this HTML:
 ```html
 <figure>
 <a href="image.png">
-<img src="image.png" srcset="image.png 1x" alt="Alternate text" />
+<img src="image.png" alt="Alternate text" />
 </a>
 <figcaption>Title/caption</figcaption>
 </figure>
@@ -263,7 +267,7 @@ Becomes this HTML:
 
 Automatic responsive images are supported within implicit figures.
 
-#### Inserting HTML `<div>` elements with id or class attributes
+#### Inserting HTML `div` elements with `id` or `class` attributes
 
 Specially formatted HTML comments may be used to insert HTML `div` elements with `id` or `class` attributes. These elements may be used to wrap content for styling or other purposes.
 
@@ -405,7 +409,7 @@ The `News Archive` HTML archive includes all documents and generates the documen
 
 Generated archives do not affect the individual documents, which are still built as usual.
 
-While `marsh` internally compiles the collection of documents to include in an archive, it relies on templating to generate the archive in the desired format. See the `Templates` section for more information. The template at `templates/example` provides partial template examples under `partials/archive`.
+While `marsh` internally compiles the collection of documents to include in an archive, it relies on templating to generate the archive in the desired format. See the `Templates` section for more information. The template at `templates/example` provides examples of template partials under `partials/archive`.
 
 
 Templates
@@ -443,7 +447,7 @@ Template:
 
 Partials paths are relative to the location of the configuration file.
 
-See the `Advanced template usage` section and the template at `templates/example` for more information.
+See the [Advanced Template Usage](#advanced-template-usage) section and the template at `templates/example` for more information.
 
 ### Template tags
 
@@ -578,7 +582,7 @@ Conditional tags can be nested within each other. Each nested conditional must h
 
 #### Else clauses
 
-You can use `else` to provide alternative content when the condition is false:
+You can use `else` to provide alternative content when the condition evaluates to false:
 
 ```html
 {% if document.state contains "draft" %}
@@ -600,24 +604,25 @@ Consider the following template tag:
 
 The `slug` text transform produces a URL-style text fragment, changing a document title such as "My favorite document" into "my-favorite-document".
 
-Multiple transforms may be chained, and they are applied in order from left to right.
+Multiple transforms may be used by appending additional pipe characters and transform names, and are applied in order from left to right.
 
 Useful transforms include:
 
+- `case:lower`, and `case:upper` for converting text to lowercase or uppercase
 - `date` and date format variants such as `date-type:rfc2822` and `date-type:rfc3339` for formatting document dates
 - `trim` for removing leading and trailing whitespace
 - `slug` for converting text into a simple URL-style slug
 - `decode:entities` for decoding HTML entities
-- `escape:html` and `escape:json-val` for safe HTML and JSON output
+- `escape:html` and `escape:json` for safe HTML and JSON output
 - `plaintext` for stripping HTML markup down to plain text
 - `excerpt` and `excerpt-type:html` for generating short summaries, e.g., `excerpt:100` converts to plain text and limits to 100 characters
 
-Item transforms are useful when working with list-style metadata such as `document.authors` and `document.state`:
+Items transforms are useful when working with list-style metadata such as `document.authors` and `document.state`:
 
 - `items:join` renders values joined together using a delimiter, e.g., `items:join:,` produces "a,b,c"
-- `items:join-type:oxford` renders values as a natural-language list, e.g., "a, b, and c"
-- `items:json-array` renders values as JSON array items
-- `items:wrap-type:xml` renders each value wrapped in XML tags, e.g., `items:wrap-type:xml:tag` produces `<tag>a</tag><tag>b</tag><tag>c</tag>`
+- `items:join-type:oxford` renders values joined together as a natural-language list, e.g., "a, b, and c"
+- `items:json-array` renders values as JSON array contents, e.g., "a","b"
+- `items:wrap-type:html` renders each value wrapped in HTML tags, e.g., `items:wrap-type:xml:tag` produces `<tag>a</tag><tag>b</tag><tag>c</tag>`
 - `items:wrap-type:html-style-link` renders each value as an HTML `<link rel="stylesheet" href="..." />` tag
 - `items:wrap-type:html-script-src` renders each value as an HTML `<script src="..."></script>` tag
 
@@ -634,12 +639,13 @@ Examples:
 {{ document.date | date-type:rfc3339 }}
 {{ document.authors | items:join-type:oxford }}
 {{ document.content | excerpt:300:2 }}
+{{ template.assets.styles | items:wrap-type:html-style-link }}
 {{ template.assets.scripts | items:wrap-type:html-script-src }}
 ```
 
 Text transforms may be applied to recognized and custom document metadata tags, as well as rendered document content.
 
-### Examples
+### Example Conditional Tags and Text Transforms Usage
 
 Here are some practical examples of how conditional tags and text transforms are used in real templates.
 
@@ -797,7 +803,7 @@ For rendering [JSON Feed](https://en.wikipedia.org/wiki/JSON_Feed) syndication f
 - `Archive.JSON.Body`: The main body wrapper for the JSON Feed. Inserted using `{{ template.body }}` when rendering a JSON Feed archive.
 - `Archive.JSON.Document`: The document content wrapper for rendering each JSON Feed entry. Inserted using `{{ template.document }}` when rendering a JSON Feed archive.
 
-#### Related generated template tags
+#### Generated template tags for template assets
 
 In addition to the partial-specific `template.*` tags above, `marsh` provides generated template tags for template asset lists using the prefix `template.assets.`. Each tag resolves to a newline-delimited list of page-relative asset paths for the items in that asset category.
 
@@ -850,7 +856,7 @@ Template:
 
 In this example, the files `css/site.css`, `js/site.js`, and `images/logo.png` are copied from the template into the build output for the target.
 
-You can reference any specific asset in a partial template by combining its path with generated metadata template tags. You can also reference the list of assets for any category by its associated template tag, and apply text transforms to customize how it is rendered. The following example demonstrates both types of asset inclusion in partials.
+You can reference any specific asset in a partial template by combining its path with generated metadata template tags. You can also reference the list of assets for any category by its associated template tag, and apply text transforms to customize how it is rendered. The following example demonstrates both types of asset inclusion in template partials.
 
 The following example partial:
 
@@ -868,7 +874,7 @@ The following example partial:
 </html>
 ```
 
-Combined with the template configuration with assets above, this example partial would produce the following rendered output for a document one directory level below the root path:
+Combined with the template configuration with assets above, this example partial would produce the following rendered output for a document one directory level below the root path, e.g., `/pages/my-page.html`:
 
 ```html
 <!DOCTYPE html>
@@ -886,7 +892,7 @@ Combined with the template configuration with assets above, this example partial
 
 ### Site map
 
-Targets may define in the site build configuration a site map document, which is a normal document in your source tree that typically contains links to most or all of the other pages on your site, like a table of contents.
+In the site build configuration, targets may define a site map document, which is a normal document in your source tree that typically contains links to most or all of the other pages on your site, like a table of contents.
 
 `marsh` builds a special version of the site map document and makes it available for embedding on other pages using the template tag `{{ target.sitemap }}`. Relative links are rewritten to be path-correct in relation to the individual pages on which the site map is embedded.
 
@@ -927,7 +933,7 @@ Note that the resolved path for a site map must remain inside the site source tr
 
 ### Template overrides
 
-A template override is an additional template configuration file that is applied in addition to the primary target template, allowing you to customize an existing template without creating a separate full template copy. Overrides are specified alongside the template specification in your site build configuration file (not the template configuration file).
+A template override is an additional template configuration file that is applied in addition to the primary target template, allowing you to customize an existing template without creating a complete separate customized copy. Overrides are specified alongside the template specification in your site build configuration file (not the template configuration file).
 
 Example site build configuration specifying a template and template override:
 
@@ -1026,7 +1032,7 @@ Archives may also select which documents to include and how archive subdocument 
 - `Types` limits an archive to include only the specified document types
 - `Exclude_States` omits documents with matching state values, such as `draft`
 
-For example, an archive configuration might specify `Types: [ news ]` and `Exclude_States: [ draft ]` to include only published news documents.
+For example, an archive configuration might specify `Types: [ news ]` and `Exclude_States: [ draft ]` to include only news documents not marked as draft.
 
 ### Redirect pages
 
@@ -1143,7 +1149,7 @@ Build:
   Targets:
     - Name: My Target
       Archives:
-        - Name:      My archive
+        - Name:      My News Archive
           Path:      news/index.markdown
           Root_Path: news
           Encoding:  html
@@ -1169,7 +1175,7 @@ New:
 
 #### Document authors template tag
 
-Previously, the `document.authors` template tag automatically removed RFC 2822 email addresses from author names and replaced spaces with non-breaking space HTML entities, e.g., `John Doe <john@example.com>` would become `John Doe` and further `John&nbsp;Doe` to avoid line breaks in the middle of author names. Additionally, multiple author names were joined by Oxford commas. This internal magic behavior has been removed.
+Previously, the `document.authors` template tag automatically removed RFC 2822 email addresses from author names and replaced spaces with non-breaking space HTML entities to avoid line breaks in the middle of author names, e.g., `John Doe <john@example.com>` would become `John&nbsp;Doe`. Additionally, multiple author names were joined by Oxford commas. This internal magic behavior has been removed.
 
 This template tag now outputs the raw list of authors. Users must now use the text transforms `email:remove-angle-addr`, `escape:nbsp`, and `items:join-type:oxford` to produce the same result as before.
 

@@ -15,6 +15,7 @@ Sections in this document:
 - [Templates](#templates)
 - [Advanced Template Usage](#advanced-template-usage)
 - [Upgrading From Earlier Versions](#upgrading-from-earlier-versions)
+- [Development Process](#development-process)
 - [License](#license)
 
 
@@ -1238,6 +1239,25 @@ The default list of extensions used for choosing which files to treat as Markdow
 The file extension for rendered HTML-from-Markdown documents is now configurable using the `--markdown-document-extensions-replacement` parameter, default `.html`. An important change is that this parameter now affects processing of Markdown-syntax relative links in documents. Relative links from your Markdown documents to other Markdown documents may now use the actual source document extension, e.g., `.markdown` or `.md`, instead of the rendered document extension, e.g., `.html`. In your documents, simply change your relative links from `[Some Markdown Document](markdown-document.html)` to `[Some Markdown Document](markdown-document.md)` where `.md` is the actual source document extension, and `marsh` will do the rest. Your built site will work as before, and the literal source references will also allow you to navigate between Markdown documents in supported applications such as GitHub's Web UI for browsing repository source trees.
 
 When generating relative links, `marsh` now removes the file name `index.html`, creating links like `about/` instead of `about/index.html`. The list of filenames to remove may be configured using the `--remove-link-filenames` parameter and specifying an empty string (`--remove-link-filenames=""`) disables this functionality. See the CLI help for more information.
+
+
+Development Process
+-------------------
+
+The code in the main `marsh` script is written by humans. LLMs analyzed the source for errors and inconsistencies. LLMs also informed the strategy for migrating the original architecture used in versions 0.8.3 and earlier to the planner-executor architecture in versions 1.0.0-alpha and later, performed static analysis throughout the migration, and suggested draft comments and commit messages throughout the migration.
+
+The `marsh-test` test suite was originally written by humans. LLMs created some helper functions and added many additional test cases.
+
+The documentation in `README.markdown` is written by humans. LLMs analyzed the documentation for gaps, errors, and inconsistencies.
+
+The example website at `example` was originally written by humans. LLMs created the most of the mock news articles content for the example site.
+
+The example template at `templates/example` is written by humans.
+
+**In summary:**
+
+- **No AI-generated content exists in the main script, documentation, or example template.** AI was only used for analysis-related tasks.
+- **The test suite and example site content contain AI-generated content.**
 
 
 License

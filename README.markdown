@@ -98,9 +98,10 @@ The included `marsh-test` test suite may be run to verify `marsh` compatibility 
 Quick Start
 -----------
 
-Once you have installed the necessary dependencies, a good way to get started is building the example site. Run the following command from the root directory of this repository on your machine:
+Once you have installed the necessary dependencies, a good way to get started is building the example site. Run the following commands from the root directory of this repository on your machine:
 
 ```text
+chmod +x marsh
 ./marsh build --log-level=verbose example
 ```
 

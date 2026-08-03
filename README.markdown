@@ -7,8 +7,8 @@ Sections in this document:
 
 - [Requirements](#requirements)
 - [Installation](#installation)
-- [Usage](#usage)
 - [Quick Start](#quick-start)
+- [Usage](#usage)
 - [Site Configuration](#site-configuration)
 - [Documents](#documents)
 - [Archives and Syndication](#archives-and-syndication)
@@ -55,6 +55,31 @@ brew install discount parallel
 You can also build Discount provided as a submodule in the `contrib` directory using the `build-discount` script in the `tools` directory. A working C compiler toolchain is required.
 
 
+Quick Start
+-----------
+
+Once you have installed the necessary dependencies, a good way to get started is building the example site. Run the following commands from the root directory of this repository on your machine:
+
+```text
+chmod +x marsh
+./marsh build --log-level=verbose example
+```
+
+`marsh` will build the example site using the `marsh-config.yaml` configuration file in the specified `example` directory.
+
+The configuration file specifies `public` as the build output path, which is relative to the configuration file directory, so the site is built and published to `example/public`. The `--log-level=verbose` parameter prints more information during the build than the standard `info` log level, so you can see in greater detail what is being built in real-time.
+
+When the command is completed, open `example/public/index.html` in your web browser to view the built example site.
+
+The source documents for the example site are located at `example/source`, and the example template is located at `templates/example`. You can inspect these directories and files to get a basic idea of where to put things and how they work. More detail is covered in the sections that follow.
+
+If you run into any problems or are simply curious, you can also run the test suite to ensure `marsh` works correctly on your system using the command:
+
+```
+./marsh-test --marsh=./marsh
+```
+
+
 Usage
 -----
 
@@ -93,31 +118,6 @@ marsh --help
 ```
 
 The included `marsh-test` test suite may be run to verify `marsh` compatibility with your system. Run `marsh-test --help` for usage information.
-
-
-Quick Start
------------
-
-Once you have installed the necessary dependencies, a good way to get started is building the example site. Run the following commands from the root directory of this repository on your machine:
-
-```text
-chmod +x marsh
-./marsh build --log-level=verbose example
-```
-
-`marsh` will build the example site using the `marsh-config.yaml` configuration file in the specified `example` directory.
-
-The configuration file specifies `public` as the build output path, which is relative to the configuration file directory, so the site is built and published to `example/public`. The `--log-level=verbose` parameter prints more information during the build than the standard `info` log level, so you can see in greater detail what is being built in real-time.
-
-When the command is completed, open `example/public/index.html` in your web browser to view the built example site.
-
-The source documents for the example site are located at `example/source`, and the example template is located at `templates/example`. You can inspect these directories and files to get a basic idea of where to put things and how they work. More detail is covered in the sections that follow.
-
-If you run into any problems or are simply curious, you can also run the test suite to ensure `marsh` works correctly on your system using the command:
-
-```
-./marsh-test --marsh=./marsh
-```
 
 
 Site Configuration

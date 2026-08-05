@@ -12,7 +12,7 @@
 # environment variables and help for command line interface
 function marsh_env_cli {
     NAME="marsh"
-    VERSION="1.0.0-alpha.1"
+    VERSION="1.0.0"
     SELF="${BASH_SOURCE[0]}"
     SELF_DIR=$(dirname "${BASH_SOURCE[0]}")
     SELF_DIR=$(cd "${SELF_DIR}" && pwd -P)

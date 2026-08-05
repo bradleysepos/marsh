@@ -4,10 +4,10 @@
     <nav class="primary-nav" aria-label="Primary navigation">
         <ul>
             <li><a href="{{ site.rootpath }}">Home</a></li>
-            <li><a href="{{ site.rootpath }}about/">About</a></li>
-            <li><a href="{{ site.rootpath }}news/">News</a></li>
+            <li><a href="{{ site.rootpath | normalize-path }}about/">About</a></li>
+            <li><a href="{{ site.rootpath | normalize-path }}news/">News</a></li>
             <li>
-                <a href="{{ site.rootpath }}site-map/" data-site-nav-fallback-link>Site Map</a>
+                <a href="{{ site.rootpath | normalize-path }}site-map/" data-site-nav-fallback-link>Site Map</a>
                 <button class="is-hidden" type="button" aria-expanded="false" aria-controls="site-nav-panel" data-site-nav-toggle-button hidden>Site Map</button>
             </li>
         </ul>

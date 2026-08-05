@@ -1,11 +1,11 @@
 ---
 Build:
-  Name: marsh example website
+  Name: Marsh Example Site
   Description: Example static website built with marsh
   URL: https://bradleysepos.github.io/marsh-example
   Path: public
   Targets:
-    - Name:   marsh example website
+    - Name:   Marsh Example Site
       Path:   .
       Force:  true
       Source: source/*
@@ -15,7 +15,7 @@ Build:
         #Overrides:
         #  - ../templates/example/template-overrides.yaml
       Archives:
-        - Name:      News archive
+        - Name:      News Archive
           Path:      news/index.markdown
           Root_Path: news
           Encoding:  html
@@ -26,20 +26,20 @@ Build:
           #  Source: ../templates/example
           #  Overrides:
           #    - ../templates/example/template-overrides.yaml
-        - Name:      Full news archive
+        - Name:      Full News Archive
           Path:      news/all/index.markdown
           Root_Path: news
           Encoding:  html
           Types:     [ news ]
           Exclude_States:  [ draft ]
-        - Name:      marsh News Feed
+        - Name:      Marsh News Feed
           Path:      news/feed.xml
           Root_Path: news
           Encoding:  atom
           Count:     20
           Types:     [ news ]
           Exclude_States: [ draft ]
-        - Name:      marsh News Feed
+        - Name:      Marsh News Feed
           Path:      news/feed.json
           Root_Path: news
           Encoding:  json

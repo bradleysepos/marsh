@@ -10563,6 +10563,33 @@ function marsh_test {
             fi
             ;;
         marsh_text_transform:97)
+            TEST_NAME+=":normalize_path"
+            ACTUAL=$(printf '%s' "./" | marsh_text_transform normalize-path)
+            EXPECTED=""
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_text_transform:98)
+            TEST_NAME+=":normalize_path"
+            ACTUAL=$(printf '%s' "./foo" | marsh_text_transform normalize-path)
+            EXPECTED="foo"
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_text_transform:99)
+            TEST_NAME+=":normalize_path"
+            ACTUAL=$(printf '%s' "./foo/./bar/./" | marsh_text_transform normalize-path)
+            EXPECTED="foo/bar/"
+            ASSERTION="equals"
+            if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
+                RES="[PASS]"
+            fi
+            ;;
+        marsh_text_transform:100)
             TEST_NAME+=":plaintext"
             ACTUAL=$(printf '%s' "<div><p>Some HTML content and entities to decode: &lt; &gt; &amp; &#34; &#165; &#9829;<br><br />"$'\n\n'"Some more text"$'\n\n\n\n'"Even more text</p></div>" | marsh_text_transform plaintext)
             EXPECTED="Some HTML content and entities to decode: < > & \" ¥ ♥"$'\n\n'"Some more text"$'\n\n'"Even more text"
@@ -10571,7 +10598,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_transform:98)
+        marsh_text_transform:101)
             TEST_NAME+=":plaintext"
             ACTUAL=$(printf '%s' "Raw < character should work on BSD sed" | marsh_text_transform plaintext)
             EXPECTED="Raw < character should work on BSD sed"
@@ -10580,7 +10607,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_transform:99)
+        marsh_text_transform:102)
             TEST_NAME+=":prepend"
             ACTUAL=$(printf '%s' "Some text"$'\n'"More text" | marsh_text_transform prepend:before)
             EXPECTED="beforeSome text"$'\n'"More text"
@@ -10589,7 +10616,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_transform:100)
+        marsh_text_transform:103)
             TEST_NAME+=":prepend_type_block"
             ACTUAL=$(printf '%s' "Some text"$'\n\n'"More text" | marsh_text_transform prepend-type:block:before)
             EXPECTED="before"$'\n\n'"Some text"$'\n\n'"More text"
@@ -10598,7 +10625,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_transform:101)
+        marsh_text_transform:104)
             TEST_NAME+=":slug"
             ACTUAL=$(printf '%s' "Titlé of something" | marsh_text_transform slug)
             EXPECTED="titl-of-something"
@@ -10607,7 +10634,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_transform:102)
+        marsh_text_transform:105)
             TEST_NAME+=":trim"
             ACTUAL=$(printf '%s' ' '$'\t''  Some text with spaces'$'\t''  ' | marsh_text_transform trim)
             EXPECTED="Some text with spaces"
@@ -10616,7 +10643,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_transform:103)
+        marsh_text_transform:106)
             TEST_NAME+=":trim_multiline"
             ACTUAL=$(printf '%s' ' '$'\t''First line'$'\n''  indented second line'$'\t\n''Third line'$'\t''  ' | marsh_text_transform trim; printf '\001')
             ACTUAL="${ACTUAL%$'\001'}"
@@ -10626,7 +10653,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_transform:104)
+        marsh_text_transform:107)
             TEST_NAME+=":wrap"
             ACTUAL=$(printf '%s' "Some text"$'\n\n'"More text" | marsh_text_transform wrap:before:after)
             EXPECTED="beforeSome text"$'\n\n'"More textafter"
@@ -10635,7 +10662,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_transform:105)
+        marsh_text_transform:108)
             TEST_NAME+=":wrap_type_block"
             ACTUAL=$(printf '%s' "Some text"$'\n\n'"More text" | marsh_text_transform wrap-type:block:before:after)
             EXPECTED="before"$'\n\n'"Some text"$'\n\n'"More text"$'\n\n'"after"
@@ -10644,7 +10671,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_transform:106)
+        marsh_text_transform:109)
             TEST_NAME+=":wrap_type_special_comment"
             ACTUAL=$(printf '%s' "Some text"$'\n\n'"<p>Some HTML</p>" | marsh_text_transform wrap-type:special-comment:div.wrapper)
             EXPECTED="<!-- div.wrapper -->"$'\n\n'"Some text"$'\n\n'"<p>Some HTML</p>"$'\n\n'"<!-- /div.wrapper -->"
@@ -10653,7 +10680,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_transform:107)
+        marsh_text_transform:110)
             TEST_NAME+=":multiple"
             ACTUAL=$(printf '%s' $'\n\n\n\n'"Some text"$'\n'"&#9829;" | marsh_text_transform newlines:trim newlines:tospaces decode:entities items:wrap:\")
             EXPECTED="\"Some text ♥\""
@@ -10662,7 +10689,7 @@ function marsh_test {
                 RES="[PASS]"
             fi
             ;;
-        marsh_text_transform:108)
+        marsh_text_transform:111)
             TEST_NAME+=":multiple"
             ACTUAL=$(printf '%s' "First item"$'\n'"Second item"$'\n'"Third item" | marsh_text_transform items:slice:1 escape:nbsp items:wrap:\" items:join-type:oxford)
             EXPECTED="\"First&nbsp;item\", \"Second&nbsp;item\", and \"Third&nbsp;item\""

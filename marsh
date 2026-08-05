@@ -2315,6 +2315,10 @@ function marsh_text_transform {  # marsh_text_transform transform [transform...]
         newlines:trim:start)
             sed -e '/./,$!d'
             ;;
+        normalize-path)
+            # remove dot slashes from relative paths
+            sed -e 's~^\./~~' -e 's~/\./~/~g'
+            ;;
         plaintext)
             # ':a;s/<[^>]*>//g;/</{;$!{N;ba;};}' strips html tags and works across multiple lines (better version of 's/<[^>]*>//g')
             sed -e ':a' -e 's/<[^>]*>//g' -e '/</{' -e '$!{N' -e 'ba' -e '}' -e '}' | marsh_text_transform newlines:trim items:trim newlines:reduce:2 decode:entities

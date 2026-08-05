@@ -335,7 +335,7 @@ Build:
       Source: source/*
       Template:
         Source: templates/example
-    - Name:   Website news
+    - Name:   Website News
       Path:   news
       Source: source/news
       Template:

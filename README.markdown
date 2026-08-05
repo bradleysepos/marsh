@@ -418,7 +418,7 @@ Templates
 
 Templates control how documents are rendered to become complete web pages with features like headers and navigation, as well as images, layout, and style. Templates also control how syndication feeds are rendered.
 
-A `marsh` template is a directory containing a `template.yaml` configuration file and one or more partial template files, also known as partials. The template configuration declares the resources that `marsh` will use during rendering.
+A `marsh` template is a directory containing a `marsh-template.yaml` configuration file and one or more partial template files, also known as partials. The template configuration declares the resources that `marsh` will use during rendering.
 
 The smallest useful HTML template usually consists of `Base`, `Head`, and `Body` partials.
 
@@ -427,14 +427,14 @@ Given a minimal template directory structure like this:
 ```text
 templates/
 └─ my-template/
-   ├─ template.yaml
+   ├─ marsh-template.yaml
    └─ partials/
       ├─ base.html
       ├─ body.html
       └─ head.html
 ```
 
-The `template.yaml` configuration file should have the contents:
+The `marsh-template.yaml` configuration file should have the contents:
 
 ```yaml
 ---
@@ -754,7 +754,7 @@ Template configuration may define multiple partials for document page rendering,
 
 The `Base` partial is required. Partials other than the `Base` partial may be inserted into other partials using template tags prefixed with `template.`.
 
-The following is a list of recognized partials, their suggested use, and their associated template tags. See also `templates/example/template.yaml` for a comprehensive example template configuration.
+The following is a list of recognized partials, their suggested use, and their associated template tags. See also `templates/example/marsh-template.yaml` for a comprehensive example template configuration.
 
 #### HTML document partials
 
@@ -820,7 +820,7 @@ In addition to the partial-specific `template.*` tags above, `marsh` provides ge
 
 ### Template assets
 
-Templates may declare static assets in `template.yaml`. These assets are copied into the build output along with the rendered documents for targets using the template.
+Templates may declare static assets in `marsh-template.yaml`. These assets are copied into the build output along with the rendered documents for targets using the template.
 
 Supported asset categories are:
 
@@ -948,7 +948,7 @@ Build:
       Template:
         Source: templates/example
         Overrides:
-          - templates/example/template-overrides.yaml
+          - templates/example/marsh-template-overrides.yaml
 ...
 ```
 
@@ -1087,7 +1087,7 @@ Build:
     - Name: My Target
       Templates:
         - Source: templates/my-template
-          Config: templates/my-template/template-overrides.yaml
+          Config: templates/my-template/marsh-template-overrides.yaml
           Remote: https://github.com/.../my-repo.git
           Fetch:  true
 ```
@@ -1097,9 +1097,9 @@ Build:
   Targets:
     - Name: My Target
       Template:
-        Source: templates/my-template/template.yaml
+        Source: templates/my-template/marsh-template.yaml
         Overrides:
-          - templates/my-template/template-overrides.yaml
+          - templates/my-template/marsh-template-overrides.yaml
 ```
 
 #### Sitemap navigation build configuration

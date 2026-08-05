@@ -772,7 +772,7 @@ function marsh_test_create_minimal_template {
         '      - js/site.js' \
         '    Images:' \
         '      - images/logo.png' \
-        '...' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/template.yaml" || return 1
+        '...' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/marsh-template.yaml" || return 1
     printf '%s\n' '<!DOCTYPE html>'$'\n''<html><head>{{ template.head }}</head><body>{{ template.body }}</body></html>' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/partials/base.html" || return 1
     printf '%s\n' '<title>{{ document.title }}</title>{{ template.assets.styles }}' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/partials/head.html" || return 1
     printf '%s\n' '{{ document.content }}' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/partials/body.html" || return 1
@@ -801,7 +801,7 @@ function marsh_test_create_archive_template {
             '        Base: partials/archive-base.xml' \
             '        Body: partials/archive-body.xml' \
             '        Document: partials/archive-document.xml' \
-            '...' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/template.yaml" || return 1
+            '...' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/marsh-template.yaml" || return 1
         printf '%s\n' '<?xml version="1.0" encoding="utf-8"?>'$'\n''<feed>atom-base{{ template.body }}</feed>' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/partials/archive-base.xml" || return 1
         printf '%s\n' '<tag>atom-body</tag>'$'\n''{{ subdocuments }}' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/partials/archive-body.xml" || return 1
         printf '%s\n' '<entry>{{ document.title }}</entry>' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/partials/archive-document.xml" || return 1
@@ -815,7 +815,7 @@ function marsh_test_create_archive_template {
             '        Base: partials/archive-base.json' \
             '        Body: partials/archive-body.json' \
             '        Document: partials/archive-document.json' \
-            '...' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/template.yaml" || return 1
+            '...' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/marsh-template.yaml" || return 1
         printf '%s\n' '{"base":"json-base","items":[{{ template.body }}]}' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/partials/archive-base.json" || return 1
         printf '%s\n' '"json-body",{{ subdocuments }}' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/partials/archive-body.json" || return 1
         printf '%s\n' '"{{ document.title }}"{{ util.json-separator }}' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/partials/archive-document.json" || return 1
@@ -831,7 +831,7 @@ function marsh_test_create_archive_template {
             '    Header: partials/header.html' \
             '    Footer: partials/footer.html' \
             '    Nav: partials/nav.html' \
-            '    Notice: partials/notice.html' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/template.yaml" || return 1
+            '    Notice: partials/notice.html' > "${TEMPLATES_DIR}/${TEMPLATE_NAME}/marsh-template.yaml" || return 1
         if [[ "${INCLUDE_ARCHIVE_PARTIALS}" == true ]]; then
             printf '%s\n' \
                 '    Archive:' \
@@ -844,7 +844,7 @@ function marsh_test_create_archive_template {
                 '        Footer: partials/archive-footer.html' \
                 '        Nav: partials/archive-nav.html' \
                 '        Notice: partials/archive-notice.html' \
-                '...' >> "${TEMPLATES_DIR}/${TEMPLATE_NAME}/template.yaml" || return 1
+                '...' >> "${TEMPLATES_DIR}/${TEMPLATE_NAME}/marsh-template.yaml" || return 1
             printf '%s\n' '<!DOCTYPE html>' \
                 '<html>' \
                 '<head>' \
@@ -873,9 +873,9 @@ function marsh_test_create_archive_template {
             '      - css/site.css' \
             '      - css/print.css' \
             '    Scripts:' \
-            '      - js/site.js' >> "${TEMPLATES_DIR}/${TEMPLATE_NAME}/template.yaml" || return 1
+            '      - js/site.js' >> "${TEMPLATES_DIR}/${TEMPLATE_NAME}/marsh-template.yaml" || return 1
         printf '%s\n' \
-            '...' >> "${TEMPLATES_DIR}/${TEMPLATE_NAME}/template.yaml" || return 1
+            '...' >> "${TEMPLATES_DIR}/${TEMPLATE_NAME}/marsh-template.yaml" || return 1
         printf '%s\n' '<!DOCTYPE html>' \
             '<html>' \
             '<head>' \
@@ -2166,7 +2166,7 @@ function marsh_test {
                 '    Scripts:' \
                 '      - js/site.js' \
                 '      - js/feature.js' \
-                '...' > "${TEMPLATE_DIR}/sample/template.yaml"
+                '...' > "${TEMPLATE_DIR}/sample/marsh-template.yaml"
             marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "about/index.markdown" "content" 'Example'
             marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "about/index.markdown" "meta-yaml" '---' 'Title: About' '...'
             marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "news/2026/index.markdown" "content" 'Example'
@@ -2475,7 +2475,7 @@ function marsh_test {
                 '  Partials:' \
                 '    Base: partials/base.html' \
                 '    Body: partials/body.html' \
-                '...' > "${TEMPLATE_DIR}/sample/template.yaml"
+                '...' > "${TEMPLATE_DIR}/sample/marsh-template.yaml"
             printf '%s\n' \
                 '<!DOCTYPE html>' \
                 '<html><head>' \
@@ -2948,7 +2948,7 @@ function marsh_test {
                 '    Scripts:' \
                 '      - js/site.js' \
                 '      - js/feature.js' \
-                '...' > "${TEMPLATE_DIR}/sample/template.yaml"
+                '...' > "${TEMPLATE_DIR}/sample/marsh-template.yaml"
             marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "news/2026/index.markdown" "content" 'Example'
             marsh_test_write_document_artifacts "${TARGET_OUTPUT_ROOT}" "news/2026/index.markdown" "meta-yaml" '---' 'Title: Example' '...'
             marsh_build_template "${TARGET_OUTPUT_ROOT}" "." "news/2026/index.markdown" "" false "${TEMPLATE_DIR}" "sample" "${DEFAULT_LOG_LEVEL}" "${LOG_LEVELS_CSV}" "marsh_test_markdown_command" "" ".markdown,.md" ".html" "index.html" 0 >/dev/null 2>&1
@@ -3006,7 +3006,7 @@ function marsh_test {
                 '    Scripts:' \
                 '      - js/site.js' \
                 '      - js/feature.js' \
-                '...' > "${TEMPLATE_DIR}/sample/template.yaml"
+                '...' > "${TEMPLATE_DIR}/sample/marsh-template.yaml"
                 marsh_test_create_archive_document "${TARGET_OUTPUT_ROOT}" "news/item.markdown" "post" "Tagged Item" "2026-01-01"
             MANIFEST_FILE="${TARGET_OUTPUT_ROOT}/.archive-manifest"
             marsh_test_write_archive_manifest "${TARGET_OUTPUT_ROOT}" "${MANIFEST_FILE}" ".html" "index.html" "news/item.markdown"
@@ -3080,7 +3080,7 @@ function marsh_test {
                 '    Scripts:' \
                 '      - js/site.js' \
                 '      - js/feature.js' \
-                '...' > "${TEMPLATE_DIR}/sample/template.yaml"
+                '...' > "${TEMPLATE_DIR}/sample/marsh-template.yaml"
                 marsh_test_create_archive_document "${TARGET_OUTPUT_ROOT}" "news/item.markdown" "post" "Tagged Item" "2026-01-01"
             MANIFEST_FILE="${TARGET_OUTPUT_ROOT}/.archive-manifest"
             marsh_test_write_archive_manifest "${TARGET_OUTPUT_ROOT}" "${MANIFEST_FILE}" ".html" "index.html" "news/item.markdown"
@@ -3154,7 +3154,7 @@ function marsh_test {
                 '    Scripts:' \
                 '      - js/site.js' \
                 '      - js/feature.js' \
-                '...' > "${TEMPLATE_DIR}/sample/template.yaml"
+                '...' > "${TEMPLATE_DIR}/sample/marsh-template.yaml"
                 marsh_test_create_archive_document "${TARGET_OUTPUT_ROOT}" "news/item.markdown" "post" "Tagged Item" "2026-01-01"
             MANIFEST_FILE="${TARGET_OUTPUT_ROOT}/.archive-manifest"
             marsh_test_write_archive_manifest "${TARGET_OUTPUT_ROOT}" "${MANIFEST_FILE}" ".html" "index.html" "news/item.markdown"
@@ -3472,7 +3472,7 @@ function marsh_test {
                 '  Partials:' \
                 '    Base: partials/base.html' \
                 '    Body: partials/body.html' \
-                '...' > "${TEMPLATE_DIR}/sample/template.yaml"
+                '...' > "${TEMPLATE_DIR}/sample/marsh-template.yaml"
             printf '%s\n' '<!DOCTYPE html>' '<html><body>{{ template.body }}</body></html>' > "${TEMPLATE_DIR}/sample/partials/base.html"
             printf '%s\n' 'title={{ document.title }}' > "${TEMPLATE_DIR}/sample/partials/body.html"
             printf '%s\n' \
@@ -3649,7 +3649,7 @@ function marsh_test {
                 '  Partials:' \
                 '    Base: partials/base.html' \
                 '    Body: partials/body.html' \
-                '...' > "${TEMPLATE_DIR}/sample/template.yaml"
+                '...' > "${TEMPLATE_DIR}/sample/marsh-template.yaml"
             printf '%s\n' '<!DOCTYPE html>' '<html><body>{{ template.body }}</body></html>' > "${TEMPLATE_DIR}/sample/partials/base.html"
             printf '%s\n' \
                 '{% if document.type is "page" %}' \
@@ -3700,7 +3700,7 @@ function marsh_test {
                 '  Partials:' \
                 '    Base: partials/base.html' \
                 '    Body: partials/body.html' \
-                '...' > "${TEMPLATE_DIR}/sample/template.yaml"
+                '...' > "${TEMPLATE_DIR}/sample/marsh-template.yaml"
             printf '%s\n' '<!DOCTYPE html>' '<html><body>{{ template.body }}</body></html>' > "${TEMPLATE_DIR}/sample/partials/base.html"
             printf '%s\n' \
                 '{% if document.type is "page" %}' \
@@ -4055,7 +4055,7 @@ function marsh_test {
                 '  Partials:' \
                 '    Base: partials/base.html' \
                 '    Body: partials/body.html' \
-                '...' > "${TEMPLATE_DIR}/sample/template.yaml"
+                '...' > "${TEMPLATE_DIR}/sample/marsh-template.yaml"
             printf '%s\n' '<!DOCTYPE html>' '<html><body>{{ template.body }}</body></html>' > "${TEMPLATE_DIR}/sample/partials/base.html"
             printf '%s\n' '{{ document.content }}' > "${TEMPLATE_DIR}/sample/partials/body.html"
             printf '%s\n' '---' 'Title: Example' '...' '' '# Example' > "${TARGET_OUTPUT_ROOT}/index.markdown"
@@ -6220,7 +6220,7 @@ function marsh_test {
             rm -rf "${MARSH_TEST_TEMP}/template-asset-output-cache"
             marsh_test_create_minimal_template "${TEMPLATE_DIR}" "sample"
             EXPECTED=$(marsh_test_capture_template_asset_output_paths "." "${TEMPLATE_DIR}" "sample" 0)
-            printf '%s\n' 'broken' > "${TEMPLATE_DIR}/sample/template.yaml"
+            printf '%s\n' 'broken' > "${TEMPLATE_DIR}/sample/marsh-template.yaml"
             ACTUAL=$(marsh_test_capture_template_asset_output_paths "." "${TEMPLATE_DIR}" "sample" 0)
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -6280,14 +6280,14 @@ function marsh_test {
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.template-source"
             TEMPLATES_DIR="${TEST_TEMP_PREFIX}.templates"
             mkdir -p "${TEMPLATE_DIR}/partials"
-            printf '%s\n' '---' 'Template:' '  Partials:' '    Base: partials/base.html' '...' > "${TEMPLATE_DIR}/template.yaml"
+            printf '%s\n' '---' 'Template:' '  Partials:' '    Base: partials/base.html' '...' > "${TEMPLATE_DIR}/marsh-template.yaml"
             printf '%s\n' '<!DOCTYPE html>' > "${TEMPLATE_DIR}/partials/base.html"
             ACTUAL=$(marsh_get_template_cache_path "${TEMPLATES_DIR}" "sample" "${TEMPLATE_DIR}")
             EXPECTED="${TEMPLATES_DIR}/sample"
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
                 {
-                    [[ -e "${TEMPLATES_DIR}/sample/template.yaml" ]] \
+                    [[ -e "${TEMPLATES_DIR}/sample/marsh-template.yaml" ]] \
                         && [[ -e "${TEMPLATES_DIR}/sample/partials/base.html" ]]
                 }
                 ACTUAL=$?
@@ -6304,13 +6304,13 @@ function marsh_test {
             TEMPLATE_DIR="${TEST_TEMP_PREFIX}.template-source"
             TEMPLATES_DIR="${TEST_TEMP_PREFIX}.templates"
             mkdir -p "${TEMPLATE_DIR}" "${TEMPLATES_DIR}/sample"
-            printf '%s\n' 'source-template' > "${TEMPLATE_DIR}/template.yaml"
-            printf '%s\n' 'existing-template' > "${TEMPLATES_DIR}/sample/template.yaml"
+            printf '%s\n' 'source-template' > "${TEMPLATE_DIR}/marsh-template.yaml"
+            printf '%s\n' 'existing-template' > "${TEMPLATES_DIR}/sample/marsh-template.yaml"
             ACTUAL=$(marsh_get_template_cache_path "${TEMPLATES_DIR}" "sample" "${TEMPLATE_DIR}")
             EXPECTED="${TEMPLATES_DIR}/sample"
             ASSERTION="equals"
             if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
-                ACTUAL=$(<"${TEMPLATES_DIR}/sample/template.yaml")
+                ACTUAL=$(<"${TEMPLATES_DIR}/sample/marsh-template.yaml")
                 EXPECTED='existing-template'
                 ASSERTION="equals"
                 if [[ "${ACTUAL}" == "${EXPECTED}" ]]; then
@@ -6359,7 +6359,7 @@ function marsh_test {
                 '  Assets:' \
                 '    Styles:' \
                 '      - css/site.css' \
-                '...' > "${TEMPLATE_DIR}/template.yaml"
+                '...' > "${TEMPLATE_DIR}/marsh-template.yaml"
             ACTUAL=$(marsh_get_template_metadata "TEMPLATE_" "${TEMPLATE_DIR}" 0)
             EXPECTED=$(printf '%s\n' \
                 "TEMPLATE_Template_Partials_Base=\"${TEMPLATE_DIR}/partials/base.html\"" \
@@ -7610,7 +7610,7 @@ function marsh_test {
                 '    Styles:' \
                 '      - css/site.css' \
                 '      - css/site.tmp.css' \
-                '...' > "${TEMPLATE_DIR}/template.yaml"
+                '...' > "${TEMPLATE_DIR}/marsh-template.yaml"
             ACTUAL=$(marsh_parse_template_metadata "TEMPLATE_" "${TEMPLATE_DIR}")
             EXPECTED=$(printf '%s\n' \
                 "TEMPLATE_Template_Partials_Base=\"${TEMPLATE_DIR}/partials/base.html\"" \
@@ -7654,7 +7654,7 @@ function marsh_test {
                 '    Styles:' \
                 '      - css/site.css' \
                 '      - css/site.tmp.css' \
-                '...' > "${TEMPLATE_DIR}/template.yaml"
+                '...' > "${TEMPLATE_DIR}/marsh-template.yaml"
             printf '%s\n' \
                 '---' \
                 'Template:' \

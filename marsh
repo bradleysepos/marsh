@@ -6710,11 +6710,11 @@ function marsh_parse_template_metadata {  # marsh_parse_template_metadata prefix
     done
 
     # load config
-    if [[ -f "${TEMPLATE_DIR}/template.yaml" ]] && [[ -r "${TEMPLATE_DIR}/template.yaml" ]]; then
-        TEMPLATE_META=$(marsh_parse_yaml "MARSH_TEMPLATE" < "${TEMPLATE_DIR}/template.yaml")
-        [[ $? -ne 0 ]] && echo "Unable to parse yaml file: ${TEMPLATE_DIR}/template.yaml" >&2 && return 1
+    if [[ -f "${TEMPLATE_DIR}/marsh-template.yaml" ]] && [[ -r "${TEMPLATE_DIR}/marsh-template.yaml" ]]; then
+        TEMPLATE_META=$(marsh_parse_yaml "MARSH_TEMPLATE" < "${TEMPLATE_DIR}/marsh-template.yaml")
+        [[ $? -ne 0 ]] && echo "Unable to parse yaml file: ${TEMPLATE_DIR}/marsh-template.yaml" >&2 && return 1
     else
-        echo "Template configuration file not found: ${TEMPLATE_DIR}/template.yaml" >&2
+        echo "Template configuration file not found: ${TEMPLATE_DIR}/marsh-template.yaml" >&2
         return 1
     fi
     for TEMPLATE_OVERRIDE in "${TEMPLATE_OVERRIDES[@]}"; do
